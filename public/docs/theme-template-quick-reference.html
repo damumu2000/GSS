@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模板速查表</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f6fbf8;
+            --panel: #ffffff;
+            --panel-soft: #f8fcfa;
+            --line: #dbeae4;
+            --line-soft: #eaf3ef;
+            --text: #1f2937;
+            --text-soft: #667085;
+            --muted: #98a2b3;
+            --primary: #18b981;
+            --primary-soft: rgba(24, 185, 129, 0.10);
+            --shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            --radius-xl: 22px;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(24, 185, 129, 0.10), transparent 22%),
+                linear-gradient(180deg, #fbfefd 0%, var(--bg) 100%);
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .page {
+            width: min(1320px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 24px 0 36px;
+        }
+
+        .hero {
+            padding: 24px 26px;
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: var(--shadow);
+        }
+
+        .hero-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            align-items: flex-start;
+        }
+
+        .hero-mark {
+            width: 6px;
+            height: 32px;
+            border-radius: 999px;
+            background: var(--primary);
+            box-shadow: 0 0 0 8px rgba(24, 185, 129, 0.08);
+            flex-shrink: 0;
+        }
+
+        .hero-head {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 30px;
+            line-height: 1.2;
+        }
+
+        .hero p {
+            margin: 12px 0 0;
+            color: var(--text-soft);
+            font-size: 14px;
+            line-height: 1.85;
+            max-width: 860px;
+        }
+
+        .hero-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .hero-guides {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .hero-guide {
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--line-soft);
+            background: linear-gradient(180deg, rgba(24, 185, 129, 0.04), rgba(255, 255, 255, 0.96));
+        }
+
+        .hero-guide strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .hero-guide span {
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 0 12px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 240px minmax(0, 1fr);
+            gap: 18px;
+            margin-top: 20px;
+            align-items: start;
+        }
+
+        .sidebar {
+            position: sticky;
+            top: 18px;
+        }
+
+        .sidebar-card,
+        .section {
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        .sidebar-card {
+            padding: 18px;
+        }
+
+        .sidebar-card h2 {
+            margin: 0 0 14px;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        .nav-link {
+            display: block;
+            padding: 10px 12px;
+            border-radius: 12px;
+            color: var(--text-soft);
+            font-size: 14px;
+            line-height: 1.5;
+            transition: background 0.18s ease, color 0.18s ease;
+        }
+
+        .nav-link:hover,
+        .nav-link:focus-visible {
+            outline: none;
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+        .content {
+            display: grid;
+            gap: 16px;
+        }
+
+        .section {
+            padding: 22px 24px;
+        }
+
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .section-kicker {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .section h2 {
+            margin: 0;
+            font-size: 22px;
+            line-height: 1.35;
+        }
+
+        .section p {
+            margin: 10px 0 0;
+            color: var(--text-soft);
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .table-wrap {
+            margin-top: 16px;
+            overflow: auto;
+            border: 1px solid var(--line-soft);
+            border-radius: var(--radius-md);
+        }
+
+        table {
+            width: 100%;
+            min-width: 760px;
+            border-collapse: collapse;
+            background: #fff;
+        }
+
+        th,
+        td {
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--line-soft);
+            text-align: left;
+            vertical-align: top;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        tr:last-child td {
+            border-bottom: 0;
+        }
+
+        th {
+            background: var(--panel-soft);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        td {
+            color: var(--text-soft);
+        }
+
+        code,
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: #425466;
+        }
+
+        .code {
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--line-soft);
+            background: #f9fcfb;
+            overflow: auto;
+        }
+
+        .code-sample {
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--line-soft);
+            background: #f9fcfb;
+            overflow: auto;
+        }
+
+        .code pre,
+        .code-sample pre {
+            margin: 0;
+            color: #425466;
+            font-size: 13px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+
+        .tip {
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(180deg, rgba(24, 185, 129, 0.05), rgba(255, 255, 255, 0.95));
+            border: 1px solid rgba(24, 185, 129, 0.18);
+        }
+
+        .tip strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .tip span {
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .rules-list {
+            margin: 14px 0 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 10px;
+        }
+
+        .rules-list li {
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--line-soft);
+            background: #fbfefd;
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .rules-list strong {
+            color: var(--text);
+        }
+
+        .footer {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.8;
+            text-align: center;
+        }
+
+        @media (max-width: 1080px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+            }
+
+            .hero-guides {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .page {
+                width: calc(100% - 20px);
+                padding: 18px 0 28px;
+            }
+
+            .hero-top {
+                flex-direction: column;
+            }
+
+            .hero,
+            .section,
+            .sidebar-card {
+                padding: 18px;
+            }
+
+            .hero h1 {
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <section class="hero">
+            <div class="hero-top">
+                <div class="hero-head">
+                    <span class="hero-mark" aria-hidden="true"></span>
+                    <div>
+                        <h1>模板速查表</h1>
+                        <p>这份速查表就是模板系统当前的标准使用文档。先查站点信息、当前上下文和标签参数，再到下面直接复制常用片段。文档里出现的调用、参数名和示例，已经按当前模板引擎的实际能力整理过，可以直接照着写。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-tags">
+                <span class="tag">基础语法</span>
+                <span class="tag">站点信息</span>
+                <span class="tag">当前上下文</span>
+                <span class="tag">栏目</span>
+                <span class="tag">内容</span>
+                <span class="tag">图宣</span>
+                <span class="tag">留言板</span>
+                <span class="tag">文本与时间</span>
+                <span class="tag">详情页辅助</span>
+            </div>
+
+            <div class="hero-guides">
+                <div class="hero-guide">
+                    <strong>先查“站点信息”和“当前上下文”</strong>
+                    <span>页面标题、Logo、联系方式、当前栏目和当前内容，通常先从这两组里取。</span>
+                </div>
+                <div class="hero-guide">
+                    <strong>再按“栏目 / 内容 / 图宣”选标签</strong>
+                    <span>列表页先找查询标签，详情页再配合上一篇、下一篇和相关文章这类辅助标签。</span>
+                </div>
+                <div class="hero-guide">
+                    <strong>最后直接套用“常用片段”</strong>
+                    <span>示例已经按从简单到完整排序，适合先复制，再替换栏目别名、图宣位编码和展示样式。</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="layout">
+            <aside class="sidebar">
+                <div class="sidebar-card">
+                    <h2>快速跳转</h2>
+                    <a class="nav-link" href="#syntax">基础语法与限制</a>
+                    <a class="nav-link" href="#site-values">站点信息</a>
+                    <a class="nav-link" href="#context">当前上下文</a>
+                    <a class="nav-link" href="#channels">栏目参数</a>
+                    <a class="nav-link" href="#contents">内容参数</a>
+                    <a class="nav-link" href="#promos">图宣参数</a>
+                    <a class="nav-link" href="#formatters">文本与时间</a>
+                    <a class="nav-link" href="#detail-helpers">详情与导航辅助</a>
+                    <a class="nav-link" href="#guestbook">留言板模块参数</a>
+                    <a class="nav-link" href="#snippets">常用片段</a>
+                </div>
+            </aside>
+
+            <main class="content">
+                <section class="section" id="syntax">
+                    <div class="section-head">
+                        <h2>基础语法与限制</h2>
+                        <span class="section-kicker">先看这一节</span>
+                    </div>
+                    <p>模板只负责页面展示，不写业务逻辑。常用语法只有输出、赋值、条件、循环和模板引用这几类。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>语法</th>
+                                    <th>用途</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">{{ ... }}</td>
+                                    <td>输出变量、字段或调用结果。</td>
+                                    <td><code>{{ current.channel.name }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">{% set ... %}</td>
+                                    <td>先取值，再在后面重复使用。</td>
+                                    <td><code>{% set articles = contentList channel='news' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">{% if ... %}</td>
+                                    <td>根据条件控制是否输出。</td>
+                                    <td><code>{% if current.page.type == 'home' %}...{% endif %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">{% for ... %}</td>
+                                    <td>遍历列表。</td>
+                                    <td><code>{% for item in articles %}...{% endfor %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">{% include "..." %}</td>
+                                    <td>引用公共模板片段。</td>
+                                    <td><code>{% include "top" %}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="code-sample">
+<pre>{% include "top" %}
+
+{% set articles = contentList channel='news' limit=6 %}
+{% if articles %}
+  {% for item in articles %}
+    &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
+  {% endfor %}
+{% endif %}
+
+{% include "foot" %}</pre>
+                    </div>
+
+                    <ul class="rules-list">
+                        <li><strong>参数写法固定：</strong>所有参数都必须按 <code>key=value</code> 书写，只能使用文档列出的参数名。</li>
+                        <li><strong>模板名有格式限制：</strong>模板名和 <code>include</code> 引用名只支持字母、数字、短横线和下划线。</li>
+                        <li><strong>模板里不允许写 PHP：</strong>模板源码中不能出现 PHP 代码标签，保存时后端会直接拦截。</li>
+                    </ul>
+                </section>
+
+                <section class="section" id="site-values">
+                    <div class="section-head">
+                        <h2>站点信息</h2>
+                        <span class="section-kicker">固定资料统一从这里取</span>
+                    </div>
+                    <p><code>siteValue</code> 统一负责网站固定资料取值。网站名称、标识、Logo、联系方式、备案号、简介和 SEO 信息都从这里取。</p>
+
+                    <div class="code-sample">
+<pre>{{ siteValue key='name' default='网站名称' }}
+{{ siteValue key='site_key' }}
+{{ siteValue key='contact_phone' default='暂无电话' }}
+{{ siteValue key='icp_no' default='未备案' }}</pre>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>写法</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">id</td>
+                                    <td>站点 ID，适合调试或特殊判断。</td>
+                                    <td><code>{{ siteValue key='id' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">name</td>
+                                    <td>固定站点资料：网站名称。</td>
+                                    <td><code>{{ siteValue key='name' default='网站名称' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">site_key</td>
+                                    <td>站点标识。</td>
+                                    <td><code>{{ siteValue key='site_key' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">logo</td>
+                                    <td>网站 Logo 地址。</td>
+                                    <td><code>{{ siteValue key='logo' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">favicon</td>
+                                    <td>网站 favicon 地址。</td>
+                                    <td><code>{{ siteValue key='favicon' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contact_phone</td>
+                                    <td>固定站点资料：联系电话。</td>
+                                    <td><code>{{ siteValue key='contact_phone' default='暂无电话' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contact_email</td>
+                                    <td>固定站点资料：联系邮箱。</td>
+                                    <td><code>{{ siteValue key='contact_email' default='暂无邮箱' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">address</td>
+                                    <td>固定站点资料：联系地址。</td>
+                                    <td><code>{{ siteValue key='address' default='暂无地址' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">icp_no</td>
+                                    <td>固定站点资料：备案号。</td>
+                                    <td><code>{{ siteValue key='icp_no' default='未备案' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">remark</td>
+                                    <td>网站简介或备注。</td>
+                                    <td><code>{{ siteValue key='remark' default='这里放网站简介' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">seo_title</td>
+                                    <td>固定站点资料：SEO 标题。</td>
+                                    <td><code>{{ siteValue key='seo_title' default='网站名称' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">seo_keywords</td>
+                                    <td>固定站点资料：SEO 关键词。</td>
+                                    <td><code>{{ siteValue key='seo_keywords' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">seo_description</td>
+                                    <td>固定站点资料：SEO 描述。</td>
+                                    <td><code>{{ siteValue key='seo_description' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">home_url</td>
+                                    <td>网站首页地址。</td>
+                                    <td><code>{{ siteValue key='home_url' }}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="code-sample">
+<pre>&lt;div class="site-meta"&gt;
+  &lt;span&gt;电话：{{ siteValue key='contact_phone' default='暂无电话' }}&lt;/span&gt;
+  &lt;span&gt;地址：{{ siteValue key='address' default='暂无地址' }}&lt;/span&gt;
+  &lt;span&gt;备案：{{ siteValue key='icp_no' default='未备案' }}&lt;/span&gt;
+&lt;/div&gt;
+
+&lt;title&gt;{{ siteValue key='seo_title' default='网站名称' }}&lt;/title&gt;
+&lt;meta name="keywords" content="{{ siteValue key='seo_keywords' }}"&gt;
+&lt;meta name="description" content="{{ siteValue key='seo_description' }}"&gt;</pre>
+                    </div>
+                </section>
+
+                <section class="section" id="context">
+                    <div class="section-head">
+                        <h2>当前上下文</h2>
+                        <span class="section-kicker">判断当前页面正在展示什么</span>
+                    </div>
+                    <p>用来判断当前页面正在展示什么。标题、面包屑、详情页上下文通常都从这里取。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>参数</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">current.page.type</td>
+                                    <td>当前页面类型，常见值有 <code>home</code>、<code>channel</code>、<code>article</code>、<code>page</code>。</td>
+                                    <td><code>{% if current.page.type == 'home' %}...{% endif %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.page.scope</td>
+                                    <td>当前页面作用域。</td>
+                                    <td><code>{{ current.page.scope }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.page.template_name</td>
+                                    <td>当前页面模板名。</td>
+                                    <td><code>{{ current.page.template_name }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.channel.id</td>
+                                    <td>当前栏目 ID。</td>
+                                    <td><code>{{ current.channel.id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.channel.name</td>
+                                    <td>当前栏目名称。</td>
+                                    <td><code>{{ current.channel.name }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.channel.slug</td>
+                                    <td>当前栏目别名。</td>
+                                    <td><code>{{ current.channel.slug }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.content.id</td>
+                                    <td>当前内容 ID。</td>
+                                    <td><code>{{ current.content.id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.content.title</td>
+                                    <td>当前内容标题，详情页最常用。</td>
+                                    <td><code>{{ current.content.title }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.content.channel_id</td>
+                                    <td>当前内容所属栏目 ID，可配合详情页辅助标签使用。</td>
+                                    <td><code>{{ current.content.channel_id }}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section" id="channels">
+                    <div class="section-head">
+                        <h2>栏目参数</h2>
+                        <span class="section-kicker">导航、子栏目、面包屑</span>
+                    </div>
+                    <p>适合做导航、子栏目入口、面包屑、栏目切换和栏目定向展示。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>调用 / 参数</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">channel</td>
+                                    <td>取单个栏目。不传参数时默认取当前栏目。</td>
+                                    <td><code>{% set currentChannel = channel %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channel id / slug</td>
+                                    <td>按栏目 ID 或栏目别名取单个栏目。</td>
+                                    <td><code>{% set currentChannel = channel slug='news' %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">children</td>
+                                    <td>取直属子栏目。</td>
+                                    <td><code>{% set childChannels = children channel_id=current.channel.id limit=8 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">parent</td>
+                                    <td>取当前栏目的上级栏目。</td>
+                                    <td><code>{% set parentChannel = parent channel_id=current.channel.id %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">siblings</td>
+                                    <td>取同级栏目。</td>
+                                    <td><code>{% set siblingChannels = siblings channel_id=current.channel.id limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">breadcrumb</td>
+                                    <td>取面包屑路径。</td>
+                                    <td><code>{% set trail = breadcrumb channel_id=current.channel.id %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">linkTo</td>
+                                    <td>统一生成栏目、文章、单页和首页地址。</td>
+                                    <td><code>{{ linkTo type='channel' slug=current.channel.slug }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">linkTo home / channel / article / page</td>
+                                    <td>支持首页、栏目、文章、单页四种链接类型，也可配合 <code>id</code>、<code>channel_id</code>、<code>slug</code>、<code>default</code> 使用。</td>
+                                    <td><code>{{ linkTo type='home' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels parent_id / status / type / slug</td>
+                                    <td>按父级、状态、类型或别名筛选栏目。</td>
+                                    <td><code>{% set pageChannels = channels type='page' status=1 limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels is_nav=true</td>
+                                    <td>取导航栏目。</td>
+                                    <td><code>{% set navChannels = channels is_nav=true limit=8 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels include_ids</td>
+                                    <td>只返回指定栏目 ID。</td>
+                                    <td><code>{% set pickedChannels = channels include_ids='2,3,4' limit=3 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels exclude_ids</td>
+                                    <td>排除某些栏目 ID。</td>
+                                    <td><code>{% set list = channels exclude_ids='6,7' %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels keyword</td>
+                                    <td>按栏目名称搜索。</td>
+                                    <td><code>{% set searchedChannels = channels keyword='公告' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels fields</td>
+                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td><code>{% set liteChannels = channels fields='name,url' limit=5 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels random</td>
+                                    <td>随机返回栏目顺序。</td>
+                                    <td><code>{% set randomChannels = channels random=true limit=4 %}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section" id="contents">
+                    <div class="section-head">
+                        <h2>内容参数</h2>
+                        <span class="section-kicker">列表页最常用</span>
+                    </div>
+                    <p>内容查询是模板里最常用的一组能力，适合列表页、首页资讯区、固定推荐和随机推荐。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>调用 / 参数</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">content</td>
+                                    <td>按内容 ID 取单条内容。</td>
+                                    <td><code>{% set notice = content id=12 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contentList type / status</td>
+                                    <td>按内容类型和状态筛选，默认文章会取已发布内容。</td>
+                                    <td><code>{% set pages = contentList type='page' status='published' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">linkTo</td>
+                                    <td>内容地址统一用 <code>linkTo</code> 生成。</td>
+                                    <td><code>{{ linkTo type='article' id=12 }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contentList channel</td>
+                                    <td>按栏目别名取列表。</td>
+                                    <td><code>{% set articles = contentList channel='news' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contentList channel_id</td>
+                                    <td>按栏目 ID 取列表。</td>
+                                    <td><code>{% set articles = contentList channel_id=current.channel.id limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contentList channel_slug</td>
+                                    <td>按栏目别名筛选内容。</td>
+                                    <td><code>{% set articles = contentList channel_slug='news' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">offset</td>
+                                    <td>跳过前几条内容。</td>
+                                    <td><code>{% set secondGroup = contentList channel='news' limit=4 offset=4 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">with_cover</td>
+                                    <td>只取带封面图的内容，和 <code>has_image</code> 作用一致。</td>
+                                    <td><code>{% set coverArticles = contentList channel='news' with_cover=true limit=4 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">has_image</td>
+                                    <td>只取有封面图的内容。</td>
+                                    <td><code>{% set imageArticles = contentList channel='news' has_image=true limit=4 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">keyword</td>
+                                    <td>按标题和摘要模糊搜索。</td>
+                                    <td><code>{% set filteredArticles = contentList keyword='公告' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">published_after / published_before</td>
+                                    <td>按发布时间范围筛选。</td>
+                                    <td><code>{% set list = contentList published_after='2026-04-01 00:00:00' published_before='2026-04-30 23:59:59' %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">order_by / order_dir</td>
+                                    <td>自定义排序字段和方向。</td>
+                                    <td><code>{% set list = contentList order_by='published_at' order_dir='desc' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">order</td>
+                                    <td>使用预设排序，例如 <code>published_at_desc</code>、<code>updated_at_desc</code>、<code>id_desc</code>。</td>
+                                    <td><code>{% set list = contentList order='updated_at_desc' limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">include_ids / exclude_ids</td>
+                                    <td>定向包含或排除内容。</td>
+                                    <td><code>{% set focusArticles = contentList include_ids='12,15,18' limit=3 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">author / source</td>
+                                    <td>按作者、来源筛选。</td>
+                                    <td><code>{% set officeArticles = contentList author='教务处' source='官网' limit=4 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">is_top / is_recommend</td>
+                                    <td>按置顶或推荐标记筛选。</td>
+                                    <td><code>{% set topArticles = contentList channel='news' is_top=true limit=5 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">random</td>
+                                    <td>随机返回内容。</td>
+                                    <td><code>{% set randomArticles = contentList channel='news' random=true limit=3 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">fields</td>
+                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td><code>{% set liteArticles = contentList fields='title,url,published_at' limit=4 %}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section" id="promos">
+                    <div class="section-head">
+                        <h2>图宣参数</h2>
+                        <span class="section-kicker">轮播、横幅、视觉位</span>
+                    </div>
+                    <p>适合首页轮播、悬浮图、横幅区和模板专属视觉位。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>调用 / 参数</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">promo</td>
+                                    <td>取单条图宣，可直接写 <code>code</code>。</td>
+                                    <td><code>{% set banner = promo code='home_banner' %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">promos</td>
+                                    <td>取多条图宣。</td>
+                                    <td><code>{% set banners = promos code='home_banner' limit=5 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">promo / promos 直接写 code</td>
+                                    <td>图宣位编码是最常用的入口，也可以直接把编码作为首个值传入。</td>
+                                    <td><code>{% set banner = promo 'home_banner' %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">code</td>
+                                    <td>图宣位编码，最常用。</td>
+                                    <td><code>{% set banners = promos code='home_banner' %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">display_mode</td>
+                                    <td>按展示模式筛选。</td>
+                                    <td><code>{% set floats = promos display_mode='floating' limit=2 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">page_scope</td>
+                                    <td>按页面作用域筛选。</td>
+                                    <td><code>{% set list = promos page_scope='home' %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channel_id / channel_slug</td>
+                                    <td>按栏目范围筛选。</td>
+                                    <td><code>{% set list = promos channel_slug=current.channel.slug %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">template_name</td>
+                                    <td>按模板名筛选。</td>
+                                    <td><code>{% set list = promos template_name=current.page.template_name %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">random</td>
+                                    <td>随机返回图宣顺序。</td>
+                                    <td><code>{% set randomPromos = promos code='home_banner' random=true limit=2 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">fields</td>
+                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td><code>{% set litePromos = promos code='home_banner' fields='title,image_url,link_url' limit=3 %}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section" id="formatters">
+                    <div class="section-head">
+                        <h2>文本与时间</h2>
+                        <span class="section-kicker">对已取到的数据做加工</span>
+                    </div>
+                    <p>这组工具用来处理已经拿到的数据，最常用于标题、摘要、作者、日期和说明文字。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>工具</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">plainText</td>
+                                    <td>去掉 HTML 标签，保留纯文本。</td>
+                                    <td><code>{% set plainSummary = plainText value=item.summary %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">truncate</td>
+                                    <td>按字符数截断文本。</td>
+                                    <td><code>{% set shortTitle = truncate value=item.title length=28 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">valueOr</td>
+                                    <td>值为空时输出默认值。</td>
+                                    <td><code>{{ valueOr value=item.author default='本站编辑' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">formatDate</td>
+                                    <td>格式化日期或日期时间。</td>
+                                    <td><code>{{ formatDate value=item.published_at format='m-d' default='--' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">timeAgo</td>
+                                    <td>输出相对时间。</td>
+                                    <td><code>{{ timeAgo value=item.published_at default='--' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">textToHtml</td>
+                                    <td>把换行转成 <code>&lt;br&gt;</code>。</td>
+                                    <td><code>{{ textToHtml value=item.summary }}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section" id="detail-helpers">
+                    <div class="section-head">
+                        <h2>详情与导航辅助</h2>
+                        <span class="section-kicker">详情页和公共区块常用</span>
+                    </div>
+                    <p>适合详情页上下篇、相关文章、导航区和统计区。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>调用</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">nav</td>
+                                    <td>快速返回导航栏目列表，本质上等同于导航栏目快捷调用。</td>
+                                    <td><code>{% set navItems = nav limit=8 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">stats</td>
+                                    <td>返回站点统计数据，包含 <code>channels</code>、<code>articles</code>、<code>pages</code>、<code>status</code>。</td>
+                                    <td><code>{% set siteStats = stats %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">previous / next</td>
+                                    <td>取当前内容的上一篇和下一篇，通常传 <code>article</code>、<code>page</code> 或 <code>current.content</code>。</td>
+                                    <td><code>{% set previousItem = previous current.content %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">related</td>
+                                    <td>取当前内容的相关文章，通常传 <code>article</code>、<code>page</code> 或 <code>current.content</code>。</td>
+                                    <td><code>{% set relatedItems = related current.content limit=4 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">first</td>
+                                    <td>从列表里取第一条。</td>
+                                    <td><code>{% set firstRelated = first relatedItems %}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section" id="guestbook">
+                    <div class="section-head">
+                        <h2>留言板模块参数</h2>
+                        <span class="section-kicker">参数和范例一起看</span>
+                    </div>
+                    <p>适合首页“最新留言”“办结反馈”“互动统计”这类区块。模板标签会自动联动留言板模块开关、是否显示姓名，以及“回复后才显示”的前台公开规则。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>调用 / 参数</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">guestbookStats</td>
+                                    <td>返回留言板模块状态和公开统计，适合先判断模块是否可用。</td>
+                                    <td><code>{% set guestbook = guestbookStats %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">guestbookStats.enabled</td>
+                                    <td>留言板是否启用。启用时返回 <code>1</code>，关闭或未绑定时返回 <code>0</code>。</td>
+                                    <td><code>{% if guestbook.enabled %}...{% endif %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">guestbookStats.message</td>
+                                    <td>留言板关闭时的提示文案，例如“留言板模块已关闭”。</td>
+                                    <td><code>{{ guestbook.message }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">guestbookStats.total / replied / pending</td>
+                                    <td>公开口径下的留言统计。会自动联动“回复后才显示”。</td>
+                                    <td><code>{{ guestbook.total }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">guestbookStats.latest_created_at_label</td>
+                                    <td>最近一条公开留言的日期文本。</td>
+                                    <td><code>{{ guestbook.latest_created_at_label }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">guestbookMessages</td>
+                                    <td>返回公开留言列表。姓名会自动按留言板设置决定是否脱敏。</td>
+                                    <td><code>{% set messages = guestbookMessages limit=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">limit / offset</td>
+                                    <td>控制留言条数和起始位置。</td>
+                                    <td><code>{% set messages = guestbookMessages limit=6 offset=6 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">status</td>
+                                    <td>按状态筛选，可选 <code>pending</code> 或 <code>replied</code>。如果站点设置为“回复后才显示”，未回复数据不会被公开返回。</td>
+                                    <td><code>{% set repliedMessages = guestbookMessages status='replied' limit=4 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">order</td>
+                                    <td>排序支持 <code>created_at_desc</code>、<code>created_at_asc</code>、<code>replied_at_desc</code>、<code>replied_at_asc</code>。</td>
+                                    <td><code>{% set messages = guestbookMessages order='replied_at_desc' limit=4 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">fields</td>
+                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td><code>{% set liteMessages = guestbookMessages fields='display_no,name,summary,detail_url' limit=5 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">返回字段</td>
+                                    <td>常用字段包括 <code>display_no</code>、<code>name</code>、<code>summary</code>、<code>reply_summary</code>、<code>status_label</code>、<code>created_at_label</code>、<code>replied_at_label</code>、<code>detail_url</code>。</td>
+                                    <td><code>{{ item.reply_summary }}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set guestbook = guestbookStats %}
+
+{% if guestbook.enabled %}
+    {% set messages = guestbookMessages limit=4 order='created_at_desc' %}
+    {% for item in messages %}
+        &lt;article class="feedback-card"&gt;
+            &lt;h3&gt;{{ item.display_no }} {{ item.name }}&lt;/h3&gt;
+            &lt;p&gt;{{ item.summary }}&lt;/p&gt;
+            {% if item.reply_summary %}
+                &lt;div class="feedback-reply"&gt;{{ item.reply_summary }}&lt;/div&gt;
+            {% endif %}
+            &lt;time&gt;{{ item.created_at_label }}&lt;/time&gt;
+            &lt;a href="{{ item.detail_url }}"&gt;查看详情&lt;/a&gt;
+        &lt;/article&gt;
+    {% endfor %}
+{% else %}
+    &lt;div class="feedback-empty"&gt;{{ guestbook.message }}&lt;/div&gt;
+{% endif %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例：首页留言反馈区</strong>
+                        <span>先用 <code>guestbookStats</code> 判断留言板是否启用，再决定是否查询 <code>guestbookMessages</code>。这样可以同时兼顾模块关闭提示、姓名脱敏规则和“回复后才显示”的公开规则，适合首页互动反馈区。</span>
+                    </div>
+                </section>
+
+                <section class="section" id="snippets">
+                    <div class="section-head">
+                        <h2>常用片段</h2>
+                        <span class="section-kicker">从简单到完整直接套用</span>
+                    </div>
+                    <p>下面这些范例按“从简单到完整”的顺序整理。每段代码都可以直接复制，再把栏目别名、图宣位编码、数量和样式类名替换成自己的版本。</p>
+
+                    <div class="code">
+                        <pre>{% set articles = contentList channel='news' limit=6 %}
+{% for item in articles %}
+    &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 1：最基础的文章列表</strong>
+                        <span>用了 <code>channel='news'</code> 和 <code>limit=6</code> 两个参数，从 <code>news</code> 栏目里取最新 6 篇文章，然后循环输出标题和链接。适合首页资讯区、列表入口和侧栏文章列表。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set topArticles = contentList channel='news' is_top=true has_image=true order_by='published_at' order_dir='desc' limit=4 %}
+{% for item in topArticles %}
+    {% set plainSummary = plainText value=item.summary %}
+    {% set shortSummary = truncate value=plainSummary length=60 %}
+    &lt;article class="news-card"&gt;
+        &lt;img src="{{ item.cover_image }}" alt="{{ item.title }}"&gt;
+        &lt;h3&gt;&lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;&lt;/h3&gt;
+        &lt;p&gt;{{ shortSummary }}&lt;/p&gt;
+        &lt;time&gt;{{ formatDate value=item.published_at format='Y-m-d' default='--' }}&lt;/time&gt;
+    &lt;/article&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 2：带筛选和格式化的推荐文章卡片</strong>
+                        <span>用了 <code>is_top</code>、<code>has_image</code>、<code>order_by</code>、<code>order_dir</code> 和 <code>limit</code>。效果是只取有封面图的置顶文章，并按发布时间倒序显示。后面又配合 <code>plainText</code>、<code>truncate</code> 和 <code>formatDate</code> 做摘要清洗、截断和日期格式化，适合首页头条卡片区。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set focusIds = '12,15,18' %}
+{% set focusArticles = contentList include_ids=focusIds fields='title,url,published_at' order_by='id' order_dir='asc' %}
+{% set moreArticles = contentList channel='news' exclude_ids=focusIds limit=6 %}
+
+{% for item in focusArticles %}
+    &lt;a class="focus-link" href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
+{% endfor %}
+
+{% for item in moreArticles %}
+    &lt;a class="more-link" href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 3：固定推荐和普通列表拆开展示</strong>
+                        <span>第一组用了 <code>include_ids</code> 固定指定文章，并通过 <code>fields</code> 只返回需要字段；第二组用了 <code>exclude_ids</code> 把这些文章排除掉，再补一组普通列表。适合首页“重点推荐 + 更多资讯”的双区块布局。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set pageItems = contentList type='page' status='published' order='updated_at_desc' limit=6 %}
+{% for item in pageItems %}
+    &lt;a href="{{ linkTo type='page' id=item.id default='#' }}"&gt;{{ item.title }}&lt;/a&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 4：单页列表和统一链接输出</strong>
+                        <span>这段调用用了 <code>type='page'</code>、<code>status='published'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来取最近更新的单页。输出链接时再配合 <code>linkTo type='page' id=item.id default='#'</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set banners = promos code='home_banner' limit=5 %}
+{% for item in banners %}
+    &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt;
+        &lt;img src="{{ item.image_url }}" alt="{{ item.title }}"&gt;
+    &lt;/a&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 5：基础轮播图调用</strong>
+                        <span>用了 <code>promos</code>、<code>code='home_banner'</code> 和 <code>limit=5</code>。作用是读取图宣位编码为 <code>home_banner</code> 的前 5 张图，并输出图片、跳转地址和打开方式。适合首页轮播、横幅区和头部视觉位。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set banner = promo 'home_banner' %}
+{% if banner %}
+    &lt;a href="{{ banner.link_url }}" target="{{ banner.link_target }}"&gt;
+        &lt;img src="{{ banner.image_url }}" alt="{{ banner.title }}"&gt;
+    &lt;/a&gt;
+{% endif %}
+
+{% set scopedPromos = promos page_scope='home' template_name=current.page.template_name random=true limit=2 %}
+{% for item in scopedPromos %}
+    &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt;{{ item.title }}&lt;/a&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 6：单条图宣和模板范围图宣</strong>
+                        <span>第一段直接用 <code>promo 'home_banner'</code> 取一条图宣，适合页面主视觉。第二段用了 <code>page_scope</code>、<code>template_name</code>、<code>random</code> 和 <code>limit</code>，会根据当前页面模板取一组更贴近当前场景的图宣，适合模板专属广告位或活动位。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set previousItem = previous article %}
+{% set nextItem = next article %}
+{% set relatedItems = related article limit=4 %}
+
+{% if previousItem %}
+    &lt;a href="{{ previousItem.url }}"&gt;上一篇：{{ previousItem.title }}&lt;/a&gt;
+{% endif %}
+{% if nextItem %}
+    &lt;a href="{{ nextItem.url }}"&gt;下一篇：{{ nextItem.title }}&lt;/a&gt;
+{% endif %}
+
+{% for item in relatedItems %}
+    &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 7：详情页上一篇、下一篇和相关文章</strong>
+                        <span>用了 <code>previous</code>、<code>next</code> 和 <code>related limit=4</code>。它会基于当前详情页内容，自动取出上一篇、下一篇和 4 条相关文章，适合文章详情页底部的延伸阅读区。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set coverArticles = contentList channel='news' with_cover=true limit=5 %}
+{% set firstArticle = first coverArticles %}
+
+{% if firstArticle %}
+    &lt;article class="hero-article"&gt;
+        &lt;img src="{{ firstArticle.cover_image }}" alt="{{ firstArticle.title }}"&gt;
+        &lt;h3&gt;&lt;a href="{{ firstArticle.url }}"&gt;{{ firstArticle.title }}&lt;/a&gt;&lt;/h3&gt;
+    &lt;/article&gt;
+{% endif %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 8：从列表里取第一条做头图</strong>
+                        <span>这段调用用了 <code>with_cover=true</code> 先筛出带封面的文章，再用 <code>first</code> 从结果里取第一条，适合首页头图、焦点新闻大卡片这类“首条单独展示”的结构。</span>
+                    </div>
+
+                    <div class="code">
+                        <pre>{% set navChannels = channels is_nav=true limit=8 fields='name,url' %}
+{% for item in navChannels %}
+    &lt;a href="{{ item.url }}"&gt;{{ item.name }}&lt;/a&gt;
+{% endfor %}
+
+{% set breadcrumbs = breadcrumb channel_id=current.channel.id %}
+{% for item in breadcrumbs %}
+    &lt;a href="{{ item.url }}"&gt;{{ item.name }}&lt;/a&gt;
+{% endfor %}</pre>
+                    </div>
+                    <div class="tip">
+                        <strong>范例 9：导航栏和面包屑</strong>
+                        <span>第一段用了 <code>channels is_nav=true limit=8 fields='name,url'</code>，只取导航栏目常用字段。第二段用了 <code>breadcrumb channel_id=current.channel.id</code> 生成当前栏目路径。适合页面头部导航和栏目页面包屑。</span>
+                    </div>
+
+                    <div class="tip">
+                        <strong>使用建议</strong>
+                        <span>优先先定页面结构，再选对应的栏目、内容或图宣调用。模板里只做展示与字段组合，业务逻辑和权限控制放在后台处理。</span>
+                    </div>
+                </section>
+
+                <div class="footer">
+                    模板速查表是当前模板系统的标准使用文档。后续如果新增模板标签、参数或工具函数，应同步更新本页，保持调用能力与文档一致。
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

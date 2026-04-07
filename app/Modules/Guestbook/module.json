@@ -1,0 +1,33 @@
+{
+  "name": "留言板",
+  "code": "guestbook",
+  "version": "1.0.0",
+  "scope": "site",
+  "author": "官闪闪",
+  "description": "站点留言展示、留言提交、验证码校验与后台回复管理模块。",
+  "default_enabled": false,
+  "sort": 10,
+  "site_entry_route": "admin.guestbook.index",
+  "settings": [
+    "留言板启用状态",
+    "留言板名称",
+    "模板选择",
+    "发布须知",
+    "发布须知背景图",
+    "前台是否显示全名",
+    "是否回复后才展示",
+    "验证码开关"
+  ],
+  "permissions": [
+    "guestbook.view",
+    "guestbook.manage",
+    "guestbook.reply",
+    "guestbook.setting"
+  ],
+  "tables": [
+    "module_guestbook_messages"
+  ],
+  "notes": [
+    "前台默认提供留言列表与留言提交页，后台提供列表、查询、回复与设置。"
+  ]
+}

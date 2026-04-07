@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ $disabledTitle ?? '工资查询暂未开放' }} - {{ $site->name }}</title>
+    <style>
+        :root {
+            --bg: #eaf4ff;
+            --panel: rgba(255,255,255,0.84);
+            --line: rgba(116,151,191,0.18);
+            --text: #1f2937;
+            --muted: #8a94a6;
+            --primary: #4da2ff;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: linear-gradient(180deg, #eff7ff 0%, #e8f2ff 100%); color: var(--text); font-family: "PingFang SC","Microsoft YaHei",sans-serif; }
+        .shell { width: min(440px, calc(100% - 24px)); margin: 0 auto; min-height: 100vh; padding: 14px 0 28px; }
+        .topbar { text-align: center; color: #111827; font-size: 22px; font-weight: 700; }
+        .subbar { margin-top: 4px; text-align: center; color: var(--muted); font-size: 12px; }
+        .panel {
+            margin-top: 18px;
+            padding: 24px 20px;
+            border-radius: 22px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            box-shadow: 0 18px 36px rgba(37,119,216,0.08);
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+        .icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 16px;
+            border-radius: 18px;
+            background: rgba(77,162,255,0.10);
+            color: var(--primary);
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .title { margin: 0; font-size: 24px; font-weight: 700; color: #111827; }
+        .desc { margin-top: 14px; color: #667085; font-size: 15px; line-height: 1.9; }
+        .note {
+            margin-top: 16px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(116,151,191,0.18);
+            color: #98a2b3;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+        .actions {
+            display: inline-flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 120px;
+            height: 42px;
+            padding: 0 22px;
+            border-radius: 12px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .button.secondary {
+            background: #fff;
+            color: #1f2937;
+            border: 1px solid rgba(116,151,191,0.24);
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <div class="topbar">工资查询</div>
+        <div class="subbar">{{ $site->name }}</div>
+
+        <section class="panel">
+            <div class="icon">薪</div>
+            <h1 class="title">{{ $disabledTitle ?? '工资查询暂未开放' }}</h1>
+            <div class="desc">{{ $disabledMessage ?? $settings['registration_disabled_message'] }}</div>
+            <div class="note">如当前站点已经完成微信登录配置，建议从微信入口重新进入；如仍无法访问，请联系管理员检查模块状态、微信配置与员工审核状态。</div>
+            <div class="actions">
+                <a class="button secondary" href="{{ route('site.payroll.index', $siteQuery) }}">重新进入</a>
+                <a class="button" href="{{ route('site.payroll.wechat.redirect', $siteQuery) }}">尝试微信登录</a>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

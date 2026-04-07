@@ -1,0 +1,971 @@
+@extends('layouts.admin')
+
+@section('title', '文章审核 - ' . app(\App\Support\SystemSettings::class)->string('system.name', (string) config('app.name')))
+@section('breadcrumb', '后台管理 / 文章审核')
+
+@push('styles')
+    @include('admin.site._custom_select_styles')
+    <style>
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            align-items: flex-start;
+            padding: 24px 32px;
+            margin: -28px -28px 24px;
+            background: #ffffff;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .page-header-title {
+            margin: 0;
+            color: #262626;
+            font-size: 20px;
+            line-height: 1.4;
+            font-weight: 700;
+        }
+
+        .page-header-desc {
+            margin-top: 8px;
+            color: #8c8c8c;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .panel.review-page-panel {
+            overflow: visible;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+        }
+
+        .review-summary-pills {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .review-summary-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 36px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid #e9edf3;
+            background: #fff;
+            color: #475467;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
+        .review-summary-pill strong {
+            color: #1f2937;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .review-summary-pill:hover {
+            transform: translateY(-1px);
+        }
+
+        .review-summary-pill.is-pending {
+            background: rgba(245, 158, 11, 0.06);
+            border-color: rgba(245, 158, 11, 0.14);
+        }
+
+        .review-summary-pill.is-rejected {
+            background: rgba(239, 68, 68, 0.05);
+            border-color: rgba(239, 68, 68, 0.12);
+        }
+
+        .review-filter-card {
+            padding: 20px 22px;
+            border: 1px solid #eef1f5;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        .review-filter-grid {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) minmax(240px, 0.9fr) minmax(108px, 0.32fr) auto;
+            gap: 16px;
+            align-items: end;
+        }
+
+        .review-filter-grid label {
+            display: block;
+            margin-bottom: 8px;
+            color: #8c8c8c;
+            font-size: 12px;
+            line-height: 1.4;
+            font-weight: 600;
+        }
+
+        .review-filter-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            padding-bottom: 2px;
+        }
+
+        .review-table-wrap {
+            border: 1px solid #eef1f5;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .review-list-panel {
+            margin-top: 18px;
+            padding: 20px 22px;
+            border: 1px solid #eef1f5;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        .review-list-panel .panel-header {
+            margin-bottom: 18px;
+        }
+
+        .review-table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+        }
+
+        .review-table thead th {
+            padding: 18px 16px;
+            background: #fafbfc;
+            color: #8c8c8c;
+            font-size: 12px;
+            line-height: 1.4;
+            font-weight: 700;
+            border-bottom: 1px solid #eef1f5;
+            text-align: left;
+        }
+
+        .review-table tbody td {
+            padding: 18px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.6;
+            vertical-align: top;
+        }
+
+        .review-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .review-table th:nth-child(1),
+        .review-table td:nth-child(1) {
+            width: 38px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .review-table th:nth-child(2),
+        .review-table td:nth-child(2) {
+            width: 42%;
+            padding-left: 4px;
+            vertical-align: middle;
+        }
+
+        .review-table th:nth-child(3),
+        .review-table td:nth-child(3) {
+            width: 11%;
+        }
+
+        .review-table th:nth-child(4),
+        .review-table td:nth-child(4) {
+            width: 8%;
+        }
+
+        .review-table th:nth-child(5),
+        .review-table td:nth-child(5) {
+            width: 11%;
+        }
+
+        .review-table th:nth-child(6),
+        .review-table td:nth-child(6) {
+            width: 11%;
+        }
+
+        .review-table th:nth-child(7),
+        .review-table td:nth-child(7) {
+            width: 16%;
+        }
+
+        .review-checkbox {
+            display: block;
+            width: 16px;
+            height: 16px;
+            margin: 0 auto;
+            border-radius: 4px;
+        }
+
+        .review-title {
+            color: #1f2937;
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.6;
+            display: block;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .review-channel-tag,
+        .review-status-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 28px;
+            padding: 0 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .review-channel-tag {
+            position: relative;
+            color: #4b5563;
+            display: inline-flex;
+            align-items: center;
+            padding: 0;
+            min-height: auto;
+            border-radius: 0;
+            background: transparent;
+            font-weight: 600;
+            max-width: 100%;
+        }
+
+        .review-channel-tag-label {
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .review-channel-tag-more {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 18px;
+            margin-left: 6px;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: rgba(0, 71, 171, 0.08);
+            color: var(--primary, #0047AB);
+            font-size: 10px;
+            line-height: 18px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            box-shadow: inset 0 0 0 1px rgba(0, 71, 171, 0.12);
+            vertical-align: middle;
+        }
+
+        .review-status-pill.is-pending {
+            background: rgba(245, 158, 11, 0.12);
+            color: #b45309;
+        }
+
+        .review-status-pill.is-rejected {
+            background: rgba(239, 68, 68, 0.1);
+            color: #c2410c;
+        }
+
+        .review-meta {
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .review-reject-note {
+            margin-top: 6px;
+            color: #b45309;
+            font-size: 12px;
+            line-height: 1.6;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .review-reject-meta {
+            margin-top: 6px;
+            color: #8c8c8c;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .review-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .review-bulk-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 6px 0;
+        }
+
+        .review-bulk-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .review-record-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 34px;
+            padding: 0 14px;
+            border-radius: 999px;
+            background: #f5f7fb;
+            color: #4b5563;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .review-link,
+        .review-danger {
+            position: relative;
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            border: 1px solid #e7ebf1;
+            background: #fff;
+            color: #667085;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
+        .review-link::after,
+        .review-danger::after {
+            content: attr(data-tip);
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 10px);
+            transform: translateX(-50%) translateY(4px);
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #1f2937;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.2);
+            z-index: 20;
+        }
+
+        .review-link svg,
+        .review-danger svg {
+            width: 17px;
+            height: 17px;
+            stroke: currentColor;
+            stroke-width: 1.9;
+            fill: none;
+        }
+
+        .review-link:hover {
+            border-color: #d8e0ea;
+            background: #f8fafc;
+            color: #344054;
+            transform: translateY(-1px);
+        }
+
+        .review-link:hover::after,
+        .review-link:focus-visible::after,
+        .review-danger:hover::after,
+        .review-danger:focus-visible::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .review-link.is-approve:hover {
+            border-color: rgba(16, 185, 129, 0.18);
+            background: rgba(16, 185, 129, 0.06);
+            color: #059669;
+        }
+
+        .review-danger {
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .review-danger:hover {
+            border-color: rgba(239, 68, 68, 0.18);
+            background: rgba(239, 68, 68, 0.06);
+            color: #ef4444;
+            transform: translateY(-1px);
+        }
+
+        .review-pagination {
+            padding: 18px 6px 4px;
+        }
+
+        .review-pagination nav {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            padding-top: 2px;
+        }
+
+        .review-pagination .pagination-shell {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: nowrap;
+            min-width: max-content;
+        }
+
+        .review-pagination .pagination-pages {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .review-pagination .pagination-button,
+        .review-pagination .pagination-page,
+        .review-pagination .pagination-ellipsis {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 32px;
+            min-width: 32px;
+            padding: 0 12px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #4b5563;
+            font-size: 13px;
+            line-height: 1;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .review-pagination .pagination-page {
+            width: 32px;
+            padding: 0;
+        }
+
+        .review-pagination .pagination-button {
+            border: 0;
+            background: transparent;
+            min-width: auto;
+            padding: 0 4px;
+            color: #4b5563;
+        }
+
+        .review-pagination .pagination-button:hover,
+        .review-pagination .pagination-page:hover {
+            transform: translateY(-1px);
+            background: #f9fafb;
+            border-color: #d1d5db;
+        }
+
+        .review-pagination .pagination-button:hover {
+            background: transparent;
+            border-color: transparent;
+            color: #262626;
+        }
+
+        .review-pagination .pagination-page.is-active,
+        .review-pagination .pagination-page.is-active:visited {
+            border-color: #374151 !important;
+            background: #374151 !important;
+            color: #ffffff !important;
+            font-weight: 600;
+            transform: none;
+        }
+
+        .review-pagination .pagination-button.is-disabled,
+        .review-pagination .pagination-page.is-disabled,
+        .review-pagination .pagination-ellipsis {
+            color: #c0c4cc;
+            cursor: not-allowed;
+        }
+
+        .review-pagination .pagination-button.is-disabled:hover,
+        .review-pagination .pagination-page.is-disabled:hover {
+            transform: none;
+            background: #ffffff;
+            border-color: #e5e7eb;
+        }
+
+        .review-pagination .pagination-button.is-disabled,
+        .review-pagination .pagination-button.is-disabled:hover {
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .review-pagination .pagination-icon {
+            width: 14px;
+            height: 14px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .review-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.28);
+            backdrop-filter: blur(10px);
+        }
+
+        .review-modal.is-open {
+            display: flex;
+        }
+
+        .review-modal-card {
+            width: min(520px, 100%);
+            padding: 24px;
+            border-radius: 20px;
+            background: #fff;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
+        }
+
+        .review-modal-title {
+            margin: 0;
+            color: #1f2937;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .review-modal-desc {
+            margin: 8px 0 0;
+            color: #8c8c8c;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .review-modal-form {
+            margin-top: 18px;
+        }
+
+        .review-modal-field {
+            display: grid;
+            gap: 8px;
+        }
+
+        .review-modal-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .review-modal-error {
+            color: #dc2626;
+            font-size: 12px;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .review-modal-error.is-visible {
+            display: block;
+        }
+
+        .review-modal-count {
+            color: #8c8c8c;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .review-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 18px;
+        }
+    </style>
+@endpush
+
+@section('content')
+    <section class="page-header">
+        <div>
+            <h2 class="page-header-title">文章审核</h2>
+            <div class="page-header-desc">集中处理待审核与已驳回文章，审核通过后才会正式上线。</div>
+        </div>
+    </section>
+
+    <section class="panel review-page-panel">
+        <form method="GET" action="{{ route('admin.article-reviews.index') }}" class="review-filter-card">
+            <div class="review-filter-grid">
+                <div>
+                    <label for="keyword">搜索文章</label>
+                    <input class="field" id="keyword" type="text" name="keyword" value="{{ $keyword }}" placeholder="标题或摘要关键词">
+                </div>
+                <div>
+                    <label for="channel_filter">所属栏目</label>
+                    <div class="site-select channel-parent-select" data-site-select>
+                        <select id="channel_filter" name="channel_id" class="field site-select-native">
+                            <option value="">全部栏目</option>
+                            @foreach ($channels as $channel)
+                                <option
+                                    value="{{ $channel->id }}"
+                                    data-depth="{{ (int) ($channel->tree_depth ?? 0) }}"
+                                    data-has-children="{{ !empty($channel->tree_has_children) ? '1' : '0' }}"
+                                    @selected($selectedChannelId === (string) $channel->id)
+                                >{{ $channel->name }}</option>
+                            @endforeach
+                        </select>
+                        <button class="site-select-trigger" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">{{ collect($channels)->firstWhere('id', (int) $selectedChannelId)?->name ?? '全部栏目' }}</button>
+                        <div class="site-select-panel" data-select-panel role="listbox"></div>
+                    </div>
+                </div>
+                <div>
+                    <label for="status_filter">审核状态</label>
+                    <div class="site-select" data-site-select>
+                        <select id="status_filter" name="status" class="field site-select-native">
+                            @foreach ($statuses as $value => $label)
+                                <option value="{{ $value }}" @selected($selectedStatus === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <button class="site-select-trigger" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">{{ $statuses[$selectedStatus] ?? '待审核' }}</button>
+                        <div class="site-select-panel" data-select-panel role="listbox"></div>
+                    </div>
+                </div>
+                <div class="review-filter-actions">
+                    <button class="button neutral-action" type="submit">筛选</button>
+                    <a class="button neutral-action" href="{{ route('admin.article-reviews.index') }}">重置</a>
+                    <div class="review-summary-pills">
+                        <a
+                            class="review-summary-pill is-pending"
+                            href="{{ route('admin.article-reviews.index', array_filter(['keyword' => $keyword, 'channel_id' => $selectedChannelId, 'status' => 'pending'], fn ($value) => $value !== null && $value !== '')) }}"
+                        >待审核 <strong>{{ $reviewSummary->pending_count }}</strong></a>
+                        <a
+                            class="review-summary-pill is-rejected"
+                            href="{{ route('admin.article-reviews.index', array_filter(['keyword' => $keyword, 'channel_id' => $selectedChannelId, 'status' => 'rejected'], fn ($value) => $value !== null && $value !== '')) }}"
+                        >已驳回 <strong>{{ $reviewSummary->rejected_count }}</strong></a>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="review-list-panel">
+            @if ($contents->isEmpty())
+                <div class="empty">当前筛选条件下没有需要处理的文章。</div>
+            @else
+                <div class="review-table-wrap">
+                <table class="review-table">
+                    <thead>
+                    <tr>
+                        <th></th>
+                        <th>标题</th>
+                        <th>栏目</th>
+                        <th>状态</th>
+                        <th>提交人</th>
+                        <th>更新时间</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach ($contents as $content)
+                        @php
+                            $channelNames = collect($content->channel_names ?? [])->filter()->values();
+                            $primaryChannelName = $channelNames->first() ?: '未归类';
+                            $extraChannelCount = max($channelNames->count() - 1, 0);
+                            $channelTooltip = $channelNames->isNotEmpty()
+                                ? $channelNames->implode('、')
+                                : '未归类';
+                        @endphp
+                        <tr>
+                            <td>
+                                @if ($content->status === 'pending')
+                                    <input class="review-checkbox" type="checkbox" name="ids[]" value="{{ $content->id }}" form="review-bulk-approve-form">
+                                @endif
+                            </td>
+                            <td>
+                                <div class="review-title" data-tooltip="ID {{ $content->id }} · {{ $content->title }}">{{ $content->title }}</div>
+                                @if ($content->status === 'rejected' && !empty($content->latest_reject_reason))
+                                    <div class="review-reject-note">最近驳回：{{ $content->latest_reject_reason }}</div>
+                                    <div class="review-reject-meta">
+                                        审核人：{{ $content->latest_reviewer_name ?: '未记录' }}
+                                        @if (!empty($content->latest_reviewer_phone))
+                                            · {{ $content->latest_reviewer_phone }}
+                                        @endif
+                                        @if (!empty($content->latest_rejected_at))
+                                            · {{ \Illuminate\Support\Carbon::parse($content->latest_rejected_at)->format('Y-m-d H:i') }}
+                                        @endif
+                                    </div>
+                                @endif
+                            </td>
+                            <td>
+                                <span class="review-channel-tag" data-tooltip="{{ $channelTooltip }}">
+                                    <span class="review-channel-tag-label">{{ $primaryChannelName }}</span>
+                                    @if ($extraChannelCount > 0)
+                                        <span class="review-channel-tag-more">+{{ $extraChannelCount }}</span>
+                                    @endif
+                                </span>
+                            </td>
+                            <td>
+                                <span class="review-status-pill {{ $content->status === 'pending' ? 'is-pending' : 'is-rejected' }}">{{ $statuses[$content->status] ?? $content->status }}</span>
+                            </td>
+                            <td><span class="review-meta">{{ $content->submitter_name ?: '未记录' }}</span></td>
+                            <td><span class="review-meta">{{ \Illuminate\Support\Carbon::parse($content->updated_at)->format('m-d H:i') }}</span></td>
+                            <td>
+                                <div class="review-actions">
+                                    <a class="review-link" href="{{ route('admin.articles.edit', $content->id) }}" aria-label="查看" data-tip="查看">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    </a>
+                                    @if ($content->status === 'pending')
+                                        <form method="POST" action="{{ route('admin.article-reviews.approve', $content->id) }}">
+                                            @csrf
+                                            <input type="hidden" name="return_url" value="{{ url()->full() }}">
+                                            <button class="review-link is-approve" type="button" data-approve-title="{{ $content->title }}" data-approve-form aria-label="通过" data-tip="通过">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                                            </button>
+                                        </form>
+                                        <button class="review-danger" type="button" data-open-reject-modal data-content-id="{{ $content->id }}" data-content-title="{{ $content->title }}" data-return-url="{{ url()->full() }}" aria-label="驳回" data-tip="驳回">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 15.5 7-7"/></svg>
+                                        </button>
+                                    @else
+                                        <span class="review-meta">驳回 {{ (int) $content->reject_count }} 次</span>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+                </div>
+
+                <div class="review-bulk-row">
+                    <div class="review-bulk-left">
+                        <button class="button neutral-action" type="button" id="review-bulk-toggle-all">全选</button>
+                        <form id="review-bulk-approve-form" method="POST" action="{{ route('admin.article-reviews.bulk-approve') }}">
+                            @csrf
+                            <input type="hidden" name="return_url" value="{{ url()->full() }}">
+                            <button class="button neutral-action" type="button" id="review-bulk-approve-button">批量审核通过</button>
+                        </form>
+                    </div>
+                    <span class="review-record-badge">{{ $contents->total() }} 条记录</span>
+                </div>
+
+                <div class="review-pagination">{{ $contents->links() }}</div>
+            @endif
+        </div>
+    </section>
+
+    <div class="review-modal" id="review-reject-modal" aria-hidden="true">
+        <div class="review-modal-card">
+            <h3 class="review-modal-title">驳回文章</h3>
+            <p class="review-modal-desc" id="review-reject-desc">请填写驳回原因，作者将在编辑页看到这条信息。</p>
+            <form id="review-reject-form" method="POST" class="review-modal-form">
+                @csrf
+                <input type="hidden" name="return_url" value="{{ url()->full() }}">
+                <div class="review-modal-field">
+                    <textarea class="field textarea" name="reason" rows="5" placeholder="请输入驳回原因" maxlength="500" required></textarea>
+                    <div class="review-modal-meta">
+                        <div class="review-modal-error" id="review-reject-error">请填写驳回原因后再提交。</div>
+                        <div class="review-modal-count"><span id="review-reject-count">0</span>/500</div>
+                    </div>
+                </div>
+                <div class="review-modal-actions">
+                    <button class="button neutral-action" type="button" data-close-reject-modal>关闭</button>
+                    <button class="button" type="submit" id="review-reject-submit">确认驳回</button>
+                </div>
+            </form>
+        </div>
+    </div>
+@endsection
+
+@push('scripts')
+    @include('admin.site._custom_select_scripts')
+    <script>
+        (() => {
+            const toggleAllButton = document.getElementById('review-bulk-toggle-all');
+            const bulkApproveButton = document.getElementById('review-bulk-approve-button');
+            const bulkApproveForm = document.getElementById('review-bulk-approve-form');
+            const checkboxes = Array.from(document.querySelectorAll('.review-checkbox'));
+
+            if (toggleAllButton && checkboxes.length > 0) {
+                const syncToggleLabel = () => {
+                    const allChecked = checkboxes.length > 0 && checkboxes.every((checkbox) => checkbox.checked);
+                    toggleAllButton.textContent = allChecked ? '取消全选' : '全选';
+                };
+
+                toggleAllButton.addEventListener('click', () => {
+                    const allChecked = checkboxes.length > 0 && checkboxes.every((checkbox) => checkbox.checked);
+                    checkboxes.forEach((checkbox) => {
+                        checkbox.checked = !allChecked;
+                    });
+                    syncToggleLabel();
+                });
+
+                checkboxes.forEach((checkbox) => {
+                    checkbox.addEventListener('change', syncToggleLabel);
+                });
+
+                syncToggleLabel();
+            }
+
+            if (bulkApproveButton && bulkApproveForm) {
+                bulkApproveButton.addEventListener('click', () => {
+                    const selected = checkboxes.filter((checkbox) => checkbox.checked);
+
+                    if (selected.length === 0) {
+                        if (typeof window.showMessage === 'function') {
+                            window.showMessage('请先勾选至少一篇待审核文章。');
+                        }
+                        return;
+                    }
+
+                    if (typeof window.showConfirmDialog !== 'function') {
+                        bulkApproveForm.submit();
+                        return;
+                    }
+
+                    window.showConfirmDialog({
+                        title: '确认批量审核通过？',
+                        text: `将对已勾选的 ${selected.length} 篇待审核文章执行审核通过。`,
+                        confirmText: '批量通过',
+                        onConfirm: () => bulkApproveForm.submit(),
+                    });
+                });
+            }
+
+            document.querySelectorAll('[data-approve-form]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const form = button.closest('form');
+                    if (! form) {
+                        return;
+                    }
+
+                    if (typeof window.showConfirmDialog !== 'function') {
+                        form.submit();
+                        return;
+                    }
+
+                    window.showConfirmDialog({
+                        title: '确认审核通过？',
+                        text: `通过后该文章会正式上线：${button.dataset.approveTitle || ''}`,
+                        confirmText: '审核通过',
+                        onConfirm: () => form.submit(),
+                    });
+                });
+            });
+
+            const modal = document.getElementById('review-reject-modal');
+            const form = document.getElementById('review-reject-form');
+            const desc = document.getElementById('review-reject-desc');
+            const reasonField = form?.querySelector('textarea[name="reason"]');
+            const errorField = document.getElementById('review-reject-error');
+            const countField = document.getElementById('review-reject-count');
+            const submitButton = document.getElementById('review-reject-submit');
+
+            if (! modal || ! form || ! desc) {
+                return;
+            }
+
+            const syncRejectMeta = () => {
+                if (! reasonField || ! countField) {
+                    return;
+                }
+
+                const currentLength = reasonField.value.trim().length;
+                countField.textContent = String(currentLength);
+
+                if (errorField) {
+                    errorField.classList.toggle('is-visible', currentLength === 0);
+                }
+            };
+
+            const closeModal = () => {
+                modal.classList.remove('is-open');
+                modal.setAttribute('aria-hidden', 'true');
+                form.reset();
+                syncRejectMeta();
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = '确认驳回';
+                }
+            };
+
+            document.querySelectorAll('[data-open-reject-modal]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    form.action = `{{ rtrim(route('admin.article-reviews.reject', ['content' => '__ID__']), '/') }}`.replace('__ID__', button.dataset.contentId);
+                    const returnInput = form.querySelector('input[name="return_url"]');
+                    if (returnInput) {
+                        returnInput.value = button.dataset.returnUrl || '{{ url()->full() }}';
+                    }
+                    desc.textContent = `请填写驳回原因，作者将在编辑页看到这条信息：${button.dataset.contentTitle || ''}`;
+                    modal.classList.add('is-open');
+                    modal.setAttribute('aria-hidden', 'false');
+                    syncRejectMeta();
+                    form.querySelector('textarea')?.focus();
+                });
+            });
+
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
+
+            modal.querySelectorAll('[data-close-reject-modal]').forEach((button) => {
+                button.addEventListener('click', closeModal);
+            });
+
+            reasonField?.addEventListener('input', syncRejectMeta);
+
+            form.addEventListener('submit', (event) => {
+                if (! reasonField || ! submitButton) {
+                    return;
+                }
+
+                if (reasonField.value.trim() === '') {
+                    event.preventDefault();
+                    syncRejectMeta();
+                    reasonField.focus();
+                    return;
+                }
+
+                submitButton.disabled = true;
+                submitButton.textContent = '正在驳回...';
+            });
+
+            syncRejectMeta();
+        })();
+    </script>
+@endpush

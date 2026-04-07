@@ -1,0 +1,33 @@
+{
+  "name": "工资查询",
+  "code": "payroll",
+  "version": "1.0.0",
+  "scope": "site",
+  "author": "官闪闪",
+  "description": "微信 H5 工资查询、员工审核与工资/绩效导入模块。",
+  "default_enabled": false,
+  "sort": 20,
+  "site_entry_route": "admin.payroll.batches.index",
+  "settings": [
+    "模块启用状态",
+    "注册开关",
+    "微信登录配置",
+    "前台提示文案",
+    "密码校验策略"
+  ],
+  "permissions": [
+    "payroll.view",
+    "payroll.manage",
+    "payroll.employee",
+    "payroll.setting"
+  ],
+  "tables": [
+    "module_payroll_employees",
+    "module_payroll_batches",
+    "module_payroll_records",
+    "module_payroll_login_logs"
+  ],
+  "notes": [
+    "后台提供模块配置、工资信息和员工管理，前台提供微信登录、注册审核和工资查询。"
+  ]
+}
