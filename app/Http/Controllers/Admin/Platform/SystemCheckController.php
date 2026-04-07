@@ -30,10 +30,10 @@ class SystemCheckController extends Controller
         $currentSite = $this->currentSite($request);
 
         $groups = [
+            $this->staticVendorHealthCheck->inspect(),
             $this->databaseHealthCheck->inspect(),
             $this->runtimeHealthCheck->inspect(),
             $this->deployHealthCheck->inspect(),
-            $this->staticVendorHealthCheck->inspect(),
         ];
 
         $counts = [

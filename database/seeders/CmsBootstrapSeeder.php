@@ -50,7 +50,6 @@ class CmsBootstrapSeeder extends Seeder
             ['module' => 'theme', 'name' => '管理主题市场', 'code' => 'theme.market.manage'],
             ['module' => 'user', 'name' => '管理平台用户', 'code' => 'platform.user.manage'],
             ['module' => 'platform_role', 'name' => '管理平台角色', 'code' => 'platform.role.manage'],
-            ['module' => 'notice', 'name' => '管理平台公告', 'code' => 'platform.notice.manage'],
             ['module' => 'system', 'name' => '管理系统设置', 'code' => 'system.setting.manage'],
             ['module' => 'log', 'name' => '查看平台日志', 'code' => 'platform.log.view'],
         ];
@@ -60,6 +59,20 @@ class CmsBootstrapSeeder extends Seeder
                 ['code' => $permission['code']],
                 $permission + ['created_at' => $now, 'updated_at' => $now],
             );
+        }
+
+        $legacyPlatformNoticePermissionId = DB::table('platform_permissions')
+            ->where('code', 'platform.notice.manage')
+            ->value('id');
+
+        if ($legacyPlatformNoticePermissionId) {
+            DB::table('platform_role_permissions')
+                ->where('permission_id', $legacyPlatformNoticePermissionId)
+                ->delete();
+
+            DB::table('platform_permissions')
+                ->where('id', $legacyPlatformNoticePermissionId)
+                ->delete();
         }
 
         $permissions = [

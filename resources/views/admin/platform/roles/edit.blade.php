@@ -6,7 +6,6 @@
 @php
     $selectedPermissionIds = collect(old('permission_ids', $selectedPermissionIds ?? []))->map(fn ($id) => (int) $id)->all();
     $moduleLabels = array_merge(config('cms.permission_modules', []), [
-        'notice' => '公告管理',
         'platform_role' => '平台角色',
     ]);
     $moduleOrder = [
@@ -18,8 +17,7 @@
         'module' => 60,
         'theme' => 70,
         'database' => 80,
-        'notice' => 90,
-        'log' => 100,
+        'log' => 90,
     ];
     $permissionCodeOrder = [
         'platform.view' => 10,
@@ -30,8 +28,7 @@
         'module.manage' => 60,
         'theme.market.manage' => 70,
         'database.manage' => 80,
-        'platform.notice.manage' => 90,
-        'platform.log.view' => 100,
+        'platform.log.view' => 90,
     ];
     $permissionsByModule = collect($permissions)
         ->sortBy(function ($permission) use ($moduleOrder, $permissionCodeOrder) {
@@ -47,7 +44,6 @@
         'database' => '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>',
         'log' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2"/><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>',
         'module' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7v5H4z"/><path d="M13 7h7v5h-7z"/><path d="M4 14h7v5H4z"/><path d="M13 14h7v5h-7z"/></svg>',
-        'notice' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M8 9h8"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>',
         'platform' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H4z"/><path d="M8 19h8"/><path d="M12 15v4"/></svg>',
         'platform_role' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M20 20a8 8 0 1 0-16 0"/><path d="M19 8h3"/><path d="M20.5 6.5v3"/></svg>',
         'site' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9 20v-5h6v5"/></svg>',
