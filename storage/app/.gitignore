@@ -1,4 +1,6 @@
 *
 !private/
 !public/
+!theme_templates/
+!theme_templates/**
 !.gitignore
