@@ -1,0 +1,9 @@
+{
+  "sortablejs": {
+    "package": "sortablejs",
+    "version": "1.15.3",
+    "file": "public/vendor/sortablejs/Sortable.min.js",
+    "source": "https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js",
+    "sha256": "72aa2c4f9f7cb2b8b3268052d6d2daa9d952f209b7fc5cc247ff9e1153db1f16"
+  }
+}

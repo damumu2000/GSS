@@ -610,7 +610,7 @@
 
 @push('scripts')
     @include('admin.site._custom_select_scripts')
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+    <script src="/vendor/sortablejs/Sortable.min.js?v=1.15.3"></script>
     <script>
         (() => {
             document.querySelectorAll('.js-channel-delete').forEach((button) => {
