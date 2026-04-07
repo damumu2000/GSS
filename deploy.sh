@@ -29,6 +29,7 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 
 CURRENT_BRANCH="$(git branch --show-current)"
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 
 if [[ -z "$CURRENT_BRANCH" ]]; then
   echo "[deploy] cannot detect current git branch, aborting."
@@ -37,9 +38,15 @@ fi
 
 echo "[deploy] branch: $CURRENT_BRANCH"
 
+if [[ "$CURRENT_BRANCH" != "$DEPLOY_BRANCH" ]]; then
+  echo "[deploy] current branch '$CURRENT_BRANCH' does not match allowed deploy branch '$DEPLOY_BRANCH', aborting."
+  echo "[deploy] switch to '$DEPLOY_BRANCH' first, or explicitly export DEPLOY_BRANCH if this is intentional."
+  exit 1
+fi
+
 echo "[deploy] fetching latest code..."
 git fetch --prune origin
-git pull --ff-only origin "$CURRENT_BRANCH"
+git pull --ff-only origin "$DEPLOY_BRANCH"
 
 if command -v composer >/dev/null 2>&1; then
   echo "[deploy] installing composer dependencies..."

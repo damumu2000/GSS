@@ -15,6 +15,7 @@
 
 - 不要直接在服务器里改已被 Git 跟踪的代码文件
 - 如果服务器目录里有本地改动，先处理掉再执行 `deploy.sh`
+- 正式环境默认只允许部署 `main` 分支，不要在服务器上停留在功能分支
 
 线上环境不要做这些事：
 
@@ -141,6 +142,13 @@ cd /www/wwwroot/GSS
 bash deploy.sh
 ```
 
+如需显式指定允许部署的分支，可以先设置：
+
+```bash
+export DEPLOY_BRANCH=main
+bash deploy.sh
+```
+
 如果脚本提示：
 
 ```bash
@@ -148,6 +156,14 @@ bash deploy.sh
 ```
 
 说明服务器上有人直接改过 Git 跟踪文件。先处理这些本地修改，再继续部署，不要强行覆盖。
+
+如果脚本提示：
+
+```bash
+[deploy] current branch 'xxx' does not match allowed deploy branch 'main', aborting.
+```
+
+说明服务器当前停在错误分支。先切回正式分支，再继续部署。
 
 或者如果你想分开执行，也只允许这套白名单流程：
 
