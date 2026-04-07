@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\Platform\OperationLogController as PlatformOperat
 use App\Http\Controllers\Admin\Platform\PlatformRoleController;
 use App\Http\Controllers\Admin\Platform\PlatformSiteController;
 use App\Http\Controllers\Admin\Platform\PlatformUserController;
+use App\Http\Controllers\Admin\Platform\SystemCheckController;
 use App\Http\Controllers\Admin\Platform\SystemSettingController;
 use App\Http\Controllers\Admin\Platform\ThemeMarketController;
 use App\Http\Controllers\Admin\Site\AttachmentController;
@@ -85,6 +86,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/database/{table}', [PlatformDatabaseController::class, 'show'])->name('database.show');
             Route::get('/settings', [SystemSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [SystemSettingController::class, 'update'])->name('settings.update');
+            Route::get('/system-checks', [SystemCheckController::class, 'index'])->name('system-checks.index');
             Route::get('/users', [PlatformUserController::class, 'index'])->name('users.index');
             Route::get('/users/create', [PlatformUserController::class, 'create'])->name('users.create');
             Route::post('/users', [PlatformUserController::class, 'store'])->name('users.store');
