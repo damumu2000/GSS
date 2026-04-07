@@ -139,4 +139,8 @@ return [
         'admin.enabled' => true,
         'admin.disabled_message' => '后台暂时关闭，请联系系统管理员。',
     ],
+
+    'static_vendor_manifest_path' => public_path('vendor/vendor-assets.json'),
+    'static_vendor_root_path' => base_path(),
+    'static_vendor_version_cache_seconds' => 1800,
 ];

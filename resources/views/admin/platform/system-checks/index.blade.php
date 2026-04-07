@@ -188,6 +188,21 @@
             color: #1d4ed8;
         }
 
+        .system-check-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .system-check-item-actions .button {
+            min-height: 34px;
+            padding: 0 14px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
         @media (max-width: 1080px) {
             .system-check-overview {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -279,6 +294,14 @@
                                     @if (($item['details'] ?? '') !== '')
                                         <div>详情：{{ $item['details'] }}</div>
                                     @endif
+                                </div>
+                            @endif
+                            @if (($item['action_url'] ?? '') !== '')
+                                <div class="system-check-item-actions">
+                                    <form method="POST" action="{{ $item['action_url'] }}">
+                                        @csrf
+                                        <button type="submit" class="button button-primary">{{ $item['action_label'] ?? '立即处理' }}</button>
+                                    </form>
                                 </div>
                             @endif
                         </article>

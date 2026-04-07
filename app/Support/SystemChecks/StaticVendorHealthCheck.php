@@ -3,16 +3,20 @@
 namespace App\Support\SystemChecks;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 
 class StaticVendorHealthCheck
 {
+    public function __construct(
+        protected StaticVendorManager $manager,
+    ) {
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function inspect(): array
     {
-        $manifestPath = public_path('vendor/vendor-assets.json');
+        $manifestPath = $this->manager->manifestPath();
 
         if (! is_file($manifestPath)) {
             $items = [[
@@ -33,10 +37,10 @@ class StaticVendorHealthCheck
             ];
         }
 
-        $manifest = json_decode((string) file_get_contents($manifestPath), true);
+        $manifest = $this->manager->manifest();
         $items = [];
 
-        foreach (is_array($manifest) ? $manifest : [] as $name => $asset) {
+        foreach ($manifest as $name => $asset) {
             $items[] = $this->inspectAsset((string) $name, is_array($asset) ? $asset : []);
         }
 
@@ -59,7 +63,7 @@ class StaticVendorHealthCheck
         $version = (string) ($asset['version'] ?? '');
         $file = (string) ($asset['file'] ?? '');
         $expectedSha = strtolower((string) ($asset['sha256'] ?? ''));
-        $fullPath = base_path(ltrim($file, '/'));
+        $fullPath = rtrim($this->manager->rootPath(), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.ltrim($file, '/');
 
         if (! is_file($fullPath)) {
             return [
@@ -84,11 +88,7 @@ class StaticVendorHealthCheck
             ];
         }
 
-        $latestVersion = Cache::remember(
-            'system-checks:static-vendor:'.$package,
-            now()->addMinutes(30),
-            fn (): ?string => $this->resolveLatestVersion($package)
-        );
+        $latestVersion = $this->manager->latestVersion($package);
 
         if (is_string($latestVersion) && $latestVersion !== '' && $latestVersion !== $version) {
             return [
@@ -98,6 +98,8 @@ class StaticVendorHealthCheck
                 'message' => '检测到上游有更新版本可用。',
                 'suggestion' => '如准备升级，请先在测试环境验证兼容性后再替换。',
                 'details' => "sha256: {$actualSha}",
+                'action_url' => route('admin.platform.system-checks.static-vendors.upgrade', ['asset' => $name]),
+                'action_label' => '一键升级',
             ];
         }
 
@@ -108,21 +110,7 @@ class StaticVendorHealthCheck
             'message' => '本地静态资源文件正常，校验通过。',
             'suggestion' => '',
             'details' => is_string($latestVersion) && $latestVersion !== '' ? "latest: {$latestVersion}" : '',
-        ];
-    }
-
-    protected function resolveLatestVersion(string $package): ?string
-    {
-        $response = Http::acceptJson()
-            ->timeout(5)
-            ->withHeaders(['User-Agent' => 'GSS-system-check'])
-            ->get("https://registry.npmjs.org/{$package}/latest");
-
-        if (! $response->successful()) {
-            return null;
-        }
-
-        return $response->json('version');
+            ];
     }
 
     /**
