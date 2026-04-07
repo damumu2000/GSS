@@ -26,7 +26,7 @@ class SystemCheckController extends Controller
 
     public function index(Request $request): View
     {
-        $this->authorizePlatform($request, 'system.setting.manage');
+        $this->authorizePlatform($request, 'system.check.view');
         $currentSite = $this->currentSite($request);
 
         $groups = [

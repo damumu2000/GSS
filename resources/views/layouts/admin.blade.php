@@ -1916,7 +1916,7 @@
                     'route' => 'admin.platform.system-checks.index',
                     'active' => request()->routeIs('admin.platform.system-checks.*'),
                     'icon' => 'database',
-                    'show' => in_array('system.setting.manage', $platformPermissionCodes, true),
+                    'show' => in_array('system.check.view', $platformPermissionCodes, true),
                 ],
                 ['label' => '操作日志', 'route' => 'admin.logs.index', 'active' => request()->routeIs('admin.logs.*'), 'icon' => 'log', 'show' => in_array('platform.log.view', $platformPermissionCodes, true)],
             ], fn ($item) => $item['show'])) : [],

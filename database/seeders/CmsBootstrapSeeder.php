@@ -50,6 +50,7 @@ class CmsBootstrapSeeder extends Seeder
             ['module' => 'theme', 'name' => '管理主题市场', 'code' => 'theme.market.manage'],
             ['module' => 'user', 'name' => '管理平台用户', 'code' => 'platform.user.manage'],
             ['module' => 'platform_role', 'name' => '管理平台角色', 'code' => 'platform.role.manage'],
+            ['module' => 'system', 'name' => '查看系统检查', 'code' => 'system.check.view'],
             ['module' => 'system', 'name' => '管理系统设置', 'code' => 'system.setting.manage'],
             ['module' => 'log', 'name' => '查看平台日志', 'code' => 'platform.log.view'],
         ];

@@ -24,6 +24,7 @@
         'site.manage' => 20,
         'platform.user.manage' => 30,
         'platform.role.manage' => 40,
+        'system.check.view' => 45,
         'system.setting.manage' => 50,
         'module.manage' => 60,
         'theme.market.manage' => 70,
