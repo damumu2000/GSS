@@ -1,9 +1,9 @@
 {
-  "sortablejs": {
-    "package": "sortablejs",
-    "version": "1.15.3",
-    "file": "public/vendor/sortablejs/Sortable.min.js",
-    "source": "https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js",
-    "sha256": "72aa2c4f9f7cb2b8b3268052d6d2daa9d952f209b7fc5cc247ff9e1153db1f16"
-  }
+    "sortablejs": {
+        "package": "sortablejs",
+        "version": "1.15.7",
+        "file": "public/vendor/sortablejs/Sortable.min.js",
+        "source": "https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js",
+        "sha256": "bf4241bc73fef7f11c59a283a69fe8051cdd31c6d8ff5a2b9ba219e7831fcf76"
+    }
 }
