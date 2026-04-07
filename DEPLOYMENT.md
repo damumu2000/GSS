@@ -11,6 +11,11 @@
 - 执行安全迁移
 - 清理并重建缓存
 
+线上环境的 Git 工作目录应保持干净：
+
+- 不要直接在服务器里改已被 Git 跟踪的代码文件
+- 如果服务器目录里有本地改动，先处理掉再执行 `deploy.sh`
+
 线上环境不要做这些事：
 
 - `php artisan migrate:fresh`
@@ -135,6 +140,14 @@ public
 cd /www/wwwroot/GSS
 bash deploy.sh
 ```
+
+如果脚本提示：
+
+```bash
+[deploy] repository has local changes, aborting.
+```
+
+说明服务器上有人直接改过 Git 跟踪文件。先处理这些本地修改，再继续部署，不要强行覆盖。
 
 或者如果你想分开执行，也只允许这套白名单流程：
 

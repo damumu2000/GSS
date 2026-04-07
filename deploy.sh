@@ -22,6 +22,12 @@ if [[ ! -d ".git" ]]; then
   exit 1
 fi
 
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "[deploy] repository has local changes, aborting."
+  echo "[deploy] commit or discard local tracked-file changes before deploy."
+  exit 1
+fi
+
 CURRENT_BRANCH="$(git branch --show-current)"
 
 if [[ -z "$CURRENT_BRANCH" ]]; then
@@ -37,7 +43,7 @@ git pull --ff-only origin "$CURRENT_BRANCH"
 
 if command -v composer >/dev/null 2>&1; then
   echo "[deploy] installing composer dependencies..."
-  composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+  composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-progress
 else
   echo "[deploy] composer not found, aborting."
   exit 1
@@ -57,7 +63,7 @@ php artisan view:cache
 
 if [[ ! -L "public/storage" ]]; then
   echo "[deploy] ensuring storage symlink..."
-  php artisan storage:link || true
+  php artisan storage:link
 fi
 
 echo "[deploy] done."
