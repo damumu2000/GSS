@@ -55,7 +55,6 @@ class ThemeTags
         $map = [
             'id' => $this->site->id ?? null,
             'name' => $this->site->name ?? '',
-            'site_key' => $this->site->site_key ?? '',
             'logo' => $this->site->logo ?? '',
             'favicon' => $this->site->favicon ?? '',
             'contact_phone' => $this->site->contact_phone ?? '',

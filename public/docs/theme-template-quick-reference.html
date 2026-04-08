@@ -523,11 +523,10 @@
                         <h2>站点信息</h2>
                         <span class="section-kicker">固定资料统一从这里取</span>
                     </div>
-                    <p><code>siteValue</code> 统一负责网站固定资料取值。网站名称、标识、Logo、联系方式、备案号、简介和 SEO 信息都从这里取。</p>
+                    <p><code>siteValue</code> 统一负责网站固定资料取值。网站名称、Logo、联系方式、备案号、简介和 SEO 信息都从这里取。</p>
 
                     <div class="code-sample">
 <pre>{{ siteValue key='name' default='网站名称' }}
-{{ siteValue key='site_key' }}
 {{ siteValue key='contact_phone' default='暂无电话' }}
 {{ siteValue key='icp_no' default='未备案' }}</pre>
                     </div>
@@ -551,11 +550,6 @@
                                     <td class="mono">name</td>
                                     <td>固定站点资料：网站名称。</td>
                                     <td><code>{{ siteValue key='name' default='网站名称' }}</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">site_key</td>
-                                    <td>站点标识。</td>
-                                    <td><code>{{ siteValue key='site_key' }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">logo</td>
