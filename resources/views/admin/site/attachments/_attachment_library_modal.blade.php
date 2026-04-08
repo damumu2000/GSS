@@ -39,6 +39,7 @@
         </div>
         <div class="attachment-library-upload">
             <input id="attachment-library-file" type="file" hidden>
+            <input id="attachment-library-replace-file" type="file" hidden>
             <button id="attachment-library-upload-trigger" class="button" type="button">上传新资源</button>
             <span id="attachment-library-upload-status" class="muted"></span>
         </div>

@@ -159,6 +159,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::post('/attachments', [AttachmentController::class, 'store'])->name('attachments.store');
             Route::post('/attachments/image-upload', [AttachmentController::class, 'imageUpload'])->name('attachments.image-upload');
             Route::post('/attachments/library-upload', [AttachmentController::class, 'libraryUpload'])->name('attachments.library-upload');
+            Route::post('/attachments/{attachment}/replace', [AttachmentController::class, 'replace'])->name('attachments.replace');
             Route::get('/attachments/{attachment}/usages', [AttachmentController::class, 'usages'])->name('attachments.usages');
             Route::post('/attachments/bulk', [AttachmentController::class, 'bulk'])->name('attachments.bulk');
             Route::post('/attachments/{attachment}/delete', [AttachmentController::class, 'destroy'])->name('attachments.destroy');

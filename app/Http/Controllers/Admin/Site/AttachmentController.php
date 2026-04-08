@@ -323,6 +323,111 @@ class AttachmentController extends Controller
     }
 
     /**
+     * Replace an existing attachment file while preserving its id and path.
+     */
+    public function replace(Request $request, string $attachmentId): JsonResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeAttachmentWorkspace($request, $currentSite->id);
+
+        $attachment = $this->findAttachmentForSite($currentSite->id, $attachmentId);
+        abort_unless($attachment, 404);
+
+        $originalExtension = strtolower((string) ($attachment->extension ?? ''));
+        abort_if($originalExtension === '', 404);
+
+        $validated = $request->validate([
+            'file' => [
+                'required',
+                'file',
+                'mimes:'.$originalExtension,
+            ],
+        ], [
+            'file.mimes' => '替换文件必须与原附件保持相同后缀名。',
+        ], [
+            'file' => '替换文件',
+        ]);
+
+        $uploadedExtension = strtolower((string) ($validated['file']->getClientOriginalExtension() ?: $validated['file']->extension() ?: ''));
+
+        if ($uploadedExtension !== $originalExtension) {
+            throw ValidationException::withMessages([
+                'file' => '替换文件必须与原附件保持相同后缀名。',
+            ]);
+        }
+
+        $this->validateImageDimensionsIfNeeded($validated['file'], '替换文件');
+        $preparedFile = $this->prepareStoredAttachmentFile($validated['file'], false, $originalExtension);
+
+        if (strtolower((string) ($preparedFile['extension'] ?? '')) !== $originalExtension) {
+            throw ValidationException::withMessages([
+                'file' => '替换文件必须与原附件保持相同后缀名。',
+            ]);
+        }
+
+        $this->validatePreparedAttachmentSize($preparedFile, '替换文件', false);
+        $this->validateSiteAttachmentReplacementStorageLimit(
+            (int) $currentSite->id,
+            (int) $preparedFile['size'],
+            (int) ($attachment->size ?? 0),
+        );
+
+        $this->overwriteAttachmentFile((string) $attachment->path, $validated['file'], $preparedFile);
+
+        DB::table('attachments')
+            ->where('id', $attachment->id)
+            ->update([
+                'origin_name' => $validated['file']->getClientOriginalName(),
+                'mime_type' => (string) $preparedFile['mime_type'],
+                'extension' => $originalExtension,
+                'size' => (int) $preparedFile['size'],
+                'width' => $preparedFile['width'],
+                'height' => $preparedFile['height'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+        $uploadedByName = trim((string) DB::table('users')
+            ->where('id', (int) ($attachment->uploaded_by ?? 0))
+            ->selectRaw("COALESCE(NULLIF(name, ''), NULLIF(username, ''), '未记录') as display_name")
+            ->value('display_name'));
+
+        $this->logOperation(
+            'site',
+            'attachment',
+            'replace',
+            $currentSite->id,
+            $request->user()->id,
+            'attachment',
+            $attachment->id,
+            [
+                'old_name' => (string) ($attachment->origin_name ?? ''),
+                'new_name' => $validated['file']->getClientOriginalName(),
+                'path' => (string) ($attachment->path ?? ''),
+            ],
+            $request,
+        );
+
+        return response()->json([
+            'attachment' => [
+                ...$this->serializeAttachmentLibraryItem((object) [
+                    'id' => $attachment->id,
+                    'origin_name' => $validated['file']->getClientOriginalName(),
+                    'url' => $attachment->url,
+                    'path' => $attachment->path,
+                    'extension' => $originalExtension,
+                    'width' => $preparedFile['width'],
+                    'height' => $preparedFile['height'],
+                    'created_at' => now(),
+                    'usage_count' => (int) ($attachment->usage_count ?? 0),
+                    'uploaded_by_name' => $uploadedByName !== '' ? $uploadedByName : '未记录',
+                ]),
+            ],
+            'message' => '附件已替换，原路径保持不变。',
+        ]);
+    }
+
+    /**
      * Fetch attachment usage details within accessible content.
      */
     public function usages(Request $request, string $attachmentId): JsonResponse
@@ -967,6 +1072,34 @@ class AttachmentController extends Controller
         ]);
     }
 
+    protected function validateSiteAttachmentReplacementStorageLimit(int $siteId, int $incomingBytes, int $currentBytes): void
+    {
+        $limitMb = $this->siteAttachmentStorageLimitMb($siteId);
+
+        if ($limitMb <= 0) {
+            return;
+        }
+
+        $limitBytes = $limitMb * 1024 * 1024;
+        $usedBytes = (int) DB::table('attachments')
+            ->where('site_id', $siteId)
+            ->sum('size');
+        $projectedBytes = max(0, $usedBytes - $currentBytes) + $incomingBytes;
+        $remainingBytes = max(0, $limitBytes - max(0, $usedBytes - $currentBytes));
+
+        if ($projectedBytes <= $limitBytes) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'file' => sprintf(
+                '当前站点资源库容量不足，替换后剩余 %s，本次文件需要 %s。',
+                $this->formatAttachmentSize($remainingBytes),
+                $this->formatAttachmentSize($incomingBytes),
+            ),
+        ]);
+    }
+
     /**
      * @param array{temp_path:string|null,mime_type:string,size:int,extension:string,width:int|null,height:int|null} $preparedFile
      */
@@ -1068,9 +1201,9 @@ class AttachmentController extends Controller
     /**
      * @return array{temp_path:string|null,mime_type:string,size:int,extension:string,width:int|null,height:int|null}
      */
-    protected function prepareStoredAttachmentFile(UploadedFile $file, bool $imageOnly = false): array
+    protected function prepareStoredAttachmentFile(UploadedFile $file, bool $imageOnly = false, ?string $forcedExtension = null): array
     {
-        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: '');
+        $extension = strtolower($forcedExtension ?: ($file->getClientOriginalExtension() ?: $file->extension() ?: ''));
         $sourcePath = $file->getRealPath();
         $imageInfo = null;
         $detectedWidth = null;
@@ -1140,7 +1273,9 @@ class AttachmentController extends Controller
         $autoCompressEnabled = $this->systemSettings->attachmentImageAutoCompressEnabled();
         $requiresResize = false;
         $requiresReencode = false;
-        $convertPngToJpeg = $extension === 'png' && ! $this->pngHasTransparency($sourcePath);
+        $convertPngToJpeg = $forcedExtension === null
+            && $extension === 'png'
+            && ! $this->pngHasTransparency($sourcePath);
 
         if ($convertPngToJpeg) {
             $outputExtension = 'jpg';
@@ -1241,6 +1376,35 @@ class AttachmentController extends Controller
             'width' => $targetWidth,
             'height' => $targetHeight,
         ];
+    }
+
+    /**
+     * @param array{temp_path:string|null,mime_type:string,size:int,extension:string,width:int|null,height:int|null} $preparedFile
+     */
+    protected function overwriteAttachmentFile(string $path, UploadedFile $file, array $preparedFile): void
+    {
+        if (! empty($preparedFile['temp_path'])) {
+            $stream = fopen((string) $preparedFile['temp_path'], 'rb');
+            Storage::disk('site')->put($path, $stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+            @unlink((string) $preparedFile['temp_path']);
+
+            return;
+        }
+
+        $sourcePath = $file->getRealPath();
+        $stream = $sourcePath ? fopen($sourcePath, 'rb') : null;
+
+        if (! is_resource($stream)) {
+            throw ValidationException::withMessages([
+                'file' => '替换文件读取失败，请重新上传。',
+            ]);
+        }
+
+        Storage::disk('site')->put($path, $stream);
+        fclose($stream);
     }
 
     /**

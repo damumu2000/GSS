@@ -18,10 +18,12 @@
         let attachmentLibraryPage = 1;
         const attachmentLibraryPageSize = 9;
         let pendingImageAttachment = null;
+        let pendingReplaceAttachment = null;
         let attachmentLibraryWorkspaceEnabled = typeof attachmentLibraryWorkspaceAccess === 'undefined'
             ? false
             : Boolean(attachmentLibraryWorkspaceAccess);
         const attachmentLibraryFeedUrl = @json(route('admin.attachments.library-feed'));
+        const attachmentLibraryReplaceUrlTemplate = @json(route('admin.attachments.replace', ['attachment' => '__ATTACHMENT__']));
         let attachmentLibraryLoading = false;
         let attachmentLibraryPagination = {
             page: 1,
@@ -38,6 +40,12 @@
 
         function isImageAttachment(attachment) {
             return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes((attachment.extension || '').toLowerCase());
+        }
+
+        function attachmentReplaceAccept(attachment) {
+            const extension = String(attachment?.extension || '').trim().toLowerCase();
+
+            return extension !== '' ? `.${extension}` : '';
         }
 
         function attachmentSnippet(attachment) {
@@ -842,6 +850,9 @@
                     <div class="attachment-library-actions">
                         <button class="button" type="button" data-attachment-insert="${attachment.id}">${isAvatarLibraryMode() ? '插入头像' : (isCoverLibraryMode() ? '插入封面' : (isImageAttachment(attachment) ? '插入图片' : '插入链接'))}</button>
                         <a class="button secondary" href="${attachment.url}" target="_blank">预览文件</a>
+                        ${canUseAttachmentWorkspaceActions()
+                            ? `<button class="button secondary" type="button" data-attachment-replace="${attachment.id}">替换文件</button>`
+                            : ''}
                         ${attachment.usageCount > 0 && canUseAttachmentWorkspaceActions()
                             ? '<span class="attachment-library-used-note">已引用</span>'
                             : (canUseAttachmentWorkspaceActions()
@@ -932,6 +943,19 @@
                     if (window.confirm(`确认删除资源“${attachment.name}”吗？`)) {
                         executeDelete();
                     }
+                });
+            });
+
+            grid.querySelectorAll('[data-attachment-replace]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const attachmentId = Number(button.getAttribute('data-attachment-replace'));
+                    const attachment = cmsAttachments.find((item) => item.id === attachmentId);
+
+                    if (!attachment) {
+                        return;
+                    }
+
+                    confirmAttachmentReplacement(attachment);
                 });
             });
 
@@ -1047,6 +1071,7 @@
             const modal = document.getElementById('attachment-library-modal');
             const filterSelect = document.getElementById('attachment-library-filter');
             const fileInput = document.getElementById('attachment-library-file');
+            const replaceInput = document.getElementById('attachment-library-replace-file');
 
             if (!modal) {
                 return;
@@ -1059,11 +1084,16 @@
             const session = attachmentLibrarySession;
             attachmentLibrarySession = null;
             attachmentLibraryPage = 1;
+            pendingReplaceAttachment = null;
             if (filterSelect) {
                 filterSelect.value = 'all';
             }
             if (fileInput) {
                 fileInput.removeAttribute('accept');
+            }
+            if (replaceInput) {
+                replaceInput.removeAttribute('accept');
+                replaceInput.value = '';
             }
             closeImageInsertPanel();
             setAttachmentUploadStatus('');
@@ -1097,6 +1127,73 @@
             setAttachmentUploadStatus(`已上传：${data.attachment.name}`);
 
             return data.attachment;
+        }
+
+        async function replaceAttachmentInLibrary(attachment, file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            setAttachmentUploadStatus(`正在替换 ${attachment.name}...`);
+
+            const response = await fetch(attachmentLibraryReplaceUrlTemplate.replace('__ATTACHMENT__', String(attachment.id)), {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+                credentials: 'same-origin',
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || !data.attachment) {
+                throw new Error(data.message || '资源替换失败');
+            }
+
+            await reloadAttachmentLibrary(true);
+            setAttachmentUploadStatus(data.message || `已替换：${data.attachment.name}`);
+
+            return data.attachment;
+        }
+
+        function triggerAttachmentReplacement(attachment) {
+            const replaceInput = document.getElementById('attachment-library-replace-file');
+
+            if (!replaceInput || !attachment) {
+                return;
+            }
+
+            pendingReplaceAttachment = attachment;
+            replaceInput.accept = attachmentReplaceAccept(attachment);
+            replaceInput.click();
+        }
+
+        function confirmAttachmentReplacement(attachment) {
+            const detail = [
+                '替换后将直接覆盖原文件，原路径保持不变。',
+                '原文件内容会被新文件替换，所有引用会立即生效。',
+                '新文件必须与原附件保持相同后缀名。',
+                '图片会继续按系统设置执行尺寸与压缩处理。',
+            ].join('\n');
+
+            if (typeof window.showConfirmDialog === 'function') {
+                window.showConfirmDialog({
+                    title: '确认替换该资源？',
+                    text: `${detail}\n\n当前资源：${attachment.name}`,
+                    confirmText: '选择替换文件',
+                    onConfirm: async () => {
+                        if (typeof window.closeConfirmDialog === 'function') {
+                            window.closeConfirmDialog();
+                        }
+                        triggerAttachmentReplacement(attachment);
+                    },
+                });
+                return;
+            }
+
+            if (window.confirm(`${detail}\n\n当前资源：${attachment.name}`)) {
+                triggerAttachmentReplacement(attachment);
+            }
         }
 
         function initializeAttachmentLibrary() {
@@ -1161,6 +1258,26 @@
                     setAttachmentUploadStatus(error.message || '资源上传失败', true);
                 } finally {
                     input.value = '';
+                }
+            });
+            document.getElementById('attachment-library-replace-file')?.addEventListener('change', async (event) => {
+                const input = event.target;
+                const file = input.files?.[0];
+                const attachment = pendingReplaceAttachment;
+
+                if (!file || !attachment) {
+                    pendingReplaceAttachment = null;
+                    return;
+                }
+
+                try {
+                    await replaceAttachmentInLibrary(attachment, file);
+                } catch (error) {
+                    setAttachmentUploadStatus(error.message || '资源替换失败', true);
+                } finally {
+                    pendingReplaceAttachment = null;
+                    input.value = '';
+                    input.removeAttribute('accept');
                 }
             });
 
