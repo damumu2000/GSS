@@ -495,7 +495,6 @@ abstract class Controller
     {
         return $this->isPlatformAdmin($userId)
             || $this->hasSiteRoleCode($userId, $siteId, 'site_admin')
-            || in_array('attachment.manage', $this->sitePermissionCodes($userId, $siteId), true)
             || $this->siteSharesAttachments($siteId);
     }
 
@@ -510,6 +509,16 @@ abstract class Controller
             || $this->hasSiteRoleCode($userId, $siteId, 'site_admin')
             || in_array('attachment.manage', $permissionCodes, true)
             || in_array('content.manage', $permissionCodes, true);
+    }
+
+    /**
+     * Determine whether the user can manage site operators within the current site.
+     */
+    protected function canManageSiteUsers(int $userId, int $siteId): bool
+    {
+        return $this->isPlatformAdmin($userId)
+            || $this->hasSiteRoleCode($userId, $siteId, 'site_admin')
+            || in_array('site.user.manage', $this->sitePermissionCodes($userId, $siteId), true);
     }
 
     /**
@@ -530,10 +539,11 @@ abstract class Controller
     protected function canAccessAttachmentLibraryFeed(int $userId, int $siteId, string $mode, string $context = 'workspace'): bool
     {
         if ($context === 'avatar') {
-            return DB::table('site_user_roles')
-                ->where('site_id', $siteId)
-                ->where('user_id', $userId)
-                ->exists();
+            return $this->canManageSiteUsers($userId, $siteId)
+                || DB::table('site_user_roles')
+                    ->where('site_id', $siteId)
+                    ->where('user_id', $userId)
+                    ->exists();
         }
 
         $permissionCodes = $this->sitePermissionCodes($userId, $siteId);
@@ -575,6 +585,10 @@ abstract class Controller
         string $mode = 'editor',
         string $tableAlias = 'attachments'
     ): void {
+        if ($mode === 'avatar' && $this->canManageSiteUsers($userId, $siteId)) {
+            return;
+        }
+
         $this->applyAttachmentVisibilityScope($query, $userId, $siteId, $tableAlias);
     }
 
@@ -740,6 +754,8 @@ abstract class Controller
             ->where('type', 'article')
             ->where('status', 'published')
             ->where('channel_id', $noticeChannelId)
+            ->orderByDesc('is_top')
+            ->orderByDesc('sort')
             ->orderByDesc('published_at')
             ->orderByDesc('id')
             ->limit($limit)
@@ -849,6 +865,42 @@ abstract class Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        $this->trimOperationLogs($scope, $siteId);
+    }
+
+    protected function trimOperationLogs(string $scope, ?int $siteId = null, int $keep = 500): void
+    {
+        $query = DB::table('operation_logs')
+            ->where('scope', $scope)
+            ->orderByDesc('id');
+
+        if ($siteId === null) {
+            $query->whereNull('site_id');
+        } else {
+            $query->where('site_id', $siteId);
+        }
+
+        $cutoffId = (clone $query)
+            ->skip(max($keep - 1, 0))
+            ->take(1)
+            ->value('id');
+
+        if ($cutoffId === null) {
+            return;
+        }
+
+        $deleteQuery = DB::table('operation_logs')
+            ->where('scope', $scope)
+            ->where('id', '<', $cutoffId);
+
+        if ($siteId === null) {
+            $deleteQuery->whereNull('site_id');
+        } else {
+            $deleteQuery->where('site_id', $siteId);
+        }
+
+        $deleteQuery->delete();
     }
 
     protected function decorateOperationLogs(LengthAwarePaginator $logs): LengthAwarePaginator
@@ -885,7 +937,10 @@ abstract class Controller
             }
 
             $payloadName = $this->extractOperationLogPayloadName($payload);
-            $targetLabel = $this->operationLogTargetTypeLabel($targetType);
+            $targetLabel = $this->operationLogTargetTypeLabel(
+                $targetType,
+                is_string($log->scope ?? null) ? $log->scope : null,
+            );
             $targetName = $resolvedName ?: $payloadName;
             $targetDisplay = $targetLabel !== '' ? $targetLabel : '-';
 
@@ -962,6 +1017,11 @@ abstract class Controller
                 ->pluck('name', 'id')
                 ->map(fn ($name) => trim((string) $name))
                 ->all(),
+            'role' => DB::table('site_roles')
+                ->whereIn('id', $targetIds)
+                ->pluck('name', 'id')
+                ->map(fn ($name) => trim((string) $name))
+                ->all(),
             'module' => DB::table('modules')
                 ->whereIn('id', $targetIds)
                 ->pluck('name', 'id')
@@ -1029,17 +1089,24 @@ abstract class Controller
         return null;
     }
 
-    protected function operationLogTargetTypeLabel(?string $targetType): string
+    protected function operationLogTargetTypeLabel(?string $targetType, ?string $scope = null): string
     {
-        return match (trim((string) $targetType)) {
+        $targetType = trim((string) $targetType);
+        $scope = trim((string) $scope);
+
+        if ($targetType === 'user') {
+            return $scope === 'platform' ? '管理员' : '操作员';
+        }
+
+        return match ($targetType) {
             'site' => '站点',
-            'user' => '管理员',
             'content' => '内容',
             'channel' => '栏目',
             'attachment' => '资源',
             'theme' => '主题',
             'platform_role' => '平台角色',
             'site_role' => '站点角色',
+            'role' => '站点角色',
             'module' => '模块',
             'promo_position' => '广告位',
             'promo_item' => '图宣',

@@ -495,6 +495,192 @@
             flex-shrink: 0;
         }
 
+        .site-context-switcher {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .site-context-switcher-form {
+            margin: 0;
+        }
+
+        .site-context-switcher-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 36px;
+            padding: 0 14px 0 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #ffffff;
+            color: var(--muted);
+            cursor: pointer;
+            transition: border-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .site-context-switcher-trigger:hover,
+        .site-context-switcher.is-open .site-context-switcher-trigger {
+            border-color: var(--primary-border-soft);
+            background: var(--primary-bg);
+            color: var(--primary);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        }
+
+        .site-context-switcher-trigger:focus-visible,
+        .site-context-switcher-search:focus-visible,
+        .site-context-switcher-option:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--primary-soft-strong);
+        }
+
+        .site-context-switcher-copy {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+            color: inherit;
+        }
+
+        .site-context-switcher-name {
+            max-width: 136px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .site-context-switcher-caret {
+            width: 14px;
+            height: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.72;
+            transition: transform 0.18s ease;
+        }
+
+        .site-context-switcher-caret svg {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .site-context-switcher.is-open .site-context-switcher-caret {
+            transform: rotate(180deg);
+        }
+
+        .site-context-switcher-panel {
+            position: absolute;
+            top: calc(100% + 10px);
+            left: 0;
+            width: 280px;
+            padding: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-4px);
+            transition: opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 1400;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .site-context-switcher.is-open .site-context-switcher-panel {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        .site-context-switcher-search-wrap {
+            margin-bottom: 10px;
+        }
+
+        .site-context-switcher-search {
+            width: 100%;
+            height: 38px;
+            padding: 0 12px;
+            border: 1px solid rgba(226, 232, 240, 0.92);
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #111827;
+            font: inherit;
+            font-size: 13px;
+            transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .site-context-switcher-search:focus {
+            border-color: var(--primary-border-soft);
+            background: #ffffff;
+        }
+
+        .site-context-switcher-list {
+            max-height: 280px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: grid;
+            gap: 6px;
+            box-sizing: border-box;
+        }
+
+        .site-context-switcher-option {
+            width: 100%;
+            display: grid;
+            gap: 2px;
+            padding: 10px 12px;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            background: transparent;
+            color: #374151;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+            box-sizing: border-box;
+        }
+
+        .site-context-switcher-option:hover,
+        .site-context-switcher-option:focus-visible {
+            background: #f8fafc;
+            border-color: rgba(226, 232, 240, 0.92);
+            transform: translateX(1px);
+        }
+
+        .site-context-switcher-option.is-active {
+            background: var(--primary-bg);
+            border-color: var(--primary-border-soft);
+            color: var(--primary);
+        }
+
+        .site-context-switcher-option-name {
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .site-context-switcher-option-meta {
+            font-size: 11px;
+            line-height: 1.4;
+            color: #98a2b3;
+        }
+
+        .site-context-switcher-empty {
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #98a2b3;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
         .theme-switcher-trigger {
             width: 36px;
             height: 36px;
@@ -1663,6 +1849,8 @@
     $platformPermissionCodes = [];
     $sitePermissionCodes = [];
     $currentSite = $currentSite ?? null;
+    $sites = collect($sites ?? []);
+    $showSiteSwitcher = ($showSiteSwitcher ?? false) && $sites->count() > 1 && ! empty($currentSite?->id);
     $displayName = $authUser->real_name ?? $authUser->name ?? $authUser->username ?? '管理员';
     $boundSitesCount = 0;
     $headerRoleLabel = '管理员';
@@ -1760,11 +1948,13 @@
         'attachment' => '<svg viewBox="0 0 24 24"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 1 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.82l8.49-8.48"/></svg>',
         'module' => '<svg viewBox="0 0 24 24"><path d="M4 7h7v7H4z"/><path d="M13 7h7v7h-7z"/><path d="M4 16h7v4H4z"/><path d="M13 16h7v4h-7z"/></svg>',
         'database' => '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.66 3.13 3 7 3s7-1.34 7-3V5"/><path d="M5 11v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/></svg>',
+        'shield' => '<svg viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 5 3.2 8.6 7 10 3.8-1.4 7-5 7-10V6z"/><path d="m9.5 12 1.7 1.7 3.3-3.4"/></svg>',
         'setting' => '<svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6z"/></svg>',
         'log' => '<svg viewBox="0 0 24 24"><path d="M12 8v5l3 2"/><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>',
         'logout' => '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
         'tag' => '<svg viewBox="0 0 24 24"><path d="M20.59 13.41 12 22l-9-9V4h9z"/><path d="M7.5 8.5h.01"/></svg>',
         'chevron-down' => '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+        'site-switch' => '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/><path d="m17 15 3 3-3 3"/><path d="M20 18h-7"/></svg>',
         'profile-card' => '<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2Z"/><path d="M8.5 10a3.5 3.5 0 1 0 7 0 3.5 3.5 0 0 0-7 0Z"/><path d="M7 18a5 5 0 0 1 10 0"/></svg>',
         'palette' => '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18h1.2a1.8 1.8 0 0 0 .4-3.56l-.64-.16a1.54 1.54 0 0 1 1.04-2.9H16a5 5 0 0 0 0-10z"/><path d="M7.5 10.5h.01"/><path d="M12 7.5h.01"/><path d="M16.5 10.5h.01"/><path d="M8.5 15.5h.01"/></svg>',
         'theme-chip' => '<svg viewBox="0 0 24 24"><path d="M4 12h16"/><path d="M12 4v16"/><path d="M5.5 5.5 18.5 18.5"/><path d="M18.5 5.5 5.5 18.5"/></svg>',
@@ -1833,6 +2023,12 @@
             ->where('status', 'pending')
             ->count()
         : 0;
+    $payrollEmployeePendingCount = ($currentSite && $boundSiteModules->contains(fn (array $module): bool => ($module['code'] ?? null) === 'payroll'))
+        ? (int) \Illuminate\Support\Facades\DB::table('module_payroll_employees')
+            ->where('site_id', $currentSite->id)
+            ->where('status', 'pending')
+            ->count()
+        : 0;
 
     $siteMenuGroups = [
         [
@@ -1848,7 +2044,7 @@
         [
             'title' => '功能模块',
             'items' => array_values(array_filter(
-                $boundSiteModules->map(function (array $module) use ($guestbookMenuName, $guestbookPendingCount): array {
+                $boundSiteModules->map(function (array $module) use ($guestbookMenuName, $guestbookPendingCount, $payrollEmployeePendingCount): array {
                     $entryRoute = is_string($module['site_entry_route'] ?? null) && ($module['site_entry_route'] ?? '') !== ''
                         ? (string) $module['site_entry_route']
                         : 'admin.site-modules.show';
@@ -1865,8 +2061,12 @@
                         'route_params' => $routeParams,
                         'active' => request()->routeIs($activePattern) || (request()->routeIs('admin.site-modules.show') && request()->route('module') === $module['code']),
                         'icon' => 'module',
-                        'badge' => ($module['code'] ?? null) === 'guestbook' ? $guestbookPendingCount : 0,
-                        'badge_class' => ($module['code'] ?? null) === 'guestbook' ? 'is-title' : '',
+                        'badge' => match ($module['code'] ?? null) {
+                            'guestbook' => $guestbookPendingCount,
+                            'payroll' => $payrollEmployeePendingCount,
+                            default => 0,
+                        },
+                        'badge_class' => in_array(($module['code'] ?? null), ['guestbook', 'payroll'], true) ? 'is-title' : '',
                         'show' => true,
                     ];
                 })->all(),
@@ -1881,6 +2081,7 @@
                 ['label' => '栏目管理', 'route' => 'admin.channels.index', 'active' => request()->routeIs('admin.channels.*'), 'icon' => 'channel', 'show' => in_array('channel.manage', $sitePermissionCodes, true)],
                 ['label' => '图宣管理', 'route' => 'admin.promos.index', 'active' => request()->routeIs('admin.promos.*'), 'icon' => 'promo', 'show' => in_array('promo.manage', $sitePermissionCodes, true)],
                 ['label' => '模板管理', 'route' => 'admin.themes.index', 'active' => request()->routeIs('admin.themes.*'), 'icon' => 'theme', 'show' => in_array('theme.use', $sitePermissionCodes, true) || in_array('theme.edit', $sitePermissionCodes, true)],
+                ['label' => '安护盾', 'route' => 'admin.security.index', 'active' => request()->routeIs('admin.security.*'), 'icon' => 'shield', 'show' => in_array('security.view', $sitePermissionCodes, true)],
                 ['label' => '操作员管理', 'route' => 'admin.site-users.index', 'active' => request()->routeIs('admin.site-users.*'), 'icon' => 'user', 'show' => in_array('site.user.manage', $sitePermissionCodes, true)],
                 ['label' => '操作角色管理', 'route' => 'admin.site-roles.index', 'active' => request()->routeIs('admin.site-roles.*'), 'icon' => 'setting', 'show' => in_array('site.user.manage', $sitePermissionCodes, true)],
                 ['label' => '站点日志', 'route' => 'admin.site-logs.index', 'active' => request()->routeIs('admin.site-logs.*'), 'icon' => 'log', 'show' => in_array('log.view', $sitePermissionCodes, true)],
@@ -1998,6 +2199,44 @@
             @endphp
             <div class="breadcrumb">{{ $breadcrumb }}</div>
             <div class="header-user">
+                @if ($showSiteSwitcher)
+                    <div class="site-context-switcher" data-site-context-switcher>
+                        <form class="site-context-switcher-form" method="POST" action="{{ route('admin.site-context.update') }}">
+                            @csrf
+                            <input type="hidden" name="site_id" value="{{ (int) ($currentSite->id ?? 0) }}" data-site-context-input>
+                            <button class="site-context-switcher-trigger" type="button" data-site-context-trigger data-tooltip="切换站点" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="button-icon">{!! $icons['site-switch'] !!}</span>
+                                <span class="site-context-switcher-copy">
+                                    <span class="site-context-switcher-name">{{ $currentSite->name ?? '切换站点' }}</span>
+                                </span>
+                                <span class="site-context-switcher-caret">{!! $icons['chevron-down'] !!}</span>
+                            </button>
+                            <div class="site-context-switcher-panel" data-site-context-panel>
+                                <div class="site-context-switcher-search-wrap">
+                                    <input class="site-context-switcher-search" type="search" placeholder="搜索站点名称" data-site-context-search>
+                                </div>
+                                <div class="site-context-switcher-list" role="listbox" data-site-context-list>
+                                    @foreach ($sites as $siteOption)
+                                        <button
+                                            class="site-context-switcher-option @if ((int) $siteOption->id === (int) ($currentSite->id ?? 0)) is-active @endif"
+                                            type="button"
+                                            data-site-context-option
+                                            data-site-id="{{ (int) $siteOption->id }}"
+                                            data-site-name="{{ $siteOption->name }}"
+                                            data-site-key="{{ $siteOption->site_key }}"
+                                            role="option"
+                                            aria-selected="{{ (int) $siteOption->id === (int) ($currentSite->id ?? 0) ? 'true' : 'false' }}"
+                                        >
+                                            <span class="site-context-switcher-option-name">{{ $siteOption->name }}</span>
+                                            <span class="site-context-switcher-option-meta">{{ '站点标识：' . $siteOption->site_key }}</span>
+                                        </button>
+                                    @endforeach
+                                    <div class="site-context-switcher-empty" data-site-context-empty hidden>没有找到匹配的站点。</div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                @endif
                 <div class="theme-switcher" data-theme-switcher>
                     <button class="theme-switcher-trigger" type="button" data-theme-trigger data-tooltip="界面风格">
                         <span class="button-icon">{!! $icons['palette'] !!}</span>
@@ -2244,6 +2483,98 @@
             });
         }
 
+        const siteContextSwitcher = document.querySelector('[data-site-context-switcher]');
+        const siteContextTrigger = siteContextSwitcher?.querySelector('[data-site-context-trigger]');
+        const siteContextPanel = siteContextSwitcher?.querySelector('[data-site-context-panel]');
+        const siteContextSearch = siteContextSwitcher?.querySelector('[data-site-context-search]');
+        const siteContextInput = siteContextSwitcher?.querySelector('[data-site-context-input]');
+        const siteContextForm = siteContextSwitcher?.querySelector('.site-context-switcher-form');
+        const siteContextList = siteContextSwitcher?.querySelector('[data-site-context-list]');
+        const siteContextOptions = Array.from(siteContextSwitcher?.querySelectorAll('[data-site-context-option]') || []);
+        const siteContextEmpty = siteContextSwitcher?.querySelector('[data-site-context-empty]');
+
+        const setSiteContextOpen = (isOpen) => {
+            if (!siteContextSwitcher || !siteContextTrigger) {
+                return;
+            }
+
+            siteContextSwitcher.classList.toggle('is-open', isOpen);
+            siteContextTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+            if (isOpen) {
+                window.setTimeout(() => {
+                    siteContextSearch?.focus();
+                    siteContextSearch?.select();
+                }, 10);
+            }
+        };
+
+        const filterSiteContextOptions = () => {
+            if (!siteContextSearch) {
+                return;
+            }
+
+            const keyword = siteContextSearch.value.trim().toLowerCase();
+            const matches = [];
+            let visibleCount = 0;
+
+            siteContextOptions.forEach((option, index) => {
+                const name = (option.dataset.siteName || '').toLowerCase();
+                const siteKey = (option.dataset.siteKey || '').toLowerCase();
+                const matched = keyword === '' || name.includes(keyword) || siteKey.includes(keyword);
+
+                option.hidden = !matched;
+                option.style.display = matched ? '' : 'none';
+
+                if (matched) {
+                    visibleCount += 1;
+                    const startsWithName = keyword !== '' && name.startsWith(keyword);
+                    const startsWithKey = keyword !== '' && siteKey.startsWith(keyword);
+                    matches.push({
+                        option,
+                        index,
+                        weight: startsWithName ? 0 : (startsWithKey ? 1 : 2),
+                    });
+                }
+            });
+
+            if (siteContextList) {
+                matches
+                    .sort((left, right) => (left.weight - right.weight) || (left.index - right.index))
+                    .forEach(({ option }) => {
+                        siteContextList.appendChild(option);
+                    });
+            }
+
+            if (siteContextEmpty) {
+                siteContextEmpty.hidden = visibleCount !== 0;
+            }
+        };
+
+        siteContextTrigger?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const willOpen = !siteContextSwitcher?.classList.contains('is-open');
+            setSiteContextOpen(willOpen);
+            if (willOpen) {
+                filterSiteContextOptions();
+            }
+        });
+
+        siteContextSearch?.addEventListener('input', () => {
+            filterSiteContextOptions();
+        });
+
+        siteContextOptions.forEach((option) => {
+            option.addEventListener('click', () => {
+                if (!siteContextInput || !siteContextForm) {
+                    return;
+                }
+
+                siteContextInput.value = option.dataset.siteId || '';
+                siteContextForm.submit();
+            });
+        });
+
         const userMenu = document.querySelector('[data-user-menu]');
         const userMenuTrigger = userMenu?.querySelector('[data-user-menu-trigger]');
         const setUserMenuOpen = (isOpen) => {
@@ -2265,6 +2596,10 @@
                 switcher.classList.remove('is-open');
             }
 
+            if (siteContextSwitcher && !siteContextSwitcher.contains(event.target)) {
+                setSiteContextOpen(false);
+            }
+
             if (userMenu && !userMenu.contains(event.target)) {
                 setUserMenuOpen(false);
             }
@@ -2273,6 +2608,7 @@
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 switcher?.classList.remove('is-open');
+                setSiteContextOpen(false);
                 setUserMenuOpen(false);
             }
         });

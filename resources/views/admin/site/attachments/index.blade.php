@@ -434,7 +434,7 @@
         .attachment-meta-line {
             display: flex;
             justify-content: space-between;
-            gap: 12px;
+            gap: 18px;
             align-items: center;
             color: #778196;
             font-size: 13px;
@@ -446,11 +446,48 @@
             font-weight: 600;
         }
 
+        .attachment-meta-line.is-usage-line {
+            display: grid;
+            grid-template-columns: max-content minmax(0, 1fr);
+            align-items: start;
+        }
+
+        .attachment-meta-primary {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+
+        .attachment-meta-secondary {
+            min-width: 0;
+            text-align: right;
+        }
+
+        .attachment-meta-secondary time,
+        .attachment-meta-secondary span {
+            display: block;
+        }
+
         .attachment-dimension {
             color: #94a3b8;
             font-size: 11px;
             line-height: 1.4;
             font-weight: 500;
+        }
+
+        .attachment-meta-line-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-width: 0;
+            flex: 1 1 auto;
+            max-width: calc(100% - 92px);
+        }
+
+        .attachment-meta-line-main > span:first-child {
+            min-width: 0;
         }
 
         .attachment-actions {
@@ -467,6 +504,18 @@
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        .attachment-actions-left {
+            flex: 1 1 auto;
+        }
+
+        .attachment-actions-right {
+            margin-left: auto;
+        }
+
+        .attachment-replace-button {
+            margin-left: auto;
         }
 
         .attachment-used-note {
@@ -503,6 +552,18 @@
             100% {
                 box-shadow: 0 0 0 0 rgba(82, 196, 26, 0);
             }
+        }
+
+        .attachment-used-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            margin-right: 6px;
+            border-radius: 999px;
+            background: #52c41a;
+            vertical-align: middle;
+            box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.24);
+            animation: attachment-used-pulse 1.8s ease-out infinite;
         }
 
         .attachment-card .button,
@@ -897,6 +958,7 @@
                 @csrf
                 <input id="attachment-upload-file" type="file" name="file" hidden required>
             </form>
+            <input id="attachment-replace-file" type="file" hidden>
             <button id="attachment-upload-trigger" class="button" type="button">上传新资源</button>
         </div>
     </section>
@@ -1019,16 +1081,21 @@
                             <div class="attachment-name">{{ $attachment->origin_name }}</div>
                             <div class="attachment-meta">
                                 <div class="attachment-meta-line">
-                                    <span>
-                                        {{ strtoupper($attachment->extension ?: '-') }}{{ $isImage ? ' · 图片资源' : ' · 附件文件' }}
-                                        @if ($dimensionLabel !== '')
-                                            <span class="attachment-dimension"> · {{ $dimensionLabel }}</span>
-                                        @endif
-                                    </span>
+                                    <div class="attachment-meta-line-main">
+                                        <span>
+                                            {{ strtoupper($attachment->extension ?: '-') }}{{ $isImage ? ' · 图片资源' : ' · 附件文件' }}
+                                            @if ($dimensionLabel !== '')
+                                                <span class="attachment-dimension"> · {{ $dimensionLabel }}</span>
+                                            @endif
+                                        </span>
+                                    </div>
                                     <strong>{{ number_format($attachment->size / 1024, 1) }} KB</strong>
                                 </div>
-                                <div class="attachment-meta-line">
-                                    <span>
+                                <div class="attachment-meta-line is-usage-line">
+                                    <span class="attachment-meta-primary">
+                                        @if ($attachment->usage_count > 0)
+                                            <span class="attachment-used-indicator" aria-label="该附件已被引用"></span>
+                                        @endif
                                         引用 {{ $attachment->usage_count }} 次
                                         @if ($attachment->usage_count > 0)
                                             <button class="attachment-usage-link"
@@ -1044,22 +1111,26 @@
                                             </button>
                                         @endif
                                     </span>
-                                    <span>
-                                        {{ \Illuminate\Support\Carbon::parse($attachment->created_at)->format('m-d H:i') }}
-                                        · {{ $attachment->uploaded_by_name ?? '未记录' }}
+                                    <span class="attachment-meta-secondary">
+                                        <time>{{ \Illuminate\Support\Carbon::parse($attachment->created_at)->format('m-d H:i') }}</time>
+                                        <span>{{ $attachment->uploaded_by_name ?? '未记录' }}</span>
                                     </span>
                                 </div>
                             </div>
                             <div class="attachment-actions">
                                 <div class="attachment-actions-left">
                                     @if ($attachment->url)
-                                        <a class="button secondary" href="{{ $attachment->url }}" target="_blank">预览文件</a>
+                                        <a class="button secondary" href="{{ $attachment->url }}" target="_blank">预览</a>
                                     @endif
                                 </div>
                                 <div class="attachment-actions-right">
-                                    @if ($attachment->usage_count > 0)
-                                        <span class="attachment-used-note" aria-label="该附件已被引用">已引用</span>
-                                    @else
+                                    <button class="button secondary attachment-replace-button"
+                                            type="button"
+                                            data-attachment-replace-trigger
+                                            data-attachment-id="{{ $attachment->id }}"
+                                            data-attachment-name="{{ $attachment->origin_name }}"
+                                            data-attachment-extension="{{ strtolower((string) ($attachment->extension ?: '')) }}">替换</button>
+                                    @if ($attachment->usage_count <= 0)
                                         <form id="attachment-delete-form-{{ $attachment->id }}" method="POST" action="{{ route('admin.attachments.destroy', $attachment->id) }}">
                                             @csrf
                                             <input type="hidden" name="return_url" value="{{ request()->fullUrl() }}">
@@ -1115,10 +1186,13 @@
         document.addEventListener('DOMContentLoaded', () => {
             const trigger = document.getElementById('attachment-upload-trigger');
             const fileInput = document.getElementById('attachment-upload-file');
+            const replaceInput = document.getElementById('attachment-replace-file');
             const form = document.getElementById('attachment-upload-form');
             if (!trigger || !fileInput || !form) {
                 return;
             }
+
+            let pendingReplaceMeta = null;
 
             trigger.addEventListener('click', () => {
                 fileInput.click();
@@ -1195,6 +1269,88 @@
                         onConfirm: () => formElement.submit(),
                     });
                 });
+            });
+
+            const replaceUrlTemplate = @json(route('admin.attachments.replace', ['attachment' => '__ATTACHMENT__']));
+
+            document.querySelectorAll('[data-attachment-replace-trigger]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const attachmentId = button.dataset.attachmentId || '';
+                    const attachmentExtension = (button.dataset.attachmentExtension || '').trim().toLowerCase();
+
+                    if (!replaceInput || attachmentId === '' || attachmentExtension === '') {
+                        return;
+                    }
+
+                    const openPicker = () => {
+                        pendingReplaceMeta = {
+                            id: attachmentId,
+                            extension: attachmentExtension,
+                        };
+                        replaceInput.accept = `.${attachmentExtension}`;
+                        replaceInput.click();
+                    };
+
+                    window.showConfirmDialog({
+                        title: '确认替换该资源？',
+                        text: [
+                            '替换后将直接覆盖原文件，原路径保持不变。',
+                            '原文件内容会被新文件替换，所有引用会立即生效。',
+                            '新文件必须与原附件保持相同后缀名。',
+                        ].join('\n'),
+                        confirmText: '选择替换文件',
+                        onConfirm: () => {
+                            if (typeof window.closeConfirmDialog === 'function') {
+                                window.closeConfirmDialog();
+                            }
+                            openPicker();
+                        },
+                    });
+                });
+            });
+
+            replaceInput?.addEventListener('change', async (event) => {
+                const input = event.target;
+                const file = input.files?.[0];
+                const meta = pendingReplaceMeta;
+
+                if (!file || !meta) {
+                    pendingReplaceMeta = null;
+                    input.value = '';
+                    input.removeAttribute('accept');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch(replaceUrlTemplate.replace('__ATTACHMENT__', String(meta.id)), {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        body: formData,
+                        credentials: 'same-origin',
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || '资源替换失败');
+                    }
+
+                    showMessage(payload.message || '附件已替换，原路径保持不变。');
+                    window.location.reload();
+                } catch (error) {
+                    showMessage(error?.message || '资源替换失败', 'error');
+                } finally {
+                    pendingReplaceMeta = null;
+                    input.value = '';
+                    input.removeAttribute('accept');
+                }
             });
 
             const usageModal = document.getElementById('attachment-usage-modal');

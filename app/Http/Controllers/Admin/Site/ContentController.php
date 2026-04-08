@@ -847,7 +847,7 @@ class ContentController extends Controller
 
     protected function authorizePublishIfNeeded(Request $request, int $siteId, string $status): void
     {
-        if ($status === 'published') {
+        if ($status === 'published' && ! $this->siteRequiresArticleReview($siteId)) {
             $this->authorizeSite($request, $siteId, 'content.publish');
         }
     }

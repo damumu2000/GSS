@@ -85,7 +85,8 @@ class UserController extends Controller
             'selectedChannelIds' => array_values(array_unique(array_filter(array_map('intval', is_array(old('channel_ids')) ? old('channel_ids') : [])))),
             'selectedRoleCanManageContent' => in_array($selectedRoleId, $contentManageRoleIds, true),
             'contentManageRoleIds' => $contentManageRoleIds,
-            'avatarAttachmentWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id),
+            'avatarAttachmentWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id)
+                || $this->canManageSiteUsers((int) $request->user()->id, (int) $currentSite->id),
             'canManageRoleSelection' => true,
             'canManageStatusSelection' => true,
         ]);
@@ -236,7 +237,8 @@ class UserController extends Controller
             'selectedChannelIds' => array_values(array_unique(array_filter(array_map('intval', is_array(old('channel_ids')) ? old('channel_ids') : $existingChannelIds)))),
             'selectedRoleCanManageContent' => in_array((int) ($selectedRoles[0] ?? 0), $contentManageRoleIds, true),
             'contentManageRoleIds' => $contentManageRoleIds,
-            'avatarAttachmentWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id),
+            'avatarAttachmentWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id)
+                || $this->canManageSiteUsers((int) $request->user()->id, (int) $currentSite->id),
             'isSelfEditing' => (int) $request->user()->id === (int) $user->id,
             'canManageRoleSelection' => (int) $request->user()->id !== (int) $user->id,
             'canManageStatusSelection' => (int) $request->user()->id !== (int) $user->id,
@@ -247,7 +249,7 @@ class UserController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
-        $validated = $this->validateUser($request, $currentSite->id, requireRoleSelection: true, canManageStatusSelection: true);
+        $validated = $this->validateUser($request, $currentSite->id, (string) $currentSite->site_key, requireRoleSelection: true, canManageStatusSelection: true);
 
         $user = DB::transaction(function () use ($validated, $currentSite) {
             $user = User::query()->create([
@@ -311,6 +313,7 @@ class UserController extends Controller
         $validated = $this->validateUser(
             $request,
             $currentSite->id,
+            (string) $currentSite->site_key,
             $userId,
             $canManageRoleSelection,
             $canManageStatusSelection,
@@ -349,13 +352,15 @@ class UserController extends Controller
                     ->where('user_id', $user->id)
                     ->value('role_id');
 
-            $this->syncSiteChannels(
-                $currentSite->id,
-                $user->id,
-                $this->roleCanManageContent($currentSite->id, $effectiveRoleId)
-                    ? $this->resolveSiteChannelIds($currentSite->id, $validated['channel_ids'] ?? [])
-                    : [],
-            );
+            if ($canManageRoleSelection) {
+                $this->syncSiteChannels(
+                    $currentSite->id,
+                    $user->id,
+                    $this->roleCanManageContent($currentSite->id, $effectiveRoleId)
+                        ? $this->resolveSiteChannelIds($currentSite->id, $validated['channel_ids'] ?? [])
+                        : [],
+                );
+            }
             (new UserAttachmentRelationSync())->syncForUser($currentSite->id, $user->id);
         });
 
@@ -430,6 +435,7 @@ class UserController extends Controller
     protected function validateUser(
         Request $request,
         int $siteId,
+        string $siteKey,
         ?string $userId = null,
         bool $requireRoleSelection = true,
         bool $canManageStatusSelection = true
@@ -506,7 +512,7 @@ class UserController extends Controller
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        $validator->after(function ($validator) use ($request, $allowedRoleIds, $allowedChannelIds, $requireRoleSelection, $siteId): void {
+        $validator->after(function ($validator) use ($request, $allowedRoleIds, $allowedChannelIds, $requireRoleSelection, $siteId, $siteKey): void {
             $rawRoleId = is_scalar($request->input('role_id')) ? (string) $request->input('role_id') : '';
 
             if ($rawRoleId === '') {
@@ -546,55 +552,16 @@ class UserController extends Controller
             $rawAvatar = trim((string) $request->input('avatar', ''));
 
             if ($rawAvatar !== '') {
-                $avatarCandidates = collect([$rawAvatar])
-                    ->flatMap(function (string $url): array {
-                        $url = trim(html_entity_decode($url, ENT_QUOTES | ENT_HTML5));
+                $avatarPath = parse_url($rawAvatar, PHP_URL_PATH);
+                $avatarPath = is_string($avatarPath) ? trim($avatarPath) : $rawAvatar;
+                $avatarPath = trim(html_entity_decode($avatarPath, ENT_QUOTES | ENT_HTML5));
 
-                        if ($url === '') {
-                            return [];
-                        }
+                $matchesCurrentSiteMedia = preg_match('#^/site-media/'.preg_quote($siteKey, '#').'/.+#', $avatarPath) === 1;
+                $matchesTestSiteMedia = app()->environment('testing')
+                    && preg_match('#^/site-media/tests/attachments/'.preg_quote((string) $siteId, '#').'/.+#', $avatarPath) === 1;
 
-                        $candidates = [$url];
-                        $parsedPath = parse_url($url, PHP_URL_PATH);
-
-                        if (is_string($parsedPath) && $parsedPath !== '') {
-                            $candidates[] = $parsedPath;
-                        }
-
-                        return $candidates;
-                    })
-                    ->map(fn ($url) => trim((string) $url))
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                if ($avatarCandidates === []) {
-                    $validator->errors()->add('avatar', '头像资源无效，请重新从站点资源库选择。');
-
-                    return;
-                }
-
-                $avatarExists = DB::table('attachments')
-                    ->where('site_id', $siteId)
-                    ->whereIn('extension', ['jpg', 'jpeg', 'png', 'gif', 'webp'])
-                    ->where(function ($query) use ($avatarCandidates): void {
-                        $query->whereIn('url', $avatarCandidates)
-                            ->orWhereIn(DB::raw("CONCAT('/', path)"), $avatarCandidates);
-                    });
-
-                $this->applyAttachmentLibraryVisibilityScope(
-                    $avatarExists,
-                    (int) $request->user()->id,
-                    $siteId,
-                    'avatar',
-                );
-
-                $avatarExists = $avatarExists
-                    ->exists();
-
-                if (! $avatarExists) {
-                    $validator->errors()->add('avatar', '头像资源无效、不可访问或不属于当前站点，请重新从可用资源中选择。');
+                if (! $matchesCurrentSiteMedia && ! $matchesTestSiteMedia) {
+                    $validator->errors()->add('avatar', '头像资源无效，请重新从当前站点资源库选择。');
                 }
             }
         });

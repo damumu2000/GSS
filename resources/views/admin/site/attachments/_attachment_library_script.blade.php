@@ -10,6 +10,7 @@
             );
         @endphp
         const attachmentLibraryRuleText = @json($attachmentLibraryRuleText);
+        const attachmentLibraryAutoCompressEnabled = @json($attachmentSystemSettings->attachmentImageAutoCompressEnabled());
 
         let attachmentLibraryEditorId = null;
         let attachmentLibraryMode = 'editor';
@@ -275,6 +276,30 @@
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
+        function setAttachmentLibraryHeaderDescription(headerDesc, text, options = {}) {
+            if (!headerDesc) {
+                return;
+            }
+
+            const enableFeatureBadge = Boolean(options.featureBadge && attachmentLibraryAutoCompressEnabled);
+
+            if (!enableFeatureBadge) {
+                headerDesc.textContent = text;
+                return;
+            }
+
+            const escapedText = String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+
+            headerDesc.innerHTML = `
+                <span class="attachment-library-rule-copy">${escapedText}</span>
+                <span class="attachment-library-feature-badge">自动压缩已开启</span>
+            `;
+        }
+
         function syncAttachmentLibraryUi() {
             const title = document.getElementById('attachment-library-title');
             const headerDesc = title?.nextElementSibling;
@@ -292,9 +317,13 @@
 
             if (isAvatarLibraryMode()) {
                 if (headerDesc) {
-                    headerDesc.textContent = attachmentLibraryWorkspaceEnabled
-                        ? attachmentLibraryRuleText
-                        : '仅显示当前账号可用于头像的图片资源。';
+                    setAttachmentLibraryHeaderDescription(
+                        headerDesc,
+                        attachmentLibraryWorkspaceEnabled
+                            ? attachmentLibraryRuleText
+                            : '仅显示当前账号可用于头像的图片资源。',
+                        { featureBadge: attachmentLibraryWorkspaceEnabled }
+                    );
                 }
                 if (searchInput) {
                     searchInput.placeholder = '搜索头像图片';
@@ -319,7 +348,7 @@
 
             if (isCoverLibraryMode()) {
                 if (headerDesc) {
-                    headerDesc.textContent = attachmentLibraryRuleText;
+                    setAttachmentLibraryHeaderDescription(headerDesc, attachmentLibraryRuleText, { featureBadge: true });
                 }
                 if (searchInput) {
                     searchInput.placeholder = '搜索封面图片';
@@ -343,7 +372,7 @@
             }
 
             if (headerDesc) {
-                headerDesc.textContent = attachmentLibraryRuleText;
+                setAttachmentLibraryHeaderDescription(headerDesc, attachmentLibraryRuleText, { featureBadge: true });
             }
             if (searchInput) {
                 searchInput.placeholder = '搜索文件名';
@@ -832,7 +861,10 @@
                     </div>
                     <div class="attachment-library-meta">
                         <div class="attachment-library-name">${attachment.name}</div>
-                        <div class="attachment-library-ext">${(attachment.extension || 'file').toUpperCase()}${isImageAttachment(attachment) ? ' · 图片资源' : ' · 附件链接'}${isImageAttachment(attachment) && attachmentDimensionLabel(attachment) ? ` <span class="attachment-library-dimension">· ${attachmentDimensionLabel(attachment)}</span>` : ''}</div>
+                        <div class="attachment-library-ext">
+                            <span>${(attachment.extension || 'file').toUpperCase()}${isImageAttachment(attachment) ? ' · 图片资源' : ' · 附件链接'}${isImageAttachment(attachment) && attachmentDimensionLabel(attachment) ? ` <span class="attachment-library-dimension">· ${attachmentDimensionLabel(attachment)}</span>` : ''}</span>
+                            ${attachment.usageCount > 0 ? '<span class="attachment-library-used-note">已引用</span>' : ''}
+                        </div>
                         <div class="attachment-library-usage">
                             <span>引用 ${attachment.usageCount || 0} 次</span>
                             ${attachment.usageCount > 0 && canUseAttachmentWorkspaceActions() ? `
@@ -849,12 +881,12 @@
                     </div>
                     <div class="attachment-library-actions">
                         <button class="button" type="button" data-attachment-insert="${attachment.id}">${isAvatarLibraryMode() ? '插入头像' : (isCoverLibraryMode() ? '插入封面' : (isImageAttachment(attachment) ? '插入图片' : '插入链接'))}</button>
-                        <a class="button secondary" href="${attachment.url}" target="_blank">预览文件</a>
+                        <a class="button secondary" href="${attachment.url}" target="_blank">预览</a>
                         ${canUseAttachmentWorkspaceActions()
-                            ? `<button class="button secondary" type="button" data-attachment-replace="${attachment.id}">替换文件</button>`
+                            ? `<button class="button secondary attachment-library-replace" type="button" data-attachment-replace="${attachment.id}">替换</button>`
                             : ''}
                         ${attachment.usageCount > 0 && canUseAttachmentWorkspaceActions()
-                            ? '<span class="attachment-library-used-note">已引用</span>'
+                            ? ''
                             : (canUseAttachmentWorkspaceActions()
                                 ? `<button class="button secondary danger-lite attachment-library-delete" type="button" data-attachment-delete="${attachment.id}">删除</button>`
                                 : '')}
@@ -1173,13 +1205,12 @@
                 '替换后将直接覆盖原文件，原路径保持不变。',
                 '原文件内容会被新文件替换，所有引用会立即生效。',
                 '新文件必须与原附件保持相同后缀名。',
-                '图片会继续按系统设置执行尺寸与压缩处理。',
             ].join('\n');
 
             if (typeof window.showConfirmDialog === 'function') {
                 window.showConfirmDialog({
                     title: '确认替换该资源？',
-                    text: `${detail}\n\n当前资源：${attachment.name}`,
+                    text: detail,
                     confirmText: '选择替换文件',
                     onConfirm: async () => {
                         if (typeof window.closeConfirmDialog === 'function') {
@@ -1191,7 +1222,7 @@
                 return;
             }
 
-            if (window.confirm(`${detail}\n\n当前资源：${attachment.name}`)) {
+            if (window.confirm(detail)) {
                 triggerAttachmentReplacement(attachment);
             }
         }

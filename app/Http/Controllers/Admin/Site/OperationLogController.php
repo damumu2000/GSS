@@ -82,7 +82,7 @@ class OperationLogController extends Controller
             'selectedAction' => $action,
             'moduleOptions' => $moduleOptions,
             'pageTitle' => '站点日志',
-            'pageDescription' => '仅展示当前站点相关的最近操作记录。',
+            'pageDescription' => '仅展示当前站点相关的最近操作记录，系统最多保留最近 500 条。',
             'showScopeFilter' => false,
             'formRoute' => route('admin.site-logs.index'),
         ]);

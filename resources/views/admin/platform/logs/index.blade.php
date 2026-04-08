@@ -202,6 +202,48 @@
             z-index: 1500;
         }
 
+        .log-filters-card .custom-select-search {
+            width: 100%;
+            height: 34px;
+            margin-bottom: 6px;
+            padding: 0 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #4b5563;
+            font: inherit;
+            font-size: 13px;
+            line-height: 34px;
+        }
+
+        .log-filters-card .custom-select-search:focus {
+            outline: none;
+            border-color: #9ca3af;
+            box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.14);
+        }
+
+        .log-filters-card .custom-select-options {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            max-height: 260px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 2px;
+        }
+
+        .log-filters-card .custom-select-empty {
+            display: none;
+            padding: 10px 12px;
+            color: #9ca3af;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .log-filters-card .custom-select.is-filtering-empty .custom-select-empty {
+            display: block;
+        }
+
         .log-filters-card .custom-select.is-open .custom-select-panel {
             opacity: 1;
             pointer-events: auto;
@@ -611,8 +653,28 @@
                     return;
                 }
 
+                const shouldEnableSearch = nativeSelect.options.length > 8;
+                const searchInput = shouldEnableSearch ? document.createElement('input') : null;
+                const optionsWrap = document.createElement('div');
+                const emptyState = document.createElement('div');
+
+                optionsWrap.className = 'custom-select-options';
+                emptyState.className = 'custom-select-empty';
+                emptyState.textContent = '没有匹配的动作';
+
                 const buildOptions = () => {
                     panel.innerHTML = '';
+
+                    if (searchInput) {
+                        searchInput.type = 'search';
+                        searchInput.className = 'custom-select-search';
+                        searchInput.placeholder = nativeSelect.id === 'action' ? '搜索动作' : '搜索';
+                        panel.appendChild(searchInput);
+                    }
+
+                    panel.appendChild(optionsWrap);
+                    panel.appendChild(emptyState);
+                    optionsWrap.innerHTML = '';
 
                     Array.from(nativeSelect.options).forEach((option) => {
                         const optionButton = document.createElement('button');
@@ -639,8 +701,30 @@
                             closeSelect();
                         });
 
-                        panel.appendChild(optionButton);
+                        optionsWrap.appendChild(optionButton);
                     });
+
+                    if (searchInput) {
+                        searchInput.value = '';
+                        filterOptions('');
+                    }
+                };
+
+                const filterOptions = (keyword) => {
+                    const normalizedKeyword = keyword.trim().toLowerCase();
+                    let visibleCount = 0;
+
+                    optionsWrap.querySelectorAll('.custom-select-option').forEach((optionButton) => {
+                        const text = optionButton.textContent?.toLowerCase() ?? '';
+                        const matched = normalizedKeyword === '' || text.includes(normalizedKeyword);
+                        optionButton.hidden = !matched;
+
+                        if (matched) {
+                            visibleCount += 1;
+                        }
+                    });
+
+                    selectRoot.classList.toggle('is-filtering-empty', visibleCount === 0);
                 };
 
                 const closeSelect = () => {
@@ -658,6 +742,9 @@
                     if (nextState) {
                         selectRoot.classList.add('is-open');
                         trigger.setAttribute('aria-expanded', 'true');
+                        if (searchInput) {
+                            queueMicrotask(() => searchInput.focus());
+                        }
                     }
                 });
 
@@ -668,6 +755,12 @@
                 });
 
                 buildOptions();
+
+                if (searchInput) {
+                    searchInput.addEventListener('input', () => {
+                        filterOptions(searchInput.value);
+                    });
+                }
             });
         })();
     </script>

@@ -22,6 +22,7 @@ class SiteController extends Controller
     {
         $site = $this->resolvedSite($request);
         abort_unless($site, 404);
+        $this->recordSiteVisit((int) $site->id, 'home');
 
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
@@ -49,6 +50,7 @@ class SiteController extends Controller
     public function channel(Request $request, string $slug): Response
     {
         $site = $this->resolvedSite($request);
+        $this->recordSiteVisit((int) $site->id, 'channel');
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
         if ($themeCode === null) {
@@ -166,6 +168,7 @@ class SiteController extends Controller
             ]);
 
         abort_unless($article, 404);
+        $this->recordSiteVisit((int) $site->id, 'article', (int) $article->id);
         $detailTemplate = $article->channel_slug ? $this->channelDetailTemplate($site->id, $article->channel_slug) : 'detail';
         $tags->withContext('detail', $article->channel_id ? (int) $article->channel_id : null, $detailTemplate);
 
@@ -213,6 +216,7 @@ class SiteController extends Controller
     public function page(Request $request, string $id): Response
     {
         $site = $this->resolvedSite($request);
+        $this->recordSiteVisit((int) $site->id, 'page');
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
         if ($themeCode === null) {
@@ -747,5 +751,51 @@ class SiteController extends Controller
             'type' => 'page',
             'url' => route('site.page', ['id' => $page->id, 'site' => $site->site_key]),
         ];
+    }
+
+    protected function recordSiteVisit(int $siteId, string $type, ?int $contentId = null): void
+    {
+        $statDate = now('Asia/Shanghai')->toDateString();
+        $now = now();
+
+        DB::table('site_visit_daily_stats')->insertOrIgnore([
+            'site_id' => $siteId,
+            'stat_date' => $statDate,
+            'page_views' => 0,
+            'article_views' => 0,
+            'channel_views' => 0,
+            'home_views' => 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $updates = [
+            'page_views' => DB::raw('page_views + 1'),
+            'updated_at' => $now,
+        ];
+
+        if ($type === 'article') {
+            $updates['article_views'] = DB::raw('article_views + 1');
+        }
+
+        if ($type === 'channel') {
+            $updates['channel_views'] = DB::raw('channel_views + 1');
+        }
+
+        if ($type === 'home') {
+            $updates['home_views'] = DB::raw('home_views + 1');
+        }
+
+        DB::table('site_visit_daily_stats')
+            ->where('site_id', $siteId)
+            ->where('stat_date', $statDate)
+            ->update($updates);
+
+        if ($type === 'article' && $contentId !== null) {
+            DB::table('contents')
+                ->where('site_id', $siteId)
+                ->where('id', $contentId)
+                ->increment('view_count');
+        }
     }
 }

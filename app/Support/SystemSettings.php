@@ -156,6 +156,66 @@ class SystemSettings
         return min(100, max(1, $this->int('attachment.image_quality', 82)));
     }
 
+    public function siteProtectionEnabled(): bool
+    {
+        return $this->bool('security.site_protection_enabled', true);
+    }
+
+    public function securityBlockBadPathEnabled(): bool
+    {
+        return $this->bool('security.block_bad_path_enabled', true);
+    }
+
+    public function securityBlockSqlInjectionEnabled(): bool
+    {
+        return $this->bool('security.block_sql_injection_enabled', true);
+    }
+
+    public function securityBlockXssEnabled(): bool
+    {
+        return $this->bool('security.block_xss_enabled', true);
+    }
+
+    public function securityBlockPathTraversalEnabled(): bool
+    {
+        return $this->bool('security.block_path_traversal_enabled', true);
+    }
+
+    public function securityBlockBadUploadEnabled(): bool
+    {
+        return $this->bool('security.block_bad_upload_enabled', true);
+    }
+
+    public function securityRateLimitEnabled(): bool
+    {
+        return $this->bool('security.rate_limit_enabled', true);
+    }
+
+    public function securityRateLimitWindowSeconds(): int
+    {
+        return max(1, $this->int('security.rate_limit_window_seconds', 10));
+    }
+
+    public function securityRateLimitMaxRequests(): int
+    {
+        return max(1, $this->int('security.rate_limit_max_requests', 30));
+    }
+
+    public function securityRateLimitSensitiveMaxRequests(): int
+    {
+        return max(1, $this->int('security.rate_limit_sensitive_max_requests', 10));
+    }
+
+    public function securityEventRetentionLimit(): int
+    {
+        return max(20, $this->int('security.event_retention_limit', 200));
+    }
+
+    public function securityStatsRetentionDays(): int
+    {
+        return max(7, $this->int('security.stats_retention_days', 180));
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -176,6 +236,18 @@ class SystemSettings
             'attachment_image_quality' => $this->attachmentImageQuality(),
             'admin_enabled' => $this->adminEnabled(),
             'admin_disabled_message' => $this->adminDisabledMessage(),
+            'security_site_protection_enabled' => $this->siteProtectionEnabled(),
+            'security_block_bad_path_enabled' => $this->securityBlockBadPathEnabled(),
+            'security_block_sql_injection_enabled' => $this->securityBlockSqlInjectionEnabled(),
+            'security_block_xss_enabled' => $this->securityBlockXssEnabled(),
+            'security_block_path_traversal_enabled' => $this->securityBlockPathTraversalEnabled(),
+            'security_block_bad_upload_enabled' => $this->securityBlockBadUploadEnabled(),
+            'security_rate_limit_enabled' => $this->securityRateLimitEnabled(),
+            'security_rate_limit_window_seconds' => $this->securityRateLimitWindowSeconds(),
+            'security_rate_limit_max_requests' => $this->securityRateLimitMaxRequests(),
+            'security_rate_limit_sensitive_max_requests' => $this->securityRateLimitSensitiveMaxRequests(),
+            'security_event_retention_limit' => $this->securityEventRetentionLimit(),
+            'security_stats_retention_days' => $this->securityStatsRetentionDays(),
         ];
     }
 }

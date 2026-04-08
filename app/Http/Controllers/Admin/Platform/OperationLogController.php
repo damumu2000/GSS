@@ -19,16 +19,12 @@ class OperationLogController extends Controller
         $currentSite = $this->currentSite($request);
 
         $keyword = trim((string) $request->query('keyword', ''));
-        $scope = trim((string) $request->query('scope', ''));
         $module = trim((string) $request->query('module', ''));
         $action = trim((string) $request->query('action', ''));
 
         $logQuery = DB::table('operation_logs')
-            ->leftJoin('users', 'users.id', '=', 'operation_logs.user_id');
-
-        if ($scope !== '') {
-            $logQuery->where('operation_logs.scope', $scope);
-        }
+            ->leftJoin('users', 'users.id', '=', 'operation_logs.user_id')
+            ->where('operation_logs.scope', 'platform');
 
         if ($module !== '') {
             $logQuery->where('operation_logs.module', $module);
@@ -50,6 +46,7 @@ class OperationLogController extends Controller
 
         $moduleOptions = DB::table('operation_logs')
             ->select('module')
+            ->where('scope', 'platform')
             ->whereNotNull('module')
             ->distinct()
             ->orderBy('module')
@@ -79,13 +76,13 @@ class OperationLogController extends Controller
             'currentSite' => $currentSite,
             'logs' => $logs,
             'keyword' => $keyword,
-            'selectedScope' => $scope,
+            'selectedScope' => 'platform',
             'selectedModule' => $module,
             'selectedAction' => $action,
             'moduleOptions' => $moduleOptions,
             'pageTitle' => '操作日志',
-            'pageDescription' => '展示平台级和各站点相关的最近操作。',
-            'showScopeFilter' => true,
+            'pageDescription' => '仅展示平台管理相关的最近操作记录，系统最多保留最近 500 条。',
+            'showScopeFilter' => false,
             'formRoute' => route('admin.logs.index'),
         ]);
     }

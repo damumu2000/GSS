@@ -59,8 +59,23 @@ return new class extends Migration
             'attachment.image_max_size_mb' => '5',
             'attachment.image_max_width' => '4096',
             'attachment.image_max_height' => '4096',
+            'attachment.image_auto_resize' => '0',
+            'attachment.image_auto_compress' => '0',
+            'attachment.image_quality' => '82',
             'admin.enabled' => '1',
             'admin.disabled_message' => '后台暂时关闭，请联系系统管理员。',
+            'security.site_protection_enabled' => '1',
+            'security.block_bad_path_enabled' => '1',
+            'security.block_sql_injection_enabled' => '1',
+            'security.block_xss_enabled' => '1',
+            'security.block_path_traversal_enabled' => '1',
+            'security.block_bad_upload_enabled' => '1',
+            'security.rate_limit_enabled' => '1',
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '30',
+            'security.rate_limit_sensitive_max_requests' => '10',
+            'security.event_retention_limit' => '200',
+            'security.stats_retention_days' => '180',
         ];
 
         foreach ($defaults as $key => $value) {

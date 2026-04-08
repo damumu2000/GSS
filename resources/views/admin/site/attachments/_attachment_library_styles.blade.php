@@ -105,7 +105,33 @@
         .attachment-library-panel { position: relative; width: min(980px, calc(100% - 32px)); max-height: calc(100vh - 56px); margin: 28px auto; padding: 24px; border-radius: 28px; background: #fff; border: 1px solid #d7e3dc; box-shadow: 0 24px 60px rgba(17, 31, 27, 0.24); overflow: auto; }
         .attachment-library-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
         .attachment-library-header h3 { margin: 0 0 6px; font-size: 24px; }
-        .attachment-library-rule-text { font-size: 12px; line-height: 1.65; color: #98a2b3; white-space: pre-line; }
+        .attachment-library-rule-text {
+            display: block;
+            font-size: 12px;
+            line-height: 1.65;
+            color: #98a2b3;
+        }
+        .attachment-library-rule-copy {
+            display: inline;
+        }
+        .attachment-library-feature-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: inherit;
+            font-size: inherit;
+            font-weight: inherit;
+            line-height: inherit;
+            vertical-align: baseline;
+        }
+        .attachment-library-feature-badge::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: #22c55e;
+            flex-shrink: 0;
+        }
         .attachment-library-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 160px 180px 190px; gap: 14px; margin-bottom: 18px; }
         .attachment-library-upload { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
         .attachment-library-contextbar { margin-bottom: 18px; }
@@ -152,7 +178,8 @@
         .attachment-library-preview img { width: 100%; height: 140px; object-fit: cover; }
         .attachment-library-meta { display: grid; gap: 6px; }
         .attachment-library-name { font-size: 15px; line-height: 1.6; font-weight: 500; word-break: break-all; }
-        .attachment-library-ext { color: #60756d; font-size: 13px; }
+        .attachment-library-ext { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #60756d; font-size: 13px; }
+        .attachment-library-ext > span:first-child { min-width: 0; }
         .attachment-library-dimension { color: #94a3b8; font-size: 11px; line-height: 1.4; font-weight: 500; }
         .attachment-library-submeta { color: #98a2b3; font-size: 12px; line-height: 1.6; }
         .attachment-library-usage { display: flex; align-items: center; gap: 6px; color: #206a5d; font-size: 12px; font-weight: 600; }
@@ -163,9 +190,10 @@
         .attachment-library-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .attachment-library-actions .button,
         .attachment-library-actions .button.secondary { min-height: 34px; padding: 0 12px; font-size: 13px; border-radius: 10px; }
+        .attachment-library-actions .attachment-library-replace { margin-left: auto; }
         .attachment-library-actions .attachment-library-delete { margin-left: auto; }
         .attachment-library-actions .danger-lite { color: #6b7280; border-color: #e5e7eb; background: #fff; }
-        .attachment-library-used-note { display: inline-flex; align-items: center; gap: 6px; color: #64748b; font-size: 13px; line-height: 1; font-weight: 700; padding: 0 2px; margin-left: auto; }
+        .attachment-library-used-note { display: inline-flex; align-items: center; gap: 6px; color: #64748b; font-size: 13px; line-height: 1; font-weight: 700; padding: 0 2px; flex-shrink: 0; white-space: nowrap; }
         .attachment-library-used-note::before { content: ''; width: 8px; height: 8px; border-radius: 999px; background: #52c41a; box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.36); animation: attachment-library-used-pulse 1.9s ease-out infinite; }
         .attachment-library-empty { padding: 28px; border-radius: 20px; background: #f7fbf8; color: #60756d; text-align: center; }
         .attachment-usage-modal[hidden] { display: none; }

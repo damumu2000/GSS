@@ -150,6 +150,53 @@ return new class extends Migration
             $table->timestamps();
             $table->unique(['site_id', 'setting_key']);
         });
+
+        Schema::create('site_visit_daily_stats', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('site_id')->constrained()->cascadeOnDelete();
+            $table->date('stat_date');
+            $table->unsignedInteger('page_views')->default(0);
+            $table->unsignedInteger('article_views')->default(0);
+            $table->unsignedInteger('channel_views')->default(0);
+            $table->unsignedInteger('home_views')->default(0);
+            $table->timestamps();
+
+            $table->unique(['site_id', 'stat_date']);
+            $table->index(['site_id', 'stat_date'], 'site_visit_daily_stats_site_date_idx');
+        });
+
+        Schema::create('site_security_daily_stats', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('site_id')->constrained('sites')->cascadeOnDelete();
+            $table->date('stat_date');
+            $table->unsignedInteger('blocked_total')->default(0);
+            $table->unsignedInteger('blocked_bad_path')->default(0);
+            $table->unsignedInteger('blocked_sql_injection')->default(0);
+            $table->unsignedInteger('blocked_xss')->default(0);
+            $table->unsignedInteger('blocked_path_traversal')->default(0);
+            $table->unsignedInteger('blocked_bad_upload')->default(0);
+            $table->unsignedInteger('blocked_rate_limit')->default(0);
+            $table->timestamps();
+
+            $table->unique(['site_id', 'stat_date']);
+            $table->index(['site_id', 'stat_date']);
+        });
+
+        Schema::create('site_security_events', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('site_id')->constrained('sites')->cascadeOnDelete();
+            $table->string('rule_code', 64);
+            $table->string('rule_name', 100);
+            $table->string('request_path', 255);
+            $table->string('request_method', 10);
+            $table->string('client_ip', 45)->nullable();
+            $table->string('region_name', 100)->nullable();
+            $table->string('ip_hash', 64)->nullable();
+            $table->timestamp('created_at')->nullable();
+
+            $table->index(['site_id', 'created_at']);
+            $table->index(['site_id', 'rule_code']);
+        });
     }
 
     /**
@@ -157,6 +204,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('site_security_events');
+        Schema::dropIfExists('site_security_daily_stats');
+        Schema::dropIfExists('site_visit_daily_stats');
         Schema::dropIfExists('site_settings');
         Schema::dropIfExists('attachment_relations');
         Schema::dropIfExists('attachments');

@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\Site\PromoItemController;
 use App\Http\Controllers\Admin\Site\RecycleBinController;
 use App\Http\Controllers\Admin\Site\RoleController as SiteRoleController;
 use App\Http\Controllers\Admin\Site\SettingController as SiteSettingController;
+use App\Http\Controllers\Admin\Site\SecurityController as SiteSecurityController;
 use App\Http\Controllers\Admin\Site\ThemeController;
 use App\Http\Controllers\Admin\Site\UserController as SiteUserController;
 use App\Http\Controllers\Admin\SiteContextController;
@@ -179,6 +180,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/settings', [SiteSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [SiteSettingController::class, 'update'])->name('settings.update');
             Route::post('/settings/media-upload', [SiteSettingController::class, 'mediaUpload'])->name('settings.media-upload');
+            Route::get('/security', [SiteSecurityController::class, 'index'])->name('security.index');
             Route::get('/users', [SiteUserController::class, 'index'])->name('site-users.index');
             Route::get('/users/create', [SiteUserController::class, 'create'])->name('site-users.create');
             Route::post('/users', [SiteUserController::class, 'store'])->name('site-users.store');

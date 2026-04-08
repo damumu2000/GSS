@@ -2370,8 +2370,11 @@
                                                     <input type="radio" name="status" value="draft" @checked($editorStatus === 'draft')>
                                                     草稿
                                                 </label>
-                                                <label class="content-status-option @if($editorStatus === 'published') is-active @endif @if(! $canPublish) is-disabled @endif">
-                                                    <input type="radio" name="status" value="published" @checked($editorStatus === 'published') @disabled(! $canPublish)>
+                                                @php
+                                                    $canRequestPublish = $canPublish || ($type === 'article' && $articleRequiresReview);
+                                                @endphp
+                                                <label class="content-status-option @if($editorStatus === 'published') is-active @endif @if(! $canRequestPublish) is-disabled @endif">
+                                                    <input type="radio" name="status" value="published" @checked($editorStatus === 'published') @disabled(! $canRequestPublish)>
                                                     {{ $publishOptionLabel }}
                                                 </label>
                                             </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\Site as SitePath;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -17,8 +18,16 @@ class SiteMediaController extends Controller
 
         abort_unless(File::isFile($absolutePath), 404);
 
-        return response()->file($absolutePath, [
-            'Cache-Control' => 'public, max-age=86400',
+        $response = response()->file($absolutePath, [
+            'Cache-Control' => 'public, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
+
+        $response->setEtag(sha1($absolutePath.'|'.File::lastModified($absolutePath).'|'.File::size($absolutePath)));
+        $response->setLastModified(Carbon::createFromTimestamp(File::lastModified($absolutePath)));
+        $response->isNotModified($request);
+
+        return $response;
     }
 }

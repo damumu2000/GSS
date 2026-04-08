@@ -49,6 +49,18 @@ class SystemSettingController extends Controller
             'attachment_image_quality' => ['required', 'integer', 'min:1', 'max:100'],
             'admin_enabled' => ['nullable', 'boolean'],
             'admin_disabled_message' => ['nullable', 'string', 'max:255'],
+            'security_site_protection_enabled' => ['nullable', 'boolean'],
+            'security_block_bad_path_enabled' => ['nullable', 'boolean'],
+            'security_block_sql_injection_enabled' => ['nullable', 'boolean'],
+            'security_block_xss_enabled' => ['nullable', 'boolean'],
+            'security_block_path_traversal_enabled' => ['nullable', 'boolean'],
+            'security_block_bad_upload_enabled' => ['nullable', 'boolean'],
+            'security_rate_limit_enabled' => ['nullable', 'boolean'],
+            'security_rate_limit_window_seconds' => ['nullable', 'integer', 'min:1', 'max:300'],
+            'security_rate_limit_max_requests' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'security_rate_limit_sensitive_max_requests' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'security_event_retention_limit' => ['nullable', 'integer', 'min:20', 'max:1000'],
+            'security_stats_retention_days' => ['nullable', 'integer', 'min:7', 'max:3650'],
             'admin_logo_file' => ['nullable', 'file', 'image', 'max:3072'],
             'admin_favicon_file' => ['nullable', 'file', 'mimes:ico,png', 'max:1024'],
             'admin_logo_clear' => ['nullable', 'boolean'],
@@ -79,6 +91,13 @@ class SystemSettingController extends Controller
             if ($request->boolean('admin_favicon_clear') && $request->hasFile('admin_favicon_file')) {
                 $validator->errors()->add('admin_favicon_file', '请不要同时上传和清除后台 ICO。');
             }
+
+            $maxRequests = (int) $request->input('security_rate_limit_max_requests', $this->systemSettings->securityRateLimitMaxRequests());
+            $sensitiveMaxRequests = (int) $request->input('security_rate_limit_sensitive_max_requests', $this->systemSettings->securityRateLimitSensitiveMaxRequests());
+
+            if ($sensitiveMaxRequests > $maxRequests) {
+                $validator->errors()->add('security_rate_limit_sensitive_max_requests', '敏感页面阈值不能高于普通页面阈值。');
+            }
         });
 
         $validated = $validator->validate();
@@ -103,6 +122,18 @@ class SystemSettingController extends Controller
             'attachment.image_quality' => (string) $validated['attachment_image_quality'],
             'admin.enabled' => $request->boolean('admin_enabled') ? '1' : '0',
             'admin.disabled_message' => $disabledMessage,
+            'security.site_protection_enabled' => $request->boolean('security_site_protection_enabled') ? '1' : '0',
+            'security.block_bad_path_enabled' => $request->boolean('security_block_bad_path_enabled') ? '1' : '0',
+            'security.block_sql_injection_enabled' => $request->boolean('security_block_sql_injection_enabled') ? '1' : '0',
+            'security.block_xss_enabled' => $request->boolean('security_block_xss_enabled') ? '1' : '0',
+            'security.block_path_traversal_enabled' => $request->boolean('security_block_path_traversal_enabled') ? '1' : '0',
+            'security.block_bad_upload_enabled' => $request->boolean('security_block_bad_upload_enabled') ? '1' : '0',
+            'security.rate_limit_enabled' => $request->boolean('security_rate_limit_enabled') ? '1' : '0',
+            'security.rate_limit_window_seconds' => (string) ($validated['security_rate_limit_window_seconds'] ?? $this->systemSettings->securityRateLimitWindowSeconds()),
+            'security.rate_limit_max_requests' => (string) ($validated['security_rate_limit_max_requests'] ?? $this->systemSettings->securityRateLimitMaxRequests()),
+            'security.rate_limit_sensitive_max_requests' => (string) ($validated['security_rate_limit_sensitive_max_requests'] ?? $this->systemSettings->securityRateLimitSensitiveMaxRequests()),
+            'security.event_retention_limit' => (string) ($validated['security_event_retention_limit'] ?? $this->systemSettings->securityEventRetentionLimit()),
+            'security.stats_retention_days' => (string) ($validated['security_stats_retention_days'] ?? $this->systemSettings->securityStatsRetentionDays()),
         ];
 
         if ($request->boolean('admin_logo_clear')) {
@@ -157,7 +188,7 @@ class SystemSettingController extends Controller
 
     protected function normalizeTab(string $tab): string
     {
-        return in_array($tab, ['basic', 'upload', 'access'], true) ? $tab : 'basic';
+        return in_array($tab, ['basic', 'upload', 'security', 'access'], true) ? $tab : 'basic';
     }
 
     protected function storePublicBrandAsset(UploadedFile $file, string $prefix): string

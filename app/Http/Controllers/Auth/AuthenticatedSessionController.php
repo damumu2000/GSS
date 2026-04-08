@@ -8,6 +8,7 @@ use App\Support\SystemSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -80,7 +81,9 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
-        if ((int) $request->user()->status !== 1 && ! $this->isPlatformAdmin($userId)) {
+        $isPlatformAdmin = $this->isPlatformAdmin($userId);
+
+        if ((int) $request->user()->status !== 1 && ! $isPlatformAdmin) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -92,7 +95,9 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        if (! $this->isPlatformAdmin($userId) && $this->boundSites($userId)->isEmpty()) {
+        $boundSites = $isPlatformAdmin ? collect() : $this->boundSites($userId);
+
+        if (! $isPlatformAdmin && $boundSites->isEmpty()) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -101,6 +106,38 @@ class AuthenticatedSessionController extends Controller
                 'username' => '当前账号尚未分配站点，请联系平台管理员。',
             ]);
         }
+
+        if (! $isPlatformAdmin) {
+            $currentSiteId = (int) $request->session()->get('current_site_id', 0);
+
+            if (! $boundSites->contains(fn ($site) => (int) $site->id === $currentSiteId)) {
+                $request->session()->put('current_site_id', (int) $boundSites->first()->id);
+            }
+        }
+
+        DB::table('users')
+            ->where('id', $userId)
+            ->update([
+                'last_login_at' => now(),
+                'last_login_ip' => $request->ip(),
+                'updated_at' => now(),
+            ]);
+
+        $loginSiteId = $isPlatformAdmin
+            ? null
+            : (int) $request->session()->get('current_site_id', (int) ($boundSites->first()->id ?? 0));
+
+        $this->logOperation(
+            $isPlatformAdmin ? 'platform' : 'site',
+            'auth',
+            'login',
+            $loginSiteId > 0 ? $loginSiteId : null,
+            $userId,
+            'user',
+            $userId,
+            ['username' => (string) $request->user()->username],
+            $request,
+        );
 
         return redirect()->intended(route($this->defaultAdminRoute($userId)));
     }

@@ -65,12 +65,28 @@ class AttachmentController extends Controller
                 'attachments.height',
                 'attachments.url',
                 'attachments.created_at',
+                'attachments.updated_at',
                 'attachments.path',
                 'attachments.uploaded_by',
                 DB::raw("COALESCE(NULLIF(users.name, ''), NULLIF(users.username, ''), '未记录') AS uploaded_by_name"),
                 'attachments.usage_count',
             ])
             ->withQueryString();
+
+        $attachments->setCollection(
+            $attachments->getCollection()->map(function ($attachment) {
+                $attachment->url = $this->appendAttachmentCacheVersion(
+                    (string) ($attachment->url ?? ''),
+                    ! empty($attachment->updated_at)
+                        ? Carbon::parse((string) $attachment->updated_at)->timestamp
+                        : (! empty($attachment->created_at)
+                            ? Carbon::parse((string) $attachment->created_at)->timestamp
+                            : null),
+                );
+
+                return $attachment;
+            })
+        );
 
         return view('admin.site.attachments.index', [
             'sites' => $this->adminSites(),
@@ -220,6 +236,7 @@ class AttachmentController extends Controller
                 'attachments.width',
                 'attachments.height',
                 'attachments.created_at',
+                'attachments.updated_at',
                 'users.name',
                 'users.username'
             )
@@ -232,6 +249,7 @@ class AttachmentController extends Controller
                 'attachments.width',
                 'attachments.height',
                 'attachments.created_at',
+                'attachments.updated_at',
                 DB::raw('COUNT(attachment_relations.id) as usage_count'),
                 DB::raw("COALESCE(NULLIF(users.name, ''), NULLIF(users.username, ''), '未记录') AS uploaded_by_name"),
             ]);
@@ -315,6 +333,7 @@ class AttachmentController extends Controller
                     'width' => $attachment->width,
                     'height' => $attachment->height,
                     'created_at' => $attachment->created_at,
+                    'updated_at' => $attachment->updated_at,
                     'usage_count' => 0,
                     'uploaded_by_name' => trim((string) ($request->user()->name ?? '')) ?: trim((string) ($request->user()->username ?? '')) ?: '未记录',
                 ]),
@@ -419,6 +438,7 @@ class AttachmentController extends Controller
                     'width' => $preparedFile['width'],
                     'height' => $preparedFile['height'],
                     'created_at' => now(),
+                    'updated_at' => now(),
                     'usage_count' => (int) ($attachment->usage_count ?? 0),
                     'uploaded_by_name' => $uploadedByName !== '' ? $uploadedByName : '未记录',
                 ]),
@@ -882,12 +902,23 @@ class AttachmentController extends Controller
      */
     protected function serializeAttachmentLibraryItem(object $attachment): array
     {
+        $rawUrl = (string) ($attachment->url ?? '');
+        $cacheVersion = null;
+
+        if (! empty($attachment->updated_at)) {
+            $cacheVersion = Carbon::parse((string) $attachment->updated_at)->timestamp;
+        } elseif (! empty($attachment->created_at)) {
+            $cacheVersion = Carbon::parse((string) $attachment->created_at)->timestamp;
+        }
+
+        $url = $this->appendAttachmentCacheVersion($rawUrl, $cacheVersion);
+
         return [
             'id' => (int) ($attachment->id ?? 0),
             'name' => (string) ($attachment->origin_name ?? ''),
-            'url' => (string) ($attachment->url ?? ''),
+            'url' => $url,
             'path' => (string) ($attachment->path ?? ''),
-            'relativeUrl' => (string) (parse_url((string) ($attachment->url ?? ''), PHP_URL_PATH) ?: ''),
+            'relativeUrl' => (string) (parse_url($url, PHP_URL_PATH) ?: ''),
             'extension' => strtolower((string) ($attachment->extension ?? '')),
             'width' => isset($attachment->width) ? (int) $attachment->width : null,
             'height' => isset($attachment->height) ? (int) $attachment->height : null,
@@ -897,6 +928,17 @@ class AttachmentController extends Controller
                 : null,
             'uploadedByName' => (string) ($attachment->uploaded_by_name ?? '未记录'),
         ];
+    }
+
+    protected function appendAttachmentCacheVersion(string $url, ?int $cacheVersion): string
+    {
+        if ($url === '' || $cacheVersion === null || $cacheVersion <= 0) {
+            return $url;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url.$separator.'v='.$cacheVersion;
     }
 
     protected function normalizeAttachmentBrowserFilters(Request $request): array
