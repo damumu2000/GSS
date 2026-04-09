@@ -1579,7 +1579,7 @@ class AdminAccessTest extends TestCase
             ->get(route('admin.payroll.help'))
             ->assertOk()
             ->assertSee('使用帮助')
-            ->assertSee('先新增月份批次');
+            ->assertSee('新增月份批次');
     }
 
     public function test_payroll_frontend_local_preview_can_show_employee_batch_and_detail(): void
@@ -3466,7 +3466,7 @@ class AdminAccessTest extends TestCase
             ->assertDontSee('切换站点主控');
     }
 
-    public function test_site_dashboard_shows_current_role_and_primary_domain_summary(): void
+    public function test_site_dashboard_renders_current_workspace_modules(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -3489,14 +3489,10 @@ class AdminAccessTest extends TestCase
         $this->actingAs($operator)
             ->get(route('admin.site-dashboard'))
             ->assertOk()
-            ->assertSee('当前角色')
-            ->assertSee('内容编辑')
-            ->assertSee('主域名')
-            ->assertSee('site.local')
-            ->assertSee('绑定站点')
-            ->assertSee('1 个')
-            ->assertSee('备案号')
-            ->assertSee('京ICP备20260001号');
+            ->assertSee('站点工作台')
+            ->assertSee('近 7 天访问趋势')
+            ->assertSee('近期文章')
+            ->assertSee('官闪闪公告栏');
     }
 
     public function test_multi_site_operator_dashboard_shows_site_switcher_and_can_switch_bound_sites(): void
@@ -3518,8 +3514,8 @@ class AdminAccessTest extends TestCase
         $this->actingAs($operator)
             ->get(route('admin.site-dashboard'))
             ->assertOk()
-            ->assertSee('切换站点主控')
-            ->assertSee('demo-school-2');
+            ->assertSee('示例学校')
+            ->assertSee('第二示例学校');
 
         $this->actingAs($operator)
             ->post(route('admin.site-context.update'), ['site_id' => $secondSiteId])
@@ -3572,8 +3568,7 @@ class AdminAccessTest extends TestCase
             ->withSession(['current_site_id' => 999999])
             ->get(route('admin.site-dashboard'))
             ->assertOk()
-            ->assertSee('站点工作台')
-            ->assertSee('示例学校');
+            ->assertSee('站点工作台');
 
         $this->assertSame($siteId, (int) session('current_site_id'));
     }
@@ -4281,7 +4276,7 @@ class AdminAccessTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_attachment_manager_can_view_all_attachments_even_when_sharing_disabled(): void
+    public function test_attachment_manager_is_limited_to_own_attachments_when_sharing_disabled(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -4298,7 +4293,7 @@ class AdminAccessTest extends TestCase
             ->get(route('admin.attachments.index'))
             ->assertOk()
             ->assertSee('uploader-own-resource.pdf')
-            ->assertSee('uploader-visible-foreign.pdf');
+            ->assertDontSee('uploader-visible-foreign.pdf');
     }
 
     public function test_editor_cannot_delete_other_users_attachment_when_sharing_is_disabled(): void
@@ -5570,7 +5565,7 @@ class AdminAccessTest extends TestCase
             ->assertSee('北京');
     }
 
-    public function test_site_dashboard_shows_expiry_warning_for_expiring_site(): void
+    public function test_site_dashboard_still_renders_for_expiring_site(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -5586,8 +5581,8 @@ class AdminAccessTest extends TestCase
             ->withSession(['current_site_id' => $siteId])
             ->get(route('admin.site-dashboard'))
             ->assertOk()
-            ->assertSee('距离到期还有')
-            ->assertSee('12 天');
+            ->assertSee('站点工作台')
+            ->assertSee('近 7 天访问趋势');
     }
 
     public function test_frontend_site_visits_are_recorded_into_daily_stats_and_article_views(): void

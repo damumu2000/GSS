@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Site;
 use App\Support\DatabaseHealth;
 use App\Support\SystemSettings;
 use Illuminate\Http\RedirectResponse;
@@ -29,6 +30,10 @@ class AuthenticatedSessionController extends Controller
         }
 
         $databaseHealth = app(DatabaseHealth::class);
+        $loginSiteBrand = Site::query()
+            ->select(['id', 'name', 'site_key', 'logo', 'favicon', 'seo_title', 'seo_keywords', 'seo_description'])
+            ->where('site_key', 'site')
+            ->first();
 
         return view('auth.login', [
             'databaseHealthWarning' => $databaseHealth->hasPendingMigrations()
@@ -37,6 +42,7 @@ class AuthenticatedSessionController extends Controller
             'adminDisabledMessage' => $this->systemSettings->adminEnabled()
                 ? null
                 : $this->systemSettings->adminDisabledMessage(),
+            'loginSiteBrand' => $loginSiteBrand,
         ]);
     }
 

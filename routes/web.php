@@ -46,7 +46,7 @@ Route::get('/site-media/{siteKey}/{path}', [SiteMediaController::class, 'show'])
     ->name('site.media');
 
 Route::middleware('guest')->group(function (): void {
-    Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+    Route::get('/login', [AuthenticatedSessionController::class, 'create'])->middleware('html.minify')->name('login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
 

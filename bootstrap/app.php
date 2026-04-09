@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin.access' => \App\Http\Middleware\EnsureAdminAccess::class,
             'platform.only' => \App\Http\Middleware\EnsurePlatformOnly::class,
+            'html.minify' => \App\Http\Middleware\MinifyHtmlResponse::class,
             'site.security' => \App\Http\Middleware\SiteSecurityGuard::class,
         ]);
 
