@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Support\AttachmentUsageTracker;
 use App\Support\Site as SitePath;
 use App\Support\SystemSettings;
-use App\Support\ThemeTemplateLocator;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -643,63 +642,6 @@ class AttachmentController extends Controller
                             'relation_labels' => $relationLabels,
                             'updated_at' => $item->updated_at ? Carbon::parse($item->updated_at)->format('m-d H:i') : '--',
                             'edit_url' => route('admin.promos.items.index', $item->position_id).'#promo-item-'.$item->id,
-                            'view_url' => null,
-                            'updated_sort' => $item->updated_at ? Carbon::parse($item->updated_at)->timestamp : 0,
-                        ];
-                    })
-                    ->values()
-            )
-            ->concat(
-                DB::table('attachment_relations')
-                    ->join('site_theme_template_meta', function ($join): void {
-                        $join->on('site_theme_template_meta.id', '=', 'attachment_relations.relation_id')
-                            ->where('attachment_relations.relation_type', '=', 'theme_template');
-                    })
-                    ->where('attachment_relations.attachment_id', $attachmentId)
-                    ->where('site_theme_template_meta.site_id', $currentSite->id)
-                    ->select([
-                        'site_theme_template_meta.id',
-                        'site_theme_template_meta.title',
-                        'site_theme_template_meta.theme_code',
-                        'site_theme_template_meta.template_name',
-                        'site_theme_template_meta.updated_at',
-                        'attachment_relations.usage_slot',
-                    ])
-                    ->orderByDesc('site_theme_template_meta.updated_at')
-                    ->get()
-                    ->groupBy('id')
-                    ->map(function ($group) use ($usageSlotLabels, $usageSlotOrder) {
-                        $item = $group->first();
-                        $relationLabels = $group
-                            ->pluck('usage_slot')
-                            ->map(fn ($slot) => (string) $slot)
-                            ->unique()
-                            ->sortBy(fn ($slot) => $usageSlotOrder[$slot] ?? 99)
-                            ->map(fn ($slot) => $usageSlotLabels[$slot] ?? '资源引用')
-                            ->reject(fn ($label) => $label === '模板资源')
-                            ->values()
-                            ->all();
-
-                        $templateTitle = trim((string) ($item->title ?? ''));
-                        $templateName = (string) ($item->template_name ?? '');
-                        $baseTemplateLabel = ThemeTemplateLocator::labelFor($templateName);
-                        $templateDisplayLabel = $templateTitle !== '' && $templateTitle !== $baseTemplateLabel
-                            ? $baseTemplateLabel.' · '.$templateTitle
-                            : $baseTemplateLabel;
-
-                        return [
-                            'id' => 'theme-template-'.$item->id,
-                            'title' => $templateDisplayLabel,
-                            'type_label' => '模板',
-                            'channel_name' => sprintf('主题：%s', (string) $item->theme_code),
-                            'status_label' => null,
-                            'relation_labels' => array_values(array_merge(
-                                [$templateDisplayLabel],
-                                [sprintf('%s.tpl', $templateName)],
-                                $relationLabels
-                            )),
-                            'updated_at' => $item->updated_at ? Carbon::parse($item->updated_at)->format('m-d H:i') : '--',
-                            'edit_url' => route('admin.themes.editor', ['template' => $templateName]),
                             'view_url' => null,
                             'updated_sort' => $item->updated_at ? Carbon::parse($item->updated_at)->timestamp : 0,
                         ];

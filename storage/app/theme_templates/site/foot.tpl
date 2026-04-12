@@ -4,8 +4,7 @@
     {% if floatingPromos %}
         {% for promoItem in floatingPromos %}
             <div
-                class="theme-floating-promo is-anim-{{ promoItem.display.animation }}{% if promoItem.display.show_on == 'pc' %} is-show-on-pc{% endif %}{% if promoItem.display.show_on == 'mobile' %} is-show-on-mobile{% endif %}"
-                style="{{ promoItem.display.style }}"
+                class="theme-floating-promo theme-floating-promo--{{ promoItem.display.position }} theme-floating-promo--offset-x-{{ promoItem.display.offset_x_token }} theme-floating-promo--offset-y-{{ promoItem.display.offset_y_token }} theme-floating-promo--width-{{ promoItem.display.width_token }} theme-floating-promo--z-{{ promoItem.display.z_index_token }} is-anim-{{ promoItem.display.animation }}{% if promoItem.display.height_token %} theme-floating-promo--height-{{ promoItem.display.height_token }}{% endif %}{% if promoItem.display.show_on == 'pc' %} is-show-on-pc{% endif %}{% if promoItem.display.show_on == 'mobile' %} is-show-on-mobile{% endif %}"
                 data-floating-promo
                 data-floating-close-key="{{ promoItem.display.close_storage_key }}"
                 data-floating-close-hours="{{ promoItem.display.close_expire_hours }}"
@@ -38,50 +37,5 @@
             </div>
         </div>
     </footer>
-    <script>
-        (() => {
-            const now = Date.now();
-
-            document.querySelectorAll('[data-floating-promo]').forEach((element) => {
-                const storageKey = element.getAttribute('data-floating-close-key') || '';
-                const rememberClose = element.getAttribute('data-floating-remember-close') === '1';
-                const expireHours = Number(element.getAttribute('data-floating-close-hours') || '24');
-
-                if (rememberClose && storageKey) {
-                    try {
-                        const closedAt = Number(window.localStorage.getItem(storageKey) || '0');
-                        const expireAt = closedAt + (expireHours * 60 * 60 * 1000);
-
-                        if (closedAt > 0 && expireAt > now) {
-                            element.remove();
-                            return;
-                        }
-
-                        if (closedAt > 0 && expireAt <= now) {
-                            window.localStorage.removeItem(storageKey);
-                        }
-                    } catch (error) {}
-                }
-
-                window.requestAnimationFrame(() => {
-                    element.classList.add('is-ready');
-                });
-
-                element.querySelector('[data-floating-promo-close]')?.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-
-                    if (rememberClose && storageKey) {
-                        try {
-                            window.localStorage.setItem(storageKey, String(Date.now()));
-                        } catch (error) {}
-                    }
-
-                    element.classList.remove('is-ready');
-                    element.remove();
-                });
-            });
-        })();
-    </script>
 </body>
 </html>

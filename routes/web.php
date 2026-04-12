@@ -41,6 +41,9 @@ Route::get('/site-preview', [SiteController::class, 'show'])->name('site.home');
 Route::get('/channel/{slug}', [SiteController::class, 'channel'])->name('site.channel');
 Route::get('/article/{id}', [SiteController::class, 'article'])->name('site.article');
 Route::get('/page/{id}', [SiteController::class, 'page'])->name('site.page');
+Route::get('/theme-assets/{theme}/{path}', [SiteController::class, 'themeAsset'])
+    ->where('path', '.*')
+    ->name('site.theme-asset');
 Route::get('/site-media/{siteKey}/{path}', [SiteMediaController::class, 'show'])
     ->where('path', '.*')
     ->name('site.media');
@@ -89,6 +92,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::post('/settings', [SystemSettingController::class, 'update'])->name('settings.update');
             Route::get('/system-checks', [SystemCheckController::class, 'index'])->name('system-checks.index');
             Route::post('/system-checks/static-vendors/{asset}/upgrade', [SystemCheckController::class, 'upgradeStaticVendor'])->name('system-checks.static-vendors.upgrade');
+            Route::post('/system-checks/cache/{action}/clear', [SystemCheckController::class, 'clearCache'])->name('system-checks.cache.clear');
             Route::get('/users', [PlatformUserController::class, 'index'])->name('users.index');
             Route::get('/users/create', [PlatformUserController::class, 'create'])->name('users.create');
             Route::post('/users', [PlatformUserController::class, 'store'])->name('users.store');
@@ -177,6 +181,8 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::post('/themes/editor/template-rollback', [ThemeController::class, 'rollbackTemplate'])->name('themes.editor.template-rollback');
             Route::post('/themes/editor/template-snapshot-delete', [ThemeController::class, 'deleteSnapshot'])->name('themes.editor.template-snapshot-delete');
             Route::post('/themes/editor/template-snapshot-favorite', [ThemeController::class, 'toggleSnapshotFavorite'])->name('themes.editor.template-snapshot-favorite');
+            Route::post('/themes/editor/asset-upload', [ThemeController::class, 'uploadAsset'])->name('themes.editor.asset-upload');
+            Route::post('/themes/editor/asset-delete', [ThemeController::class, 'deleteAsset'])->name('themes.editor.asset-delete');
             Route::get('/settings', [SiteSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [SiteSettingController::class, 'update'])->name('settings.update');
             Route::post('/settings/media-upload', [SiteSettingController::class, 'mediaUpload'])->name('settings.media-upload');

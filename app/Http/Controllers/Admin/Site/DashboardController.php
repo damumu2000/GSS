@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
+use App\Support\SiteStorageUsage;
 use App\Support\SiteSecurity;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -205,16 +206,26 @@ class DashboardController extends Controller
             'bar_width' => max(10, (int) round(((int) $author->total_count / $authorMaxCount) * 100)),
         ])->all();
 
-        $totalAttachments = (int) DB::table('attachments')->where('site_id', $siteId)->count();
-        $usedAttachmentBytes = (int) DB::table('attachments')->where('site_id', $siteId)->sum('size');
-        $usedAttachments = (int) DB::table('attachments')
-            ->where('site_id', $siteId)
-            ->where('usage_count', '>', 0)
-            ->count();
+        $attachmentsQuery = DB::table('attachments')->where('site_id', $siteId);
+        $totalAttachments = (int) (clone $attachmentsQuery)->count();
+        $totalAttachmentBytes = SiteStorageUsage::attachmentBytes($siteId);
+        $usedAttachmentsQuery = (clone $attachmentsQuery)->where('usage_count', '>', 0);
+        $usedAttachments = (int) (clone $usedAttachmentsQuery)->count();
+        $usedAttachmentBytes = (int) (clone $usedAttachmentsQuery)->sum('size');
         $unusedAttachments = max(0, $totalAttachments - $usedAttachments);
-        $unusedRatio = $totalAttachments > 0
-            ? (int) round(($unusedAttachments / $totalAttachments) * 100)
-            : 0;
+        $unusedAttachmentBytes = max(0, $totalAttachmentBytes - $usedAttachmentBytes);
+        $themeAssetCount = SiteStorageUsage::themeAssetCount($siteId);
+        $themeAssetBytes = SiteStorageUsage::themeAssetBytes($siteId);
+        $assetChartTotal = max(0, $usedAttachments + $unusedAttachments + $themeAssetCount);
+        $assetSegments = $this->buildAssetSegments([
+            'used' => $usedAttachments,
+            'unused' => $unusedAttachments,
+            'theme' => $themeAssetCount,
+        ], [
+            'used' => $usedAttachmentBytes,
+            'unused' => $unusedAttachmentBytes,
+            'theme' => $themeAssetBytes,
+        ]);
 
         return [
             'hero' => [
@@ -256,11 +267,62 @@ class DashboardController extends Controller
                 'total' => $totalAttachments,
                 'used' => $usedAttachments,
                 'unused' => $unusedAttachments,
-                'unused_ratio' => $unusedRatio,
-                'used_ratio' => $totalAttachments > 0 ? 100 - $unusedRatio : 0,
-                'used_size_label' => $this->formatAttachmentSize($usedAttachmentBytes),
+                'theme' => $themeAssetCount,
+                'used_ratio' => $assetChartTotal > 0 ? (int) round(($usedAttachments / $assetChartTotal) * 100) : 0,
+                'unused_ratio' => $assetChartTotal > 0 ? (int) round(($unusedAttachments / $assetChartTotal) * 100) : 0,
+                'theme_ratio' => $assetChartTotal > 0 ? (int) round(($themeAssetCount / $assetChartTotal) * 100) : 0,
+                'used_size_label' => SiteStorageUsage::formatBytes(SiteStorageUsage::totalBytes($siteId)),
                 'storage_limit_label' => $this->siteAttachmentStorageLimitLabel($siteId),
+                'chart_total_size_label' => SiteStorageUsage::formatBytes($totalAttachmentBytes + $themeAssetBytes),
+                'chart_total' => $assetSegments['total'],
+                'segments' => $assetSegments['segments'],
             ],
+        ];
+    }
+
+    /**
+     * @param  array{used:int,unused:int,theme:int}  $counts
+     * @param  array{used:int,unused:int,theme:int}  $bytes
+     * @return array{total:int,segments:array<int,array<string,mixed>>}
+     */
+    private function buildAssetSegments(array $counts, array $bytes): array
+    {
+        $total = max(0, (int) array_sum($counts));
+        $circumference = 490.0884539600077;
+        $dashOffset = 0.0;
+
+        $definitions = [
+            'used' => ['label' => '已引用', 'color_class' => 'is-used'],
+            'unused' => ['label' => '未引用', 'color_class' => 'is-unused'],
+            'theme' => ['label' => '模板资源', 'color_class' => 'is-theme'],
+        ];
+
+        $segments = [];
+
+        foreach (['used', 'unused', 'theme'] as $key) {
+            $value = max(0, (int) ($counts[$key] ?? 0));
+            $size = max(0, (int) ($bytes[$key] ?? 0));
+            $ratio = $total > 0 ? round(($value / $total) * 100) : 0;
+            $segmentLength = $total > 0 ? ($circumference * $value / $total) : 0.0;
+            $segments[] = [
+                'key' => $key,
+                'label' => $definitions[$key]['label'],
+                'value' => $value,
+                'size' => $size,
+                'size_label' => SiteStorageUsage::formatBytes($size),
+                'ratio' => $ratio,
+                'detail' => '占比 '.$ratio.'%',
+                'detail_full' => '占比 '.$ratio.'% · '.SiteStorageUsage::formatBytes($size),
+                'color_class' => $definitions[$key]['color_class'],
+                'dasharray' => sprintf('%.3F %.3F', $segmentLength, max(0, $circumference - $segmentLength)),
+                'dashoffset' => sprintf('%.3F', -$dashOffset),
+            ];
+            $dashOffset += $segmentLength;
+        }
+
+        return [
+            'total' => $total,
+            'segments' => $segments,
         ];
     }
 

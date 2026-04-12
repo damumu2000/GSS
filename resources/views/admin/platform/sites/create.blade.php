@@ -35,7 +35,13 @@
     </section>
 
     <section class="site-form-card">
-        <form id="site-create-form" method="POST" action="{{ route('admin.platform.sites.store') }}">
+        <form
+            id="site-create-form"
+            method="POST"
+            action="{{ route('admin.platform.sites.store') }}"
+            data-platform-site-form
+            data-validation-errors='@json($errors->all())'
+        >
             @csrf
 
             <div class="site-form-body">
@@ -330,7 +336,7 @@
                             </div>
                             <div class="site-module-body">
                                     <div class="brand-assets-row">
-                                        <div class="brand-asset-card is-logo" data-media-uploader data-media-action-text="更换图片" data-media-slot="logo">
+                                        <div class="brand-asset-card is-logo" data-media-uploader data-media-action-text="更换图片" data-media-slot="logo" data-media-upload-url="{{ route('admin.platform.sites.media-upload') }}">
                                             <input class="site-media-hidden-input" id="logo" type="hidden" name="logo" value="{{ old('logo') }}" data-media-value>
                                             <input class="site-media-file-overlay" type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.ico" data-media-file>
                                             <img alt="站点 Logo 预览" data-media-preview-image hidden>
@@ -341,7 +347,7 @@
                                             <button class="brand-asset-clear" type="button" data-media-clear hidden>清除</button>
                                         </div>
 
-                                        <div class="brand-asset-card is-icon" data-media-uploader data-media-action-text="更换图片" data-media-slot="favicon">
+                                        <div class="brand-asset-card is-icon" data-media-uploader data-media-action-text="更换图片" data-media-slot="favicon" data-media-upload-url="{{ route('admin.platform.sites.media-upload') }}">
                                             <input class="site-media-hidden-input" id="favicon" type="hidden" name="favicon" value="{{ old('favicon') }}" data-media-value>
                                             <input class="site-media-file-overlay" type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.ico" data-media-file>
                                         <img alt="站点图标预览" data-media-preview-image hidden>

@@ -4,138 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ ! empty($manageMode) ? '密码管理' : '请输入密码' }} - {{ $site->name }}</title>
-    <style>
-        :root {
-            --primary: #4da2ff;
-            --bg: #eaf4ff;
-            --panel: rgba(255,255,255,0.84);
-            --line: rgba(116,151,191,0.18);
-            --text: #1f2937;
-            --muted: #8a94a6;
-            --danger: #c62828;
-            --success-bg: rgba(16, 185, 129, 0.10);
-            --success-text: #059669;
-        }
-        * { box-sizing: border-box; }
-        body { margin: 0; background: linear-gradient(180deg, #eff7ff 0%, #e8f2ff 100%); color: var(--text); font-family: "PingFang SC","Microsoft YaHei",sans-serif; }
-        a { color: inherit; text-decoration: none; }
-        .shell { width: min(440px, calc(100% - 24px)); margin: 0 auto; min-height: 100vh; padding: 14px 0 28px; }
-        .topbar { text-align: center; color: #111827; font-size: 22px; font-weight: 700; }
-        .subbar { margin-top: 4px; text-align: center; color: var(--muted); font-size: 12px; }
-        .panel {
-            margin-top: 18px;
-            padding: 20px 18px;
-            border-radius: 22px;
-            border: 1px solid var(--line);
-            background: var(--panel);
-            box-shadow: 0 18px 36px rgba(37,119,216,0.08);
-            backdrop-filter: blur(10px);
-        }
-        .headline {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-        .title { margin: 0; font-size: 22px; font-weight: 700; color: #111827; }
-        .back-link { color: #374151; font-size: 14px; font-weight: 700; white-space: nowrap; }
-        .hint { margin-top: 12px; color: #667085; font-size: 14px; line-height: 1.9; }
-        .success { margin-top: 14px; padding: 14px 16px; border-radius: 16px; color: var(--success-text); background: var(--success-bg); font-size: 14px; line-height: 1.8; }
-        .status-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-top: 16px;
-            padding: 14px 16px;
-            border-radius: 16px;
-            background: rgba(255,255,255,0.72);
-            border: 1px solid rgba(116,151,191,0.18);
-        }
-        .status-card strong { display: block; color: #111827; font-size: 14px; }
-        .status-card span { display: block; margin-top: 4px; color: #98a2b3; font-size: 12px; line-height: 1.7; }
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            min-height: 28px;
-            padding: 0 12px;
-            border-radius: 999px;
-            background: rgba(0, 80, 179, 0.08);
-            color: #0050b3;
-            font-size: 12px;
-            font-weight: 700;
-        }
-        .field { display: grid; gap: 8px; margin-top: 16px; }
-        .label { color: #4b5563; font-size: 14px; font-weight: 700; }
-        .input {
-            width: 100%;
-            height: 52px;
-            padding: 0 16px;
-            border-radius: 16px;
-            border: 1px solid rgba(116,151,191,0.24);
-            background: #fff;
-            color: #111827;
-            font-size: 16px;
-            outline: none;
-        }
-        .input:focus { border-color: rgba(77,162,255,0.55); box-shadow: 0 0 0 4px rgba(77,162,255,0.12); }
-        .helper { color: #98a2b3; font-size: 12px; line-height: 1.7; }
-        .error { margin-top: 6px; color: var(--danger); font-size: 13px; line-height: 1.7; }
-        .field-error.is-hidden { display: none; }
-        .toggle-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-top: 16px;
-            padding: 14px 16px;
-            border-radius: 16px;
-            background: rgba(255,255,255,0.72);
-            border: 1px solid rgba(116,151,191,0.18);
-        }
-        .toggle-copy strong { display: block; color: #111827; font-size: 14px; }
-        .toggle-copy span { display: block; margin-top: 4px; color: #98a2b3; font-size: 12px; line-height: 1.7; }
-        .toggle-card input { width: 20px; height: 20px; accent-color: var(--primary); }
-        .actions {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            margin-top: 20px;
-        }
-        .action-note { color: #98a2b3; font-size: 12px; line-height: 1.7; }
-        .button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 104px;
-            height: 42px;
-            padding: 0 22px;
-            border: none;
-            border-radius: 12px;
-            background: var(--primary);
-            color: #fff;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-        .button[disabled] { opacity: .55; cursor: not-allowed; }
-        .notes {
-            margin-top: 18px;
-            padding: 14px 16px;
-            border-radius: 16px;
-            background: rgba(255,255,255,0.72);
-            border: 1px solid rgba(116,151,191,0.18);
-            color: #475467;
-            font-size: 13px;
-            line-height: 1.9;
-        }
-        .notes strong { display: block; margin-bottom: 6px; color: #111827; }
-        .field.is-muted .input {
-            background: #f8fafc;
-            color: #98a2b3;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ asset('css/payroll-frontend-password.css') }}">
 </head>
 <body>
     <div class="shell">
@@ -163,7 +32,7 @@
                     <span class="status-pill">{{ $employee->password_enabled ? '已开启' : '未开启' }}</span>
                 </div>
 
-                <form method="POST" action="{{ route('site.payroll.password.save', $siteQuery) }}">
+                <form method="POST" action="{{ route('site.payroll.password.save', $siteQuery) }}" data-manage-mode="1">
                     @csrf
 
                     <label class="toggle-card">
@@ -209,7 +78,7 @@
                     <span class="status-pill">待验证</span>
                 </div>
 
-                <form method="POST" action="{{ route('site.payroll.password.unlock', $siteQuery) }}">
+                <form method="POST" action="{{ route('site.payroll.password.unlock', $siteQuery) }}" data-manage-mode="0">
                     @csrf
 
                     <label class="field">
@@ -228,106 +97,6 @@
         </section>
     </div>
 
-    <script>
-        (() => {
-            const form = document.querySelector('form');
-            if (!form) return;
-
-            const passwordInput = form.querySelector('[data-payroll-password]');
-            const passwordError = form.querySelector('[data-password-error]');
-            const confirmInput = form.querySelector('[data-payroll-password-confirmation]');
-            const confirmError = form.querySelector('[data-password-confirmation-error]');
-            const submitButton = form.querySelector('[data-submit-button]');
-            const toggle = form.querySelector('[data-password-toggle]');
-            const passwordField = form.querySelector('[data-password-field]');
-            const confirmationField = form.querySelector('[data-password-confirmation-field]');
-            const manageMode = {{ ! empty($manageMode) ? 'true' : 'false' }};
-
-            const toggleError = (node, message) => {
-                if (!node) return;
-                node.textContent = message || '';
-                node.classList.toggle('is-hidden', !message);
-            };
-
-            const syncPasswordFieldState = () => {
-                if (!manageMode || !toggle) return;
-                const enabled = toggle.checked;
-                passwordField?.classList.toggle('is-muted', !enabled);
-                confirmationField?.classList.toggle('is-muted', !enabled);
-                if (passwordInput) passwordInput.disabled = !enabled;
-                if (confirmInput) confirmInput.disabled = !enabled;
-                if (!enabled) {
-                    toggleError(passwordError, '');
-                    toggleError(confirmError, '');
-                    if (passwordInput) passwordInput.value = '';
-                    if (confirmInput) confirmInput.value = '';
-                }
-            };
-
-            const validatePassword = () => {
-                const value = passwordInput?.value || '';
-                if (!manageMode) {
-                    if (value.trim() === '') {
-                        toggleError(passwordError, '请输入密码。');
-                        return false;
-                    }
-                    toggleError(passwordError, '');
-                    return true;
-                }
-
-                if (!toggle?.checked) {
-                    toggleError(passwordError, '');
-                    return true;
-                }
-
-                if (value.trim() === '') {
-                    toggleError(passwordError, '开启密码保护后，请输入新的密码。');
-                    return false;
-                }
-
-                if (value.length < 4) {
-                    toggleError(passwordError, '密码至少需要 4 位。');
-                    return false;
-                }
-
-                toggleError(passwordError, '');
-                return true;
-            };
-
-            const validateConfirmation = () => {
-                if (!manageMode || !confirmInput) return true;
-                if (!toggle?.checked) {
-                    toggleError(confirmError, '');
-                    return true;
-                }
-
-                if ((passwordInput?.value || '') !== confirmInput.value) {
-                    toggleError(confirmError, '两次输入的密码不一致。');
-                    return false;
-                }
-
-                toggleError(confirmError, '');
-                return true;
-            };
-
-            syncPasswordFieldState();
-            passwordInput?.addEventListener('blur', validatePassword);
-            confirmInput?.addEventListener('blur', validateConfirmation);
-            toggle?.addEventListener('change', () => {
-                syncPasswordFieldState();
-            });
-
-            form.addEventListener('submit', (event) => {
-                const valid = validatePassword() & validateConfirmation();
-                if (!valid) {
-                    event.preventDefault();
-                    submitButton?.removeAttribute('disabled');
-                    return;
-                }
-
-                submitButton?.setAttribute('disabled', 'disabled');
-            });
-        })();
-    </script>
+    <script src="{{ asset('js/payroll-frontend-password.js') }}"></script>
 </body>
 </html>

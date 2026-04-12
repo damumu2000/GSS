@@ -1,0 +1,195 @@
+.promo-floating {
+    position: fixed;
+}
+
+.promo-floating--left-top { left: 24px; top: 24px; }
+.promo-floating--left-center { left: 24px; top: 50%; transform: translateY(-50%); }
+.promo-floating--left-bottom { left: 24px; bottom: 24px; }
+.promo-floating--right-top { right: 24px; top: 24px; }
+.promo-floating--right-center { right: 24px; top: 50%; transform: translateY(-50%); }
+.promo-floating--right-bottom { right: 24px; bottom: 24px; }
+
+.promo-floating--pc-only {
+    display: block;
+}
+
+.promo-floating--mobile-only {
+    display: none;
+}
+
+.promo-floating-link,
+.promo-floating-link img {
+    display: block;
+    width: 100%;
+}
+
+.promo-floating-link img {
+    height: auto;
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.promo-floating[data-floating-width="160"] { width: 160px; }
+.promo-floating[data-floating-width="180"] { width: 180px; }
+.promo-floating[data-floating-width="200"] { width: 200px; }
+.promo-floating[data-floating-width="240"] { width: 240px; }
+.promo-floating[data-floating-width="280"] { width: 280px; }
+
+.promo-floating[data-floating-z="100"] { z-index: 100; }
+.promo-floating[data-floating-z="120"] { z-index: 120; }
+.promo-floating[data-floating-z="160"] { z-index: 160; }
+.promo-floating[data-floating-z="200"] { z-index: 200; }
+
+.promo-floating-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.66);
+    color: #fff;
+    cursor: pointer;
+}
+
+.promo-floating--float {
+    animation: promo-floating-float 3s ease-in-out infinite;
+}
+
+.promo-floating--pulse {
+    animation: promo-floating-pulse 2.2s ease-in-out infinite;
+}
+
+.promo-floating--sway {
+    animation: promo-floating-sway 3.2s ease-in-out infinite;
+}
+
+@keyframes promo-floating-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+@keyframes promo-floating-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+
+@keyframes promo-floating-sway {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(2deg); }
+}
+
+@media (max-width: 768px) {
+    .promo-floating--pc-only {
+        display: none;
+    }
+
+    .promo-floating--mobile-only {
+        display: block;
+    }
+}
+
+.promo-carousel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+}
+
+.promo-carousel-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.promo-carousel-track::-webkit-scrollbar {
+    display: none;
+}
+
+.promo-carousel-slide {
+    position: relative;
+    flex: 0 0 100%;
+    display: block;
+    min-width: 100%;
+    scroll-snap-align: start;
+}
+
+.promo-carousel-slide img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 6;
+    object-fit: cover;
+}
+
+.promo-carousel-copy {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
+    display: grid;
+    gap: 6px;
+    color: #fff;
+    text-shadow: 0 4px 18px rgba(15, 23, 42, 0.45);
+}
+
+.promo-carousel-copy strong {
+    font-size: 28px;
+    line-height: 1.2;
+}
+
+.promo-carousel-copy em {
+    font-style: normal;
+    font-size: 14px;
+    line-height: 1.6;
+    opacity: .92;
+}
+
+.promo-carousel-arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    width: 42px;
+    height: 42px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.45);
+    color: #fff;
+    cursor: pointer;
+    transform: translateY(-50%);
+}
+
+.promo-carousel-arrow.is-prev {
+    left: 16px;
+}
+
+.promo-carousel-arrow.is-next {
+    right: 16px;
+}
+
+.promo-carousel-dots {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    z-index: 2;
+    display: flex;
+    gap: 8px;
+    transform: translateX(-50%);
+}
+
+.promo-carousel-dot {
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+}
+
+.promo-carousel-dot.is-active {
+    background: #fff;
+    transform: scale(1.15);
+}

@@ -1,0 +1,455 @@
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            align-items: flex-start;
+            padding: 24px 32px;
+            margin: -28px -28px 24px;
+            background: #ffffff;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .page-header-title {
+            margin: 0;
+            color: #262626;
+            font-size: 20px;
+            line-height: 1.4;
+            font-weight: 700;
+        }
+
+        .page-header-desc {
+            margin-top: 8px;
+            color: #8c8c8c;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .panel.recycle-page-panel {
+            overflow: visible;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+        }
+
+        .recycle-record-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 34px;
+            padding: 0 14px;
+            border-radius: 999px;
+            background: #f5f7fb;
+            color: #4b5563;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .recycle-filter-card {
+            padding: 20px 22px;
+            border: 1px solid #eef1f5;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        .recycle-filter-grid {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
+        .recycle-filter-item {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .recycle-filter-item--keyword {
+            flex: 0 0 320px;
+        }
+
+        .recycle-filter-item--type {
+            flex: 0 0 340px;
+        }
+
+        .recycle-select-flex {
+            flex: 1 1 auto;
+        }
+
+        .recycle-filter-item label {
+            color: #8c8c8c;
+            font-size: 12px;
+            line-height: 1.4;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .recycle-filter-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: flex-end;
+            padding-bottom: 2px;
+        }
+
+        .recycle-filter-actions--fixed {
+            flex: 0 0 auto;
+        }
+
+        .recycle-list-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .recycle-bulk-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .recycle-bulk-select {
+            min-width: 170px;
+        }
+
+        .recycle-table-wrap {
+            border: 1px solid #eef1f5;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #ffffff;
+            margin-top: 0;
+        }
+
+        .recycle-list-panel {
+            margin-top: 18px;
+            padding: 20px 22px;
+            border: 1px solid #eef1f5;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        .recycle-table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+        }
+
+        .recycle-table thead th {
+            padding: 18px 16px;
+            background: #fafbfc;
+            color: #8c8c8c;
+            font-size: 12px;
+            line-height: 1.4;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            border-bottom: 1px solid #eef1f5;
+            text-align: left;
+        }
+
+        .recycle-table tbody td {
+            padding: 18px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.6;
+            vertical-align: middle;
+        }
+
+        .recycle-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .recycle-table tbody tr:hover,
+        .recycle-table tbody tr:hover td {
+            background: transparent !important;
+        }
+
+        .recycle-table th:nth-child(1),
+        .recycle-table td:nth-child(1) {
+            width: 52px;
+            text-align: center;
+        }
+
+        .recycle-table th:nth-child(2),
+        .recycle-table td:nth-child(2) {
+            width: 38%;
+        }
+
+        .recycle-table th:nth-child(3),
+        .recycle-table td:nth-child(3) {
+            width: 12%;
+        }
+
+        .recycle-table th:nth-child(4),
+        .recycle-table td:nth-child(4) {
+            width: 16%;
+        }
+
+        .recycle-table th:nth-child(5),
+        .recycle-table td:nth-child(5) {
+            width: 16%;
+        }
+
+        .recycle-table th:nth-child(6),
+        .recycle-table td:nth-child(6) {
+            width: 18%;
+        }
+
+        .recycle-checkbox {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+
+        .recycle-title-wrap {
+            min-width: 0;
+            position: relative;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: 0 !important;
+        }
+
+        .recycle-title {
+            color: #1f2937;
+            font-size: 15px;
+            line-height: 1.6;
+            font-weight: 400;
+            display: block;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            cursor: default;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: 0 !important;
+        }
+
+        .recycle-title-wrap:hover,
+        .recycle-title:hover {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: 0 !important;
+        }
+
+        .recycle-type-tag,
+        .recycle-channel-tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-start;
+            color: #4b5563;
+            font-size: 13px;
+            font-weight: 600;
+            min-height: auto;
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
+        }
+
+        .recycle-date {
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .recycle-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: flex-start;
+            white-space: nowrap;
+        }
+
+        .recycle-action-button {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            border: 1px solid #e7ebf1;
+            background: #fff;
+            color: #667085;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+            position: relative;
+        }
+
+        .recycle-action-button svg {
+            width: 17px;
+            height: 17px;
+            stroke: currentColor;
+            stroke-width: 1.9;
+            fill: none;
+        }
+
+        .recycle-action-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .recycle-action-button.is-restore:hover {
+            border-color: rgba(34, 197, 94, 0.18);
+            background: rgba(34, 197, 94, 0.06);
+            color: #16a34a;
+        }
+
+        .recycle-action-button.is-destroy:hover {
+            border-color: rgba(239, 68, 68, 0.18);
+            background: rgba(239, 68, 68, 0.06);
+            color: #ef4444;
+        }
+
+        .recycle-tooltip {
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 10px);
+            transform: translateX(-50%) translateY(4px);
+            padding: 8px 12px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.92);
+            color: #ffffff;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 700;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18);
+            z-index: 8;
+        }
+
+        .recycle-action-button:hover .recycle-tooltip {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .recycle-pagination {
+            padding: 18px 6px 4px;
+        }
+
+        .recycle-pagination nav {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            padding-top: 2px;
+        }
+
+        .recycle-pagination .pagination-shell {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: nowrap;
+            min-width: max-content;
+        }
+
+        .recycle-pagination .pagination-pages {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .recycle-pagination .pagination-button,
+        .recycle-pagination .pagination-page,
+        .recycle-pagination .pagination-ellipsis {
+            min-width: 40px;
+            height: 40px;
+            padding: 0 14px;
+            border-radius: 14px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #4b5563;
+            font-size: 13px;
+            line-height: 1;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .recycle-pagination .pagination-page {
+            min-width: 40px;
+            padding: 0;
+        }
+
+        .recycle-pagination .pagination-button {
+            gap: 8px;
+        }
+
+        .recycle-pagination .pagination-button:hover,
+        .recycle-pagination .pagination-page:hover {
+            border-color: #d8dee8;
+            background: #f8fafc;
+            color: #344054;
+        }
+
+        .recycle-pagination .pagination-page.is-active,
+        .recycle-pagination .pagination-page.is-active:visited {
+            border-color: transparent;
+            background: #374151;
+            color: #ffffff;
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+        }
+
+        .recycle-pagination .pagination-button.is-disabled,
+        .recycle-pagination .pagination-page.is-disabled,
+        .recycle-pagination .pagination-ellipsis {
+            color: #c0c6d1;
+            background: transparent;
+            border-color: transparent;
+            box-shadow: none;
+            pointer-events: none;
+        }
+
+        .recycle-empty {
+            padding: 42px 18px;
+            border: 1px dashed #dce4ef;
+            border-radius: 18px;
+            background: #fbfdff;
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.7;
+            text-align: center;
+        }
+
+        @media (max-width: 1024px) {
+            .recycle-filter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .page-header {
+                margin: -24px -18px 20px;
+                padding: 18px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .recycle-table-wrap {
+                overflow-x: auto;
+            }
+
+            .recycle-table {
+                min-width: 760px;
+            }
+
+            .recycle-filter-grid {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }

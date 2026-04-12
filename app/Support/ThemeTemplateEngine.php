@@ -43,6 +43,9 @@ class ThemeTemplateEngine
         'first' => [],
         'promo' => ['code', 'page_scope', 'display_mode', 'channel_id', 'channel_slug', 'template_name', 'limit', 'fields', 'random'],
         'promos' => ['code', 'page_scope', 'display_mode', 'channel_id', 'channel_slug', 'template_name', 'limit', 'fields', 'random'],
+        'themeAsset' => ['path'],
+        'themeStyle' => ['path'],
+        'themeScript' => ['path'],
     ];
 
     /**
@@ -132,7 +135,9 @@ class ThemeTemplateEngine
                     throw ThemeTemplateException::syntax('缺少 }}}');
                 }
                 $expression = trim(substr($source, $position + 3, $end - $position - 3));
-                if (! $validateOnly) {
+                if ($validateOnly) {
+                    $this->validateExpression($expression, $context);
+                } else {
                     $output .= $this->stringify($this->resolveDirective($expression, $context), false);
                 }
                 $offset = $end + 3;
@@ -145,7 +150,9 @@ class ThemeTemplateEngine
                     throw ThemeTemplateException::syntax('缺少 }}');
                 }
                 $expression = trim(substr($source, $position + 2, $end - $position - 2));
-                if (! $validateOnly) {
+                if ($validateOnly) {
+                    $this->validateExpression($expression, $context);
+                } else {
                     $output .= $this->stringify($this->resolveDirective($expression, $context), true);
                 }
                 $offset = $end + 2;
@@ -297,7 +304,12 @@ class ThemeTemplateEngine
         );
     }
 
-    protected function resolveDirective(string $expression, array $context): mixed
+    protected function validateExpression(string $expression, array $context): void
+    {
+        $this->resolveDirective($expression, $context, true);
+    }
+
+    protected function resolveDirective(string $expression, array $context, bool $validateOnly = false): mixed
     {
         if (! preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+(.+))?$/', $expression, $matches)) {
             return $this->resolveValue($expression, $context);
@@ -338,8 +350,62 @@ class ThemeTemplateEngine
             'first' => $this->resolveFirstDirective($tail, $context),
             'promo' => $this->resolvePromoDirective($tail, $context),
             'promos' => $this->resolvePromosDirective($tail, $context),
+            'themeAsset' => $this->resolveThemeAssetDirective($tail, $context, $validateOnly),
+            'themeStyle' => $this->resolveThemeStyleDirective($tail, $context, $validateOnly),
+            'themeScript' => $this->resolveThemeScriptDirective($tail, $context, $validateOnly),
             default => $this->resolveValue($expression, $context),
         };
+    }
+
+    protected function resolveThemeAssetDirective(string $tail, array $context, bool $validateOnly = false): string
+    {
+        $options = $this->parseNamedArguments($tail, $context);
+        $path = trim((string) ($options['path'] ?? ''));
+
+        if ($path === '') {
+            if ($validateOnly) {
+                throw ThemeTemplateException::syntax('主题资源 path 不能为空');
+            }
+
+            return '';
+        }
+
+        $normalizedPath = ThemeTemplateLocator::normalizeAssetPath($path);
+
+        if ($normalizedPath === null) {
+            if ($validateOnly) {
+                throw ThemeTemplateException::syntax('主题资源路径不合法：'.$path);
+            }
+
+            return '';
+        }
+
+        $version = ThemeTemplateLocator::assetVersion($this->siteKey, $this->themeCode, $normalizedPath);
+
+        if ($validateOnly && $version === null) {
+            throw ThemeTemplateException::syntax('当前主题资源不存在：'.$normalizedPath);
+        }
+
+        return route('site.theme-asset', [
+            'theme' => $this->themeCode,
+            'path' => $normalizedPath,
+            'site' => $this->siteKey,
+            'v' => $version ?: null,
+        ]);
+    }
+
+    protected function resolveThemeStyleDirective(string $tail, array $context, bool $validateOnly = false): HtmlString
+    {
+        $url = $this->resolveThemeAssetDirective($tail, $context, $validateOnly);
+
+        return new HtmlString($url === '' ? '' : '<link rel="stylesheet" href="'.e($url).'">');
+    }
+
+    protected function resolveThemeScriptDirective(string $tail, array $context, bool $validateOnly = false): HtmlString
+    {
+        $url = $this->resolveThemeAssetDirective($tail, $context, $validateOnly);
+
+        return new HtmlString($url === '' ? '' : '<script src="'.e($url).'"></script>');
     }
 
     protected function resolveRelatedDirective(string $tail, array $context): Collection

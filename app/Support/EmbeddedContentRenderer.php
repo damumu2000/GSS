@@ -10,7 +10,7 @@ class EmbeddedContentRenderer
 {
     public static function render(?string $html): string
     {
-        $html = (string) ($html ?? '');
+        $html = ContentHtmlSanitizer::sanitize((string) ($html ?? ''));
 
         if ($html === '' || ! str_contains($html, 'data-bilibili-video')) {
             return $html;
@@ -49,28 +49,15 @@ class EmbeddedContentRenderer
             ]);
 
             $replacement = $document->createElement('div');
-            $replacement->setAttribute('class', 'bilibili-video-embed');
-            $replacement->setAttribute('style', sprintf(
-                'margin:%s;text-align:%s;',
-                match ($align) {
-                    'left' => '20px auto 20px 0',
-                    'right' => '20px 0 20px auto',
-                    default => '20px auto',
-                },
-                $align,
-            ));
+            $replacement->setAttribute('class', sprintf('bilibili-video-embed bilibili-video-embed--align-%s', $align));
 
             $iframe = $document->createElement('iframe');
             $iframe->setAttribute('src', $src);
-            $iframe->setAttribute('style', sprintf(
-                'display:block;width:%s;height:%s;max-width:100%%;margin:%s;border:0;border-radius:16px;overflow:hidden;background:#000;',
-                htmlspecialchars($width, ENT_QUOTES),
-                htmlspecialchars($height, ENT_QUOTES),
-                match ($align) {
-                    'left' => '0 auto 0 0',
-                    'right' => '0 0 0 auto',
-                    default => '0 auto',
-                },
+            $iframe->setAttribute('class', sprintf(
+                'bilibili-video-embed__frame bilibili-video-embed__frame--align-%s bilibili-video-embed__frame--width-%s bilibili-video-embed__frame--height-%s',
+                $align,
+                static::normalizeSizeToken($width),
+                static::normalizeSizeToken($height),
             ));
             $iframe->setAttribute('allowfullscreen', 'true');
             $iframe->setAttribute('scrolling', 'no');
@@ -143,5 +130,10 @@ class EmbeddedContentRenderer
         }
 
         return 'center';
+    }
+
+    protected static function normalizeSizeToken(string $value): string
+    {
+        return str_replace(['%', '.'], ['pct', '-'], strtolower($value));
     }
 }

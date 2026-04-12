@@ -1,0 +1,157 @@
+        .emoji-picker-modal[hidden] { display: none; }
+        .emoji-picker-modal { position: fixed; inset: 0; z-index: 2450; }
+        .emoji-picker-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.48); backdrop-filter: blur(5px); }
+        .emoji-picker-panel {
+            position: relative;
+            width: min(760px, calc(100% - 32px));
+            max-height: calc(100vh - 64px);
+            margin: 32px auto;
+            padding: 24px;
+            overflow: auto;
+            border-radius: 28px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+        }
+        .emoji-picker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .emoji-picker-header h3 { margin: 0 0 6px; font-size: 24px; color: #111827; }
+        .emoji-picker-toolbar { display: grid; gap: 14px; margin-bottom: 18px; }
+        .emoji-picker-categories { display: flex; flex-wrap: wrap; gap: 10px; }
+        .emoji-picker-category {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .emoji-picker-category:hover {
+            border-color: rgba(0, 71, 171, 0.16);
+            background: rgba(240, 246, 255, 0.92);
+            color: var(--color-primary, #0047AB);
+        }
+        .emoji-picker-category.is-active {
+            border-color: transparent;
+            background: var(--color-primary, #0047AB);
+            color: #fff;
+        }
+        .emoji-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+            gap: 12px;
+        }
+        .emoji-picker-item {
+            display: grid;
+            justify-items: center;
+            gap: 8px;
+            min-height: 96px;
+            padding: 12px 8px;
+            border-radius: 18px;
+            border: 1px solid #eef2f7;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+        }
+        .emoji-picker-item:hover {
+            transform: translateY(-2px);
+            border-color: rgba(0, 71, 171, 0.18);
+            background: rgba(240, 246, 255, 0.92);
+            box-shadow: 0 10px 22px rgba(0, 71, 171, 0.08);
+        }
+        .emoji-picker-glyph { font-size: 32px; line-height: 1; }
+        .emoji-picker-name {
+            max-width: 100%;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.35;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .emoji-picker-empty {
+            grid-column: 1 / -1;
+            padding: 36px 12px;
+            border-radius: 20px;
+            border: 1px dashed #dbe2ea;
+            background: #f8fafc;
+            color: #64748b;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        .video-embed-modal[hidden] { display: none; }
+        .video-embed-modal { position: fixed; inset: 0; z-index: 2470; }
+        .video-embed-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.42); backdrop-filter: blur(4px); }
+        .video-embed-panel {
+            position: relative;
+            width: min(640px, calc(100% - 32px));
+            margin: 56px auto;
+            padding: 24px;
+            border-radius: 26px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+        }
+        .video-embed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .video-embed-header h3 {
+            margin: 0 0 6px;
+            font-size: 24px;
+            color: #111827;
+        }
+        .video-embed-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 140px 140px;
+            gap: 14px;
+        }
+        .video-embed-field { display: grid; gap: 8px; }
+        .video-embed-field-wide { grid-column: 1 / -1; }
+        .video-embed-error {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(239, 68, 68, 0.18);
+            background: rgba(254, 242, 242, 0.9);
+            color: #dc2626;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .video-embed-actions {
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+        @media (max-width: 920px) {
+            .attachment-library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 680px) {
+            .attachment-library-panel { margin: 16px auto; padding: 18px; width: calc(100% - 20px); }
+            .attachment-library-toolbar { grid-template-columns: 1fr; }
+            .attachment-library-grid { grid-template-columns: 1fr; }
+            .attachment-library-pagination,
+            .attachment-library-pagination nav,
+            .attachment-library-pagination .pagination-shell {
+                justify-content: center;
+            }
+            .emoji-picker-panel { margin: 16px auto; padding: 18px; width: calc(100% - 20px); }
+            .video-embed-panel { margin: 16px auto; padding: 18px; width: calc(100% - 20px); }
+            .video-embed-grid { grid-template-columns: 1fr; }
+        }

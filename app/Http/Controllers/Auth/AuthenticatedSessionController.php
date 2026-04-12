@@ -10,11 +10,16 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
+    protected const LOGIN_MAX_ATTEMPTS = 5;
+
+    protected const LOGIN_DECAY_SECONDS = 300;
+
     public function __construct(
         protected SystemSettings $systemSettings,
     ) {
@@ -69,11 +74,23 @@ class AuthenticatedSessionController extends Controller
             'password' => '密码',
         ]);
 
+        $loginThrottleKey = $this->loginThrottleKey($request, (string) $credentials['username']);
+
+        if (RateLimiter::tooManyAttempts($loginThrottleKey, self::LOGIN_MAX_ATTEMPTS)) {
+            throw ValidationException::withMessages([
+                'username' => '登录尝试过于频繁，请稍后再试。',
+            ]);
+        }
+
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            RateLimiter::hit($loginThrottleKey, self::LOGIN_DECAY_SECONDS);
+
             throw ValidationException::withMessages([
                 'username' => '用户名或密码不正确。',
             ]);
         }
+
+        RateLimiter::clear($loginThrottleKey);
 
         $userId = (int) $request->user()->id;
 
@@ -159,5 +176,10 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    protected function loginThrottleKey(Request $request, string $username): string
+    {
+        return 'auth-login:'.sha1(mb_strtolower(trim($username)).'|'.($request->ip() ?: 'guest'));
     }
 }

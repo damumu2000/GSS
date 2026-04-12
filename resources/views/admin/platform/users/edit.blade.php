@@ -29,7 +29,7 @@
     </section>
 
     <section class="platform-user-shell">
-        <form id="platform-user-edit-form" method="POST" action="{{ route('admin.platform.users.update', $user->id) }}">
+        <form id="platform-user-edit-form" method="POST" action="{{ route('admin.platform.users.update', $user->id) }}" data-validation-errors='@json($errors->all())'>
             @csrf
 
             <div class="platform-user-body">

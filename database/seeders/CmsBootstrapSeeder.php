@@ -218,7 +218,6 @@ class CmsBootstrapSeeder extends Seeder
             [
                 'site_id' => $siteId,
                 'is_primary' => 1,
-                'https_enabled' => 0,
                 'status' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,

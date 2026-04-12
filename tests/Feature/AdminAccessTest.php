@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -79,6 +80,34 @@ class AdminAccessTest extends TestCase
     protected function superAdmin(): User
     {
         return User::query()->findOrFail((int) config('cms.super_admin_user_id', 1));
+    }
+
+    public function test_login_page_returns_security_headers(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+            ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+            ->assertHeader('Content-Security-Policy');
+    }
+
+    public function test_login_page_uses_hsts_when_request_is_forwarded_as_https(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->withServerVariables([
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_X_FORWARDED_FOR' => '203.0.113.10',
+            'HTTP_X_FORWARDED_HOST' => 'www.guanshanshan.cn',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+            'HTTP_X_FORWARDED_PORT' => '443',
+        ])->get('/login')
+            ->assertOk()
+            ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
 
     public function test_platform_admin_can_open_platform_dashboard_and_logs(): void
@@ -439,6 +468,38 @@ class AdminAccessTest extends TestCase
             $manifest['sortablejs']['source'] ?? null
         );
         $this->assertStringContainsString('1.15.7', (string) File::get($assetPath));
+    }
+
+    public function test_super_admin_can_clear_platform_app_cache_from_system_checks_page(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        Cache::put('admin-access-test-cache-key', 'cached-value', 600);
+        $this->assertSame('cached-value', Cache::get('admin-access-test-cache-key'));
+
+        $user = $this->superAdmin();
+
+        $this->actingAs($user)
+            ->post(route('admin.platform.system-checks.cache.clear', ['action' => 'app']))
+            ->assertRedirect(route('admin.platform.system-checks.index'))
+            ->assertSessionHas('status', '应用缓存已清理。');
+
+        $this->assertNull(Cache::get('admin-access-test-cache-key'));
+    }
+
+    public function test_non_super_platform_admin_cannot_clear_platform_cache(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->createPlatformIdentity('cache-maintainer', 'platform_admin');
+        Cache::put('admin-access-test-cache-key', 'cached-value', 600);
+
+        $this->actingAs($user)
+            ->post(route('admin.platform.system-checks.cache.clear', ['action' => 'app']))
+            ->assertRedirect(route('admin.platform.system-checks.index'))
+            ->assertSessionHas('status', '只有总管理员可以执行缓存清理。');
+
+        $this->assertSame('cached-value', Cache::get('admin-access-test-cache-key'));
     }
 
     public function test_platform_admin_can_open_database_management_pages(): void
@@ -5391,6 +5452,46 @@ class AdminAccessTest extends TestCase
         ]);
     }
 
+    public function test_site_media_frequent_refresh_is_counted_by_lightweight_security_guard(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $mediaPath = storage_path('app/web/site/media/attachments/2026/04/security-rate-limit.jpg');
+        File::ensureDirectoryExists(dirname($mediaPath));
+        File::put($mediaPath, 'security-media');
+
+        $this->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertForbidden();
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_rate_limit' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'rate_limit',
+            'request_path' => '/site-media/site/attachments/2026/04/security-rate-limit.jpg',
+            'request_method' => 'GET',
+        ]);
+    }
+
     public function test_site_admin_can_view_security_page_and_only_see_current_site_records(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -7217,6 +7318,49 @@ class AdminAccessTest extends TestCase
             'target_type' => 'user',
             'target_id' => (string) $platformAdmin->id,
         ]);
+    }
+
+    public function test_login_is_rate_limited_after_repeated_failures_and_clears_on_success(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('login-rate-limit-user', true, 'editor');
+        $throttleKey = 'auth-login:'.sha1(mb_strtolower($operator->username).'|127.0.0.1');
+
+        RateLimiter::clear($throttleKey);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors([
+                    'username' => '用户名或密码不正确。',
+                ]);
+        }
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'bad-password',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '登录尝试过于频繁，请稍后再试。',
+            ]);
+
+        RateLimiter::clear($throttleKey);
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+            ])
+            ->assertRedirect(route('admin.site-dashboard'));
+
+        $this->assertSame(0, RateLimiter::attempts($throttleKey));
     }
 
     public function test_disabled_site_operator_is_logged_out_on_next_admin_request(): void

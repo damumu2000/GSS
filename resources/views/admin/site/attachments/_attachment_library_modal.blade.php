@@ -1,3 +1,31 @@
+@php
+    $attachmentSystemSettings = app(\App\Support\SystemSettings::class);
+    $attachmentLibraryRuleText = sprintf(
+        "支持 %s\n单文件不超过 %dMB；图片不超过 %dMB；最大 %d×%d 像素。",
+        strtoupper(implode(' / ', $attachmentSystemSettings->attachmentAllowedExtensions())),
+        $attachmentSystemSettings->attachmentMaxSizeMb(),
+        $attachmentSystemSettings->attachmentImageMaxSizeMb(),
+        $attachmentSystemSettings->attachmentImageMaxWidth(),
+        $attachmentSystemSettings->attachmentImageMaxHeight()
+    );
+    $attachmentLibraryWorkspaceAccessValue = isset($attachmentLibraryWorkspaceAccess)
+        ? (bool) $attachmentLibraryWorkspaceAccess
+        : (isset($avatarAttachmentWorkspaceAccess) ? (bool) $avatarAttachmentWorkspaceAccess : false);
+@endphp
+
+<div
+    id="attachment-library-config"
+    hidden
+    data-rule-text="{{ $attachmentLibraryRuleText }}"
+    data-auto-compress-enabled="{{ $attachmentSystemSettings->attachmentImageAutoCompressEnabled() ? '1' : '0' }}"
+    data-workspace-access="{{ $attachmentLibraryWorkspaceAccessValue ? '1' : '0' }}"
+    data-feed-url="{{ route('admin.attachments.library-feed') }}"
+    data-replace-url-template="{{ route('admin.attachments.replace', ['attachment' => '__ATTACHMENT__']) }}"
+    data-upload-url="{{ route('admin.attachments.library-upload') }}"
+    data-delete-url-template="{{ route('admin.attachments.destroy', ['attachment' => '__ATTACHMENT__']) }}"
+    data-usage-url-template="{{ route('admin.attachments.usages', ['attachment' => '__ATTACHMENT__']) }}"
+></div>
+
 <div id="attachment-library-modal" class="attachment-library-modal" hidden>
     <div class="attachment-library-backdrop" data-close-attachment-library></div>
     <div class="attachment-library-panel" role="dialog" aria-modal="true" aria-labelledby="attachment-library-title">

@@ -36,7 +36,6 @@ return new class extends Migration
             $table->foreignId('site_id')->constrained()->cascadeOnDelete();
             $table->string('domain', 255)->unique();
             $table->boolean('is_primary')->default(false);
-            $table->boolean('https_enabled')->default(true);
             $table->unsignedTinyInteger('status')->default(1);
             $table->timestamps();
         });

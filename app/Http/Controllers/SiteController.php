@@ -11,6 +11,7 @@ use App\Support\ThemeTemplateLocator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 class SiteController extends Controller
@@ -406,6 +407,60 @@ class SiteController extends Controller
         ]);
     }
 
+    public function themeAsset(Request $request, string $theme, string $path): Response
+    {
+        abort_unless(preg_match('/^[A-Za-z0-9_-]+$/', $theme) === 1, 404);
+
+        $siteKey = trim((string) $request->query('site', ''));
+        abort_unless($siteKey !== '', 404);
+
+        $site = DB::table('sites')
+            ->where('site_key', $siteKey)
+            ->first(['id', 'site_key', 'default_theme_id']);
+
+        abort_unless($site, 404);
+        abort_unless($this->frontendThemeCode((int) $site->id) === $theme, 404);
+
+        $normalizedPath = ThemeTemplateLocator::normalizeAssetPath($path);
+
+        abort_unless($normalizedPath !== null, 404);
+
+        $resolved = ThemeTemplateLocator::resolveAssetPath($site->site_key, $theme, $normalizedPath);
+        abort_unless($resolved !== null && File::exists($resolved), 404);
+
+        $etag = sha1($resolved.'|'.File::lastModified($resolved).'|'.File::size($resolved));
+        $response = response(File::get($resolved), 200, [
+            'Content-Type' => $this->themeAssetMimeType($resolved),
+            'Cache-Control' => 'public, max-age=3600',
+            'ETag' => '"'.$etag.'"',
+            'Last-Modified' => gmdate('D, d M Y H:i:s', File::lastModified($resolved)).' GMT',
+        ]);
+
+        if ($request->headers->get('If-None-Match') === '"'.$etag.'"') {
+            $response->setStatusCode(304);
+            $response->setContent(null);
+        }
+
+        return $response;
+    }
+
+    protected function themeAssetMimeType(string $path): string
+    {
+        return match (strtolower((string) pathinfo($path, PATHINFO_EXTENSION))) {
+            'css' => 'text/css; charset=utf-8',
+            'js' => 'application/javascript; charset=utf-8',
+            'json' => 'application/json; charset=utf-8',
+            'svg' => 'image/svg+xml',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            default => File::mimeType($path) ?: 'application/octet-stream',
+        };
+    }
+
     /**
      * Resolve the site ids where the user has a specific site permission.
      *
@@ -515,7 +570,9 @@ class SiteController extends Controller
         $engine = new ThemeTemplateEngine(SitePath::key($site), $themeCode, $payload['tags']);
 
         try {
-            return response($engine->render($template, $payload));
+            $html = $engine->render($template, $payload);
+
+            return response($this->injectSharedFrontendAssets($html));
         } catch (ThemeTemplateException $exception) {
             Log::error('Theme template render failed.', [
                 'site_id' => $site->id,
@@ -531,6 +588,21 @@ class SiteController extends Controller
                 'message' => $exception->getMessage(),
             ], 503);
         }
+    }
+
+    protected function injectSharedFrontendAssets(string $html): string
+    {
+        $assetTag = sprintf('<link rel="stylesheet" href="%s">', asset('css/site-content-render.css'));
+
+        if (str_contains($html, $assetTag)) {
+            return $html;
+        }
+
+        if (stripos($html, '</head>') !== false) {
+            return preg_replace('/<\/head>/i', $assetTag."\n</head>", $html, 1) ?? $html;
+        }
+
+        return $assetTag."\n".$html;
     }
 
     protected function channelDetailTemplate(int $siteId, string $channelSlug): string
@@ -653,20 +725,6 @@ class SiteController extends Controller
 
     protected function articleListPayload(object $item, object $site, object $channel): array
     {
-        $titleStyle = [];
-
-        if (! empty($item->title_color)) {
-            $titleStyle[] = 'color: '.$item->title_color;
-        }
-
-        if (! empty($item->title_bold)) {
-            $titleStyle[] = 'font-weight: 700';
-        }
-
-        if (! empty($item->title_italic)) {
-            $titleStyle[] = 'font-style: italic';
-        }
-
         return [
             'id' => $item->id,
             'title' => $item->title,
@@ -674,7 +732,6 @@ class SiteController extends Controller
             'title_bold' => (bool) ($item->title_bold ?? false),
             'title_italic' => (bool) ($item->title_italic ?? false),
             'is_recommend' => (bool) ($item->is_recommend ?? false),
-            'title_style' => implode('; ', $titleStyle),
             'summary' => $item->summary,
             'published_at' => $item->published_at,
             'channel_name' => $channel->name,
@@ -685,20 +742,6 @@ class SiteController extends Controller
 
     protected function articlePayload(object $article, object $site): array
     {
-        $titleStyle = [];
-
-        if (! empty($article->title_color)) {
-            $titleStyle[] = 'color: '.$article->title_color;
-        }
-
-        if (! empty($article->title_bold)) {
-            $titleStyle[] = 'font-weight: 700';
-        }
-
-        if (! empty($article->title_italic)) {
-            $titleStyle[] = 'font-style: italic';
-        }
-
         return [
             'id' => $article->id,
             'title' => $article->title,
@@ -706,7 +749,6 @@ class SiteController extends Controller
             'title_bold' => (bool) ($article->title_bold ?? false),
             'title_italic' => (bool) ($article->title_italic ?? false),
             'is_recommend' => (bool) ($article->is_recommend ?? false),
-            'title_style' => implode('; ', $titleStyle),
             'summary' => $article->summary,
             'content_html' => EmbeddedContentRenderer::render($article->content ?: ''),
             'channel_id' => $article->channel_id !== null ? (int) $article->channel_id : null,
@@ -721,27 +763,12 @@ class SiteController extends Controller
 
     protected function pagePayload(object $page, object $site, object $channel): array
     {
-        $titleStyle = [];
-
-        if (! empty($page->title_color)) {
-            $titleStyle[] = 'color: '.$page->title_color;
-        }
-
-        if (! empty($page->title_bold)) {
-            $titleStyle[] = 'font-weight: 700';
-        }
-
-        if (! empty($page->title_italic)) {
-            $titleStyle[] = 'font-style: italic';
-        }
-
         return [
             'id' => $page->id,
             'title' => $page->title,
             'title_color' => $page->title_color ?? '',
             'title_bold' => (bool) ($page->title_bold ?? false),
             'title_italic' => (bool) ($page->title_italic ?? false),
-            'title_style' => implode('; ', $titleStyle),
             'summary' => $page->summary,
             'content_html' => EmbeddedContentRenderer::render($page->content ?: ''),
             'channel_id' => $page->channel_id !== null ? (int) $page->channel_id : null,

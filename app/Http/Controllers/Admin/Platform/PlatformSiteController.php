@@ -786,7 +786,6 @@ class PlatformSiteController extends Controller
                 'site_id' => $siteId,
                 'domain' => $domain,
                 'is_primary' => $index === 0,
-                'https_enabled' => 0,
                 'status' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),

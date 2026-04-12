@@ -1047,6 +1047,14 @@ class ThemeTags
         $height = isset($payload['height']) && $payload['height'] !== '' ? (int) $payload['height'] : null;
         $zIndex = (int) ($payload['z_index'] ?? 120);
 
+        $offsetXToken = $this->normalizePromoToken($offsetX, [0, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64], 24);
+        $offsetYToken = $this->normalizePromoToken($offsetY, [0, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64], 24);
+        $widthToken = $this->normalizePromoToken($width, [120, 160, 180, 200, 240, 280, 320, 360, 420], 180);
+        $heightToken = $height !== null
+            ? $this->normalizePromoToken($height, [120, 160, 180, 200, 240, 280, 320, 360, 420], 180)
+            : null;
+        $zIndexToken = $this->normalizePromoToken($zIndex, [100, 120, 160, 200, 240, 300], 120);
+
         return [
             'position' => $position,
             'offset_x' => $offsetX,
@@ -1054,42 +1062,41 @@ class ThemeTags
             'width' => $width,
             'height' => $height,
             'z_index' => $zIndex,
+            'offset_x_token' => $offsetXToken,
+            'offset_y_token' => $offsetYToken,
+            'width_token' => $widthToken,
+            'height_token' => $heightToken,
+            'z_index_token' => $zIndexToken,
             'animation' => (string) ($payload['animation'] ?? 'float'),
             'show_on' => (string) ($payload['show_on'] ?? 'all'),
             'closable' => (bool) ($payload['closable'] ?? true),
             'remember_close' => (bool) ($payload['remember_close'] ?? true),
             'close_expire_hours' => max(1, (int) ($payload['close_expire_hours'] ?? 24)),
-            'style' => $this->floatingPromoStyle($position, $offsetX, $offsetY, $width, $height, $zIndex),
             'close_storage_key' => sprintf('promo-floating-close:%s:%d', $promo->position_code, $promo->id),
         ];
     }
 
-    protected function floatingPromoStyle(string $position, int $offsetX, int $offsetY, int $width, ?int $height, int $zIndex): string
+    /**
+     * @param  list<int>  $tokens
+     */
+    protected function normalizePromoToken(int $value, array $tokens, int $fallback): int
     {
-        $style = ['position:fixed', 'z-index:'.$zIndex, 'width:'.$width.'px'];
-
-        if ($height !== null && $height > 0) {
-            $style[] = 'height:'.$height.'px';
+        if ($tokens === []) {
+            return $fallback;
         }
 
-        if (str_starts_with($position, 'left-')) {
-            $style[] = 'left:'.$offsetX.'px';
+        $closest = $fallback;
+        $closestDistance = PHP_INT_MAX;
+
+        foreach ($tokens as $token) {
+            $distance = abs($value - $token);
+            if ($distance < $closestDistance) {
+                $closest = $token;
+                $closestDistance = $distance;
+            }
         }
 
-        if (str_starts_with($position, 'right-')) {
-            $style[] = 'right:'.$offsetX.'px';
-        }
-
-        if (str_ends_with($position, '-top')) {
-            $style[] = 'top:'.$offsetY.'px';
-        } elseif (str_ends_with($position, '-center')) {
-            $style[] = 'top:50%';
-            $style[] = 'transform:translateY(-50%)';
-        } else {
-            $style[] = 'bottom:'.$offsetY.'px';
-        }
-
-        return implode(';', $style).';';
+        return $closest;
     }
 
     /**
@@ -1167,20 +1174,6 @@ class ThemeTags
 
     protected function mapContent(object $content): array
     {
-        $titleStyle = [];
-
-        if (! empty($content->title_color)) {
-            $titleStyle[] = 'color: '.$content->title_color;
-        }
-
-        if (! empty($content->title_bold)) {
-            $titleStyle[] = 'font-weight: 700';
-        }
-
-        if (! empty($content->title_italic)) {
-            $titleStyle[] = 'font-style: italic';
-        }
-
         return [
             'id' => $content->id,
             'title' => $content->title,
@@ -1188,7 +1181,6 @@ class ThemeTags
             'title_bold' => (bool) ($content->title_bold ?? false),
             'title_italic' => (bool) ($content->title_italic ?? false),
             'is_recommend' => (bool) ($content->is_recommend ?? false),
-            'title_style' => implode('; ', $titleStyle),
             'summary' => $content->summary,
             'content_html' => EmbeddedContentRenderer::render($content->content ?? ''),
             'cover_image' => $content->cover_image ?? '',
@@ -1601,20 +1593,6 @@ class ThemeTags
 
     protected function mapLinkedContent(object $content): array
     {
-        $titleStyle = [];
-
-        if (! empty($content->title_color)) {
-            $titleStyle[] = 'color: '.$content->title_color;
-        }
-
-        if (! empty($content->title_bold)) {
-            $titleStyle[] = 'font-weight: 700';
-        }
-
-        if (! empty($content->title_italic)) {
-            $titleStyle[] = 'font-style: italic';
-        }
-
         return [
             'id' => $content->id,
             'title' => $content->title,
@@ -1622,7 +1600,6 @@ class ThemeTags
             'title_bold' => (bool) ($content->title_bold ?? false),
             'title_italic' => (bool) ($content->title_italic ?? false),
             'is_recommend' => (bool) ($content->is_recommend ?? false),
-            'title_style' => implode('; ', $titleStyle),
             'published_at' => $content->published_at ?? null,
             'type' => $content->type ?? 'article',
             'url' => $this->url(($content->type ?? 'article') === 'page' ? 'page' : 'article', $content),

@@ -458,10 +458,6 @@ class GuestbookController extends Controller
                 continue;
             }
 
-            if (in_array($tagName, ['span', 'p', 'li', 'blockquote'], true) && $attributeName === 'style') {
-                continue;
-            }
-
             $node->removeAttribute($attribute->nodeName);
         }
 
@@ -484,71 +480,9 @@ class GuestbookController extends Controller
             }
         }
 
-        if (in_array($tagName, ['span', 'p', 'li', 'blockquote'], true) && $node->hasAttribute('style')) {
-            $sanitizedStyle = $this->sanitizeRichTextStyle((string) $node->getAttribute('style'));
-
-            if ($sanitizedStyle === null) {
-                $node->removeAttribute('style');
-            } else {
-                $node->setAttribute('style', $sanitizedStyle);
-            }
-        }
-
         foreach (iterator_to_array($node->childNodes) as $childNode) {
             $this->sanitizeRichTextNode($childNode);
         }
-    }
-
-    protected function sanitizeRichTextStyle(string $style): ?string
-    {
-        $parts = preg_split('/\s*;\s*/', trim($style)) ?: [];
-        $safeDeclarations = [];
-
-        foreach ($parts as $part) {
-            if ($part === '' || ! str_contains($part, ':')) {
-                continue;
-            }
-
-            [$property, $value] = array_map('trim', explode(':', $part, 2));
-            $property = Str::lower($property);
-
-            if (! in_array($property, ['color', 'background-color', 'font-size'], true)) {
-                continue;
-            }
-
-            if (in_array($property, ['color', 'background-color'], true) && ! $this->isSafeColorValue($value)) {
-                continue;
-            }
-
-            if ($property === 'font-size' && ! $this->isSafeFontSizeValue($value)) {
-                continue;
-            }
-
-            $safeDeclarations[] = $property.': '.$value;
-        }
-
-        if ($safeDeclarations === []) {
-            return null;
-        }
-
-        return implode('; ', $safeDeclarations);
-    }
-
-    protected function isSafeColorValue(string $value): bool
-    {
-        $normalized = Str::lower(trim($value));
-
-        return preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/', $normalized) === 1
-            || preg_match('/^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/', $normalized) === 1
-            || preg_match('/^hsla?\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/', $normalized) === 1
-            || in_array($normalized, ['black', 'white', 'red', 'green', 'blue', 'yellow', 'orange', 'gray', 'grey', 'purple'], true);
-    }
-
-    protected function isSafeFontSizeValue(string $value): bool
-    {
-        $normalized = Str::lower(trim($value));
-
-        return preg_match('/^(12|14|16|18|20|24|28|32)px$/', $normalized) === 1;
     }
 
     protected function unwrapDomNode(DOMElement $node): void

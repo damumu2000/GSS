@@ -1,0 +1,87 @@
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: flex-start;
+        padding: 24px 32px;
+        margin: -28px -28px 24px;
+        background: #ffffff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .page-header-title {
+        margin: 0;
+        color: #262626;
+        font-size: 20px;
+        line-height: 1.4;
+        font-weight: 700;
+    }
+
+    .page-header-desc {
+        margin-top: 8px;
+        color: #8c8c8c;
+        font-size: 14px;
+        line-height: 1.7;
+        max-width: 760px;
+    }
+
+    .promo-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .promo-item-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .promo-summary-card,
+    .promo-item-summary-card {
+        border: 1px solid #eef1f5;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+        padding: 16px 18px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .promo-form-grid label,
+    .promo-item-form-fields label {
+        display: block;
+        margin-bottom: 8px;
+        color: #8c8c8c;
+        font-size: 12px;
+        line-height: 1.4;
+        font-weight: 600;
+    }
+
+    .field-static {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 10px 14px;
+        color: #475467;
+        background: #f8fafc;
+        border-color: #e5e7eb;
+        cursor: default;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+    }
+
+    .field[readonly] {
+        color: #98a2b3;
+        background: #f8fafc;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 720px) {
+        .page-header {
+            margin: -24px -18px 20px;
+            padding: 18px;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Support\Site as SitePath;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -489,6 +490,7 @@ TPL);
 
         $this->get(route('site.home', ['site' => $site->site_key]))
             ->assertOk()
+            ->assertSee('css/site-content-render.css')
             ->assertSee('示例学校')
             ->assertSee('HIDDEN-SITE-KEY')
             ->assertSee('010-88886666')
@@ -1344,10 +1346,6 @@ TPL);
         $response
             ->assertRedirect(route('admin.themes.editor', ['template' => 'home']))
             ->assertSessionHasErrors(['template_source']);
-
-        $this->followRedirects($response)
-            ->assertOk()
-            ->assertSee('模板源码中不允许包含 PHP 代码标签');
     }
 
     public function test_site_can_update_template_title_with_punctuation_while_saving_source(): void
@@ -1373,104 +1371,56 @@ TPL);
         ]);
     }
 
-    public function test_template_save_syncs_attachment_relations_from_relative_paths(): void
+    public function test_template_editor_rejects_legacy_site_media_reference_when_saving_template_source(): void
     {
         $this->seed(DatabaseSeeder::class);
 
         $site = $this->demoSite();
-        $themeCode = $this->activeThemeCode($site);
-        $attachmentId = $this->createImageAttachment($site, 'theme-banner.jpg');
 
         $this->actingAs($this->superAdmin())
             ->withSession(['current_site_id' => $site->id])
+            ->from(route('admin.themes.editor', ['template' => 'home']))
             ->post(route('admin.themes.editor.update'), [
                 'template' => 'home',
                 'template_title' => '学校首页模板',
                 'template_source' => "<img src=\"/site-media/site/attachments/2026/03/theme-banner.jpg\" alt=\"banner\">\n",
             ])
-            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']));
-
-        $templateMetaId = (int) DB::table('site_theme_template_meta')
-            ->where('site_id', $site->id)
-            ->where('theme_code', $themeCode)
-            ->where('template_name', 'home')
-            ->value('id');
-
-        $this->assertGreaterThan(0, $templateMetaId);
-        $this->assertDatabaseHas('attachment_relations', [
-            'attachment_id' => $attachmentId,
-            'relation_type' => 'theme_template',
-            'relation_id' => $templateMetaId,
-            'usage_slot' => 'template_image',
-        ]);
-        $this->assertDatabaseHas('attachments', [
-            'id' => $attachmentId,
-            'usage_count' => 1,
-        ]);
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']))
+            ->assertSessionHasErrors([
+                'template_source' => '模板源码中不再支持站点资源，请改用当前主题的模板资源。',
+            ]);
     }
 
-    public function test_template_save_syncs_attachment_relations_from_plain_path_text(): void
+    public function test_template_editor_rejects_legacy_site_media_plain_path_when_creating_template(): void
     {
         $this->seed(DatabaseSeeder::class);
 
         $site = $this->demoSite();
-        $themeCode = $this->activeThemeCode($site);
-        $attachmentId = $this->createImageAttachment($site, 'plain-path-banner.jpg');
 
         $this->actingAs($this->superAdmin())
             ->withSession(['current_site_id' => $site->id])
-            ->post(route('admin.themes.editor.update'), [
-                'template' => 'home',
-                'template_title' => '学校首页模板',
+            ->from(route('admin.themes.editor'))
+            ->post(route('admin.themes.editor.template-create'), [
+                'template_prefix' => 'page',
+                'template_suffix' => 'legacy-assets',
+                'template_title' => '落地页',
                 'template_source' => "{% set heroImage = '/site-media/site/attachments/2026/03/plain-path-banner.jpg' %}\n",
             ])
-            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']));
-
-        $templateMetaId = (int) DB::table('site_theme_template_meta')
-            ->where('site_id', $site->id)
-            ->where('theme_code', $themeCode)
-            ->where('template_name', 'home')
-            ->value('id');
-
-        $this->assertGreaterThan(0, $templateMetaId);
-        $this->assertDatabaseHas('attachment_relations', [
-            'attachment_id' => $attachmentId,
-            'relation_type' => 'theme_template',
-            'relation_id' => $templateMetaId,
-            'usage_slot' => 'template_asset',
-        ]);
-        $this->assertDatabaseHas('attachments', [
-            'id' => $attachmentId,
-            'usage_count' => 1,
-        ]);
+            ->assertRedirect(route('admin.themes.editor'))
+            ->assertSessionHasErrorsIn('createTemplate', [
+                'template_source' => '模板源码中不再支持站点资源，请改用当前主题的模板资源。',
+            ]);
     }
 
-    public function test_template_editor_cannot_save_inaccessible_attachment_reference_when_attachment_sharing_is_disabled(): void
+    public function test_template_editor_rejects_legacy_absolute_site_media_reference_when_saving(): void
     {
         $this->seed(DatabaseSeeder::class);
 
         $site = $this->demoSite();
-        $templateEditor = $this->createSiteOperator('theme-attachment-guard');
-        $otherOperator = $this->createSiteOperator('theme-attachment-owner', 'editor');
         $attachmentId = $this->createImageAttachment($site, 'theme-forbidden-banner.jpg');
         $attachmentUrl = (string) DB::table('attachments')->where('id', $attachmentId)->value('url');
 
-        DB::table('attachments')->where('id', $attachmentId)->update([
-            'uploaded_by' => $otherOperator->id,
-        ]);
-
-        DB::table('site_settings')->updateOrInsert(
-            ['site_id' => $site->id, 'setting_key' => 'attachment.share_enabled'],
-            [
-                'setting_value' => '0',
-                'autoload' => 1,
-                'updated_by' => $templateEditor->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        );
-
-        $this->actingAs($templateEditor)
+        $this->actingAs($this->superAdmin())
             ->withSession(['current_site_id' => $site->id])
             ->from(route('admin.themes.editor', ['template' => 'home']))
             ->post(route('admin.themes.editor.update'), [
@@ -1480,36 +1430,19 @@ TPL);
             ])
             ->assertRedirect(route('admin.themes.editor', ['template' => 'home']))
             ->assertSessionHasErrors([
-                'template_source' => '模板源码中包含不可访问的站点资源，请重新从可用资源中选择。',
+                'template_source' => '模板源码中不再支持站点资源，请改用当前主题的模板资源。',
             ]);
     }
 
-    public function test_template_editor_cannot_create_template_with_inaccessible_attachment_reference_when_attachment_sharing_is_disabled(): void
+    public function test_template_editor_rejects_legacy_absolute_site_media_reference_when_creating_template(): void
     {
         $this->seed(DatabaseSeeder::class);
 
         $site = $this->demoSite();
-        $templateEditor = $this->createSiteOperator('theme-create-attachment-guard');
-        $otherOperator = $this->createSiteOperator('theme-create-attachment-owner', 'editor');
         $attachmentId = $this->createImageAttachment($site, 'theme-create-forbidden-banner.jpg');
         $attachmentUrl = (string) DB::table('attachments')->where('id', $attachmentId)->value('url');
 
-        DB::table('attachments')->where('id', $attachmentId)->update([
-            'uploaded_by' => $otherOperator->id,
-        ]);
-
-        DB::table('site_settings')->updateOrInsert(
-            ['site_id' => $site->id, 'setting_key' => 'attachment.share_enabled'],
-            [
-                'setting_value' => '0',
-                'autoload' => 1,
-                'updated_by' => $templateEditor->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        );
-
-        $this->actingAs($templateEditor)
+        $this->actingAs($this->superAdmin())
             ->withSession(['current_site_id' => $site->id])
             ->from(route('admin.themes.editor'))
             ->post(route('admin.themes.editor.template-create'), [
@@ -1522,8 +1455,31 @@ TPL);
             ])
             ->assertRedirect(route('admin.themes.editor'))
             ->assertSessionHasErrorsIn('createTemplate', [
-                'template_source' => '模板源码中包含不可访问的站点资源，请重新从可用资源中选择。',
+                'template_source' => '模板源码中不再支持站点资源，请改用当前主题的模板资源。',
             ]);
+    }
+
+    public function test_template_editor_rejects_inline_script_style_and_event_markup(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->from(route('admin.themes.editor', ['template' => 'home']))
+            ->post(route('admin.themes.editor.update'), [
+                'template' => 'home',
+                'template_title' => '首页',
+                'template_source' => <<<'TPL'
+<section style="color:red" onclick="alert(1)">
+    <style>.hero{color:red;}</style>
+    <script>alert('bad')</script>
+</section>
+TPL,
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']))
+            ->assertSessionHasErrors(['template_source']);
     }
 
     public function test_site_can_reset_an_override_template_back_to_default(): void
@@ -1724,76 +1680,6 @@ TPL);
         ]);
     }
 
-    public function test_template_rollback_rebuilds_attachment_relations(): void
-    {
-        $this->seed(DatabaseSeeder::class);
-
-        $site = $this->demoSite();
-        $themeCode = $this->activeThemeCode($site);
-        $firstAttachmentId = $this->createImageAttachment($site, 'first-banner.jpg');
-        $secondAttachmentId = $this->createImageAttachment($site, 'second-banner.jpg');
-
-        $this->actingAs($this->superAdmin())
-            ->withSession(['current_site_id' => $site->id])
-            ->post(route('admin.themes.editor.update'), [
-                'template' => 'home',
-                'template_title' => '学校首页模板',
-                'template_source' => "<img src=\"/site-media/site/attachments/2026/03/first-banner.jpg\" alt=\"first\">\n",
-            ])
-            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']));
-
-        $this->actingAs($this->superAdmin())
-            ->withSession(['current_site_id' => $site->id])
-            ->post(route('admin.themes.editor.update'), [
-                'template' => 'home',
-                'template_title' => '学校首页模板',
-                'template_source' => "<img src=\"/site-media/site/attachments/2026/03/second-banner.jpg\" alt=\"second\">\n",
-            ])
-            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']));
-
-        $this->assertDatabaseHas('attachments', [
-            'id' => $firstAttachmentId,
-            'usage_count' => 0,
-        ]);
-        $this->assertDatabaseHas('attachments', [
-            'id' => $secondAttachmentId,
-            'usage_count' => 1,
-        ]);
-
-        $this->actingAs($this->superAdmin())
-            ->withSession(['current_site_id' => $site->id])
-            ->post(route('admin.themes.editor.template-rollback'), [
-                'template' => 'home',
-            ])
-            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']));
-
-        $templateMetaId = (int) DB::table('site_theme_template_meta')
-            ->where('site_id', $site->id)
-            ->where('theme_code', $themeCode)
-            ->where('template_name', 'home')
-            ->value('id');
-
-        $this->assertDatabaseHas('attachment_relations', [
-            'attachment_id' => $firstAttachmentId,
-            'relation_type' => 'theme_template',
-            'relation_id' => $templateMetaId,
-            'usage_slot' => 'template_image',
-        ]);
-        $this->assertDatabaseMissing('attachment_relations', [
-            'attachment_id' => $secondAttachmentId,
-            'relation_type' => 'theme_template',
-            'relation_id' => $templateMetaId,
-        ]);
-        $this->assertDatabaseHas('attachments', [
-            'id' => $firstAttachmentId,
-            'usage_count' => 1,
-        ]);
-        $this->assertDatabaseHas('attachments', [
-            'id' => $secondAttachmentId,
-            'usage_count' => 0,
-        ]);
-    }
-
     public function test_site_can_delete_a_template_snapshot(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -1972,5 +1858,258 @@ TPL);
             ->whereNull('consumed_at')
             ->where('is_favorite', 0)
             ->count());
+    }
+
+    public function test_theme_asset_route_serves_css_from_theme_directory_with_css_content_type(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+
+        $response = $this->get(route('site.theme-asset', [
+            'theme' => 'site',
+            'path' => 'theme.css',
+            'site' => $site->site_key,
+        ]));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'text/css; charset=utf-8');
+        $response->assertSee(':root', false);
+    }
+
+    public function test_theme_editor_lists_theme_css_and_js_files(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.themes.editor'))
+            ->assertOk()
+            ->assertSee('theme.css')
+            ->assertSee('主题全局样式')
+            ->assertSee('打开模板资源')
+            ->assertSee('模板资源')
+            ->assertDontSee('data-open-template-attachment-library', false);
+    }
+
+    public function test_theme_asset_route_rejects_non_active_theme_assets(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeId = $this->createTheme('site-alt', '备用主题');
+        $themeRoot = storage_path('app/theme_templates/site-alt');
+
+        File::ensureDirectoryExists($themeRoot);
+        File::put($themeRoot.DIRECTORY_SEPARATOR.'theme.css', ':root { color: #000; }');
+
+        DB::table('site_theme_bindings')->insert([
+            'site_id' => $site->id,
+            'theme_id' => $themeId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->get(route('site.theme-asset', [
+            'theme' => 'site-alt',
+            'path' => 'theme.css',
+            'site' => $site->site_key,
+        ]))->assertNotFound();
+    }
+
+    public function test_theme_editor_rejects_missing_theme_style_reference(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->from(route('admin.themes.editor', ['template' => 'home']))
+            ->post(route('admin.themes.editor.update'), [
+                'template' => 'home',
+                'template_title' => '首页模板',
+                'template_source' => "{{ themeStyle path=\"missing.css\" }}\n<section>home</section>\n",
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']))
+            ->assertSessionHasErrors(['template_source']);
+    }
+
+    public function test_site_can_create_and_update_theme_css_and_js_files(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->activeThemeCode($site);
+        $cssPath = SitePath::themeOverrideRoot($site->site_key, $themeCode).DIRECTORY_SEPARATOR.'landing.css';
+        $jsPath = SitePath::themeOverrideRoot($site->site_key, $themeCode).DIRECTORY_SEPARATOR.'landing.js';
+
+        File::delete($cssPath);
+        File::delete($jsPath);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.template-create'), [
+                'template_title' => '落地页样式',
+                'template_prefix' => 'css',
+                'template_suffix' => 'landing',
+                'starter_template' => 'blank',
+                'template_source' => ".landing-page {\n    color: #0f172a;\n}\n",
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'landing.css']));
+
+        $this->assertTrue(File::exists($cssPath));
+        $this->assertStringContainsString('.landing-page', File::get($cssPath));
+        $this->assertDatabaseHas('site_theme_template_meta', [
+            'site_id' => $site->id,
+            'theme_code' => $themeCode,
+            'template_name' => 'landing.css',
+            'title' => '落地页样式',
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.template-create'), [
+                'template_title' => '落地页脚本',
+                'template_prefix' => 'js',
+                'template_suffix' => 'landing',
+                'starter_template' => 'blank',
+                'template_source' => "window.landingThemeBoot = true;\n",
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'landing.js']));
+
+        $this->assertTrue(File::exists($jsPath));
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.update'), [
+                'template' => 'landing.js',
+                'template_title' => '落地页脚本（新）',
+                'template_source' => "window.landingThemeBoot = 'updated';\n",
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'landing.js']));
+
+        $this->assertStringContainsString("'updated'", File::get($jsPath));
+        $this->assertDatabaseHas('site_theme_template_meta', [
+            'site_id' => $site->id,
+            'theme_code' => $themeCode,
+            'template_name' => 'landing.js',
+            'title' => '落地页脚本（新）',
+        ]);
+    }
+
+
+    public function test_site_can_upload_and_delete_theme_assets(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->activeThemeCode($site);
+        $assetPath = SitePath::themeOverrideRoot($site->site_key, $themeCode).DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'hero-banner.png';
+
+        File::delete($assetPath);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.asset-upload'), [
+                'template' => 'home',
+                'asset' => UploadedFile::fake()->image('hero-banner.png', 1600, 900),
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home', 'open_assets' => 1]));
+
+        $this->assertTrue(File::exists($assetPath));
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.themes.editor', ['template' => 'home', 'open_assets' => 1]))
+            ->assertOk()
+            ->assertSee('v=', false)
+            ->assertSee('站点自定义资源')
+            ->assertDontSee('模板资源已用 0 B');
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.asset-delete'), [
+                'template' => 'home',
+                'asset_path' => 'assets/hero-banner.png',
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home', 'open_assets' => 1]));
+
+        $this->assertFalse(File::exists($assetPath));
+    }
+
+    public function test_site_uploads_duplicate_theme_asset_names_with_incremented_filename(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->activeThemeCode($site);
+        $assetRoot = SitePath::themeOverrideRoot($site->site_key, $themeCode).DIRECTORY_SEPARATOR.'assets';
+        $firstAssetPath = $assetRoot.DIRECTORY_SEPARATOR.'hero-banner.png';
+        $secondAssetPath = $assetRoot.DIRECTORY_SEPARATOR.'hero-banner-2.png';
+
+        File::delete($firstAssetPath);
+        File::delete($secondAssetPath);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.asset-upload'), [
+                'template' => 'home',
+                'asset' => UploadedFile::fake()->image('hero-banner.png', 1600, 900),
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home', 'open_assets' => 1]));
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.asset-upload'), [
+                'template' => 'home',
+                'asset' => UploadedFile::fake()->image('hero-banner.png', 1200, 800),
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home', 'open_assets' => 1]));
+
+        $this->assertTrue(File::exists($firstAssetPath));
+        $this->assertTrue(File::exists($secondAssetPath));
+
+    }
+
+    public function test_theme_asset_upload_respects_site_total_storage_limit(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $site->id, 'setting_key' => 'attachment.storage_limit_mb'],
+            ['setting_value' => '1', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        DB::table('attachments')->insert([
+            'site_id' => $site->id,
+            'origin_name' => 'existing.pdf',
+            'stored_name' => 'existing.pdf',
+            'disk' => 'site',
+            'path' => 'web/site/media/attachments/existing.pdf',
+            'url' => 'http://127.0.0.1:8000/site-media/site/attachments/existing.pdf',
+            'mime_type' => 'application/pdf',
+            'extension' => 'pdf',
+            'size' => 900 * 1024,
+            'uploaded_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->from(route('admin.themes.editor', ['template' => 'home']))
+            ->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.asset-upload'), [
+                'template' => 'home',
+                'asset' => UploadedFile::fake()->create('theme-large.jpg', 200, 'image/jpeg'),
+            ]);
+
+        $response
+            ->assertRedirect(route('admin.themes.editor', ['template' => 'home']))
+            ->assertSessionHasErrorsIn('themeAssets', ['asset']);
     }
 }

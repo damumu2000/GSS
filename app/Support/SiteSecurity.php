@@ -66,6 +66,10 @@ class SiteSecurity
             return null;
         }
 
+        if ($this->isMediaRequest($request)) {
+            return $this->matchRateLimit($request, (int) $site->id);
+        }
+
         if ($rule = $this->matchBadPath($request)) {
             return $rule;
         }
@@ -409,6 +413,13 @@ class SiteSecurity
         }
 
         return false;
+    }
+
+    protected function isMediaRequest(Request $request): bool
+    {
+        $path = trim((string) $request->path(), '/');
+
+        return $path === 'site-media' || str_starts_with($path, 'site-media/');
     }
 
     protected function requestFingerprintText(Request $request): string

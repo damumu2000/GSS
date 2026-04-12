@@ -45,7 +45,7 @@ class SiteSecurityGuard
             return false;
         }
 
-        foreach (['admin', 'login', 'logout', 'site-media'] as $prefix) {
+        foreach (['admin', 'login', 'logout'] as $prefix) {
             if ($path === $prefix || str_starts_with($path, $prefix.'/')) {
                 return true;
             }

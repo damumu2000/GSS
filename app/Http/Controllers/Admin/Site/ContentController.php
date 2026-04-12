@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
 use App\Support\AttachmentUsageTracker;
+use App\Support\ContentHtmlSanitizer;
 use App\Support\ContentAttachmentRelationSync;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -813,6 +814,14 @@ class ContentController extends Controller
             'status' => '状态',
             'published_at' => '发布时间',
         ]);
+
+        $validator->after(function ($validator) use ($request): void {
+            $data = $validator->getData();
+            $sanitizedContent = ContentHtmlSanitizer::sanitize((string) ($data['content'] ?? ''));
+            $data['content'] = $sanitizedContent;
+            $validator->setData($data);
+            $request->merge(['content' => $sanitizedContent]);
+        });
 
         $validator->after(function ($validator) use ($request): void {
             $currentSite = $this->currentSite($request);

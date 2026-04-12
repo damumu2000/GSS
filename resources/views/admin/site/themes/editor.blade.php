@@ -12,1466 +12,7 @@
 @section('breadcrumb', '后台管理 / 模板管理 / ' . $workspaceTitle)
 
 @push('styles')
-    <style>
-        @include('admin.site.attachments._attachment_library_styles')
-
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 20px;
-            align-items: flex-start;
-            padding: 24px 32px;
-            margin: -28px -28px 24px;
-            background: #ffffff;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .page-header-title {
-            margin: 0;
-            color: #262626;
-            font-size: 20px;
-            line-height: 1.4;
-            font-weight: 700;
-        }
-
-        .page-header-desc {
-            margin-top: 8px;
-            color: #8c8c8c;
-            font-size: 14px;
-            line-height: 1.7;
-        }
-
-        .workspace-shell {
-            display: grid;
-            grid-template-columns: 360px minmax(0, 1fr);
-            gap: 20px;
-            align-items: start;
-        }
-
-        .editor-panel {
-            border: 1px solid #eef2f6;
-            border-radius: 18px;
-            background: #ffffff;
-            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-            overflow: visible;
-        }
-
-        .editor-panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 18px 20px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-
-        .editor-panel-header-main {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-width: 0;
-        }
-
-        .editor-panel-header-theme {
-            display: inline-flex;
-            align-items: center;
-            justify-content: flex-end;
-            min-width: 0;
-            color: var(--text-soft);
-            font-size: 13px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .editor-panel-header-theme .template-badge {
-            max-width: 180px;
-            justify-content: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .editor-panel-header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .editor-panel-header-actions .editor-doc-button {
-            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
-        }
-
-        .editor-panel-header-actions .editor-doc-button:hover {
-            transform: translateY(-1px);
-            border-color: rgba(0, 71, 171, 0.14);
-            background: #fbfdff;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
-        }
-
-        .editor-panel-header-actions .button.neutral-action.editor-doc-button.is-active,
-        .editor-panel-header-actions .button.neutral-action.editor-doc-button.is-active:visited {
-            transform: translateY(-1px);
-            background: var(--primary);
-            border-color: var(--primary);
-            color: #ffffff;
-            box-shadow: 0 10px 24px rgba(0, 71, 171, 0.18);
-        }
-
-        .editor-panel-accent {
-            width: 4px;
-            height: 18px;
-            border-radius: 999px;
-            background: var(--primary);
-            flex-shrink: 0;
-        }
-
-        .editor-panel-title {
-            color: #1f2937;
-            font-size: 16px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .editor-panel-body {
-            padding: 20px;
-        }
-
-        .template-tree-panel-scroll {
-            position: relative;
-            height: var(--template-tree-max-height, calc(100vh - 164px));
-        }
-
-        .template-tree-panel-body {
-            height: 100%;
-            max-height: var(--template-tree-max-height, calc(100vh - 164px));
-            overflow-y: auto;
-            padding-right: 8px;
-            scrollbar-width: auto;
-            scrollbar-color: color-mix(in srgb, var(--primary, #0047AB) 58%, #ffffff) color-mix(in srgb, var(--primary, #0047AB) 10%, #ffffff);
-        }
-
-        .template-tree-panel-body::-webkit-scrollbar {
-            width: 14px;
-            height: 14px;
-        }
-
-        .template-tree-panel-body::-webkit-scrollbar-track {
-            border-radius: 999px;
-            background: color-mix(in srgb, var(--primary, #0047AB) 10%, #ffffff);
-        }
-
-        .template-tree-panel-body::-webkit-scrollbar-thumb {
-            border-radius: 999px;
-            background: color-mix(in srgb, var(--primary, #0047AB) 58%, #ffffff);
-            border: 2px solid transparent;
-            background-clip: padding-box;
-        }
-
-        .template-tree-panel-body::-webkit-scrollbar-thumb:hover {
-            background: color-mix(in srgb, var(--primary, #0047AB) 78%, #ffffff);
-            border: 2px solid transparent;
-            background-clip: padding-box;
-        }
-
-        .template-tree-search {
-            margin-bottom: 14px;
-        }
-
-        .template-tree-search .field {
-            min-height: 40px;
-        }
-
-        .template-tree-groups {
-            display: grid;
-            gap: 14px;
-        }
-
-        .template-tree-group {
-            display: grid;
-            gap: 8px;
-        }
-
-        .template-tree-group-title {
-            color: #667085;
-            font-size: 12px;
-            line-height: 1.4;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        .template-tree-list {
-            display: grid;
-            gap: 2px;
-        }
-
-        .template-tree-item {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            padding: 8px 10px 8px 14px;
-            border: 0;
-            border-radius: 10px;
-            background: transparent;
-            transition: background 0.18s ease, color 0.18s ease;
-        }
-
-        .template-tree-item:hover {
-            background: #f8fafc;
-        }
-
-        .template-tree-item.is-active {
-            background: color-mix(in srgb, var(--primary) 7%, #ffffff);
-        }
-
-        .template-tree-item::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 8px;
-            bottom: 8px;
-            width: 3px;
-            border-radius: 999px;
-            background: var(--primary);
-            opacity: 0;
-            transition: opacity 0.18s ease;
-        }
-
-        .template-tree-item.is-active::before {
-            opacity: 1;
-        }
-
-        .template-tree-item-head {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 0;
-        }
-
-        .template-tree-item-title {
-            color: #1f2937;
-            font-size: 13px;
-            line-height: 1.45;
-            font-weight: 600;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .template-tree-item-subline {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 0;
-        }
-
-        .template-tree-item-file {
-            color: #98a2b3;
-            font-size: 11px;
-            line-height: 1.4;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .template-badge {
-            display: inline-flex;
-            align-items: center;
-            min-height: 22px;
-            padding: 0 8px;
-            border-radius: 999px;
-            background: #f3f4f6;
-            color: #4b5563;
-            font-size: 11px;
-            font-weight: 700;
-            flex-shrink: 0;
-        }
-
-        .template-badge.is-override {
-            background: #eef6ff;
-            color: #1d4ed8;
-        }
-
-        .template-badge.is-custom {
-            background: #eefaf1;
-            color: #15803d;
-        }
-
-        .workspace-note {
-            color: #98a2b3;
-            font-size: 12px;
-            line-height: 1.7;
-        }
-
-        .workspace-form-grid {
-            display: grid;
-            gap: 16px;
-        }
-
-        .workspace-form-grid.is-balanced,
-        .workspace-form-grid.is-compact {
-            grid-template-columns: minmax(0, 420px) minmax(0, 420px);
-            justify-content: start;
-            column-gap: 48px;
-            row-gap: 28px;
-        }
-
-        .workspace-form-grid + .workspace-form-grid {
-            margin-top: 40px;
-        }
-
-        .workspace-field-fixed {
-            width: 100%;
-            max-width: 100%;
-        }
-
-        .workspace-action-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 48px;
-            max-width: calc(980px + 56px);
-        }
-
-        .custom-select {
-            position: relative;
-            width: 100%;
-            max-width: 100%;
-        }
-
-        .custom-select-native {
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .custom-select-trigger {
-            width: 100%;
-            min-height: 38px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 0 14px;
-            border-radius: 8px;
-            border: 1px solid #e5e6eb;
-            background: #ffffff;
-            color: #262626;
-            font-size: 13px;
-            line-height: 1.4;
-            font-weight: 500;
-            text-align: left;
-            cursor: pointer;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-        }
-
-        .custom-select-trigger span,
-        .custom-select-option span {
-            min-width: 0;
-            display: block;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .custom-select-trigger:hover {
-            background: #fafafa;
-        }
-
-        .custom-select.is-open .custom-select-trigger,
-        .custom-select-trigger:focus-visible {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
-        }
-
-        .custom-select-trigger::after {
-            content: "";
-            width: 8px;
-            height: 8px;
-            border-right: 1.5px solid #98a2b3;
-            border-bottom: 1.5px solid #98a2b3;
-            transform: rotate(45deg);
-            margin-top: -3px;
-            flex-shrink: 0;
-            transition: transform 0.2s ease, margin-top 0.2s ease;
-        }
-
-        .custom-select.is-open .custom-select-trigger::after {
-            transform: rotate(-135deg);
-            margin-top: 3px;
-        }
-
-        .custom-select-panel {
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            right: 0;
-            z-index: 2400;
-            display: grid;
-            gap: 4px;
-            padding: 6px;
-            border-radius: 8px;
-            border: 1px solid #f0f0f0;
-            background: #ffffff;
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-            opacity: 0;
-            visibility: hidden;
-            transform: translateY(-4px) scale(0.98);
-            transform-origin: top center;
-            transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
-            max-height: 280px;
-            overflow-y: auto;
-        }
-
-        .custom-select.is-open .custom-select-panel {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(0) scale(1);
-        }
-
-        .custom-select-option {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 10px 12px;
-            border: 0;
-            border-radius: 8px;
-            background: transparent;
-            color: #595959;
-            font-size: 13px;
-            line-height: 1.5;
-            text-align: left;
-            cursor: pointer;
-            transition: background 0.18s ease, color 0.18s ease;
-        }
-
-        .custom-select-option:hover,
-        .custom-select-option.is-active {
-            background: #f6ffed;
-            color: var(--primary);
-        }
-
-        .custom-select-check {
-            width: 16px;
-            height: 16px;
-            stroke: currentColor;
-            stroke-width: 1.8;
-            fill: none;
-            opacity: 0;
-            flex-shrink: 0;
-        }
-
-        .custom-select-option.is-active .custom-select-check {
-            opacity: 1;
-        }
-
-        .picker-trigger {
-            width: 100%;
-            min-height: 38px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 0 14px;
-            border-radius: 8px;
-            border: 1px solid #e5e6eb;
-            background: #ffffff;
-            color: #262626;
-            font-size: 13px;
-            line-height: 1.4;
-            font-weight: 500;
-            text-align: left;
-            cursor: pointer;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-            min-width: 0;
-            overflow: hidden;
-        }
-
-        .picker-trigger:hover {
-            background: #fafafa;
-        }
-
-        .picker-trigger:focus-visible {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
-        }
-
-        .picker-trigger-label {
-            min-width: 0;
-            flex: 1;
-            display: block;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .picker-trigger::after {
-            content: "";
-            width: 8px;
-            height: 8px;
-            border-right: 1.5px solid #98a2b3;
-            border-bottom: 1.5px solid #98a2b3;
-            transform: rotate(45deg);
-            margin-top: -3px;
-            flex-shrink: 0;
-        }
-
-        .starter-picker-modal {
-            position: fixed;
-            inset: 0;
-            z-index: 3600;
-            display: grid;
-            place-items: center;
-            padding: 16px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.18s ease;
-        }
-
-        .starter-picker-modal.is-open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .starter-picker-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.42);
-            backdrop-filter: blur(4px);
-        }
-
-        .starter-picker-dialog {
-            position: relative;
-            width: min(760px, calc(100vw - 32px));
-            max-height: min(720px, calc(100vh - 32px));
-            display: grid;
-            grid-template-rows: auto 1fr;
-            border: 1px solid #e8edf4;
-            border-radius: 20px;
-            background: #ffffff;
-            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.16);
-            overflow: hidden;
-            transform: translateY(8px) scale(0.985);
-            transition: transform 0.18s ease;
-        }
-
-        .starter-picker-modal.is-open .starter-picker-dialog {
-            transform: translateY(0) scale(1);
-        }
-
-        .starter-picker-head {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 18px 20px;
-            border-bottom: 1px solid #eef2f6;
-            background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
-        }
-
-        .starter-picker-title {
-            color: #1f2937;
-            font-size: 17px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .starter-picker-desc {
-            margin-top: 6px;
-            color: #8b94a7;
-            font-size: 13px;
-            line-height: 1.7;
-        }
-
-        .starter-picker-close {
-            width: 38px;
-            height: 38px;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            background: #ffffff;
-            color: #667085;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-
-        .starter-picker-close svg {
-            width: 18px;
-            height: 18px;
-            stroke: currentColor;
-            stroke-width: 1.9;
-            fill: none;
-        }
-
-        .starter-picker-list {
-            min-height: 0;
-            overflow-y: auto;
-            padding: 14px;
-            display: grid;
-            gap: 8px;
-        }
-
-        .starter-picker-group {
-            display: grid;
-            gap: 8px;
-        }
-
-        .starter-picker-group + .starter-picker-group {
-            margin-top: 10px;
-        }
-
-        .starter-picker-group-title {
-            color: #667085;
-            font-size: 12px;
-            line-height: 1.4;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            padding: 2px 2px 0;
-        }
-
-        .starter-picker-group.is-recommended-group .starter-picker-group-title {
-            color: var(--primary);
-        }
-
-        .starter-picker-option {
-            width: 100%;
-            display: block;
-            padding: 14px 16px;
-            border: 1px solid #edf2f7;
-            border-radius: 14px;
-            background: #ffffff;
-            text-align: left;
-            cursor: pointer;
-            transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        .starter-picker-option:hover {
-            border-color: rgba(0, 71, 171, 0.18);
-            background: #fbfdff;
-        }
-
-        .starter-picker-option.is-recommended {
-            border-color: rgba(0, 71, 171, 0.16);
-            background:
-                linear-gradient(180deg, rgba(0, 71, 171, 0.04) 0%, rgba(0, 71, 171, 0.015) 100%),
-                #ffffff;
-        }
-
-        .starter-picker-option.is-active {
-            border-color: rgba(22, 163, 74, 0.22);
-            background: #f6ffed;
-            box-shadow: 0 10px 24px rgba(22, 163, 74, 0.08);
-        }
-
-        .starter-picker-option-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .starter-picker-option-title {
-            color: #1f2937;
-            font-size: 14px;
-            line-height: 1.6;
-            font-weight: 700;
-            word-break: break-word;
-        }
-
-        .starter-picker-option-badge {
-            display: none;
-            align-items: center;
-            justify-content: center;
-            min-height: 24px;
-            padding: 0 10px;
-            border-radius: 999px;
-            background: rgba(0, 71, 171, 0.08);
-            color: var(--primary);
-            font-size: 11px;
-            line-height: 1;
-            font-weight: 700;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        .starter-picker-option.is-recommended .starter-picker-option-badge {
-            display: inline-flex;
-        }
-
-        .history-list {
-            display: grid;
-            gap: 14px;
-            margin-top: 20px;
-        }
-
-        .history-card {
-            padding: 16px 18px;
-            border-radius: 16px;
-            border: 1px solid #eef2f6;
-            background: #ffffff;
-        }
-
-        .history-card-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 16px;
-        }
-
-        .history-card-title-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .history-card-title {
-            color: #1f2937;
-            font-size: 15px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .history-card-meta {
-            margin-top: 6px;
-            color: #98a2b3;
-            font-size: 12px;
-            line-height: 1.7;
-        }
-
-        .history-card-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .snapshot-intro-card {
-            padding: 18px 20px;
-            border: 1px solid #eef2f6;
-            border-radius: 16px;
-            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-        }
-
-        .snapshot-intro-title {
-            color: #1f2937;
-            font-size: 18px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .snapshot-intro-desc {
-            margin-top: 14px;
-            color: #8b94a7;
-            font-size: 13px;
-            line-height: 1.7;
-        }
-
-        .workspace-empty {
-            margin-top: 18px;
-            padding: 40px 24px;
-            border: 1px dashed #dbe4ee;
-            border-radius: 18px;
-            background:
-                radial-gradient(circle at top center, rgba(0, 71, 171, 0.05), transparent 42%),
-                linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-            color: #8b94a7;
-            font-size: 14px;
-            line-height: 1.8;
-            text-align: center;
-        }
-
-        .workspace-empty::before {
-            content: '';
-            display: block;
-            width: 44px;
-            height: 44px;
-            margin: 0 auto 14px;
-            border-radius: 14px;
-            background:
-                radial-gradient(circle at center, rgba(0, 71, 171, 0.12) 0, rgba(0, 71, 171, 0.08) 52%, rgba(0, 71, 171, 0.03) 100%);
-        }
-
-        .snapshot-favorite-button {
-            width: 32px;
-            height: 32px;
-            border: 0;
-            border-radius: 999px;
-            background: rgba(15, 23, 42, 0.04);
-            color: #98a2b3;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
-        }
-
-        .snapshot-favorite-button:hover {
-            background: rgba(15, 23, 42, 0.08);
-            color: #475467;
-        }
-
-        .snapshot-favorite-button.is-active {
-            background: color-mix(in srgb, var(--primary) 10%, #ffffff);
-            color: var(--primary);
-        }
-
-        .snapshot-favorite-button svg {
-            width: 16px;
-            height: 16px;
-            fill: currentColor;
-        }
-
-        .template-tree-link {
-            display: block;
-            text-decoration: none;
-        }
-
-        .summary-card {
-            padding: 24px 26px;
-            border: 1px solid #eef2f6;
-            border-radius: 16px;
-            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-        }
-
-        .summary-card-title {
-            color: #1f2937;
-            font-size: 18px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .summary-card-meta {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 18px;
-        }
-
-        .summary-card-meta .template-badge {
-            min-height: 30px;
-        }
-
-        .summary-card-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 22px;
-        }
-
-        .summary-side-card {
-            padding: 18px 20px;
-            border: 1px solid #eef2f6;
-            border-radius: 16px;
-            background: #ffffff;
-        }
-
-        .summary-side-label {
-            color: #667085;
-            font-size: 12px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .summary-side-value {
-            margin-top: 10px;
-            color: #1f2937;
-            font-size: 15px;
-            line-height: 1.6;
-            font-weight: 700;
-            word-break: break-word;
-        }
-
-        .summary-side-note {
-            margin-top: 8px;
-            color: #98a2b3;
-            font-size: 12px;
-            line-height: 1.7;
-        }
-
-        .editor-modal {
-            position: fixed;
-            inset: 0;
-            z-index: 3200;
-            display: grid;
-            place-items: center;
-            padding: 12px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.18s ease;
-        }
-
-        .editor-modal.is-open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .editor-modal-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.42);
-            backdrop-filter: blur(6px);
-        }
-
-        .editor-modal-dialog {
-            position: relative;
-            width: min(1560px, calc(100vw - 24px));
-            height: calc(100vh - 24px);
-            display: grid;
-            grid-template-rows: auto minmax(0, 1fr);
-            border: 1px solid #e8edf4;
-            border-radius: 20px;
-            background: #ffffff;
-            box-shadow: 0 30px 70px rgba(15, 23, 42, 0.18);
-            overflow: hidden;
-            transform: translateY(10px) scale(0.985);
-            transition: transform 0.18s ease;
-        }
-
-        .editor-modal.is-open .editor-modal-dialog {
-            transform: translateY(0) scale(1);
-        }
-
-        .attachment-library-modal {
-            z-index: 3800;
-        }
-
-        .attachment-usage-modal {
-            z-index: 3850;
-        }
-
-        .editor-modal-head {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 18px 20px;
-            border-bottom: 1px solid #eef2f6;
-            background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
-        }
-
-        .editor-modal-title {
-            color: #1f2937;
-            font-size: 17px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .editor-modal-desc {
-            margin-top: 6px;
-            color: #8b94a7;
-            font-size: 13px;
-            line-height: 1.7;
-        }
-
-        .editor-modal-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .editor-modal-actions .button.is-library {
-            border-color: color-mix(in srgb, var(--primary, #0047AB) 16%, #d8dee8);
-            background: color-mix(in srgb, var(--primary, #0047AB) 10%, #ffffff);
-            color: var(--primary, #0047AB);
-            box-shadow: 0 8px 18px color-mix(in srgb, var(--primary, #0047AB) 10%, transparent);
-        }
-
-        .editor-modal-actions .button.is-library:hover {
-            border-color: color-mix(in srgb, var(--primary, #0047AB) 22%, #cfd8e3);
-            background: color-mix(in srgb, var(--primary, #0047AB) 14%, #ffffff);
-            color: color-mix(in srgb, var(--primary, #0047AB) 88%, #0f172a);
-        }
-
-        .editor-modal-close {
-            width: 38px;
-            height: 38px;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            background: #ffffff;
-            color: #667085;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-        }
-
-        .editor-modal-close:hover {
-            background: #f8fafc;
-            color: #344054;
-            border-color: #d8dee8;
-        }
-
-        .editor-modal-close svg {
-            width: 18px;
-            height: 18px;
-            stroke: currentColor;
-            stroke-width: 1.9;
-            fill: none;
-        }
-
-        .editor-modal-body {
-            height: 100%;
-            min-height: 0;
-            display: grid;
-            grid-template-rows: auto minmax(0, 1fr);
-            gap: 18px;
-            padding: 18px 20px 20px;
-            background: #ffffff;
-            overflow: hidden;
-        }
-
-        .editor-modal-form {
-            min-height: 0;
-            height: 100%;
-            display: grid;
-        }
-
-        .editor-modal-fields {
-            display: flex;
-            align-items: end;
-            justify-content: space-between;
-            gap: 18px;
-            flex-wrap: wrap;
-        }
-
-        .field-group {
-            display: grid;
-            gap: 6px;
-        }
-
-        .editor-source-group {
-            height: 100%;
-            min-height: 0;
-            display: grid;
-            grid-template-rows: auto minmax(0, 1fr) auto;
-        }
-
-        .field-label {
-            color: #667085;
-            font-size: 13px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .template-title-group,
-        .template-title-field {
-            width: min(100%, 420px);
-        }
-
-        .field-note {
-            color: #98a2b3;
-            font-size: 12px;
-            line-height: 1.7;
-        }
-
-        .code-area,
-        textarea.code-area {
-            min-height: 350px;
-            height: 100%;
-            width: 100%;
-            display: block;
-            box-sizing: border-box;
-            padding: 12px 16px;
-            margin: 0;
-            font-family: "SFMono-Regular", "JetBrains Mono", "Menlo", monospace;
-            font-size: 13px;
-            line-height: 24px;
-            white-space: pre !important;
-            word-break: normal !important;
-            overflow-wrap: normal !important;
-            tab-size: 4;
-            resize: none;
-            border: 0;
-            box-shadow: none;
-            background: transparent;
-            position: relative;
-            z-index: 2;
-            overflow: auto;
-            background: #ffffff;
-            scrollbar-gutter: stable both-edges;
-        }
-
-        .code-editor-shell {
-            display: grid;
-            grid-template-columns: 56px minmax(0, 1fr);
-            min-height: 0;
-            height: 100%;
-            border: 1px solid #E5E7EB;
-            border-radius: 14px;
-            overflow: hidden;
-            background: #ffffff;
-            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
-        }
-
-        .code-editor-gutter {
-            height: 100%;
-            box-sizing: border-box;
-            margin: 0;
-            overflow: hidden;
-            border-right: 1px solid #eef2f6;
-            background: #f9fafb;
-            user-select: none;
-            pointer-events: none;
-        }
-
-        .code-editor-gutter-inner {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 12px 10px;
-            color: #9ca3af;
-            font-family: "SFMono-Regular", "JetBrains Mono", "Menlo", monospace;
-            font-size: 13px;
-            line-height: 24px;
-            text-align: right;
-            white-space: nowrap;
-            transform: translateY(0);
-            will-change: transform;
-            backface-visibility: hidden;
-        }
-
-        .code-editor-gutter-line {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 24px;
-            line-height: 24px;
-            padding: 0;
-            border-radius: 8px;
-            transition: background 0.12s ease, color 0.12s ease;
-        }
-
-        .code-editor-gutter-line.is-active {
-            background: color-mix(in srgb, var(--primary, #0047AB) 14%, #ffffff);
-            color: var(--primary, #0047AB);
-            font-weight: 700;
-        }
-
-        .code-editor-main {
-            height: 100%;
-            min-height: 0;
-            overflow: hidden;
-            position: relative;
-            background: #ffffff;
-        }
-
-        .code-editor-main .code-area {
-            min-height: 100%;
-            height: 100%;
-            padding: 12px 16px;
-        }
-
-        .editor-modal-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 14px;
-        }
-
-        .template-source-badge {
-            display: inline-flex;
-            align-items: center;
-            min-height: 30px;
-            padding: 0 12px;
-            border-radius: 999px;
-            background: #f3f4f6;
-            color: #4b5563;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .template-source-badge.is-override {
-            background: #eef6ff;
-            color: #1d4ed8;
-        }
-
-        .template-source-badge.is-custom {
-            background: #eefaf1;
-            color: #15803d;
-        }
-
-        .summary-detail-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 16px;
-            margin-top: 28px;
-        }
-
-        .history-compare-modal {
-            position: fixed;
-            inset: 0;
-            z-index: 3600;
-            display: grid;
-            place-items: center;
-            padding: 12px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.18s ease;
-        }
-
-        .history-compare-modal.is-ready {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .history-compare-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.48);
-            backdrop-filter: blur(6px);
-        }
-
-        .history-compare-dialog {
-            position: relative;
-            width: min(1680px, calc(100vw - 24px));
-            height: calc(100vh - 18px);
-            display: grid;
-            grid-template-rows: auto 1fr;
-            border: 1px solid #e7ebf2;
-            border-radius: 20px;
-            background: #ffffff;
-            box-shadow: 0 30px 70px rgba(15, 23, 42, 0.18);
-            overflow: hidden;
-            transform: translateY(10px) scale(0.985);
-            transition: transform 0.18s ease;
-        }
-
-        .history-compare-modal.is-ready .history-compare-dialog {
-            transform: translateY(0) scale(1);
-        }
-
-        .history-compare-dialog-head {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 18px 20px;
-            border-bottom: 1px solid #eef2f6;
-            background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
-        }
-
-        .history-compare-dialog-title {
-            color: #1f2937;
-            font-size: 17px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .history-compare-dialog-desc {
-            margin-top: 6px;
-            color: #8b94a7;
-            font-size: 13px;
-            line-height: 1.7;
-        }
-
-        .history-compare-dialog-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .history-compare-close {
-            width: 38px;
-            height: 38px;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            background: #ffffff;
-            color: #667085;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-
-        .history-compare-close svg {
-            width: 18px;
-            height: 18px;
-            stroke: currentColor;
-            stroke-width: 1.9;
-            fill: none;
-        }
-
-        .history-compare-workspace {
-            min-height: 0;
-            display: grid;
-            grid-template-rows: auto 1fr;
-            background: #ffffff;
-        }
-
-        .history-compare-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .history-compare-panel-head {
-            padding: 16px 18px;
-            border-bottom: 1px solid #eef2f6;
-            color: #1f2937;
-            font-size: 16px;
-            line-height: 1.5;
-            font-weight: 700;
-        }
-
-        .history-compare-panel-head + .history-compare-panel-head {
-            border-left: 1px solid #eef2f6;
-        }
-
-        .history-diff-scroll {
-            min-height: 0;
-            height: 100%;
-            overflow: auto;
-            background: #fbfdff;
-        }
-
-        .history-diff-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-        }
-
-        .history-diff-row {
-            border-bottom: 1px solid #eef2f6;
-        }
-
-        .history-diff-row.is-changed {
-            background: var(--primary-soft-strong);
-        }
-
-        .history-diff-line {
-            width: 56px;
-            padding: 10px 8px 10px 12px;
-            color: #98a2b3;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            font-size: 12px;
-            line-height: 1.7;
-            text-align: right;
-            vertical-align: top;
-            user-select: none;
-            border-right: 1px solid #eef2f6;
-            background: rgba(248, 250, 252, 0.86);
-        }
-
-        .history-diff-row.is-changed .history-diff-line {
-            color: var(--primary);
-            background: color-mix(in srgb, var(--primary) 10%, #ffffff);
-        }
-
-        .history-diff-content {
-            padding: 10px 14px;
-            vertical-align: top;
-        }
-
-        .history-diff-code {
-            margin: 0;
-            min-height: 20px;
-            color: #1f2937;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            font-size: 12px;
-            line-height: 1.7;
-            white-space: pre-wrap;
-            word-break: break-word;
-            display: block;
-        }
-
-        .history-diff-side {
-            width: calc((100% - 112px) / 2);
-        }
-
-        .history-diff-row .history-diff-side:nth-child(3) {
-            border-left: 1px solid #eef2f6;
-        }
-
-        .history-diff-row.is-changed .history-diff-side {
-            background: color-mix(in srgb, var(--primary) 8%, #ffffff);
-        }
-
-        .history-diff-empty {
-            color: #98a2b3;
-            font-style: italic;
-        }
-
-        @media (max-width: 1160px) {
-            .workspace-shell,
-            .summary-detail-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .workspace-form-grid.is-balanced,
-            .workspace-form-grid.is-compact {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 760px) {
-            .page-header,
-            .editor-panel-header,
-            .editor-modal-head,
-            .editor-modal-fields {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .editor-panel-header-actions,
-            .editor-modal-actions {
-                justify-content: flex-start;
-            }
-
-            .history-card-head,
-            .history-card-actions,
-            .snapshot-toolbar,
-            .history-compare-dialog-head {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .history-card-actions,
-            .history-compare-dialog-actions {
-                justify-content: flex-start;
-            }
-
-            .editor-modal {
-                padding: 8px;
-            }
-
-            .editor-modal-dialog {
-                width: calc(100vw - 16px);
-                height: calc(100vh - 16px);
-            }
-
-            .code-editor-shell {
-                grid-template-columns: 44px minmax(0, 1fr);
-            }
-
-            .history-compare-dialog {
-                width: calc(100vw - 16px);
-                height: calc(100vh - 16px);
-            }
-
-        }
-    </style>
+    <link rel="stylesheet" href="{{ asset('css/site-theme-editor.css') }}">
 @endpush
 
 @section('content')
@@ -1479,12 +20,22 @@
         $sourceLabel = ($templateMeta['source'] ?? 'default') === 'override'
             ? '站点自定义模板'
             : (($templateMeta['source'] ?? 'default') === 'custom' ? '站点新增' : '平台默认');
+        $templateGroupMeta = [
+            'templates' => ['title' => '模板文件', 'desc' => '所有 TPL 模板文件与公共结构模板'],
+            'styles' => ['title' => 'CSS 文件', 'desc' => '当前主题使用的样式文件'],
+            'scripts' => ['title' => 'JS 文件', 'desc' => '当前主题使用的脚本文件'],
+        ];
         $editorModalOpen = $errors->has('template_title') || $errors->has('template_source');
+        $editorErrors = array_values(array_unique(array_merge(
+            $errors->get('template_title'),
+            $errors->get('template_source'),
+        )));
         $createTemplateErrors = $errors->createTemplate;
         $oldTemplatePrefix = old('template_prefix', 'list');
         $oldTemplateTitle = old('template_title', '');
         $oldTemplateSuffix = old('template_suffix', '');
-        $oldStarterTemplate = old('starter_template', 'blank');
+        $themeAssetErrors = $errors->themeAssets;
+        $themeAssetsModalOpen = $themeAssetErrors->isNotEmpty() || request()->boolean('open_assets');
     @endphp
 
     <section class="page-header">
@@ -1507,7 +58,7 @@
     </section>
 
     <div class="workspace-shell">
-        <section class="editor-panel">
+        <section class="editor-panel is-template-tree-panel" data-template-tree-panel>
             <div class="editor-panel-header">
                 <div class="editor-panel-header-main">
                     <span class="editor-panel-accent"></span>
@@ -1524,17 +75,26 @@
                     </div>
                     <div class="template-tree-groups">
                         @foreach ($templateGroups as $group)
+                            @php
+                                $groupMeta = $templateGroupMeta[$group['key']] ?? ['title' => $group['title'], 'desc' => '模板文件分组'];
+                            @endphp
                             <section class="template-tree-group" data-template-group>
-                                <div class="template-tree-group-title">{{ $group['title'] }}</div>
+                                <div class="template-tree-group-head">
+                                    <div>
+                                        <div class="template-tree-group-title">{{ $groupMeta['title'] }}</div>
+                                        <div class="template-tree-group-desc">{{ $groupMeta['desc'] }}</div>
+                                    </div>
+                                    <span class="template-tree-group-count">{{ $group['items']->count() }}</span>
+                                </div>
                                 <div class="template-tree-list">
                                     @foreach ($group['items'] as $item)
-                                        <a class="template-tree-link" href="{{ route('admin.themes.editor', ['template' => $item['file'], 'panel' => $workspacePanel === 'snapshots' ? 'snapshots' : null]) }}" data-template-tree-link data-search-text="{{ strtolower($item['label'].' '.$item['file']) }}">
-                                            <article class="template-tree-item @if ($item['file'] === $template) is-active @endif">
+                                        <a class="template-tree-link" href="{{ route('admin.themes.editor', ['template' => $item['key'], 'panel' => $workspacePanel === 'snapshots' ? 'snapshots' : null]) }}" data-template-tree-link data-search-text="{{ strtolower($item['label'].' '.$item['file']) }}">
+                                            <article class="template-tree-item @if ($item['key'] === $template) is-active @endif">
                                                 <div class="template-tree-item-head">
                                                     <div class="template-tree-item-title">{{ $item['label'] }}</div>
                                                 </div>
                                                 <div class="template-tree-item-subline">
-                                                    <div class="template-tree-item-file">{{ $item['file'] }}.tpl</div>
+                                                    <div class="template-tree-item-file">{{ $item['file'] }}</div>
                                                     <span class="template-badge{{ ($item['source'] ?? 'default') === 'override' ? ' is-override' : (($item['source'] ?? 'default') === 'custom' ? ' is-custom' : '') }}">
                                                         {{ ($item['source'] ?? 'default') === 'override' ? '站点自定义模板' : (($item['source'] ?? 'default') === 'custom' ? '站点新增' : '平台默认') }}
                                                     </span>
@@ -1568,7 +128,7 @@
                     <a class="button neutral-action editor-doc-button @if($workspacePanel === 'editor') is-active @endif" href="{{ route('admin.themes.editor', ['template' => $template]) }}" @if($workspacePanel === 'editor') aria-current="page" @endif>模板编辑</a>
                     <a class="button neutral-action editor-doc-button @if($workspacePanel === 'create') is-active @endif" href="{{ route('admin.themes.editor.template-create-form', ['template' => $template]) }}" @if($workspacePanel === 'create') aria-current="page" @endif>创建模板</a>
                     <a class="button neutral-action editor-doc-button @if($workspacePanel === 'snapshots') is-active @endif" href="{{ route('admin.themes.snapshots', ['template' => $template]) }}" @if($workspacePanel === 'snapshots') aria-current="page" @endif>模板快照</a>
-                    <a class="button neutral-action editor-doc-button" href="{{ $templateQuickGuideUrl }}" target="_blank">速查表</a>
+                    <a class="button neutral-action editor-doc-button" href="{{ $templateQuickGuideUrl }}" target="_blank">模版帮助文档</a>
                 </div>
             </div>
             <div class="editor-panel-body">
@@ -1595,12 +155,14 @@
                                         <option value="list" @selected($oldTemplatePrefix === 'list')>列表模板</option>
                                         <option value="detail" @selected($oldTemplatePrefix === 'detail')>详情模板</option>
                                         <option value="page" @selected($oldTemplatePrefix === 'page')>单页模板</option>
+                                        <option value="css" @selected($oldTemplatePrefix === 'css')>CSS 文件</option>
+                                        <option value="js" @selected($oldTemplatePrefix === 'js')>JS 文件</option>
                                     </select>
                                     <button class="custom-select-trigger" type="button" data-select-trigger aria-expanded="false">
-                                        <span data-select-label>{{ ['list' => '列表模板', 'detail' => '详情模板', 'page' => '单页模板'][$oldTemplatePrefix] ?? '列表模板' }}</span>
+                                        <span data-select-label>{{ ['list' => '列表模板', 'detail' => '详情模板', 'page' => '单页模板', 'css' => 'CSS 文件', 'js' => 'JS 文件'][$oldTemplatePrefix] ?? '列表模板' }}</span>
                                     </button>
                                     <div class="custom-select-panel">
-                                        @foreach (['list' => '列表模板', 'detail' => '详情模板', 'page' => '单页模板'] as $prefixValue => $prefixLabel)
+                                        @foreach (['list' => '列表模板', 'detail' => '详情模板', 'page' => '单页模板', 'css' => 'CSS 文件', 'js' => 'JS 文件'] as $prefixValue => $prefixLabel)
                                             <button class="custom-select-option @if($oldTemplatePrefix === $prefixValue) is-active @endif" type="button" data-select-option data-value="{{ $prefixValue }}">
                                                 <span>{{ $prefixLabel }}</span>
                                                 <svg class="custom-select-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>
@@ -1610,22 +172,11 @@
                                 </div>
                             </label>
 
-                            <label class="field-group workspace-field-fixed">
-                                <span class="field-label">模板框架</span>
-                                <input type="hidden" name="starter_template" value="{{ $oldStarterTemplate }}" data-starter-template-input>
-                                <button class="picker-trigger @if($createTemplateErrors->has('starter_template')) is-error @endif" type="button" data-open-starter-picker>
-                                    <span class="picker-trigger-label" data-starter-picker-label>
-                                        {{ collect($starterOptions)->firstWhere('value', $oldStarterTemplate)['label'] ?? (collect($starterOptions)->first()['label'] ?? '请选择') }}
-                                    </span>
-                                </button>
-                            </label>
                         </div>
 
                         <div class="workspace-action-row">
                             <button class="button" type="submit" data-template-create-submit>创建模板</button>
                         </div>
-
-                        <input type="hidden" name="current_template" value="{{ $currentTemplate }}">
                     </form>
                 @elseif ($workspacePanel === 'snapshots')
                     <section class="snapshot-intro-card">
@@ -1721,7 +272,7 @@
                         <div class="summary-detail-grid">
                             <section class="summary-side-card">
                                 <div class="summary-side-label">模板文件</div>
-                                <div class="summary-side-value">{{ $template }}.tpl</div>
+                                <div class="summary-side-value">{{ $templateMeta['file'] ?? \App\Support\ThemeTemplateLocator::editorFilename($template) }}</div>
                                 <div class="summary-side-note">当前编辑对象的实际模板文件名。</div>
                             </section>
 
@@ -1768,41 +319,39 @@
                         <input type="hidden" name="template" value="{{ $template }}">
                     </form>
                 @endif
+
+                @if ($workspacePanel === 'editor')
+                    <section class="summary-card theme-assets-card">
+                        <div class="summary-card-title">模板资源</div>
+                        <div class="summary-card-meta">
+                            <span class="template-badge">assets/</span>
+                            <span class="template-badge">{{ $themeAssetsTotalCount }} 个资源</span>
+                            <span class="template-badge">模板资源已用 {{ $themeAssetUsageLabel }}</span>
+                        </div>
+                        <div class="theme-assets-capacity">
+                            <div class="theme-assets-capacity-labels">
+                                <span>模板资源 {{ $themeAssetUsageLabel }}</span>
+                                <span>站点总容量 {{ $totalStorageUsageLabel }} / {{ $storageLimitLabel }}</span>
+                            </div>
+                            <div class="theme-assets-capacity-bars" aria-hidden="true">
+                                <div class="theme-assets-capacity-bar-row">
+                                    <span class="theme-assets-capacity-bar-label">站点总量</span>
+                                    <progress class="theme-assets-capacity-progress is-total" max="100" value="{{ $totalStorageUsagePercent }}"></progress>
+                                </div>
+                                <div class="theme-assets-capacity-bar-row">
+                                    <span class="theme-assets-capacity-bar-label">模板资源</span>
+                                    <progress class="theme-assets-capacity-progress is-theme" max="100" value="{{ $themeAssetUsagePercent }}"></progress>
+                                </div>
+                        </div>
+                    </div>
+                        <div class="theme-assets-summary-actions">
+                            <button class="button secondary is-library" type="button" data-open-theme-assets-modal data-theme-assets-mode="manage">打开模板资源</button>
+                        </div>
+                    </section>
+                @endif
             </div>
         </section>
     </div>
-
-    @include('admin.site.attachments._attachment_library_modal')
-
-    <section class="starter-picker-modal" data-starter-picker-modal>
-        <div class="starter-picker-backdrop" data-close-starter-picker></div>
-        <div class="starter-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="starter-picker-title">
-            <div class="starter-picker-head">
-                <div>
-                    <div class="starter-picker-title" id="starter-picker-title">选择模板框架</div>
-                    <div class="starter-picker-desc">选择一个已有模板作为起始内容，或从空白模板骨架开始创建。</div>
-                </div>
-                <button class="starter-picker-close" type="button" data-close-starter-picker aria-label="关闭基础内容选择">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                </button>
-            </div>
-            <div class="starter-picker-list">
-                @foreach ($starterOptionGroups as $starterGroup)
-                    <section class="starter-picker-group" data-starter-picker-group data-group-key="{{ $starterGroup['key'] }}">
-                        <div class="starter-picker-group-title">{{ $starterGroup['title'] }}</div>
-                        @foreach ($starterGroup['items'] as $starterOption)
-                            <button class="starter-picker-option @if($oldStarterTemplate === $starterOption['value']) is-active @endif" type="button" data-starter-picker-option data-value="{{ $starterOption['value'] }}" data-group-key="{{ $starterOption['group_key'] ?? $starterGroup['key'] }}">
-                                <span class="starter-picker-option-head">
-                                    <span class="starter-picker-option-title">{{ $starterOption['label'] }}</span>
-                                    <span class="starter-picker-option-badge">推荐</span>
-                                </span>
-                            </button>
-                        @endforeach
-                    </section>
-                @endforeach
-            </div>
-        </div>
-    </section>
 
     @if ($workspacePanel === 'snapshots' && $compareVersion)
         <section class="history-compare-modal" data-history-compare-modal>
@@ -1867,11 +416,11 @@
                 <div class="editor-modal-head">
                     <div>
                         <div class="editor-modal-title" id="template-editor-modal-title">编辑模板源码</div>
-                        <div class="editor-modal-desc">{{ $templateMeta['label'] ?? $template }}（{{ $template }}.tpl）</div>
+                        <div class="editor-modal-desc">{{ $templateMeta['label'] ?? $template }}（{{ $templateMeta['file'] ?? \App\Support\ThemeTemplateLocator::editorFilename($template) }}）</div>
                     </div>
                     <div class="editor-modal-actions">
                         <button class="button" type="submit" form="theme-editor-form" data-loading-text="保存中...">保存模板源码</button>
-                        <button class="button secondary is-library" type="button" data-open-template-attachment-library>资源库</button>
+                        <button class="button secondary is-library" type="button" data-open-theme-assets-modal data-theme-assets-mode="insert">模板资源</button>
                         @if ($latestTemplateVersion)
                             <button class="button secondary" type="submit" form="theme-rollback-form">回滚上一版</button>
                         @endif
@@ -1893,9 +442,6 @@
                         <div class="field-group template-title-group">
                             <label class="field-label" for="template_title">模板标题</label>
                             <input class="field template-title-field @error('template_title') is-error @enderror" id="template_title" name="template_title" type="text" value="{{ old('template_title', $templateTitle) }}" placeholder="如 校园新闻模板" data-template-title-limit="10">
-                            @error('template_title')
-                                <span class="form-error">{{ $message }}</span>
-                            @enderror
                         </div>
 
                         <div class="field-group">
@@ -1908,7 +454,7 @@
                     </div>
 
                     <div class="field-group editor-source-group">
-                        <label class="field-label" for="template_source">TPL 模板源码</label>
+                        <label class="field-label" for="template_source">{{ $templateSourceFieldLabel }}</label>
                         <div class="code-editor-shell">
                             <div class="code-editor-gutter" aria-hidden="true">
                                 <div class="code-editor-gutter-inner" id="template_source_gutter">
@@ -1916,681 +462,193 @@
                                 </div>
                             </div>
                             <div class="code-editor-main">
-                                <textarea class="code-area" id="template_source" name="template_source" spellcheck="false" wrap="off">{{ old('template_source', $templateSource) }}</textarea>
+                                <textarea class="code-area" id="template_source" name="template_source" spellcheck="false" wrap="off">{{ old('template_source') }}</textarea>
+                                <textarea id="template_source_bootstrap" hidden aria-hidden="true">{{ old('template_source', $templateSource) }}</textarea>
                             </div>
                         </div>
-                        @error('template_source')
-                            <span class="form-error">{{ $message }}</span>
-                        @enderror
                         <div class="editor-modal-footer">
-                            <span class="field-note">保存前会再次进行模板标题和模板语法校验。</span>
+                            <span class="field-note">保存前会再次进行模板标题和模板语法校验。TPL 模板请使用 <code>themeStyle</code> / <code>themeScript</code> 引入资源，不支持内联 <code>style</code>、内联 <code>script</code> 和事件属性。</span>
                         </div>
                     </div>
                 </div>
             </form>
         </div>
     </section>
+
+    <section class="theme-assets-modal @if($themeAssetsModalOpen) is-open @endif @if($themeAssetsModalMode === 'manage') is-manage-mode @endif" data-theme-assets-modal data-mode="{{ $themeAssetsModalMode }}" data-theme-assets-ready="{{ $themeAssetsModalOpen ? '1' : '0' }}">
+        <div class="theme-assets-modal-backdrop" data-close-theme-assets-modal></div>
+        <div class="theme-assets-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-assets-modal-title">
+            <form class="theme-assets-upload" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-upload-form>
+                @csrf
+                <input type="hidden" name="template" value="{{ $template }}">
+                <input type="hidden" name="open_assets" value="1">
+            <div class="theme-assets-modal-head">
+                <div class="theme-assets-modal-head-copy">
+                    <div class="theme-assets-modal-title" id="theme-assets-modal-title">模板资源</div>
+                    <div class="theme-assets-modal-desc">
+                        管理当前主题目录下的 <code>assets/</code> 资源，支持上传、替换、路径插入。
+                        <span class="theme-assets-upload-limit">
+                            <span class="template-badge">支持 JPG / PNG / GIF / WEBP / SVG / WOFF / WOFF2 / JSON</span>
+                            <span class="template-badge">单文件最大 10 MB</span>
+                        </span>
+                    </div>
+                </div>
+                    <div class="theme-assets-modal-actions">
+                    <button class="theme-assets-modal-close" type="button" data-close-theme-assets-modal aria-label="关闭模板资源弹窗">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
+            </div>
+                <div class="theme-assets-modal-body">
+                    <input class="theme-assets-file-input" type="file" name="asset" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.woff,.woff2,.json" hidden data-theme-assets-file-input>
+                    <div class="theme-assets-toolbar">
+                        <div class="theme-assets-toolbar-search">
+                            <input type="search" placeholder="搜索资源名称或路径" value="{{ $assetKeyword ?? '' }}" data-theme-assets-search>
+                        </div>
+                        <div class="theme-assets-toolbar-filter">
+                            <select data-theme-assets-type>
+                                <option value="all" @selected(($assetType ?? 'all') === 'all')>全部类型</option>
+                                <option value="image" @selected(($assetType ?? 'all') === 'image')>图片</option>
+                                <option value="font" @selected(($assetType ?? 'all') === 'font')>字体</option>
+                                <option value="json" @selected(($assetType ?? 'all') === 'json')>JSON</option>
+                                <option value="file" @selected(($assetType ?? 'all') === 'file')>其他</option>
+                            </select>
+                        </div>
+                        <button class="button secondary theme-assets-filter-button" type="button" data-theme-assets-search-trigger>筛选</button>
+                        <button class="button secondary theme-assets-reset-button" type="button" data-theme-assets-reset-trigger>重置</button>
+                        <div class="theme-assets-toolbar-actions">
+                        <div class="theme-assets-modal-stats">
+                            <span class="template-badge">
+                                {{ ($themeAssetsModalOpen ? ($themeAssetsFilteredCount ?? $themeAssetsTotalCount) : null) ? ($themeAssetsFilteredCount ?? $themeAssetsTotalCount) : '...' }} 个资源
+                            </span>
+                            <span class="template-badge">已用 {{ $themeAssetUsageLabel }}</span>
+                        </div>
+                            <button class="button" type="button" data-theme-assets-upload-trigger>上传资源</button>
+                        </div>
+                    </div>
+                    @if ($themeAssetErrors->has('asset'))
+                        <span class="form-error">{{ $themeAssetErrors->first('asset') }}</span>
+                    @endif
+
+                @if (!$themeAssetsModalOpen)
+                    <div class="workspace-empty is-compact">加载模板资源中...</div>
+                @elseif ($themeAssets->isEmpty())
+                    <div class="workspace-empty is-compact">
+                        {{ ($assetKeyword ?? '') !== '' || (($assetType ?? 'all') !== 'all') ? '没有匹配的资源。' : '当前模板目录下还没有资源文件。' }}
+                    </div>
+                @else
+                    <div class="theme-assets-list">
+                        @foreach ($themeAssets as $asset)
+                            <article class="theme-asset-item" data-theme-asset-card data-asset-path="{{ $asset['path'] }}" data-asset-name="{{ $asset['name'] }}" data-asset-type="{{ $asset['asset_type'] ?? 'file' }}" data-asset-source="{{ $asset['source'] }}">
+                                <div class="theme-asset-preview{{ $asset['is_previewable_image'] ? ' is-image' : '' }}{{ $asset['is_previewable_image'] ? ' is-clickable' : '' }}" @if($asset['is_previewable_image']) role="button" tabindex="0" data-theme-asset-preview-trigger data-asset-url="{{ $asset['url'] }}" data-asset-name="{{ $asset['name'] }}" @endif>
+                                    @if ($asset['is_previewable_image'])
+                                        <img src="{{ $asset['url'] }}" alt="{{ $asset['name'] }}">
+                                    @else
+                                        <span>{{ $asset['kind'] }}</span>
+                                    @endif
+                                    @if (!empty($asset['show_large_image_warning']))
+                                        <div class="theme-asset-warning theme-asset-warning-overlay">
+                                            <span class="theme-asset-warning-icon">!</span>
+                                            <span>图片过大谨慎使用，会严重拖慢网站访问速度，建议压缩或更换！</span>
+                                        </div>
+                                    @endif
+                                </div>
+                                <div class="theme-asset-main">
+                                    <div class="theme-asset-name" data-tooltip="{{ $asset['path'] }}">{{ $asset['name'] }}</div>
+                                    <div class="theme-asset-meta">
+                                        <span>{{ strtoupper($asset['extension'] ?: 'FILE') }}</span>
+                                        <span>{{ $asset['size_label'] }}</span>
+                                        @if (!empty($asset['dimensions_label']))
+                                            <span class="theme-asset-dimensions">{{ $asset['dimensions_label'] }}</span>
+                                        @endif
+                                        <span class="template-badge theme-asset-source-badge{{ $asset['source'] === 'override' ? ' is-override' : '' }}">{{ $asset['source'] === 'override' ? '站点自定义资源' : '平台默认资源' }}</span>
+                                        <span class="theme-asset-updated">更新 {{ $asset['updated_label'] }}</span>
+                                    </div>
+                                </div>
+                                <div class="theme-asset-actions">
+                                    <button class="button neutral-action editor-doc-button theme-asset-action-button" type="button" data-insert-theme-asset data-asset-path="{{ $asset['path'] }}">插入路径</button>
+                                    <form class="theme-asset-replace-form" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-replace-form>
+                                        @csrf
+                                        <input type="hidden" name="template" value="{{ $template }}">
+                                        <input type="hidden" name="open_assets" value="1">
+                                        <input type="hidden" name="replace_asset_path" value="{{ $asset['path'] }}">
+                                        <input class="theme-asset-replace-input" type="file" name="asset" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.woff,.woff2,.json" hidden data-theme-asset-replace-input>
+                                        <button class="button neutral-action editor-doc-button theme-asset-action-button" type="button" data-theme-asset-replace-trigger>替换</button>
+                                    </form>
+                                    @if ($asset['source'] === 'override')
+                                        <form class="theme-asset-delete-form" method="POST" action="{{ route('admin.themes.editor.asset-delete') }}" data-theme-assets-delete-form>
+                                            @csrf
+                                            <input type="hidden" name="template" value="{{ $template }}">
+                                            <input type="hidden" name="open_assets" value="1">
+                                            <input type="hidden" name="asset_path" value="{{ $asset['path'] }}">
+                                            <button class="button secondary theme-asset-action-button" type="submit">删除</button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </article>
+                        @endforeach
+                    </div>
+                    @if ($themeAssets->hasPages())
+                        <div class="theme-assets-pagination">
+                            <nav aria-label="模板资源分页">
+                                <div class="pagination-shell">
+                                    @if ($themeAssets->onFirstPage())
+                                        <span class="pagination-button is-disabled">上一页</span>
+                                    @else
+                                        <a class="pagination-button" href="{{ $themeAssets->previousPageUrl() }}">上一页</a>
+                                    @endif
+
+                                    <div class="pagination-pages">
+                                        @for ($page = 1; $page <= $themeAssets->lastPage(); $page++)
+                                            @if ($page === $themeAssets->currentPage())
+                                                <span class="pagination-page is-active">{{ $page }}</span>
+                                            @else
+                                                <a class="pagination-page" href="{{ $themeAssets->url($page) }}">{{ $page }}</a>
+                                            @endif
+                                        @endfor
+                                    </div>
+
+                                    @if ($themeAssets->hasMorePages())
+                                        <a class="pagination-button" href="{{ $themeAssets->nextPageUrl() }}">下一页</a>
+                                    @else
+                                        <span class="pagination-button is-disabled">下一页</span>
+                                    @endif
+                                </div>
+                            </nav>
+                        </div>
+                    @endif
+                @endif
+            </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="theme-asset-preview-modal" data-theme-asset-preview-modal hidden>
+        <div class="theme-asset-preview-backdrop" data-close-theme-asset-preview></div>
+        <div class="theme-asset-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-asset-preview-title">
+            <div class="theme-asset-preview-head">
+                <div class="theme-asset-preview-title" id="theme-asset-preview-title">资源预览</div>
+                <button class="theme-assets-modal-close" type="button" data-close-theme-asset-preview aria-label="关闭资源预览">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+            <div class="theme-asset-preview-body">
+                <img src="" alt="" data-theme-asset-preview-image>
+            </div>
+            <div class="theme-asset-preview-caption" data-theme-asset-preview-caption></div>
+        </div>
+    </section>
+
+    <div
+        id="theme-editor-config"
+        hidden
+        data-server-editor-errors='@json($editorErrors)'
+        data-server-create-errors='@json(array_values(array_unique($createTemplateErrors->all())))'
+        data-compare-clean-url="{{ route('admin.themes.snapshots', ['template' => $template]) }}"
+        data-theme-assets-open="{{ $themeAssetsModalOpen ? '1' : '0' }}"
+    ></div>
 @endsection
 
 @push('scripts')
-    <script>
-        let cmsAttachments = [];
-        const attachmentLibraryWorkspaceAccess = @json($attachmentLibraryWorkspaceAccess);
-        const attachmentDeleteUrlTemplate = @json(route('admin.attachments.destroy', ['attachment' => '__ATTACHMENT__']));
-        const attachmentUsageUrlTemplate = @json(route('admin.attachments.usages', ['attachment' => '__ATTACHMENT__']));
-
-        @include('admin.site.attachments._attachment_library_script')
-
-        (() => {
-            const serverCreateErrors = @json(array_values(array_unique($createTemplateErrors->all())));
-            const starterRecommendations = @json($starterRecommendations);
-            const editor = document.getElementById('template_source');
-            const gutter = document.getElementById('template_source_gutter');
-            const resetForm = document.getElementById('theme-reset-form');
-            const deleteForm = document.getElementById('theme-delete-form');
-            const rollbackForm = document.getElementById('theme-rollback-form');
-            const modal = document.querySelector('[data-editor-modal]');
-            const openButtons = document.querySelectorAll('[data-open-editor-modal]');
-            const closeButtons = document.querySelectorAll('[data-close-editor-modal]');
-            const attachmentLibraryButtons = document.querySelectorAll('[data-open-template-attachment-library]');
-            const editorForm = document.getElementById('theme-editor-form');
-            const titleInput = document.getElementById('template_title');
-            const initialTitle = titleInput ? titleInput.value : '';
-            const initialSource = editor ? editor.value : '';
-            const starterPickerModal = document.querySelector('[data-starter-picker-modal]');
-            const starterPickerInput = document.querySelector('[data-starter-template-input]');
-            const starterPickerLabel = document.querySelector('[data-starter-picker-label]');
-            let editorViewportFrame = null;
-
-            const validateTemplateTitleLimit = (input) => {
-                if (!input) {
-                    return true;
-                }
-
-                const limit = Number.parseInt(input.getAttribute('data-template-title-limit') || '0', 10);
-                const value = (input.value || '').trim();
-                const isValid = limit <= 0 || value.length <= limit;
-                input.classList.toggle('is-error', !isValid);
-
-                if (!isValid && typeof window.showMessage === 'function') {
-                    window.showMessage(`模板标题不能超过 ${limit} 个字。`, 'error');
-                }
-
-                return isValid;
-            };
-
-            const normalizeTemplateSuffix = (value, { finalize = false } = {}) => {
-                const source = String(value || '').toLowerCase();
-                let normalized = '';
-
-                for (const char of source) {
-                    if (/[a-z0-9]/.test(char)) {
-                        normalized += char;
-                        continue;
-                    }
-
-                    if ((char === '-' || char === '_') && normalized !== '' && /[a-z0-9]$/.test(normalized)) {
-                        normalized += char;
-                    }
-                }
-
-                return finalize
-                    ? normalized.replace(/[-_]+$/g, '')
-                    : normalized;
-            };
-
-            const bindTemplateSuffixInput = (input) => {
-                if (!input) {
-                    return;
-                }
-
-                const sanitizeValue = ({ finalize = false } = {}) => {
-                    const normalized = normalizeTemplateSuffix(input.value, { finalize });
-
-                    if (input.value !== normalized) {
-                        const nextCursor = Math.min(normalized.length, input.selectionStart ?? normalized.length);
-                        input.value = normalized;
-                        input.setSelectionRange(nextCursor, nextCursor);
-                    }
-                };
-
-                input.addEventListener('input', () => sanitizeValue());
-                input.addEventListener('blur', () => sanitizeValue({ finalize: true }));
-                sanitizeValue({ finalize: true });
-            };
-
-            if (serverCreateErrors.length > 0 && typeof window.showMessage === 'function') {
-                window.showMessage(serverCreateErrors.join('，'), 'error');
-            }
-
-            document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
-                const nativeSelect = selectRoot.querySelector('[data-select-native]');
-                const trigger = selectRoot.querySelector('[data-select-trigger]');
-                const label = selectRoot.querySelector('[data-select-label]');
-                const options = selectRoot.querySelectorAll('[data-select-option]');
-
-                if (!nativeSelect || !trigger || !label) {
-                    return;
-                }
-
-                const close = () => {
-                    selectRoot.classList.remove('is-open');
-                    trigger.setAttribute('aria-expanded', 'false');
-                };
-
-                const open = () => {
-                    document.querySelectorAll('[data-custom-select].is-open').forEach((opened) => {
-                        if (opened !== selectRoot) {
-                            opened.classList.remove('is-open');
-                            opened.querySelector('[data-select-trigger]')?.setAttribute('aria-expanded', 'false');
-                        }
-                    });
-
-                    selectRoot.classList.add('is-open');
-                    trigger.setAttribute('aria-expanded', 'true');
-                };
-
-                trigger.addEventListener('click', () => {
-                    if (selectRoot.classList.contains('is-open')) {
-                        close();
-                    } else {
-                        open();
-                    }
-                });
-
-                options.forEach((option) => {
-                    option.addEventListener('click', () => {
-                        const value = option.getAttribute('data-value') || '';
-                        nativeSelect.value = value;
-                        label.textContent = option.querySelector('span')?.textContent || value;
-                        options.forEach((item) => item.classList.remove('is-active'));
-                        option.classList.add('is-active');
-                        close();
-                        nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    });
-                });
-
-                document.addEventListener('click', (event) => {
-                    if (!selectRoot.contains(event.target)) {
-                        close();
-                    }
-                });
-            });
-
-            const syncBodyScroll = () => {
-                const compareModal = document.querySelector('[data-history-compare-modal]');
-                const starterPickerOpen = starterPickerModal && starterPickerModal.classList.contains('is-open');
-                const compareModalOpen = Boolean(compareModal && !compareModal.hidden && compareModal.classList.contains('is-ready'));
-                document.body.style.overflow = (modal && modal.classList.contains('is-open')) || compareModalOpen || starterPickerOpen ? 'hidden' : '';
-            };
-
-            const renderLineNumbers = () => {
-                if (!editor || !gutter) {
-                    return;
-                }
-
-                const total = Math.max(editor.value.split('\n').length, 1);
-                gutter.innerHTML = Array.from({ length: total }, (_, index) => `<span class="code-editor-gutter-line">${index + 1}</span>`).join('');
-                syncEditorViewportState();
-            };
-
-            const syncEditorGutterScroll = () => {
-                if (!editor || !gutter) {
-                    return;
-                }
-                gutter.style.transform = `translate3d(0, ${-editor.scrollTop}px, 0)`;
-            };
-
-            const syncEditorViewportState = () => {
-                syncEditorGutterScroll();
-                syncEditorSelectionHighlight();
-            };
-
-            const requestEditorViewportSync = () => {
-                if (editorViewportFrame !== null) {
-                    return;
-                }
-
-                editorViewportFrame = window.requestAnimationFrame(() => {
-                    editorViewportFrame = null;
-                    syncEditorViewportState();
-                });
-            };
-
-            const getLineFromOffset = (offset) => {
-                if (!editor || !gutter) {
-                    return 1;
-                }
-
-                const total = Math.max(editor.value.split('\n').length, 1);
-                const normalizedOffset = Math.max(0, Math.min(editor.value.length, offset ?? 0));
-                return Math.max(1, Math.min(total, editor.value.slice(0, normalizedOffset).split('\n').length));
-            };
-
-            const syncEditorSelectionHighlight = () => {
-                if (!editor || !gutter) {
-                    return;
-                }
-
-                const startLine = getLineFromOffset(editor.selectionStart ?? 0);
-                const endLine = getLineFromOffset(editor.selectionEnd ?? editor.selectionStart ?? 0);
-                gutter.querySelectorAll('.code-editor-gutter-line').forEach((lineElement, index) => {
-                    const lineNumber = index + 1;
-                    lineElement.classList.toggle('is-active', lineNumber >= startLine && lineNumber <= endLine);
-                });
-            };
-
-            const hasUnsavedChanges = () => {
-                if (!editor || !titleInput) {
-                    return false;
-                }
-
-                return editor.value !== initialSource || titleInput.value !== initialTitle;
-            };
-
-            const closeModal = () => {
-                if (!modal) {
-                    return;
-                }
-
-                if (hasUnsavedChanges()) {
-                    if (typeof window.showConfirmDialog === 'function') {
-                        window.showConfirmDialog({
-                            title: '确认关闭源码编辑？',
-                            text: '当前有未保存的修改，关闭后这些修改将不会保留。',
-                            confirmText: '仍然关闭',
-                            onConfirm: () => {
-                                modal.classList.remove('is-open');
-                                syncBodyScroll();
-                            },
-                        });
-                        return;
-                    }
-
-                    if (!window.confirm('当前有未保存的修改，确认关闭源码编辑吗？')) {
-                        return;
-                    }
-                }
-
-                modal.classList.remove('is-open');
-                syncBodyScroll();
-            };
-
-            if (editor && gutter) {
-                editor.addEventListener('input', renderLineNumbers);
-                editor.addEventListener('scroll', requestEditorViewportSync, { passive: true });
-                editor.addEventListener('click', syncEditorSelectionHighlight);
-                editor.addEventListener('keyup', syncEditorSelectionHighlight);
-                editor.addEventListener('focus', syncEditorSelectionHighlight);
-                editor.addEventListener('mouseup', syncEditorSelectionHighlight);
-                editor.addEventListener('select', syncEditorSelectionHighlight);
-                renderLineNumbers();
-            }
-
-            const insertAtCursor = (textarea, text) => {
-                if (!textarea) {
-                    return;
-                }
-
-                const start = textarea.selectionStart ?? textarea.value.length;
-                const end = textarea.selectionEnd ?? textarea.value.length;
-                const current = textarea.value || '';
-                textarea.value = `${current.slice(0, start)}${text}${current.slice(end)}`;
-                const nextPosition = start + text.length;
-                textarea.selectionStart = nextPosition;
-                textarea.selectionEnd = nextPosition;
-                textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                textarea.focus();
-            };
-
-            openButtons.forEach((button) => {
-                button.addEventListener('click', () => {
-                    modal?.classList.add('is-open');
-                    syncBodyScroll();
-                    window.setTimeout(() => {
-                        renderLineNumbers();
-                        syncEditorViewportState();
-                        editor?.focus();
-                    }, 30);
-                });
-            });
-
-            attachmentLibraryButtons.forEach((button) => {
-                button.addEventListener('click', () => {
-                    window.openSiteAttachmentLibrary?.({
-                        mode: 'picker',
-                        context: 'theme',
-                        imageOnly: true,
-                        onSelect: (attachment) => {
-                            const relativeUrl = (attachment?.relativeUrl || '').trim();
-
-                            if (relativeUrl === '') {
-                                window.showMessage?.('未找到该资源的站点路径，暂时无法插入。', 'error');
-                                return;
-                            }
-
-                            insertAtCursor(editor, relativeUrl);
-                            window.showMessage?.('站点资源路径已插入模板源码。');
-                        },
-                    });
-                });
-            });
-
-            closeButtons.forEach((button) => {
-                button.addEventListener('click', closeModal);
-            });
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && starterPickerModal?.classList.contains('is-open')) {
-                    closeStarterPicker();
-                    return;
-                }
-
-                if (event.key === 'Escape' && modal?.classList.contains('is-open')) {
-                    closeModal();
-                }
-            });
-
-            syncBodyScroll();
-
-            const treeSearchInput = document.querySelector('[data-template-tree-search]');
-            const treePanelShell = document.querySelector('[data-template-tree-scroll-shell]');
-            const treePanelBody = document.querySelector('[data-template-tree-scroll-body]');
-            const createForm = document.getElementById('theme-template-create-form');
-            const createTemplateSuffixInput = createForm?.querySelector('[data-template-suffix]');
-            const templatePrefixInput = createForm?.querySelector('[data-template-prefix-input]');
-            const starterPickerOptions = Array.from(document.querySelectorAll('[data-starter-picker-option]'));
-            const starterPickerGroups = Array.from(document.querySelectorAll('[data-starter-picker-group]'));
-            let starterPickerTouched = Boolean(starterPickerInput && starterPickerInput.value && starterPickerInput.value !== 'blank');
-
-            bindTemplateSuffixInput(createTemplateSuffixInput);
-
-            function applyTemplateTreeFilter() {
-                const keyword = (treeSearchInput?.value || '').trim().toLowerCase();
-
-                document.querySelectorAll('[data-template-tree-link]').forEach((link) => {
-                    const text = (link.getAttribute('data-search-text') || '').toLowerCase();
-                    const isVisible = keyword === '' || text.includes(keyword);
-                    link.hidden = !isVisible;
-                    link.style.display = isVisible ? '' : 'none';
-                });
-
-                document.querySelectorAll('[data-template-group]').forEach((group) => {
-                    const visibleItems = group.querySelectorAll('[data-template-tree-link]:not([hidden])').length;
-                    group.hidden = visibleItems === 0;
-                    group.style.display = visibleItems === 0 ? 'none' : '';
-                });
-            }
-
-            if (treeSearchInput) {
-                treeSearchInput.addEventListener('input', applyTemplateTreeFilter);
-                treeSearchInput.addEventListener('change', applyTemplateTreeFilter);
-                treeSearchInput.addEventListener('keyup', applyTemplateTreeFilter);
-                applyTemplateTreeFilter();
-            }
-
-            const syncTemplateTreeHeight = () => {
-                if (!treePanelBody) {
-                    return;
-                }
-
-                const rect = treePanelShell?.getBoundingClientRect() || treePanelBody.getBoundingClientRect();
-                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-                const bottomGap = window.innerWidth <= 760 ? 24 : 28;
-                const available = Math.max(280, Math.floor(viewportHeight - rect.top - bottomGap));
-                treePanelShell?.style.setProperty('--template-tree-max-height', `${available}px`);
-                treePanelBody.style.setProperty('--template-tree-max-height', `${available}px`);
-            };
-
-            const scheduleTemplateTreeSync = () => {
-                window.requestAnimationFrame(() => {
-                    syncTemplateTreeHeight();
-                });
-            };
-
-            syncTemplateTreeHeight();
-            scheduleTemplateTreeSync();
-            window.setTimeout(scheduleTemplateTreeSync, 120);
-            window.setTimeout(scheduleTemplateTreeSync, 360);
-            window.addEventListener('load', scheduleTemplateTreeSync);
-            window.addEventListener('resize', scheduleTemplateTreeSync);
-
-            if (window.ResizeObserver) {
-                const treeResizeObserver = new ResizeObserver(() => {
-                    scheduleTemplateTreeSync();
-                });
-                treePanelShell && treeResizeObserver.observe(treePanelShell);
-                treePanelBody && treeResizeObserver.observe(treePanelBody);
-            }
-
-            if (window.MutationObserver && treePanelBody) {
-                const treeMutationObserver = new MutationObserver(() => {
-                    scheduleTemplateTreeSync();
-                });
-                treeMutationObserver.observe(treePanelBody, {
-                    childList: true,
-                    subtree: true,
-                    attributes: true,
-                    attributeFilter: ['hidden', 'style', 'class'],
-                });
-            }
-
-            createForm?.addEventListener('submit', (event) => {
-                const createTitleInput = createForm.querySelector('[name="template_title"]');
-                if (createTemplateSuffixInput) {
-                    createTemplateSuffixInput.value = normalizeTemplateSuffix(createTemplateSuffixInput.value, { finalize: true });
-                }
-                if (!validateTemplateTitleLimit(createTitleInput)) {
-                    event.preventDefault();
-                    createTitleInput?.focus();
-                }
-            });
-
-            editorForm?.addEventListener('submit', (event) => {
-                if (!validateTemplateTitleLimit(titleInput)) {
-                    event.preventDefault();
-                    titleInput?.focus();
-                }
-            });
-
-            const starterRecommendationForPrefix = () => {
-                const prefix = templatePrefixInput?.value || 'list';
-                return starterRecommendations?.[prefix] || null;
-            };
-
-            const selectedStarterOption = () => {
-                if (!starterPickerInput) {
-                    return null;
-                }
-
-                return document.querySelector(`[data-starter-picker-option][data-value="${CSS.escape(starterPickerInput.value)}"]`);
-            };
-
-            const selectedStarterGroupKey = () => {
-                return selectedStarterOption()?.getAttribute('data-group-key') || '';
-            };
-
-            const updateStarterPickerRecommendationState = () => {
-                const recommendation = starterRecommendationForPrefix();
-                const recommendedValue = recommendation?.recommended?.value || '';
-                const recommendedGroupKey = recommendation?.group_key || '';
-
-                starterPickerOptions.forEach((option) => {
-                    option.classList.toggle('is-recommended', recommendedValue !== '' && option.getAttribute('data-value') === recommendedValue);
-                });
-
-                starterPickerGroups.forEach((group) => {
-                    group.classList.toggle('is-recommended-group', recommendedGroupKey !== '' && group.getAttribute('data-group-key') === recommendedGroupKey);
-                });
-            };
-
-            const syncStarterPickerState = (value, { source = 'manual' } = {}) => {
-                if (!starterPickerInput || !starterPickerLabel) {
-                    return;
-                }
-
-                starterPickerInput.value = value;
-                const activeOption = document.querySelector(`[data-starter-picker-option][data-value="${CSS.escape(value)}"]`);
-                document.querySelectorAll('[data-starter-picker-option]').forEach((option) => {
-                    option.classList.toggle('is-active', option.getAttribute('data-value') === value);
-                });
-                starterPickerLabel.textContent = activeOption?.querySelector('.starter-picker-option-title')?.textContent || '请选择';
-                if (source === 'manual') {
-                    starterPickerTouched = true;
-                }
-                updateStarterPickerRecommendationState();
-            };
-
-            const syncStarterPickerRecommendation = ({ force = false } = {}) => {
-                const recommendation = starterRecommendationForPrefix();
-                const recommendedValue = recommendation?.recommended?.value || '';
-                const selectedValue = starterPickerInput?.value || '';
-                const selectedGroupKey = selectedStarterGroupKey();
-                const recommendedGroupKey = recommendation?.group_key || '';
-                const selectionMatchesGroup = recommendedGroupKey !== '' && selectedGroupKey === recommendedGroupKey;
-
-                if (
-                    recommendedValue !== ''
-                    && (
-                        force
-                        || !starterPickerTouched
-                        || selectedValue === ''
-                        || selectedValue === 'blank'
-                        || !selectionMatchesGroup
-                    )
-                ) {
-                    syncStarterPickerState(recommendedValue, { source: 'auto' });
-                    return;
-                }
-
-                updateStarterPickerRecommendationState();
-            };
-
-            const scrollStarterPickerToRecommendation = () => {
-                const recommendation = starterRecommendationForPrefix();
-                const recommendedValue = recommendation?.recommended?.value || '';
-                const recommendedGroupKey = recommendation?.group_key || '';
-                const recommendedOption = recommendedValue !== ''
-                    ? starterPickerModal?.querySelector(`[data-starter-picker-option][data-value="${CSS.escape(recommendedValue)}"]`)
-                    : null;
-                const recommendedGroup = recommendedGroupKey !== ''
-                    ? starterPickerModal?.querySelector(`[data-starter-picker-group][data-group-key="${CSS.escape(recommendedGroupKey)}"]`)
-                    : null;
-                const target = recommendedOption || recommendedGroup;
-
-                if (!target) {
-                    return;
-                }
-
-                window.requestAnimationFrame(() => {
-                    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                });
-            };
-
-            const openStarterPicker = () => {
-                if (!starterPickerModal) {
-                    return;
-                }
-
-                starterPickerModal.classList.add('is-open');
-                syncBodyScroll();
-                scrollStarterPickerToRecommendation();
-            };
-
-            const closeStarterPicker = () => {
-                if (!starterPickerModal) {
-                    return;
-                }
-
-                starterPickerModal.classList.remove('is-open');
-                syncBodyScroll();
-            };
-
-            document.querySelector('[data-open-starter-picker]')?.addEventListener('click', openStarterPicker);
-            starterPickerModal?.querySelectorAll('[data-close-starter-picker]').forEach((element) => {
-                element.addEventListener('click', closeStarterPicker);
-            });
-
-            templatePrefixInput?.addEventListener('change', () => {
-                syncStarterPickerRecommendation();
-            });
-
-            document.querySelectorAll('[data-starter-picker-option]').forEach((option) => {
-                option.addEventListener('click', () => {
-                    const value = option.getAttribute('data-value') || 'blank';
-                    syncStarterPickerState(value, { source: 'manual' });
-                    closeStarterPicker();
-                });
-            });
-
-            syncStarterPickerRecommendation();
-
-            const bindDangerForm = (form, options) => {
-                if (!form) {
-                    return;
-                }
-
-                form.addEventListener('submit', (event) => {
-                    if (typeof window.showConfirmDialog === 'function') {
-                        event.preventDefault();
-                        window.showConfirmDialog({
-                            title: options.title,
-                            text: options.text,
-                            confirmText: options.confirmText,
-                            onConfirm: () => form.submit(),
-                        });
-                        return;
-                    }
-
-                    if (!window.confirm(options.text)) {
-                        event.preventDefault();
-                    }
-                });
-            };
-
-            bindDangerForm(resetForm, {
-                title: '确认恢复平台默认模板？',
-                text: '恢复后，当前站点对这个模板的自定义修改会被移除。',
-                confirmText: '恢复默认',
-            });
-
-            bindDangerForm(deleteForm, {
-                title: '确认删除自定义模板？',
-                text: '删除后，这个站点新增模板会立即从当前主题中移除。',
-                confirmText: '删除模板',
-            });
-
-            bindDangerForm(rollbackForm, {
-                title: '确认回滚到上一版？',
-                text: '回滚后，当前模板会恢复到上一版快照内容。',
-                confirmText: '回滚模板',
-            });
-
-            document.querySelectorAll('[data-template-snapshot-delete-button]').forEach((button) => {
-                const form = button.closest('form');
-                if (!form) {
-                    return;
-                }
-
-                form.addEventListener('submit', (event) => {
-                    if (typeof window.showConfirmDialog !== 'function') {
-                        return;
-                    }
-
-                    event.preventDefault();
-                    window.showConfirmDialog({
-                        title: '确认删除这个模板快照？',
-                        text: '删除后，这条历史快照将无法恢复，请确认是否继续。',
-                        confirmText: '删除快照',
-                        onConfirm: () => form.submit(),
-                    });
-                });
-            });
-
-            document.querySelectorAll('[data-template-snapshot-favorite-button]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    button.classList.add('is-active');
-                    button.style.transform = 'scale(1.08)';
-                    window.setTimeout(() => {
-                        button.style.transform = '';
-                    }, 180);
-                });
-            });
-
-            const firstDiffRow = document.querySelector('[data-first-diff]');
-            if (firstDiffRow) {
-                firstDiffRow.scrollIntoView({ block: 'center' });
-            }
-
-            const compareModal = document.querySelector('[data-history-compare-modal]');
-            if (compareModal) {
-                document.body.style.overflow = 'hidden';
-                window.requestAnimationFrame(() => {
-                    compareModal.classList.add('is-ready');
-                });
-
-                const closeCompareModal = () => {
-                    compareModal.classList.remove('is-ready');
-                    document.body.style.overflow = '';
-
-                    const cleanUrl = @json(route('admin.themes.snapshots', ['template' => $template]));
-                    window.history.replaceState({}, '', cleanUrl);
-
-                    window.setTimeout(() => {
-                        compareModal.hidden = true;
-                    }, 180);
-                };
-
-                compareModal.querySelectorAll('[data-history-compare-close]').forEach((element) => {
-                    element.addEventListener('click', closeCompareModal);
-                });
-
-                document.addEventListener('keydown', (event) => {
-                    if (event.key === 'Escape') {
-                        closeCompareModal();
-                    }
-                });
-            }
-        })();
-    </script>
+    <script src="{{ asset('js/site-theme-editor.js') }}"></script>
 @endpush

@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
+use App\Support\AttachmentUsageTracker;
 use App\Support\Site as SitePath;
-use App\Support\ThemeTemplateAttachmentRelationSync;
+use App\Support\SiteStorageUsage;
 use App\Support\ThemeTags;
 use App\Support\ThemeTemplateEngine;
 use App\Support\ThemeTemplateLocator;
@@ -13,9 +14,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use InvalidArgumentException;
 
 class ThemeController extends Controller
 {
@@ -134,7 +138,7 @@ class ThemeController extends Controller
                 ->withErrors(['theme' => '当前启用主题未提供可编辑的模板文件，请先补充主题模板后再进入模板编辑。']);
         }
         $template = $this->selectedTemplate($request, $templates);
-        $templateMeta = $templates->firstWhere('file', $template);
+        $templateMeta = $templates->firstWhere('key', $template);
         $workspacePanel = in_array((string) $request->query('panel', 'editor'), ['editor', 'create', 'snapshots'], true)
             ? (string) $request->query('panel', 'editor')
             : 'editor';
@@ -144,11 +148,6 @@ class ThemeController extends Controller
             ? File::get($paths['existing_override'])
             : (File::exists($paths['default']) ? File::get($paths['default']) : '');
         $latestVersion = $this->latestTemplateVersion($currentSite->id, $themeCode, $template);
-        $starterOptionGroups = $this->starterTemplateOptionGroups($templates, $template);
-        $starterOptions = $starterOptionGroups
-            ->flatMap(fn (array $group): Collection => collect($group['items']))
-            ->values();
-        $starterRecommendations = $this->starterTemplateRecommendations($templates, $template);
         $templateHistory = $this->templateHistory($currentSite->id, $themeCode, $template);
         $compareVersion = $this->selectedTemplateVersion($request, $templateHistory);
         $diffRows = $compareVersion
@@ -158,6 +157,52 @@ class ThemeController extends Controller
                 ($compareVersion->source_type ?? null) === 'missing'
             )
             : [];
+
+        $assetKeyword = trim((string) $request->query('asset_keyword', ''));
+        $assetType = strtolower((string) $request->query('asset_type', 'all'));
+        $themeAssetsAll = collect();
+        $themeAssets = collect();
+        $themeAssetPage = max(1, (int) $request->query('asset_page', 1));
+        $themeAssetPerPage = 9;
+        $themeAssetsModalMode = in_array((string) $request->query('open_assets_mode', 'manage'), ['manage', 'insert'], true)
+            ? (string) $request->query('open_assets_mode', 'manage')
+            : 'manage';
+        $themeAssetPaginator = new LengthAwarePaginator([], 0, $themeAssetPerPage, $themeAssetPage, [
+            'pageName' => 'asset_page',
+            'path' => route('admin.themes.editor', array_filter([
+                'template' => $template,
+                'panel' => $workspacePanel !== 'editor' ? $workspacePanel : null,
+            ])),
+            'query' => array_merge($request->except('page'), [
+                'open_assets' => 1,
+                'open_assets_mode' => $themeAssetsModalMode,
+                'asset_keyword' => $assetKeyword !== '' ? $assetKeyword : null,
+                'asset_type' => $assetType !== '' ? $assetType : null,
+            ]),
+        ]);
+
+        if ($request->boolean('open_assets')) {
+            $themeAssetsAll = $this->themeAssets($currentSite->id, $themeCode);
+            $themeAssets = $this->filterThemeAssets($themeAssetsAll, $assetKeyword, $assetType);
+            $themeAssetPaginator = new LengthAwarePaginator(
+                $themeAssets->slice(($themeAssetPage - 1) * $themeAssetPerPage, $themeAssetPerPage)->values(),
+                $themeAssets->count(),
+                $themeAssetPerPage,
+                $themeAssetPage,
+                $themeAssetPaginator->getOptions(),
+            );
+        }
+        $themeAssetBytes = SiteStorageUsage::themeAssetBytes($currentSite);
+        $totalStorageBytes = SiteStorageUsage::totalBytes($currentSite);
+        $storageLimitMb = SiteStorageUsage::storageLimitMb((int) $currentSite->id);
+        $storageLimitBytes = SiteStorageUsage::storageLimitBytes((int) $currentSite->id);
+        $hasStorageLimit = $storageLimitMb > 0;
+        $totalStorageUsagePercent = $hasStorageLimit && $storageLimitBytes > 0
+            ? min(100, round(($totalStorageBytes / $storageLimitBytes) * 100, 1))
+            : 100.0;
+        $themeAssetUsagePercent = $hasStorageLimit && $storageLimitBytes > 0
+            ? min(100, round(($themeAssetBytes / $storageLimitBytes) * 100, 1))
+            : ($totalStorageBytes > 0 ? min(100, round(($themeAssetBytes / max(1, $totalStorageBytes)) * 100, 1)) : 0.0);
 
         return view('admin.site.themes.editor', [
             'sites' => $this->adminSites(),
@@ -172,14 +217,24 @@ class ThemeController extends Controller
             'templateMeta' => $templateMeta,
             'templateTitle' => (string) ($this->templateCustomTitle($currentSite->id, $themeCode, $template) ?? ''),
             'templateSource' => $templateSource,
+            'templateSourceFieldLabel' => $this->editorSourceFieldLabel($templateMeta),
             'latestTemplateVersion' => $latestVersion,
-            'starterOptionGroups' => $starterOptionGroups,
-            'starterOptions' => $starterOptions,
-            'starterRecommendations' => $starterRecommendations,
+            'themeAssets' => $themeAssetPaginator,
+            'themeAssetsTotalCount' => $themeAssetsAll->count(),
+            'themeAssetsFilteredCount' => $themeAssets->count(),
+            'themeAssetUsageLabel' => SiteStorageUsage::formatBytes($themeAssetBytes),
+            'totalStorageUsageLabel' => SiteStorageUsage::formatBytes($totalStorageBytes),
+            'storageLimitLabel' => $storageLimitMb > 0 ? SiteStorageUsage::formatBytes($storageLimitBytes) : '不限',
+            'storageRemainingLabel' => $storageLimitMb > 0 ? SiteStorageUsage::formatBytes(max(0, $storageLimitBytes - $totalStorageBytes)) : '不限',
+            'themeAssetsModalMode' => $themeAssetsModalMode,
+            'hasStorageLimit' => $hasStorageLimit,
+            'assetKeyword' => $assetKeyword,
+            'assetType' => $assetType,
+            'totalStorageUsagePercent' => $totalStorageUsagePercent,
+            'themeAssetUsagePercent' => $themeAssetUsagePercent,
             'templateHistory' => $templateHistory,
             'compareVersion' => $compareVersion,
             'diffRows' => $diffRows,
-            'attachmentLibraryWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id),
             'templateQuickGuideUrl' => url('/docs/theme-template-quick-reference.html'),
         ]);
     }
@@ -225,39 +280,19 @@ class ThemeController extends Controller
         ]);
 
         $paths = $this->themePaths($currentSite->id, $themeCode, $template);
-        $tags = new ThemeTags($currentSite, collect(), collect());
-        $engine = new ThemeTemplateEngine(SitePath::key($currentSite), $themeCode, $tags);
-
         try {
-            $engine->validateSource($validated['template_source']);
+            $this->validateEditorSource($currentSite, $themeCode, $template, $validated['template_source']);
         } catch (\Throwable $exception) {
             return back()
                 ->withInput()
                 ->withErrors(['template_source' => $exception->getMessage()]);
         }
 
-        $inaccessibleAttachmentIds = $this->inaccessibleTemplateAttachmentIds(
-            (int) $currentSite->id,
-            (int) $request->user()->id,
-            (string) $validated['template_source'],
-        );
-
-        if ($inaccessibleAttachmentIds !== []) {
-            return back()
-                ->withInput()
-                ->withErrors(['template_source' => '模板源码中包含不可访问的站点资源，请重新从可用资源中选择。']);
-        }
-
         $this->snapshotTemplateState($currentSite->id, $themeCode, $template, 'edit_template', $request->user()->id);
         File::ensureDirectoryExists(dirname($paths['override']));
         File::put($paths['override'], $validated['template_source']);
         $this->persistTemplateTitle($currentSite->id, $themeCode, $template, $validated['template_title'] ?? null);
-        (new ThemeTemplateAttachmentRelationSync())->syncForTemplate(
-            $currentSite->id,
-            $themeCode,
-            $template,
-            $validated['template_source']
-        );
+        $this->clearLegacyTemplateAttachmentRelations($currentSite->id, $themeCode, $template);
 
         $this->logOperation(
             'site',
@@ -285,13 +320,10 @@ class ThemeController extends Controller
             return $themeCode;
         }
 
-        $availableTemplates = $this->availableTemplates($currentSite->id, $themeCode);
         $validated = $request->validateWithBag('createTemplate', [
-            'template_prefix' => ['nullable', 'string', Rule::in(['list', 'detail', 'page'])],
+            'template_prefix' => ['nullable', 'string', Rule::in(['list', 'detail', 'page', 'css', 'js'])],
             'template_suffix' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/'],
             'template_title' => ['required', 'string', 'max:10'],
-            'starter_template' => ['nullable', 'string', 'max:60'],
-            'current_template' => ['nullable', 'string', 'max:60'],
             'template_source' => ['nullable', 'string', 'max:200000'],
         ], [
             'template_suffix.max' => '模板标识不能超过 40 个字符。',
@@ -301,7 +333,6 @@ class ThemeController extends Controller
             'template_prefix' => '模板类型',
             'template_suffix' => '模板标识',
             'template_title' => '模板标题',
-            'starter_template' => '基础内容',
             'template_source' => '模板源码',
         ]);
 
@@ -327,60 +358,21 @@ class ThemeController extends Controller
                 ->withErrors(['template_suffix' => '该模板文件已存在，请更换模板标识。'], 'createTemplate');
         }
 
-        $starterTemplate = trim((string) ($validated['starter_template'] ?? 'blank'));
-        $starterChoices = $availableTemplates->pluck('file')->push('blank')->push('current')->unique()->all();
-
-        if (! in_array($starterTemplate, $starterChoices, true)) {
-            throw ValidationException::withMessages([
-                'starter_template' => '所选基础内容无效，请重新选择。',
-            ])->errorBag('createTemplate');
-        }
-
         $templateSource = trim((string) ($validated['template_source'] ?? ''));
 
-        if ($templateSource === '') {
-            $templateSource = $this->starterTemplateSource(
-                $currentSite->id,
-                $themeCode,
-                $starterTemplate,
-                (string) ($validated['current_template'] ?? ''),
-                $availableTemplates,
-            );
-        }
-
-        $tags = new ThemeTags($currentSite, collect(), collect());
-        $engine = new ThemeTemplateEngine(SitePath::key($currentSite), $themeCode, $tags);
-
         try {
-            $engine->validateSource($templateSource);
+            $this->validateEditorSource($currentSite, $themeCode, $template, $templateSource);
         } catch (\Throwable $exception) {
             return back()
                 ->withInput()
                 ->withErrors(['template_source' => $exception->getMessage()], 'createTemplate');
         }
 
-        $inaccessibleAttachmentIds = $this->inaccessibleTemplateAttachmentIds(
-            (int) $currentSite->id,
-            (int) $request->user()->id,
-            $templateSource,
-        );
-
-        if ($inaccessibleAttachmentIds !== []) {
-            return back()
-                ->withInput()
-                ->withErrors(['template_source' => '模板源码中包含不可访问的站点资源，请重新从可用资源中选择。'], 'createTemplate');
-        }
-
         $this->snapshotTemplateState($currentSite->id, $themeCode, $template, 'create_template', $request->user()->id);
         File::ensureDirectoryExists(dirname($paths['override']));
         File::put($paths['override'], $templateSource);
         $this->persistTemplateTitle($currentSite->id, $themeCode, $template, $validated['template_title'] ?? null);
-        (new ThemeTemplateAttachmentRelationSync())->syncForTemplate(
-            $currentSite->id,
-            $themeCode,
-            $template,
-            $templateSource
-        );
+        $this->clearLegacyTemplateAttachmentRelations($currentSite->id, $themeCode, $template);
 
         $this->logOperation(
             'site',
@@ -409,7 +401,7 @@ class ThemeController extends Controller
         }
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         $template = $this->selectedTemplate($request, $templates);
-        $templateMeta = $templates->firstWhere('file', $template);
+        $templateMeta = $templates->firstWhere('key', $template);
 
         abort_unless(($templateMeta['source'] ?? null) === 'override', 404);
 
@@ -418,12 +410,7 @@ class ThemeController extends Controller
 
         $this->snapshotTemplateState($currentSite->id, $themeCode, $template, 'reset_template', $request->user()->id);
         File::delete($paths['existing_override']);
-        (new ThemeTemplateAttachmentRelationSync())->syncForTemplate(
-            $currentSite->id,
-            $themeCode,
-            $template,
-            File::exists($paths['default']) ? File::get($paths['default']) : ''
-        );
+        $this->clearLegacyTemplateAttachmentRelations($currentSite->id, $themeCode, $template);
 
         $this->logOperation(
             'site',
@@ -452,7 +439,7 @@ class ThemeController extends Controller
         }
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         $template = $this->selectedTemplate($request, $templates);
-        $templateMeta = $templates->firstWhere('file', $template);
+        $templateMeta = $templates->firstWhere('key', $template);
 
         abort_unless(($templateMeta['source'] ?? null) === 'custom', 404);
 
@@ -460,7 +447,7 @@ class ThemeController extends Controller
         abort_unless($paths['existing_override'] && File::exists($paths['existing_override']), 404);
 
         $this->snapshotTemplateState($currentSite->id, $themeCode, $template, 'delete_template', $request->user()->id);
-        (new ThemeTemplateAttachmentRelationSync())->clearForTemplate($currentSite->id, $themeCode, $template);
+        $this->clearLegacyTemplateAttachmentRelations($currentSite->id, $themeCode, $template);
         File::delete($paths['existing_override']);
         $this->deleteTemplateMeta($currentSite->id, $themeCode, $template);
 
@@ -513,14 +500,7 @@ class ThemeController extends Controller
             File::delete($paths['override']);
         }
 
-        (new ThemeTemplateAttachmentRelationSync())->syncForTemplate(
-            $currentSite->id,
-            $themeCode,
-            $template,
-            in_array($version->source_type, ['override', 'custom'], true)
-                ? (string) ($version->template_source ?? '')
-                : (File::exists($paths['default']) ? File::get($paths['default']) : '')
-        );
+        $this->clearLegacyTemplateAttachmentRelations($currentSite->id, $themeCode, $template);
 
         DB::table('site_theme_template_versions')
             ->where('id', $version->id)
@@ -633,8 +613,126 @@ class ThemeController extends Controller
             ->with('status', $nextFavoriteState ? '模板快照已收藏。' : '模板快照已取消收藏。');
     }
 
+    public function uploadAsset(Request $request): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'theme.edit');
+        $themeCode = $this->requireCurrentBoundTheme($currentSite);
+        if ($themeCode instanceof RedirectResponse) {
+            return $themeCode;
+        }
+
+        $validated = $request->validateWithBag('themeAssets', [
+            'asset' => ['required', 'file', 'max:10240'],
+            'replace_asset_path' => ['nullable', 'string'],
+        ], [
+            'asset.max' => '模板资源文件不能超过 10MB。',
+        ], [
+            'asset' => '模板资源文件',
+        ]);
+
+        /** @var UploadedFile $file */
+        $file = $validated['asset'];
+        $replaceAssetPath = ThemeTemplateLocator::normalizeAssetPath((string) ($validated['replace_asset_path'] ?? ''));
+        $filename = $this->sanitizeThemeAssetFilename($file);
+        $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+
+        if (! in_array($extension, $this->themeUploadAssetExtensions(), true)) {
+            return back()
+                ->withErrors(['asset' => '仅支持上传图片、字体或 JSON 资源文件。'], 'themeAssets');
+        }
+
+        $destinationRoot = ThemeTemplateLocator::overrideRoot(SitePath::key($currentSite), $themeCode);
+        $logAction = 'upload_theme_asset';
+        $logPath = 'assets/'.$filename;
+
+        if ($replaceAssetPath !== null && str_starts_with($replaceAssetPath, 'assets/')) {
+            $targetExtension = strtolower((string) pathinfo($replaceAssetPath, PATHINFO_EXTENSION));
+
+            if ($targetExtension !== $extension) {
+                return back()
+                    ->withErrors(['asset' => '替换模板资源时，请上传相同扩展名的文件。'], 'themeAssets');
+            }
+
+            $overrideTarget = $destinationRoot.DIRECTORY_SEPARATOR.$replaceAssetPath;
+            $existingOverrideBytes = File::exists($overrideTarget) && File::isFile($overrideTarget)
+                ? (int) File::size($overrideTarget)
+                : 0;
+
+            $this->validateThemeAssetReplacementStorageLimit((int) $currentSite->id, (int) $file->getSize(), $existingOverrideBytes);
+
+            $destination = $overrideTarget;
+            $logAction = 'replace_theme_asset';
+            $logPath = $replaceAssetPath;
+        } else {
+            $filename = $this->uniqueThemeAssetFilename((int) $currentSite->id, $themeCode, $filename);
+            $this->validateThemeAssetStorageLimit((int) $currentSite->id, (int) $file->getSize());
+            $destination = $destinationRoot.DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.$filename;
+            $logPath = 'assets/'.$filename;
+        }
+
+        File::ensureDirectoryExists(dirname($destination));
+        $file->move(dirname($destination), basename($destination));
+
+        $this->logOperation(
+            'site',
+            'theme',
+            $logAction,
+            $currentSite->id,
+            $request->user()->id,
+            'theme',
+            null,
+            ['code' => $themeCode, 'path' => $logPath],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.themes.editor', [
+                'template' => (string) $request->input('template', 'home'),
+                'open_assets' => 1,
+            ])
+            ->with('status', $logAction === 'replace_theme_asset' ? '模板资源已替换。' : '模板资源已上传。');
+    }
+
+    public function deleteAsset(Request $request): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'theme.edit');
+        $themeCode = $this->requireCurrentBoundTheme($currentSite);
+        if ($themeCode instanceof RedirectResponse) {
+            return $themeCode;
+        }
+
+        $assetPath = ThemeTemplateLocator::normalizeAssetPath((string) $request->input('asset_path', ''));
+        abort_unless($assetPath !== null && str_starts_with($assetPath, 'assets/'), 404);
+
+        $overridePath = ThemeTemplateLocator::overrideRoot(SitePath::key($currentSite), $themeCode).DIRECTORY_SEPARATOR.$assetPath;
+        abort_unless(File::exists($overridePath) && File::isFile($overridePath), 404);
+
+        File::delete($overridePath);
+
+        $this->logOperation(
+            'site',
+            'theme',
+            'delete_theme_asset',
+            $currentSite->id,
+            $request->user()->id,
+            'theme',
+            null,
+            ['code' => $themeCode, 'path' => $assetPath],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.themes.editor', [
+                'template' => (string) $request->input('template', 'home'),
+                'open_assets' => 1,
+            ])
+            ->with('status', '模板资源已删除。');
+    }
+
     /**
-     * Resolve default and override paths for the active theme template.
+     * Resolve default and override paths for the active theme editor file.
      *
      * @return array<string, string>
      */
@@ -643,9 +741,9 @@ class ThemeController extends Controller
         $siteKey = SitePath::key($siteId);
 
         return [
-            'default' => ThemeTemplateLocator::defaultPath($themeCode, $template),
-            'override' => ThemeTemplateLocator::overridePath($siteKey, $themeCode, $template),
-            'existing_override' => ThemeTemplateLocator::existingOverridePath($siteKey, $themeCode, $template),
+            'default' => ThemeTemplateLocator::defaultEditorFilePath($themeCode, $template),
+            'override' => ThemeTemplateLocator::overrideEditorFilePath($siteKey, $themeCode, $template),
+            'existing_override' => ThemeTemplateLocator::existingEditorOverridePath($siteKey, $themeCode, $template),
         ];
     }
 
@@ -654,7 +752,7 @@ class ThemeController extends Controller
      */
     protected function selectedTemplate(Request $request, Collection $templates): string
     {
-        $availableFiles = $templates->pluck('file')->all();
+        $availableFiles = $templates->pluck('key')->all();
         $template = (string) $request->query('template', $request->input('template', $availableFiles[0] ?? 'home'));
 
         abort_unless(in_array($template, $availableFiles, true), 404);
@@ -663,13 +761,13 @@ class ThemeController extends Controller
     }
 
     /**
-     * List available editable templates.
+     * List available editable theme files.
      *
      * @return \Illuminate\Support\Collection<int, array<string, string>>
      */
     protected function availableTemplates(int $siteId, string $themeCode): Collection
     {
-        return ThemeTemplateLocator::availableTemplatesForSite($siteId, $themeCode);
+        return ThemeTemplateLocator::availableEditorFilesForSite($siteId, $themeCode);
     }
 
     protected function latestTemplateVersion(int $siteId, string $themeCode, string $template): ?object
@@ -707,19 +805,178 @@ class ThemeController extends Controller
         return $history->firstWhere('id', $versionId);
     }
 
+    protected function themeAssets(int $siteId, string $themeCode): Collection
+    {
+        $siteKey = SitePath::key($siteId);
+        $items = collect();
+
+        $collectFiles = function (string $root, string $source) use ($items, $themeCode, $siteKey): void {
+            if (! File::isDirectory($root)) {
+                return;
+            }
+
+            collect(File::allFiles($root))
+                ->filter(fn ($file): bool => in_array(strtolower($file->getExtension()), $this->themeUploadAssetExtensions(), true))
+                ->each(function ($file) use ($root, $source, $items, $themeCode, $siteKey): void {
+                    $relative = str_replace('\\', '/', ltrim(str_replace($root, '', $file->getPathname()), DIRECTORY_SEPARATOR));
+                    $assetPath = 'assets/'.$relative;
+                    $extension = strtolower((string) $file->getExtension());
+                    $assetType = match (true) {
+                        in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'], true) => 'image',
+                        in_array($extension, ['woff', 'woff2'], true) => 'font',
+                        $extension === 'json' => 'json',
+                        default => 'file',
+                    };
+                    $dimensions = $this->themeAssetDimensions($file->getPathname(), $extension);
+                    $version = implode('-', [
+                        (string) $file->getMTime(),
+                        (string) $file->getSize(),
+                    ]);
+                    $updatedTimestamp = (int) $file->getMTime();
+                    $updatedLabel = date('Y-m-d H:i', $updatedTimestamp);
+
+                    $items->put($assetPath, [
+                        'path' => $assetPath,
+                        'name' => $file->getFilename(),
+                        'source' => $source,
+                        'url' => route('site.theme-asset', [
+                            'theme' => $themeCode,
+                            'path' => $assetPath,
+                            'site' => $siteKey,
+                            'v' => $version,
+                        ]),
+                        'size' => $file->getSize(),
+                        'size_label' => $this->formatThemeAssetSize((int) $file->getSize()),
+                        'extension' => $extension,
+                        'kind' => $this->themeAssetKind($extension),
+                        'asset_type' => $assetType,
+                        'dimensions_label' => $dimensions,
+                        'updated_at' => $updatedTimestamp,
+                        'updated_label' => $updatedLabel,
+                        'is_previewable_image' => in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'], true),
+                        'show_large_image_warning' => in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'], true) && (int) $file->getSize() > (300 * 1024),
+                    ]);
+                });
+        };
+
+        $collectFiles(ThemeTemplateLocator::defaultRoot($themeCode).DIRECTORY_SEPARATOR.'assets', 'default');
+        $collectFiles(ThemeTemplateLocator::overrideRoot($siteKey, $themeCode).DIRECTORY_SEPARATOR.'assets', 'override');
+
+        return $items->sort(function (array $left, array $right): int {
+            $leftSource = ($left['source'] ?? 'default') === 'override' ? 0 : 1;
+            $rightSource = ($right['source'] ?? 'default') === 'override' ? 0 : 1;
+
+            if ($leftSource !== $rightSource) {
+                return $leftSource <=> $rightSource;
+            }
+
+            $leftUpdated = (int) ($left['updated_at'] ?? 0);
+            $rightUpdated = (int) ($right['updated_at'] ?? 0);
+            if ($leftUpdated !== $rightUpdated) {
+                return $rightUpdated <=> $leftUpdated;
+            }
+
+            return strcmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+        })->values();
+    }
+
+    protected function filterThemeAssets(Collection $assets, string $keyword, string $type): Collection
+    {
+        $normalizedKeyword = mb_strtolower(trim($keyword));
+        $normalizedType = strtolower(trim($type));
+
+        return $assets->filter(function (array $asset) use ($normalizedKeyword, $normalizedType): bool {
+            if ($normalizedType !== '' && $normalizedType !== 'all') {
+                $assetType = strtolower((string) ($asset['asset_type'] ?? 'file'));
+                if ($assetType !== $normalizedType) {
+                    return false;
+                }
+            }
+
+            if ($normalizedKeyword === '') {
+                return true;
+            }
+
+            $name = mb_strtolower((string) ($asset['name'] ?? ''));
+            $path = mb_strtolower((string) ($asset['path'] ?? ''));
+
+            return str_contains($name, $normalizedKeyword) || str_contains($path, $normalizedKeyword);
+        })->values();
+    }
+
+    protected function validateThemeAssetStorageLimit(int $siteId, int $incomingBytes): void
+    {
+        $limitMb = SiteStorageUsage::storageLimitMb($siteId);
+
+        if ($limitMb <= 0) {
+            return;
+        }
+
+        $limitBytes = SiteStorageUsage::storageLimitBytes($siteId);
+        $site = DB::table('sites')->where('id', $siteId)->first(['id', 'site_key']);
+
+        if (! $site) {
+            return;
+        }
+
+        $usedBytes = SiteStorageUsage::totalBytes($site);
+        $remainingBytes = max(0, $limitBytes - $usedBytes);
+
+        if (($usedBytes + $incomingBytes) <= $limitBytes) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'asset' => sprintf(
+                '当前站点总容量不足，剩余 %s，本次模板资源需要 %s。',
+                SiteStorageUsage::formatBytes($remainingBytes),
+                SiteStorageUsage::formatBytes($incomingBytes),
+            ),
+        ])->errorBag('themeAssets');
+    }
+
+    protected function validateThemeAssetReplacementStorageLimit(int $siteId, int $incomingBytes, int $currentBytes): void
+    {
+        $limitMb = SiteStorageUsage::storageLimitMb($siteId);
+
+        if ($limitMb <= 0) {
+            return;
+        }
+
+        $limitBytes = SiteStorageUsage::storageLimitBytes($siteId);
+        $site = DB::table('sites')->where('id', $siteId)->first(['id', 'site_key']);
+
+        if (! $site) {
+            return;
+        }
+
+        $usedBytes = SiteStorageUsage::totalBytes($site);
+        $projectedBytes = max(0, $usedBytes - $currentBytes) + $incomingBytes;
+        $remainingBytes = max(0, $limitBytes - max(0, $usedBytes - $currentBytes));
+
+        if ($projectedBytes <= $limitBytes) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'asset' => sprintf(
+                '当前站点总容量不足，替换后剩余 %s，本次模板资源需要 %s。',
+                SiteStorageUsage::formatBytes($remainingBytes),
+                SiteStorageUsage::formatBytes($incomingBytes),
+            ),
+        ])->errorBag('themeAssets');
+    }
+
     protected function groupTemplatesForWorkspace(Collection $templates): Collection
     {
         $groups = collect([
-            ['key' => 'home', 'title' => '首页模板', 'items' => collect()],
-            ['key' => 'list', 'title' => '列表模板', 'items' => collect()],
-            ['key' => 'detail', 'title' => '详情模板', 'items' => collect()],
-            ['key' => 'page', 'title' => '单页模板', 'items' => collect()],
-            ['key' => 'other', 'title' => '其他模板', 'items' => collect()],
-            ['key' => 'shared', 'title' => '公共模板', 'items' => collect()],
+            ['key' => 'templates', 'title' => '模板文件', 'items' => collect()],
+            ['key' => 'styles', 'title' => 'CSS 文件', 'items' => collect()],
+            ['key' => 'scripts', 'title' => 'JS 文件', 'items' => collect()],
         ])->keyBy('key');
 
         $templates->each(function (array $template) use ($groups): void {
-            $file = (string) ($template['file'] ?? '');
+            $file = (string) ($template['file'] ?? $template['key'] ?? '');
             $groupKey = $this->templateWorkspaceGroupKey($file);
 
             $group = $groups->get($groupKey);
@@ -727,16 +984,28 @@ class ThemeController extends Controller
             $groups->put($groupKey, $group);
         });
 
-        $sharedGroup = $groups->get('shared');
-        if ($sharedGroup) {
-            $sharedGroup['items'] = $sharedGroup['items']
-                ->sortBy(fn (array $template): int => match ((string) ($template['file'] ?? '')) {
-                    'top' => 0,
-                    'foot' => 1,
-                    default => 99,
-                })
+        $templateGroup = $groups->get('templates');
+        if ($templateGroup) {
+            $templateGroup['items'] = $templateGroup['items']
+                ->sortBy(fn (array $template): string => (string) ($template['sort_key'] ?? $template['file'] ?? $template['key'] ?? ''))
                 ->values();
-            $groups->put('shared', $sharedGroup);
+            $groups->put('templates', $templateGroup);
+        }
+
+        $styleGroup = $groups->get('styles');
+        if ($styleGroup) {
+            $styleGroup['items'] = $styleGroup['items']
+                ->sortBy(fn (array $template): string => (string) ($template['sort_key'] ?? $template['file'] ?? $template['key'] ?? ''))
+                ->values();
+            $groups->put('styles', $styleGroup);
+        }
+
+        $scriptGroup = $groups->get('scripts');
+        if ($scriptGroup) {
+            $scriptGroup['items'] = $scriptGroup['items']
+                ->sortBy(fn (array $template): string => (string) ($template['sort_key'] ?? $template['file'] ?? $template['key'] ?? ''))
+                ->values();
+            $groups->put('scripts', $scriptGroup);
         }
 
         return $groups
@@ -824,22 +1093,6 @@ class ThemeController extends Controller
             ->delete();
     }
 
-    /**
-     * @return array<int, int>
-     */
-    protected function inaccessibleTemplateAttachmentIds(int $siteId, int $userId, string $templateSource): array
-    {
-        $attachmentIds = (new ThemeTemplateAttachmentRelationSync())->extractAttachmentIds($siteId, $templateSource);
-
-        if ($attachmentIds === []) {
-            return [];
-        }
-
-        $visibleAttachmentIds = $this->visibleAttachmentIds($siteId, $userId, $attachmentIds);
-
-        return array_values(array_diff($attachmentIds, $visibleAttachmentIds));
-    }
-
     protected function activeBoundThemeCode(object $site): string
     {
         if (empty($site->default_theme_id)) {
@@ -886,145 +1139,184 @@ class ThemeController extends Controller
             return '';
         }
 
-        return $prefix.'-'.$suffix;
-    }
-
-    protected function starterTemplateOptionGroups(Collection $templates, string $currentTemplate): Collection
-    {
-        $selectedTemplateLabel = $templates->firstWhere('file', $currentTemplate)['label'] ?? $currentTemplate;
-        $currentTemplateGroupKey = $this->templateWorkspaceGroupKey($currentTemplate);
-
-        $quickStartItems = collect([
-            ['value' => 'blank', 'label' => '空白模板骨架', 'group_key' => 'blank'],
-            ['value' => 'current', 'label' => '复制当前模板 · '.$selectedTemplateLabel.'（'.$currentTemplate.'.tpl）', 'group_key' => $currentTemplateGroupKey],
-        ]);
-
-        $groupedTemplateItems = $this->groupTemplatesForWorkspace(
-            $templates->reject(fn (array $templateItem): bool => $templateItem['file'] === $currentTemplate)->values()
-        )->map(fn (array $group): array => [
-            'key' => $group['key'],
-            'title' => $group['title'],
-            'items' => $group['items']->map(fn (array $templateItem): array => [
-                'value' => $templateItem['file'],
-                'label' => $templateItem['label'].'（'.$templateItem['file'].'.tpl）',
-                'group_key' => $group['key'],
-            ])->values()->all(),
-        ]);
-
-        return collect([
-            [
-                'key' => 'quick-start',
-                'title' => '快速开始',
-                'items' => $quickStartItems->all(),
-            ],
-        ])->merge($groupedTemplateItems)->values();
-    }
-
-    protected function starterTemplateRecommendations(Collection $templates, string $currentTemplate): array
-    {
-        $groupedTemplates = $this->groupTemplatesForWorkspace($templates)
-            ->keyBy('key');
-        $currentTemplateLabel = $templates->firstWhere('file', $currentTemplate)['label'] ?? $currentTemplate;
-        $currentTemplateGroupKey = $this->templateWorkspaceGroupKey($currentTemplate);
-
-        return collect([
-            'list' => '列表模板',
-            'detail' => '详情模板',
-            'page' => '单页模板',
-        ])->mapWithKeys(function (string $prefixLabel, string $prefix) use ($groupedTemplates, $currentTemplate, $currentTemplateGroupKey, $currentTemplateLabel): array {
-            $targetGroupKey = $prefix;
-            $recommended = null;
-
-            if ($currentTemplateGroupKey === $targetGroupKey) {
-                $recommended = [
-                    'value' => 'current',
-                    'label' => '复制当前模板 · '.$currentTemplateLabel.'（'.$currentTemplate.'.tpl）',
-                    'group_key' => $targetGroupKey,
-                ];
-            } else {
-                $groupItems = collect($groupedTemplates->get($targetGroupKey)['items'] ?? []);
-                $targetTemplate = $groupItems->first();
-
-                if (is_array($targetTemplate)) {
-                    $recommended = [
-                        'value' => (string) ($targetTemplate['file'] ?? ''),
-                        'label' => (string) ($targetTemplate['label'] ?? '').'（'.(string) ($targetTemplate['file'] ?? '').'.tpl）',
-                        'group_key' => $targetGroupKey,
-                    ];
-                }
-            }
-
-            return [$prefix => [
-                'prefix' => $prefix,
-                'prefix_label' => $prefixLabel,
-                'group_key' => $targetGroupKey,
-                'recommended' => $recommended,
-            ]];
-        })->all();
+        return match ($prefix) {
+            'css' => $suffix.'.css',
+            'js' => $suffix.'.js',
+            default => $prefix.'-'.$suffix,
+        };
     }
 
     protected function templateWorkspaceGroupKey(string $file): string
     {
-        return match (true) {
-            $file === 'home' => 'home',
-            in_array($file, ['top', 'foot'], true) => 'shared',
-            $file === 'list' || str_starts_with($file, 'list-') => 'list',
-            $file === 'detail' || str_starts_with($file, 'detail-') => 'detail',
-            $file === 'page' || str_starts_with($file, 'page-') => 'page',
-            default => 'other',
+        $extension = ThemeTemplateLocator::editorExtension($file);
+
+        if ($extension === 'css') {
+            return 'styles';
+        }
+
+        if ($extension === 'js') {
+            return 'scripts';
+        }
+
+        return 'templates';
+    }
+
+    protected function editorSourceFieldLabel(?array $templateMeta): string
+    {
+        return match ((string) ($templateMeta['extension'] ?? 'tpl')) {
+            'css' => 'CSS 样式源码',
+            'js' => 'JS 脚本源码',
+            default => 'TPL 模板源码',
         };
     }
 
-    protected function starterTemplateSource(
-        int $siteId,
-        string $themeCode,
-        string $starterTemplate,
-        string $currentTemplate,
-        Collection $availableTemplates,
-    ): string {
-        if ($starterTemplate === 'blank') {
-            return "<section class=\"template-block\">\n    <div class=\"template-block__inner\">\n        <h2>自定义模板内容</h2>\n    </div>\n</section>\n";
+    protected function validateEditorSource(object $currentSite, string $themeCode, string $template, string $source): void
+    {
+        if (str_contains($source, '<?')) {
+            throw new InvalidArgumentException('模板源码中不允许包含 PHP 代码标签。');
         }
 
-        if ($starterTemplate === 'current') {
-            $currentTemplate = trim($currentTemplate);
-
-            if ($currentTemplate === '' || ! $availableTemplates->pluck('file')->contains($currentTemplate)) {
-                throw ValidationException::withMessages([
-                    'starter_template' => '当前模板不可用，请改选其他基础内容。',
-                ])->errorBag('createTemplate');
-            }
-
-            $currentPaths = $this->themePaths($siteId, $themeCode, $currentTemplate);
-
-            if ($currentPaths['existing_override'] && File::exists($currentPaths['existing_override'])) {
-                return File::get($currentPaths['existing_override']);
-            }
-
-            if (File::exists($currentPaths['default'])) {
-                return File::get($currentPaths['default']);
-            }
+        if (ThemeTemplateLocator::editorExtension($template) !== 'tpl') {
+            return;
         }
 
-        if (! $availableTemplates->pluck('file')->contains($starterTemplate)) {
+        if (preg_match('/(?:https?:)?\/\/[^\s"\')<>]*\/site-media\/|\/site-media\//i', $source) === 1) {
+            throw new InvalidArgumentException('模板源码中不再支持站点资源，请改用当前主题的模板资源。');
+        }
+
+        if (preg_match('/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', $source) === 1) {
+            throw new InvalidArgumentException('模板源码中不允许使用内联 script，请改用主题脚本文件并通过 themeScript 引入。');
+        }
+
+        if (preg_match('/<style\b[^>]*>/i', $source) === 1) {
+            throw new InvalidArgumentException('模板源码中不允许使用内联 style，请改用主题样式文件并通过 themeStyle 引入。');
+        }
+
+        if (preg_match('/\sstyle\s*=/i', $source) === 1) {
+            throw new InvalidArgumentException('模板源码中不允许使用内联 style 属性，请改用样式类名和主题样式文件。');
+        }
+
+        if (preg_match('/\son[a-z]+\s*=/i', $source) === 1) {
+            throw new InvalidArgumentException('模板源码中不允许使用内联事件属性，请改用主题脚本文件绑定交互。');
+        }
+
+        $tags = new ThemeTags($currentSite, collect(), collect());
+        $engine = new ThemeTemplateEngine(SitePath::key($currentSite), $themeCode, $tags);
+        $engine->validateSource($source);
+    }
+
+    protected function clearLegacyTemplateAttachmentRelations(int $siteId, string $themeCode, string $template): void
+    {
+        $templateMetaId = (int) DB::table('site_theme_template_meta')
+            ->where('site_id', $siteId)
+            ->where('theme_code', $themeCode)
+            ->where('template_name', $template)
+            ->value('id');
+
+        if ($templateMetaId <= 0) {
+            return;
+        }
+
+        $attachmentIds = DB::table('attachment_relations')
+            ->join('attachments', 'attachments.id', '=', 'attachment_relations.attachment_id')
+            ->where('attachments.site_id', $siteId)
+            ->where('attachment_relations.relation_type', 'theme_template')
+            ->where('attachment_relations.relation_id', $templateMetaId)
+            ->distinct()
+            ->pluck('attachment_relations.attachment_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        DB::table('attachment_relations')
+            ->where('relation_type', 'theme_template')
+            ->where('relation_id', $templateMetaId)
+            ->delete();
+
+        if ($attachmentIds !== []) {
+            (new AttachmentUsageTracker())->rebuildForAttachmentIds($attachmentIds, $siteId);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function themeUploadAssetExtensions(): array
+    {
+        return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'woff', 'woff2', 'json'];
+    }
+
+    protected function themeAssetKind(string $extension): string
+    {
+        return match ($extension) {
+            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg' => '图片',
+            'woff', 'woff2' => '字体',
+            'json' => '配置',
+            default => strtoupper($extension ?: 'FILE'),
+        };
+    }
+
+    protected function formatThemeAssetSize(int $bytes): string
+    {
+        if ($bytes >= 1024 * 1024) {
+            return number_format($bytes / (1024 * 1024), 1).' MB';
+        }
+
+        return number_format($bytes / 1024, 1).' KB';
+    }
+
+    protected function themeAssetDimensions(string $path, string $extension): ?string
+    {
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+            return null;
+        }
+
+        $size = @getimagesize($path);
+
+        if (! is_array($size) || ! isset($size[0], $size[1])) {
+            return null;
+        }
+
+        return sprintf('%d×%d', (int) $size[0], (int) $size[1]);
+    }
+
+    protected function sanitizeThemeAssetFilename(UploadedFile $file): string
+    {
+        $originalName = trim((string) $file->getClientOriginalName());
+        $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        $basename = strtolower((string) pathinfo($originalName, PATHINFO_FILENAME));
+        $basename = preg_replace('/[^a-z0-9_-]+/', '-', $basename) ?? '';
+        $basename = trim($basename, '-_');
+
+        if ($basename === '' || $extension === '') {
             throw ValidationException::withMessages([
-                'starter_template' => '所选基础内容不存在，请重新选择。',
-            ])->errorBag('createTemplate');
+                'asset' => '模板资源文件名不合法，请重新选择文件。',
+            ])->errorBag('themeAssets');
         }
 
-        $starterPaths = $this->themePaths($siteId, $themeCode, $starterTemplate);
+        return $basename.'.'.$extension;
+    }
 
-        if ($starterPaths['existing_override'] && File::exists($starterPaths['existing_override'])) {
-            return File::get($starterPaths['existing_override']);
+    protected function uniqueThemeAssetFilename(int $siteId, string $themeCode, string $filename): string
+    {
+        $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+        $basename = (string) pathinfo($filename, PATHINFO_FILENAME);
+        $existingPaths = $this->themeAssets($siteId, $themeCode)
+            ->pluck('path')
+            ->map(fn (string $path): string => strtolower($path))
+            ->flip();
+
+        $candidate = $filename;
+        $counter = 2;
+
+        while ($existingPaths->has(strtolower('assets/'.$candidate))) {
+            $candidate = $basename.'-'.$counter;
+            if ($extension !== '') {
+                $candidate .= '.'.$extension;
+            }
+            $counter++;
         }
 
-        if (File::exists($starterPaths['default'])) {
-            return File::get($starterPaths['default']);
-        }
-
-        throw ValidationException::withMessages([
-            'starter_template' => '所选基础内容暂时不可读取，请稍后重试。',
-        ])->errorBag('createTemplate');
+        return $candidate;
     }
 
     /**

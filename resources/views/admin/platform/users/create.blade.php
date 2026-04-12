@@ -24,7 +24,7 @@
     </section>
 
     <section class="platform-user-shell">
-        <form id="platform-user-create-form" method="POST" action="{{ route('admin.platform.users.store') }}">
+        <form id="platform-user-create-form" method="POST" action="{{ route('admin.platform.users.store') }}" data-validation-errors='@json($errors->all())'>
             @csrf
 
             <div class="platform-user-body">

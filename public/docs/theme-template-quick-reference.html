@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>模板速查表</title>
+    <title>模版帮助文档</title>
     <style>
         :root {
             color-scheme: light;
@@ -139,6 +139,18 @@
             color: var(--primary);
             font-size: 12px;
             font-weight: 700;
+            text-decoration: none;
+            transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+        }
+
+        .tag:hover {
+            background: rgba(24, 185, 129, 0.14);
+            transform: translateY(-1px);
+        }
+
+        .tag:focus-visible {
+            outline: 2px solid rgba(24, 185, 129, 0.28);
+            outline-offset: 2px;
         }
 
         .layout {
@@ -400,36 +412,38 @@
                 <div class="hero-head">
                     <span class="hero-mark" aria-hidden="true"></span>
                     <div>
-                        <h1>模板速查表</h1>
-                        <p>这份速查表就是模板系统当前的标准使用文档。先查站点信息、当前上下文和标签参数，再到下面直接复制常用片段。文档里出现的调用、参数名和示例，已经按当前模板引擎的实际能力整理过，可以直接照着写。</p>
+                        <h1>模版帮助文档</h1>
+                        <p>这份帮助文档已经按当前模板引擎、模板编辑器校验规则，以及当前系统启用的 CSP 策略重新整理。文档里的语法、标签、示例和限制，和现在后台真实可保存、可解析、可上线的模板写法一一对应。</p>
                     </div>
                 </div>
             </div>
 
             <div class="hero-tags">
-                <span class="tag">基础语法</span>
-                <span class="tag">站点信息</span>
-                <span class="tag">当前上下文</span>
-                <span class="tag">栏目</span>
-                <span class="tag">内容</span>
-                <span class="tag">图宣</span>
-                <span class="tag">留言板</span>
-                <span class="tag">文本与时间</span>
-                <span class="tag">详情页辅助</span>
+                <a class="tag" href="#syntax">基础语法</a>
+                <a class="tag" href="#assets-csp">模板资源</a>
+                <a class="tag" href="#assets-csp">CSP 约束</a>
+                <a class="tag" href="#site-values">站点信息</a>
+                <a class="tag" href="#context">当前上下文</a>
+                <a class="tag" href="#channels">栏目</a>
+                <a class="tag" href="#contents">内容</a>
+                <a class="tag" href="#promos">图宣</a>
+                <a class="tag" href="#guestbook">留言板</a>
+                <a class="tag" href="#formatters">文本与时间</a>
+                <a class="tag" href="#detail-helpers">详情页辅助</a>
             </div>
 
             <div class="hero-guides">
                 <div class="hero-guide">
-                    <strong>先查“站点信息”和“当前上下文”</strong>
-                    <span>页面标题、Logo、联系方式、当前栏目和当前内容，通常先从这两组里取。</span>
+                    <strong>先确认模板结构</strong>
+                    <span>当前推荐结构是 <code>head → 页面自己的 CSS → top → 内容 → 页面自己的 JS → foot</code>，资源直接写在模板里，不再依赖额外配置文件。</span>
                 </div>
                 <div class="hero-guide">
                     <strong>再按“栏目 / 内容 / 图宣”选标签</strong>
-                    <span>列表页先找查询标签，详情页再配合上一篇、下一篇和相关文章这类辅助标签。</span>
+                    <span>列表页先找查询标签，详情页再配合上一篇、下一篇和相关文章这类辅助标签。条件和循环只支持当前引擎列出的基础能力。</span>
                 </div>
                 <div class="hero-guide">
-                    <strong>最后直接套用“常用片段”</strong>
-                    <span>示例已经按从简单到完整排序，适合先复制，再替换栏目别名、图宣位编码和展示样式。</span>
+                    <strong>CSP 下不要写内联代码</strong>
+                    <span>模板源码里不能写内联 <code>&lt;script&gt;</code>、<code>&lt;style&gt;</code>、<code>style=</code> 和 <code>on*</code> 事件属性，样式和脚本都必须走当前主题资源。</span>
                 </div>
             </div>
         </section>
@@ -439,6 +453,7 @@
                 <div class="sidebar-card">
                     <h2>快速跳转</h2>
                     <a class="nav-link" href="#syntax">基础语法与限制</a>
+                    <a class="nav-link" href="#assets-csp">模板资源与 CSP</a>
                     <a class="nav-link" href="#site-values">站点信息</a>
                     <a class="nav-link" href="#context">当前上下文</a>
                     <a class="nav-link" href="#channels">栏目参数</a>
@@ -457,7 +472,7 @@
                         <h2>基础语法与限制</h2>
                         <span class="section-kicker">先看这一节</span>
                     </div>
-                    <p>模板只负责页面展示，不写业务逻辑。常用语法只有输出、赋值、条件、循环和模板引用这几类。</p>
+                    <p>模板只负责展示，不写 PHP，也不支持复杂表达式。当前模板引擎真正支持的只有：输出、赋值、条件、循环、公共模板引用和内置标签调用。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -471,27 +486,32 @@
                             <tbody>
                                 <tr>
                                     <td class="mono">{{ ... }}</td>
-                                    <td>输出变量、字段或调用结果。</td>
+                                    <td>输出变量、字段或调用结果，默认会做 HTML 转义。</td>
                                     <td><code>{{ current.channel.name }}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">{{{ ... }}}</td>
+                                    <td>输出原始 HTML，仅适合已经由系统处理过的安全内容。</td>
+                                    <td><code>{{{ current.content.content_html }}}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">{% set ... %}</td>
-                                    <td>先取值，再在后面重复使用。</td>
+                                    <td>给变量赋值。右侧可以是标签调用、变量、字符串、数字、布尔值。</td>
                                     <td><code>{% set articles = contentList channel='news' limit=6 %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">{% if ... %}</td>
-                                    <td>根据条件控制是否输出。</td>
+                                    <td>只支持基础判断：变量真假、<code>not</code>、<code>==</code>、<code>!=</code>。</td>
                                     <td><code>{% if current.page.type == 'home' %}...{% endif %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">{% for ... %}</td>
-                                    <td>遍历列表。</td>
+                                    <td>遍历数组或集合，格式固定为 <code>for item in list</code>。</td>
                                     <td><code>{% for item in articles %}...{% endfor %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">{% include "..." %}</td>
-                                    <td>引用公共模板片段。</td>
+                                    <td>引用公共模板片段，模板名只能用字母、数字、下划线、短横线。</td>
                                     <td><code>{% include "top" %}</code></td>
                                 </tr>
                             </tbody>
@@ -499,7 +519,10 @@
                     </div>
 
                     <div class="code-sample">
-<pre>{% include "top" %}
+<pre>{% include "head" %}
+{{ themeStyle path="theme.css" }}
+{{ themeStyle path="home.css" }}
+{% include "top" %}
 
 {% set articles = contentList channel='news' limit=6 %}
 {% if articles %}
@@ -508,14 +531,83 @@
   {% endfor %}
 {% endif %}
 
+{{ themeScript path="home.js" }}
 {% include "foot" %}</pre>
                     </div>
 
                     <ul class="rules-list">
                         <li><strong>参数写法固定：</strong>所有参数都必须按 <code>key=value</code> 书写，只能使用文档列出的参数名。</li>
                         <li><strong>模板名有格式限制：</strong>模板名和 <code>include</code> 引用名只支持字母、数字、短横线和下划线。</li>
+                        <li><strong>条件能力是有限的：</strong>不支持括号、三元表达式、数组字面量、函数调用和任意 JS / PHP 风格表达式。</li>
                         <li><strong>模板里不允许写 PHP：</strong>模板源码中不能出现 PHP 代码标签，保存时后端会直接拦截。</li>
                     </ul>
+                </section>
+
+                <section class="section" id="assets-csp">
+                    <div class="section-head">
+                        <h2>模板资源与 CSP</h2>
+                        <span class="section-kicker">当前上线规则</span>
+                    </div>
+                    <p>当前系统为了让 <code>style-src 'self'</code> 和 <code>script-src 'self'</code> 完全成立，模板资源必须全部走当前主题目录的 <code>assets/</code>。模板里直接写引入即可，系统会自动生成当前站点、当前主题可访问的同源地址。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>调用</th>
+                                    <th>作用</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">themeAsset path="..."</td>
+                                    <td>返回当前主题资源地址，适合图片、字体、JSON 等资源。</td>
+                                    <td><code>{{ themeAsset path='assets/banner.jpg' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">themeStyle path="..."</td>
+                                    <td>输出 <code>&lt;link rel="stylesheet"&gt;</code>，用于加载主题 CSS。</td>
+                                    <td><code>{{ themeStyle path='theme.css' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">themeScript path="..."</td>
+                                    <td>输出 <code>&lt;script src="..."&gt;&lt;/script&gt;</code>，用于加载主题 JS。</td>
+                                    <td><code>{{ themeScript path='home.js' }}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="code-sample">
+<pre>{% include "head" %}
+{{ themeStyle path="theme.css" }}
+{{ themeStyle path="landing.css" }}
+{% include "top" %}
+
+&lt;section class="hero"&gt;
+  &lt;img src="{{ themeAsset path='assets/hero-cover.jpg' }}" alt="封面图"&gt;
+&lt;/section&gt;
+
+{{ themeScript path="landing.js" }}
+{% include "foot" %}</pre>
+                    </div>
+
+                    <ul class="rules-list">
+                        <li><strong>资源写法已经简化：</strong>现在直接在模板里写 <code>themeStyle</code> / <code>themeScript</code> / <code>themeAsset</code>，不再依赖 <code>theme.json</code> 或额外的自动注入配置。</li>
+                        <li><strong>资源必须属于当前主题：</strong><code>path</code> 指向的文件必须真实存在于当前主题里，否则模板保存校验会报错。</li>
+                        <li><strong>站点资源不能再直接引用：</strong>模板里不允许再写 <code>/site-media/...</code> 或旧的资源库地址；模板专用图片、字体、JSON 请放在当前主题的 <code>assets/</code> 目录。</li>
+                    </ul>
+
+                    <div class="tip">
+                        <strong>CSP 为什么要这样写</strong>
+                        <span>当前站点使用严格同源策略：<code>style-src 'self'</code> 和 <code>script-src 'self'</code>。这样做是为了让模板规范更标准，也让网站前后台保持更安全的运行环境。</span>
+                    </div>
+
+                    <div class="tip">
+                        <strong>保存前最容易踩坑的地方</strong>
+                        <span>以下写法会在模板保存时被直接拦截：内联 <code>&lt;script&gt;</code>、内联 <code>&lt;style&gt;</code>、任何 <code>style=</code>、任何 <code>onclick</code> 这类内联事件属性。正确做法是：HTML 里只保留类名和结构，交互统一写进主题 JS，样式统一写进主题 CSS。</span>
+                    </div>
                 </section>
 
                 <section class="section" id="site-values">
@@ -1328,7 +1420,7 @@
                 </section>
 
                 <div class="footer">
-                    模板速查表是当前模板系统的标准使用文档。后续如果新增模板标签、参数或工具函数，应同步更新本页，保持调用能力与文档一致。
+                    模版帮助文档是当前模板系统的标准使用文档。后续如果新增模板标签、参数或工具函数，应同步更新本页，保持调用能力与文档一致。
                 </div>
             </main>
         </div>
