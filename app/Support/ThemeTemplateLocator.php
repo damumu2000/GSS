@@ -197,6 +197,11 @@ class ThemeTemplateLocator
             }
         }
 
+        $default = static::defaultRoot($themeCode).DIRECTORY_SEPARATOR.$path;
+        if (File::exists($default) && File::isFile($default)) {
+            return $default;
+        }
+
         return null;
     }
 
