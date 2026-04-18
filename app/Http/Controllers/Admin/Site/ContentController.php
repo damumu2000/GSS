@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\AttachmentUsageTracker;
 use App\Support\ContentHtmlSanitizer;
 use App\Support\ContentAttachmentRelationSync;
+use App\Support\ThemeTemplateLocator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -148,6 +149,7 @@ class ContentController extends Controller
                 $request,
                 ($type === 'article' ? $channels->where('is_selectable', true) : $channels)->pluck('id')->map(fn ($id) => (int) $id)->all(),
             ),
+            'template_name' => '',
             'cover_image' => '',
             'title' => '',
             'title_color' => '',
@@ -178,6 +180,7 @@ class ContentController extends Controller
             'canAudit' => $this->canAuditContent($request->user()->id, $currentSite->id),
             'articleRequiresReview' => $type === 'article' && $this->siteRequiresArticleReview($currentSite->id),
             'attachmentLibraryWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id),
+            'templateOptions' => $this->contentTemplateOptions((int) $currentSite->id, $type),
             'selectedChannelIds' => $this->defaultSelectedChannelIds(
                 $type,
                 $request,
@@ -279,6 +282,7 @@ class ContentController extends Controller
             'canAudit' => $this->canAuditContent($request->user()->id, $currentSite->id),
             'articleRequiresReview' => $type === 'article' && $this->siteRequiresArticleReview($currentSite->id),
             'attachmentLibraryWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id),
+            'templateOptions' => $this->contentTemplateOptions((int) $currentSite->id, $type),
             'selectedChannelIds' => $selectedChannelIds,
             'lockedSelectedChannels' => $lockedSelectedChannels,
             'latestRejectedReview' => $latestRejectedReview,
@@ -312,6 +316,7 @@ class ContentController extends Controller
                 'site_id' => $currentSite->id,
                 'channel_id' => $selectedChannelIds[0] ?? null,
                 'type' => $type,
+                'template_name' => in_array($type, ['article', 'page'], true) ? $this->normalizeTemplateName($validated['template_name'] ?? null) : null,
                 'title' => $validated['title'],
                 'title_color' => $validated['title_color'] ?? null,
                 'title_bold' => ! empty($validated['title_bold']),
@@ -435,6 +440,7 @@ class ContentController extends Controller
                 ->where('id', $contentId)
                 ->update([
                     'channel_id' => $finalChannelIds['primary_channel_id'],
+                    'template_name' => in_array($type, ['article', 'page'], true) ? $this->normalizeTemplateName($validated['template_name'] ?? null) : null,
                     'title' => $validated['title'],
                     'title_color' => $validated['title_color'] ?? null,
                     'title_bold' => ! empty($validated['title_bold']),
@@ -775,6 +781,29 @@ class ContentController extends Controller
             'channel_id' => [$type === 'page' ? 'nullable' : 'sometimes', 'integer', 'exists:channels,id'],
             'channel_ids' => ['nullable', 'array'],
             'channel_ids.*' => ['integer', 'distinct', 'exists:channels,id'],
+            'template_name' => [
+                'nullable',
+                'string',
+                'max:150',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request, $type): void {
+                    $template = $this->normalizeTemplateName($value);
+
+                    if ($template === null) {
+                        return;
+                    }
+
+                    $options = $this->contentTemplateOptions((int) $this->currentSite($request)->id, $type);
+
+                    if ($options === []) {
+                        $fail($type === 'page' ? '当前内容类型不支持单页模板。' : '当前内容类型不支持详情模板。');
+                        return;
+                    }
+
+                    if (! array_key_exists($template, $options)) {
+                        $fail($type === 'page' ? '请选择当前主题可用的单页模板。' : '请选择当前主题可用的详情模板。');
+                    }
+                },
+            ],
             'cover_image' => ['nullable', 'string', 'max:2048'],
             'title' => ['required', 'string', 'max:255'],
             'title_color' => ['nullable', 'regex:/^#([0-9a-fA-F]{6})$/'],
@@ -800,6 +829,7 @@ class ContentController extends Controller
             'channel_id' => '所属栏目',
             'channel_ids' => '所属栏目',
             'channel_ids.*' => '所属栏目',
+            'template_name' => $type === 'page' ? '单页模板' : '详情模板',
             'cover_image' => '封面图',
             'title' => '标题',
             'title_color' => '标题颜色',
@@ -835,6 +865,46 @@ class ContentController extends Controller
         });
 
         return $validator->validate();
+    }
+
+    protected function contentTemplateOptions(int $siteId, string $type): array
+    {
+        $themeCode = $this->siteThemeCode($siteId);
+
+        if ($themeCode === '') {
+            return [];
+        }
+
+        $options = [];
+
+        foreach (ThemeTemplateLocator::availableTemplatesForSite($siteId, $themeCode) as $templateItem) {
+            $template = $templateItem['file'];
+
+            if ($type === 'page') {
+                if ($template !== 'page' && ! str_starts_with($template, 'page-')) {
+                    continue;
+                }
+            } elseif ($type === 'article') {
+                if ($template !== 'detail' && ! str_starts_with($template, 'detail-')) {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+
+            $options[$template] = trim(($templateItem['label'] ?? '').' '.$template.'.tpl');
+        }
+
+        ksort($options);
+
+        return $options;
+    }
+
+    protected function normalizeTemplateName(mixed $value): ?string
+    {
+        $template = trim((string) $value);
+
+        return $template === '' ? null : $template;
     }
 
     protected function hasMeaningfulEditorContent(string $content): bool

@@ -6,7 +6,6 @@
 @php
     $openedAtValue = old('opened_at', now()->format('Y-m-d'));
     $expiresAtValue = old('expires_at', '');
-    $selectedThemeIds = collect($selectedThemeIds ?? [])->map(fn ($id) => (int) $id)->all();
     $selectedSiteAdminIds = collect($selectedSiteAdminIds ?? [])->map(fn ($id) => (int) $id)->all();
     $domainRows = collect(preg_split('/\r\n|\r|\n/', (string) old('domains', ''), -1, PREG_SPLIT_NO_EMPTY))
         ->map(fn ($domain) => trim($domain))
@@ -26,7 +25,7 @@
     <section class="page-header">
         <div>
             <h2 class="page-header-title">新增站点</h2>
-            <div class="page-header-desc">创建新的学校站点，并配置绑定域名、站点管理员和主题范围。</div>
+            <div class="page-header-desc">创建新的学校站点，并配置绑定域名、站点管理员和模板数量上限。</div>
         </div>
         <div class="topbar-right">
             <a class="button secondary" href="{{ route('admin.platform.sites.index') }}">返回站点管理</a>
@@ -74,6 +73,14 @@
                                         <span class="field-label">资源库容量限制（MB），0为不限制</span>
                                         <input class="field @error('attachment_storage_limit_mb') is-error @enderror" id="attachment_storage_limit_mb" type="number" name="attachment_storage_limit_mb" min="0" step="1" value="{{ $attachmentStorageLimitMb }}" @error('attachment_storage_limit_mb') aria-invalid="true" @enderror>
                                         @error('attachment_storage_limit_mb')
+                                            <span class="form-error">{{ $message }}</span>
+                                        @enderror
+                                    </label>
+
+                                    <label class="field-group">
+                                        <span class="field-label">模板数量上限</span>
+                                        <input class="field @error('template_limit') is-error @enderror" id="template_limit" type="number" name="template_limit" min="1" max="50" step="1" value="{{ old('template_limit', 1) }}" @error('template_limit') aria-invalid="true" @enderror>
+                                        @error('template_limit')
                                             <span class="form-error">{{ $message }}</span>
                                         @enderror
                                     </label>
@@ -137,77 +144,6 @@
                                     </div>
                                 </div>
 
-                                <div class="field-group">
-                                    <span class="field-label">绑定主题</span>
-                                    <div class="admin-picker" data-admin-picker data-picker-placeholder="搜索并选择绑定主题">
-                                        <button class="admin-picker-trigger" type="button" data-admin-picker-trigger aria-expanded="false">
-                                            <span class="admin-picker-summary" data-admin-picker-summary></span>
-                                        </button>
-                                        <div class="admin-picker-panel">
-                                            <div class="admin-picker-search">
-                                                <input class="field" type="text" value="" placeholder="搜索主题名称或主题代码" data-admin-picker-search-input>
-                                            </div>
-                                            <div class="admin-picker-list">
-                                                @foreach ($themes as $theme)
-                                                    @php
-                                                        $keywords = strtolower($theme->name.' '.$theme->code);
-                                                    @endphp
-                                                    <label class="admin-picker-option" data-admin-picker-option data-label="{{ $theme->name }}" data-keywords="{{ $keywords }}">
-                                                        <input type="checkbox" name="theme_ids[]" value="{{ $theme->id }}" @checked(in_array((int) $theme->id, $selectedThemeIds, true))>
-                                                        <span class="admin-picker-option-main">
-                                                            <span class="admin-picker-option-title">{{ $theme->name }}</span>
-                                                            <span class="admin-picker-option-desc">主题代码：{{ $theme->code }}</span>
-                                                        </span>
-                                                        <span class="admin-picker-option-check"></span>
-                                                    </label>
-                                                @endforeach
-                                            </div>
-                                            <div class="admin-picker-empty" data-admin-picker-empty hidden>没有匹配的主题，请换个关键词试试。</div>
-                                        </div>
-                                    </div>
-                                    @error('theme_ids')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
-                                    @error('theme_ids.*')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
-                                </div>
-
-                                <div class="field-group">
-                                    <span class="field-label">绑定模块</span>
-                                    <div class="admin-picker" data-admin-picker data-picker-placeholder="搜索并选择绑定模块">
-                                        <button class="admin-picker-trigger" type="button" data-admin-picker-trigger aria-expanded="false">
-                                            <span class="admin-picker-summary" data-admin-picker-summary></span>
-                                        </button>
-                                        <div class="admin-picker-panel">
-                                            <div class="admin-picker-search">
-                                                <input class="field" type="text" value="" placeholder="搜索模块名称或模块标识" data-admin-picker-search-input>
-                                            </div>
-                                            <div class="admin-picker-list">
-                                                @foreach ($modules as $module)
-                                                    @php
-                                                        $keywords = strtolower($module['name'].' '.$module['code'].' '.$module['description']);
-                                                    @endphp
-                                                    <label class="admin-picker-option" data-admin-picker-option data-label="{{ $module['name'] }}" data-keywords="{{ $keywords }}">
-                                                        <input type="checkbox" name="module_ids[]" value="{{ $module['id'] }}" @checked(in_array((int) $module['id'], $selectedModuleIds, true))>
-                                                        <span class="admin-picker-option-main">
-                                                            <span class="admin-picker-option-title">{{ $module['name'] }}</span>
-                                                            <span class="admin-picker-option-desc">模块标识：{{ $module['code'] }}</span>
-                                                        </span>
-                                                        <span class="admin-picker-option-check"></span>
-                                                    </label>
-                                                @endforeach
-                                            </div>
-                                            <div class="admin-picker-empty" data-admin-picker-empty hidden>没有匹配的模块，请换个关键词试试。</div>
-                                        </div>
-                                    </div>
-                                    @error('module_ids')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
-                                    @error('module_ids.*')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
-                                </div>
                             </div>
                         </section>
 

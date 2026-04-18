@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -29,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'html.minify' => \App\Http\Middleware\MinifyHtmlResponse::class,
             'site.security' => \App\Http\Middleware\SiteSecurityGuard::class,
             'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
+            'module.admin.active' => \App\Http\Middleware\EnsureSiteModuleAdminActive::class,
         ]);
 
         $middleware->appendToGroup('web', [
@@ -37,5 +39,17 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (PostTooLargeException $exception, Request $request) {
+            $message = '本次上传内容过大，请减少单次上传数量或压缩文件后重试。';
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'message' => $message,
+                ], 413);
+            }
+
+            return redirect()->back()->withErrors([
+                'file' => $message,
+            ]);
+        });
     })->create();

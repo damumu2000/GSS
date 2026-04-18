@@ -15,7 +15,6 @@
         'platform_role' => 40,
         'system' => 50,
         'module' => 60,
-        'theme' => 70,
         'database' => 80,
         'log' => 90,
     ];
@@ -27,7 +26,6 @@
         'system.check.view' => 45,
         'system.setting.manage' => 50,
         'module.manage' => 60,
-        'theme.market.manage' => 70,
         'database.manage' => 80,
         'platform.log.view' => 90,
     ];
@@ -65,7 +63,7 @@
                 <h2 class="page-header-title">{{ $role->name }}</h2>
                 <span class="page-header-tag">{{ $role->code }}</span>
             </div>
-            <div class="page-header-desc">{{ $role->description ?: '当前平台角色用于控制平台工作台、站点管理、管理员管理、主题市场、公告与平台日志访问。' }}</div>
+            <div class="page-header-desc">{{ $role->description ?: '当前平台角色用于控制平台工作台、站点管理、平台管理员、模块配置与平台日志访问。' }}</div>
             @if ($isLockedRole)
                 <div class="role-readonly-notice">总管理员为系统内置核心角色，仅支持查看当前平台权限配置，不支持直接编辑。</div>
             @endif

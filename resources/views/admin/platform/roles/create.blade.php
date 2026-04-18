@@ -29,18 +29,12 @@
                         <span class="field-label">角色名称</span>
                         <input class="field @error('name') is-error @enderror" type="text" name="name" value="{{ old('name') }}" placeholder="例如：数据运营" @error('name') aria-invalid="true" @enderror>
                         <span class="field-note">在平台角色列表和详情页中展示给管理员查看的中文名称。</span>
-                        @error('name')
-                            <span class="form-error">{{ $message }}</span>
-                        @enderror
                     </label>
 
                     <label class="field-group">
                         <span class="field-label">角色标识</span>
                         <input class="field @error('code') is-error @enderror" type="text" name="code" value="{{ old('code') }}" placeholder="例如：data_operator" @error('code') aria-invalid="true" @enderror>
                         <span class="field-note">只能使用小写字母、数字和下划线，且需以字母开头。</span>
-                        @error('code')
-                            <span class="form-error">{{ $message }}</span>
-                        @enderror
                     </label>
                 </div>
 
@@ -48,9 +42,6 @@
                     <span class="field-label">角色说明</span>
                     <textarea class="field textarea @error('description') is-error @enderror" name="description" placeholder="例如：负责数据库管理、日志查看和平台级运营支持。" @error('description') aria-invalid="true" @enderror>{{ old('description') }}</textarea>
                     <span class="field-note">用于帮助团队快速理解该平台角色的职责边界。</span>
-                    @error('description')
-                        <span class="form-error">{{ $message }}</span>
-                    @enderror
                 </label>
             </div>
 

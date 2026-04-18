@@ -1,0 +1,32 @@
+{
+  "name": "微信公众号",
+  "code": "wechat_official",
+  "version": "1.0.0",
+  "scope": "site",
+  "author": "官闪闪",
+  "description": "微信公众号配置、菜单、文章推送、素材与发布记录管理模块。",
+  "default_enabled": false,
+  "sort": 30,
+  "site_entry_route": "admin.wechat-official.index",
+  "settings": [
+    "公众号基础配置"
+  ],
+  "permissions": [
+    "wechat_official.view",
+    "wechat_official.manage",
+    "wechat_official.menu",
+    "wechat_official.publish",
+    "wechat_official.setting"
+  ],
+  "tables": [
+    "module_wechat_official_accounts",
+    "module_wechat_official_menus",
+    "module_wechat_official_materials",
+    "module_wechat_official_article_pushes",
+    "module_wechat_official_logs"
+  ],
+  "notes": [
+    "第一阶段先完成模块骨架、后台页面、权限、配置存储和独立数据表。",
+    "菜单同步、草稿推送、素材上传和发布记录明细按执行清单逐步落地。"
+  ]
+}

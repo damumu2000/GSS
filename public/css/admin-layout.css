@@ -344,6 +344,23 @@
             align-items: center;
         }
 
+        .menu-link-prefix-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 18px;
+            padding: 0 6px;
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--primary) 35%, #dbe3ec);
+            background: color-mix(in srgb, var(--primary) 10%, #ffffff);
+            color: var(--primary);
+            font-size: 11px;
+            line-height: 1;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            flex-shrink: 0;
+        }
+
         .menu-link-badge {
             display: inline-flex;
             align-items: center;
@@ -1792,6 +1809,16 @@
             transform: translate(-50%, calc(-100% - 10px)) translateY(4px);
         }
 
+        .global-tooltip.is-below {
+            top: calc(100% + 10px);
+            bottom: auto;
+            transform: translate(-50%, -4px);
+        }
+
+        .global-tooltip.is-floating.is-below {
+            transform: translate(-50%, 10px) translateY(-4px);
+        }
+
         .global-tooltip.is-visible {
             opacity: 1;
             transform: translate(-50%, 0);
@@ -1799,6 +1826,14 @@
 
         .global-tooltip.is-floating.is-visible {
             transform: translate(-50%, calc(-100% - 10px));
+        }
+
+        .global-tooltip.is-below.is-visible {
+            transform: translate(-50%, 0);
+        }
+
+        .global-tooltip.is-floating.is-below.is-visible {
+            transform: translate(-50%, 10px);
         }
 
         .confirm-modal {

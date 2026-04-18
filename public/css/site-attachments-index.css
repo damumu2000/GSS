@@ -28,14 +28,23 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
 .page-header-actions .button {
-    min-height: 44px;
-    padding: 0 18px;
-    border-radius: 16px;
+    min-width: 120px;
+}
+
+.attachment-upload-status {
+    min-height: 22px;
+    color: #8c8c8c;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.attachment-upload-status.is-error {
+    color: #c94f45;
 }
 
 .attachment-panel {

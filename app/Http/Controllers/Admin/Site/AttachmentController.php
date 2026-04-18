@@ -293,6 +293,120 @@ class AttachmentController extends Controller
         $currentSite = $this->currentSite($request);
         $this->authorizeAttachmentWorkspace($request, $currentSite->id);
 
+        if ($request->hasFile('files')) {
+            $files = array_values(array_filter(
+                is_array($request->file('files')) ? $request->file('files') : [],
+                fn ($file) => $file instanceof UploadedFile,
+            ));
+
+            if ($files === []) {
+                throw ValidationException::withMessages([
+                    'files' => '请至少选择一个资源文件。',
+                ]);
+            }
+
+            if (count($files) > 20) {
+                throw ValidationException::withMessages([
+                    'files' => '单次最多上传 20 个资源文件。',
+                ]);
+            }
+
+            $uploadedByName = trim((string) ($request->user()->name ?? '')) ?: trim((string) ($request->user()->username ?? '')) ?: '未记录';
+            $attachments = [];
+            $errors = [];
+
+            foreach ($files as $index => $file) {
+                try {
+                    $validator = Validator::make([
+                        'file' => $file,
+                    ], [
+                        'file' => $this->attachmentUploadRules(),
+                    ], [], [
+                        'file' => '资源文件',
+                    ]);
+
+                    if ($validator->fails()) {
+                        throw ValidationException::withMessages([
+                            'files.'.$index => $validator->errors()->first('file'),
+                        ]);
+                    }
+
+                    $attributeLabel = '资源文件「'.$file->getClientOriginalName().'」';
+                    $this->validateImageDimensionsIfNeeded($file, $attributeLabel);
+                    $preparedFile = $this->prepareStoredAttachmentFile($file, false);
+                    $this->validatePreparedAttachmentSize($preparedFile, $attributeLabel, false);
+                    $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
+
+                    $attachmentId = $this->storeAttachment($currentSite, $file, $request->user()->id, $preparedFile);
+                    $attachment = $this->findAttachmentForSite($currentSite->id, $attachmentId);
+
+                    abort_unless($attachment, 404);
+
+                    $this->logOperation(
+                        'site',
+                        'attachment',
+                        'upload_library',
+                        $currentSite->id,
+                        $request->user()->id,
+                        'attachment',
+                        $attachmentId,
+                        ['name' => $file->getClientOriginalName()],
+                        $request,
+                    );
+
+                    $attachments[] = $this->serializeAttachmentLibraryItem((object) [
+                        'id' => $attachment->id,
+                        'origin_name' => $attachment->origin_name,
+                        'url' => $attachment->url,
+                        'path' => $attachment->path,
+                        'extension' => $attachment->extension,
+                        'width' => $attachment->width,
+                        'height' => $attachment->height,
+                        'created_at' => $attachment->created_at,
+                        'updated_at' => $attachment->updated_at,
+                        'usage_count' => 0,
+                        'uploaded_by_name' => $uploadedByName,
+                    ]);
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())
+                        ->flatten()
+                        ->filter(fn ($item) => is_string($item) && $item !== '')
+                        ->first() ?: '资源上传失败';
+
+                    $errors[] = [
+                        'index' => $index,
+                        'name' => $file->getClientOriginalName(),
+                        'message' => $message,
+                    ];
+                }
+            }
+
+            if ($attachments === []) {
+                return response()->json([
+                    'message' => '资源上传失败。',
+                    'uploadedCount' => 0,
+                    'failedCount' => count($errors),
+                    'attachments' => [],
+                    'errors' => $errors,
+                ], 422);
+            }
+
+            $uploadedCount = count($attachments);
+            $failedCount = count($errors);
+            $message = $failedCount > 0
+                ? sprintf('已上传 %d 个资源，%d 个上传失败。', $uploadedCount, $failedCount)
+                : sprintf('已上传 %d 个资源。', $uploadedCount);
+
+            return response()->json([
+                'message' => $message,
+                'uploadedCount' => $uploadedCount,
+                'failedCount' => $failedCount,
+                'attachment' => $attachments[0] ?? null,
+                'attachments' => $attachments,
+                'errors' => $errors,
+            ]);
+        }
+
         $validated = $request->validate([
             'file' => $this->attachmentUploadRules(),
         ], [], [

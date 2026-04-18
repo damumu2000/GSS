@@ -20,7 +20,7 @@ Route::get('/payroll/{batch}/{type}', [PayrollController::class, 'detail'])
     ->whereIn('type', ['salary', 'performance'])
     ->name('site.payroll.show');
 
-Route::middleware(['auth', 'admin.access'])
+Route::middleware(['auth', 'admin.access', 'module.admin.active:payroll'])
     ->prefix('admin/site/payroll')
     ->group(function (): void {
         Route::get('/settings', [PayrollSettingsController::class, 'edit'])->name('admin.payroll.settings');

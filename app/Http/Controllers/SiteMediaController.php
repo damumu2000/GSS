@@ -12,6 +12,7 @@ class SiteMediaController extends Controller
 {
     public function show(Request $request, string $siteKey, string $path): BinaryFileResponse
     {
+        abort_unless(preg_match('/^[a-z0-9][a-z0-9\-]*$/', $siteKey) === 1, 404);
         abort_if(str_contains($path, '..'), 404);
 
         $absolutePath = SitePath::mediaAbsolutePath($siteKey, $path);

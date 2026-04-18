@@ -151,7 +151,7 @@
                     @forelse ($insights['top_articles'] as $index => $article)
                         <div class="insight-rank-item">
                             <div class="insight-rank-no">{{ $index + 1 }}</div>
-                            <div class="insight-rank-main">
+                            <div class="insight-rank-main" data-tooltip="{{ $article['title'] }}">
                                 <div class="insight-rank-title">{{ $article['title'] }}</div>
                                 <div class="insight-rank-subtitle">{{ $article['channel_name'] }}</div>
                                 <div class="insight-rank-bar-track">
@@ -321,13 +321,12 @@
                             data-notice-content-id="platform-notice-content-{{ $notice->id }}"
                         >
                             <div class="notice-item-top">
-                                <div class="notice-item-title">
-                                    @php
-                                        $noticeTitleText = (string) $notice->title;
-                                    @endphp
+                                @php
+                                    $noticeTitleText = (string) $notice->title;
+                                @endphp
+                                <div class="notice-item-title" data-tooltip="{{ $noticeTitleText }}">
                                     <span
                                         class="notice-item-title-text {{ $noticeTitleColorClass }} @if (! empty($notice->title_bold)) is-bold @endif @if (! empty($notice->title_italic)) is-italic @endif"
-                                        data-tooltip="{{ $noticeTitleText }}"
                                     >{{ $noticeTitleText }}</span>
                                     @if (! empty($notice->is_top) || ! empty($notice->is_recommend))
                                         <span class="notice-item-title-flags">

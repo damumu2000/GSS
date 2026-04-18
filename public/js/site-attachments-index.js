@@ -4,26 +4,133 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('attachment-upload-file');
     const replaceInput = document.getElementById('attachment-replace-file');
     const form = document.getElementById('attachment-upload-form');
+    const uploadStatus = document.getElementById('attachment-upload-status');
     if (!trigger || !fileInput || !form) {
         return;
     }
 
     let pendingReplaceMeta = null;
+    const uploadUrl = configRoot?.dataset.uploadUrl || '';
     const replaceUrlTemplate = configRoot?.dataset.replaceUrlTemplate || '';
     const usageEndpointTemplate = configRoot?.dataset.usageUrlTemplate || '';
+
+    const setUploadStatus = (message, isError = false) => {
+        if (!uploadStatus) {
+            return;
+        }
+
+        uploadStatus.textContent = message || '';
+        uploadStatus.classList.toggle('is-error', Boolean(isError));
+    };
+
+    const setUploadBusy = (isBusy) => {
+        trigger.disabled = isBusy;
+        fileInput.disabled = isBusy;
+    };
+
+    const extractUploadErrors = (payload) => {
+        if (Array.isArray(payload?.errors)) {
+            return payload.errors
+                .map((item) => item?.message || '')
+                .filter((message) => message !== '');
+        }
+
+        if (payload?.errors && typeof payload.errors === 'object') {
+            return Object.values(payload.errors)
+                .flat()
+                .filter((message) => typeof message === 'string' && message !== '');
+        }
+
+        if (typeof payload?.message === 'string' && payload.message !== '') {
+            return [payload.message];
+        }
+
+        return [];
+    };
+
+    const uploadAttachments = (files) => new Promise((resolve, reject) => {
+        if (!uploadUrl) {
+            reject(new Error('资源上传地址未配置'));
+            return;
+        }
+
+        const formData = new FormData();
+        files.forEach((file) => {
+            formData.append(files.length > 1 ? 'files[]' : 'file', file);
+        });
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl, true);
+        xhr.withCredentials = true;
+        xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('Accept', 'application/json');
+
+        xhr.upload.addEventListener('progress', (event) => {
+            if (!event.lengthComputable) {
+                return;
+            }
+
+            const percent = Math.max(1, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+            setUploadStatus(`正在上传 ${files.length} 个资源（${percent}%）...`);
+        });
+
+        xhr.addEventListener('load', () => {
+            let payload = {};
+
+            try {
+                payload = JSON.parse(xhr.responseText || '{}');
+            } catch (error) {
+                payload = {};
+            }
+
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(payload);
+                return;
+            }
+
+            const errors = extractUploadErrors(payload);
+            reject(new Error(errors[0] || '资源上传失败'));
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('资源上传失败')));
+        xhr.send(formData);
+    });
 
     trigger.addEventListener('click', () => {
         fileInput.click();
     });
 
-    fileInput.addEventListener('change', () => {
-        const file = fileInput.files?.[0];
+    fileInput.addEventListener('change', async () => {
+        const files = Array.from(fileInput.files || []);
 
-        if (!file) {
+        if (!files.length) {
             return;
         }
 
-        form.submit();
+        setUploadBusy(true);
+
+        try {
+            const payload = await uploadAttachments(files);
+            const uploadedCount = Array.isArray(payload.attachments)
+                ? payload.attachments.length
+                : (payload.attachment ? 1 : 0);
+            const errors = extractUploadErrors(payload);
+
+            if (uploadedCount <= 0) {
+                throw new Error(errors[0] || payload.message || '资源上传失败');
+            }
+
+            setUploadStatus(payload.message || `已上传 ${uploadedCount} 个资源。`, errors.length > 0);
+            window.setTimeout(() => {
+                window.location.reload();
+            }, errors.length > 0 ? 1200 : 600);
+        } catch (error) {
+            setUploadStatus(error?.message || '资源上传失败', true);
+        } finally {
+            setUploadBusy(false);
+            fileInput.value = '';
+        }
     });
 
     const bulkSubmit = document.getElementById('attachment-bulk-submit');

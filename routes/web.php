@@ -10,7 +10,6 @@ use App\Http\Controllers\Admin\Platform\PlatformSiteController;
 use App\Http\Controllers\Admin\Platform\PlatformUserController;
 use App\Http\Controllers\Admin\Platform\SystemCheckController;
 use App\Http\Controllers\Admin\Platform\SystemSettingController;
-use App\Http\Controllers\Admin\Platform\ThemeMarketController;
 use App\Http\Controllers\Admin\Site\AttachmentController;
 use App\Http\Controllers\Admin\Site\ArticleReviewController;
 use App\Http\Controllers\Admin\Site\ChannelController;
@@ -38,13 +37,14 @@ Route::get('/', function () {
 });
 
 Route::get('/site-preview', [SiteController::class, 'show'])->name('site.home');
-Route::get('/channel/{slug}', [SiteController::class, 'channel'])->name('site.channel');
+Route::get('/cat/{slug}', [SiteController::class, 'channel'])->name('site.channel');
 Route::get('/article/{id}', [SiteController::class, 'article'])->name('site.article');
 Route::get('/page/{id}', [SiteController::class, 'page'])->name('site.page');
 Route::get('/theme-assets/{theme}/{path}', [SiteController::class, 'themeAsset'])
     ->where('path', '.*')
     ->name('site.theme-asset');
 Route::get('/site-media/{siteKey}/{path}', [SiteMediaController::class, 'show'])
+    ->where('siteKey', '[a-z0-9][a-z0-9\-]*')
     ->where('path', '.*')
     ->name('site.media');
 
@@ -78,11 +78,10 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::post('/sites/media-upload', [PlatformSiteController::class, 'mediaUpload'])->name('sites.media-upload');
             Route::get('/sites/{site}', [PlatformSiteController::class, 'edit'])->name('sites.edit');
             Route::post('/sites/{site}', [PlatformSiteController::class, 'update'])->name('sites.update');
-            Route::get('/themes', [ThemeMarketController::class, 'index'])->name('themes.index');
-            Route::get('/themes/create', [ThemeMarketController::class, 'create'])->name('themes.create');
-            Route::post('/themes', [ThemeMarketController::class, 'store'])->name('themes.store');
-            Route::get('/themes/{theme}', [ThemeMarketController::class, 'edit'])->name('themes.edit');
-            Route::post('/themes/{theme}', [ThemeMarketController::class, 'update'])->name('themes.update');
+            Route::get('/sites/{site}/modules', [PlatformSiteController::class, 'modules'])->name('sites.modules');
+            Route::post('/sites/{site}/modules/add', [PlatformSiteController::class, 'addModule'])->name('sites.modules.add');
+            Route::post('/sites/{site}/modules/{module}/update', [PlatformSiteController::class, 'updateModuleBinding'])->whereNumber('module')->name('sites.modules.update');
+            Route::post('/sites/{site}/modules/{module}/remove', [PlatformSiteController::class, 'removeModule'])->whereNumber('module')->name('sites.modules.remove');
             Route::get('/modules', [PlatformModuleController::class, 'index'])->name('modules.index');
             Route::get('/modules/{module}', [PlatformModuleController::class, 'show'])->name('modules.show');
             Route::post('/modules/{module}/toggle', [PlatformModuleController::class, 'toggle'])->name('modules.toggle');
@@ -171,12 +170,14 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/modules/{module}', [SiteModuleController::class, 'show'])->name('site-modules.show');
             Route::get('/themes', [ThemeController::class, 'index'])->name('themes.index');
             Route::post('/themes', [ThemeController::class, 'update'])->name('themes.update');
+            Route::post('/themes/store', [ThemeController::class, 'store'])->name('themes.store');
+            Route::post('/themes/{siteTemplate}/delete', [ThemeController::class, 'destroy'])->whereNumber('siteTemplate')->name('themes.destroy');
+            Route::post('/themes/orphans/delete', [ThemeController::class, 'destroyOrphan'])->name('themes.destroy-orphan');
             Route::get('/themes/editor', [ThemeController::class, 'editor'])->name('themes.editor');
             Route::get('/themes/editor/snapshots', [ThemeController::class, 'snapshots'])->name('themes.snapshots');
             Route::get('/themes/editor/template-create', [ThemeController::class, 'createTemplateForm'])->name('themes.editor.template-create-form');
             Route::post('/themes/editor', [ThemeController::class, 'updateEditor'])->name('themes.editor.update');
             Route::post('/themes/editor/template-create', [ThemeController::class, 'createTemplate'])->name('themes.editor.template-create');
-            Route::post('/themes/editor/template-reset', [ThemeController::class, 'resetTemplate'])->name('themes.editor.template-reset');
             Route::post('/themes/editor/template-delete', [ThemeController::class, 'deleteTemplate'])->name('themes.editor.template-delete');
             Route::post('/themes/editor/template-rollback', [ThemeController::class, 'rollbackTemplate'])->name('themes.editor.template-rollback');
             Route::post('/themes/editor/template-snapshot-delete', [ThemeController::class, 'deleteSnapshot'])->name('themes.editor.template-snapshot-delete');

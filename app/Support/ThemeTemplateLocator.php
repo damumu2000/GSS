@@ -55,12 +55,7 @@ class ThemeTemplateLocator
     public static function resolvePath(int|object|string $site, string $themeCode, string $template): string
     {
         $override = static::overridePath($site, $themeCode, $template);
-
-        if (File::exists($override)) {
-            return $override;
-        }
-
-        return static::defaultPath($themeCode, $template);
+        return $override;
     }
 
     public static function existingOverridePath(int|object|string $site, string $themeCode, string $template): ?string
@@ -116,102 +111,73 @@ class ThemeTemplateLocator
 
     public static function availableTemplatesForSite(int|object|string $site, string $themeCode): Collection
     {
-        $siteId = is_object($site) ? (int) ($site->id ?? 0) : (is_numeric($site) ? (int) $site : 0);
-        $titleMap = $siteId > 0
-            ? DB::table('site_theme_template_meta')
-                ->where('site_id', $siteId)
-                ->where('theme_code', $themeCode)
+        $overrideRoot = static::overrideRoot($site, $themeCode);
+        $templateId = static::resolveSiteTemplateId($site, $themeCode);
+        $titleMap = $templateId > 0
+            ? DB::table('site_template_meta')
+                ->where('site_template_id', $templateId)
                 ->pluck('title', 'template_name')
             : collect();
-
-        $defaultTemplates = static::availableTemplates($themeCode)
-            ->mapWithKeys(fn (array $template): array => [
-                $template['file'] => [
-                    'file' => $template['file'],
-                    'base_label' => $template['label'],
-                    'label' => static::displayLabel(
-                        $template['label'],
-                        $titleMap->get($template['file'])
-                    ),
-                    'source' => 'default',
-                    'has_default' => true,
-                    'has_override' => false,
-                ],
-            ]);
-
-        $overrideRoot = static::overrideRoot($site, $themeCode);
+        $templates = collect();
 
         if (File::isDirectory($overrideRoot)) {
             collect(File::files($overrideRoot))
                 ->filter(fn ($file): bool => $file->getExtension() === 'tpl')
-                ->each(function ($file) use ($defaultTemplates, $titleMap): void {
+                ->each(function ($file) use ($templates, $titleMap): void {
                     $template = str_replace('.tpl', '', $file->getFilename());
-                    $existing = $defaultTemplates->get($template);
+                    $baseLabel = static::labelFor($template);
 
-                    $defaultTemplates->put($template, [
+                    $templates->put($template, [
                         'file' => $template,
                         'label' => static::displayLabel(
-                            $existing['base_label'] ?? static::labelFor($template),
+                            $baseLabel,
                             $titleMap->get($template)
                         ),
-                        'source' => $existing ? 'override' : 'custom',
-                        'base_label' => $existing['base_label'] ?? static::labelFor($template),
-                        'has_default' => (bool) ($existing['has_default'] ?? false),
+                        'source' => 'custom',
+                        'base_label' => $baseLabel,
+                        'has_default' => false,
                         'has_override' => true,
                     ]);
                 });
         }
 
-        return $defaultTemplates
+        return $templates
             ->sortBy('file')
             ->values();
     }
 
     public static function availableEditorFilesForSite(int|object|string $site, string $themeCode): Collection
     {
-        $siteId = is_object($site) ? (int) ($site->id ?? 0) : (is_numeric($site) ? (int) $site : 0);
-        $titleMap = $siteId > 0
-            ? DB::table('site_theme_template_meta')
-                ->where('site_id', $siteId)
-                ->where('theme_code', $themeCode)
+        $overrideRoot = static::overrideRoot($site, $themeCode);
+        $templateId = static::resolveSiteTemplateId($site, $themeCode);
+        $titleMap = $templateId > 0
+            ? DB::table('site_template_meta')
+                ->where('site_template_id', $templateId)
                 ->pluck('title', 'template_name')
             : collect();
-
-        $defaultFiles = static::availableEditorFiles($themeCode)
-            ->mapWithKeys(fn (array $file): array => [
-                $file['key'] => [
-                    ...$file,
-                    'label' => static::displayLabel($file['base_label'], $titleMap->get($file['key'])),
-                    'source' => 'default',
-                    'has_default' => true,
-                    'has_override' => false,
-                ],
-            ]);
-
-        $overrideRoot = static::overrideRoot($site, $themeCode);
+        $files = collect();
 
         if (File::isDirectory($overrideRoot)) {
             collect(File::files($overrideRoot))
                 ->filter(fn ($file): bool => in_array($file->getExtension(), self::EDITOR_EXTENSIONS, true))
-                ->each(function ($file) use ($defaultFiles, $titleMap): void {
+                ->each(function ($file) use ($files, $titleMap): void {
                     $payload = static::editorFilePayload($file->getFilename());
-                    $existing = $defaultFiles->get($payload['key']);
 
-                    $defaultFiles->put($payload['key'], [
+                    $files->put($payload['key'], [
                         ...$payload,
                         'label' => static::displayLabel(
-                            $existing['base_label'] ?? $payload['base_label'],
+                            $payload['base_label'],
                             $titleMap->get($payload['key'])
                         ),
-                        'source' => $existing ? 'override' : 'custom',
-                        'base_label' => $existing['base_label'] ?? $payload['base_label'],
-                        'has_default' => (bool) ($existing['has_default'] ?? false),
+                        'source' => 'custom',
+                        'base_label' => $payload['base_label'],
+                        'has_default' => false,
                         'has_override' => true,
                     ]);
                 });
         }
 
-        return $defaultFiles
+        return $files
             ->sortBy('sort_key')
             ->values();
     }
@@ -231,9 +197,7 @@ class ThemeTemplateLocator
             }
         }
 
-        $default = static::defaultRoot($themeCode).DIRECTORY_SEPARATOR.$path;
-
-        return File::exists($default) && File::isFile($default) ? $default : null;
+        return null;
     }
 
     public static function assetVersion(int|object|string|null $site, string $themeCode, string $path): ?int
@@ -241,6 +205,20 @@ class ThemeTemplateLocator
         $resolved = static::resolveAssetPath($site, $themeCode, $path);
 
         return $resolved ? File::lastModified($resolved) : null;
+    }
+
+    protected static function resolveSiteTemplateId(int|object|string $site, string $themeCode): int
+    {
+        $siteId = is_object($site) ? (int) ($site->id ?? 0) : (is_numeric($site) ? (int) $site : 0);
+
+        if ($siteId <= 0 || trim($themeCode) === '') {
+            return 0;
+        }
+
+        return (int) DB::table('site_templates')
+            ->where('site_id', $siteId)
+            ->where('template_key', $themeCode)
+            ->value('id');
     }
 
     public static function normalizeEditorFileIdentifier(string $file): string

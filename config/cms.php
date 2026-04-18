@@ -51,7 +51,6 @@ return [
             'module.manage',
             'platform.view',
             'site.manage',
-            'theme.market.manage',
             'platform.user.manage',
             'platform.role.manage',
             'system.check.view',
@@ -67,10 +66,6 @@ return [
             'system.check.view',
             'system.setting.manage',
             'platform.log.view',
-        ],
-        'theme_admin' => [
-            'platform.view',
-            'theme.market.manage',
         ],
     ],
 

@@ -1177,6 +1177,7 @@ class ThemeTags
         return [
             'id' => $content->id,
             'title' => $content->title,
+            'view_count' => (int) ($content->view_count ?? 0),
             'title_color' => $content->title_color ?? '',
             'title_bold' => (bool) ($content->title_bold ?? false),
             'title_italic' => (bool) ($content->title_italic ?? false),

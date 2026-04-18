@@ -12,6 +12,10 @@ class SecurityHeaders
     {
         /** @var Response $response */
         $response = $next($request);
+        $contentType = (string) $response->headers->get('Content-Type', '');
+        $isDebugExceptionPage = config('app.debug')
+            && $response->getStatusCode() >= 500
+            && str_contains(strtolower($contentType), 'text/html');
 
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -27,8 +31,8 @@ class SecurityHeaders
             "font-src 'self' data:",
             "media-src 'self' blob:",
             "manifest-src 'self'",
-            "style-src 'self'",
-            "script-src 'self'",
+            $isDebugExceptionPage ? "style-src 'self' 'unsafe-inline'" : "style-src 'self'",
+            $isDebugExceptionPage ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
             "connect-src 'self'",
             "frame-src 'self' https://player.bilibili.com",
         ]));

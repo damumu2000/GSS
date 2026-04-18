@@ -270,6 +270,10 @@
             overflow: hidden;
         }
 
+        .content-title.has-global-tooltip {
+            overflow: visible;
+        }
+
         .content-title-text {
             min-width: 0;
             overflow: hidden;

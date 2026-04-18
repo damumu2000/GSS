@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>模版帮助文档</title>
+    <title>模版开发文档</title>
     <style>
         :root {
             color-scheme: light;
@@ -412,8 +412,8 @@
                 <div class="hero-head">
                     <span class="hero-mark" aria-hidden="true"></span>
                     <div>
-                        <h1>模版帮助文档</h1>
-                        <p>这份帮助文档已经按当前模板引擎、模板编辑器校验规则，以及当前系统启用的 CSP 策略重新整理。文档里的语法、标签、示例和限制，和现在后台真实可保存、可解析、可上线的模板写法一一对应。</p>
+                        <h1>模版开发文档</h1>
+                        <p>这份开发文档已经按当前模板引擎、模板编辑器校验规则，以及当前系统启用的 CSP 策略重新整理。文档里的语法、标签、示例和限制，和现在后台真实可保存、可解析、可上线的模板写法一一对应。</p>
                     </div>
                 </div>
             </div>
@@ -744,7 +744,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">current.page.template_name</td>
-                                    <td>当前页面模板名。</td>
+                                    <td>当前页面模板名。文章和单页面都支持在内容编辑页单独选择模板；如果内容本身没有单独绑定，就会回退到所属栏目的默认模板。</td>
                                     <td><code>{{ current.page.template_name }}</code></td>
                                 </tr>
                                 <tr>
@@ -773,6 +773,11 @@
                                     <td><code>{{ current.content.title }}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">current.content.view_count</td>
+                                    <td>当前内容点击数，可直接在详情页显示阅读量。</td>
+                                    <td><code>{{ current.content.view_count }}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">current.content.channel_id</td>
                                     <td>当前内容所属栏目 ID，可配合详情页辅助标签使用。</td>
                                     <td><code>{{ current.content.channel_id }}</code></td>
@@ -788,6 +793,7 @@
                         <span class="section-kicker">导航、子栏目、面包屑</span>
                     </div>
                     <p>适合做导航、子栏目入口、面包屑、栏目切换和栏目定向展示。</p>
+                    <p>模板优先级也和栏目有关：文章详情页默认继承栏目详情模板，单页面默认继承单页栏目模板；如果在内容编辑页里给某一篇文章或某一个单页面单独选择了模板，就会优先使用内容自己的模板。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -1329,6 +1335,11 @@
                         <span>这段调用用了 <code>type='page'</code>、<code>status='published'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来取最近更新的单页。输出链接时再配合 <code>linkTo type='page' id=item.id default='#'</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
                     </div>
 
+                    <div class="tip">
+                        <strong>模板绑定说明：文章和单页面都支持内容级覆盖</strong>
+                        <span>后台现在支持两层模板绑定。栏目上的模板是默认模板，用来决定这一类内容通常走哪一个详情模板；内容编辑页里的模板选择是单篇覆盖，用来让某一篇文章或某一个单页面单独改用别的模板。最终前台渲染时，会优先使用内容自己绑定的模板，没有时再回退到栏目模板。</span>
+                    </div>
+
                     <div class="code">
                         <pre>{% set banners = promos code='home_banner' limit=5 %}
 {% for item in banners %}
@@ -1420,7 +1431,7 @@
                 </section>
 
                 <div class="footer">
-                    模版帮助文档是当前模板系统的标准使用文档。后续如果新增模板标签、参数或工具函数，应同步更新本页，保持调用能力与文档一致。
+                    模版开发文档是当前模板系统的标准开发文档。后续如果新增模板标签、参数或工具函数，应同步更新本页，保持调用能力与文档一致。
                 </div>
             </main>
         </div>

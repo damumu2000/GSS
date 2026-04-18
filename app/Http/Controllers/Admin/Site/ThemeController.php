@@ -20,6 +20,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
+use stdClass;
 
 class ThemeController extends Controller
 {
@@ -30,47 +31,52 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.use');
-
-        $themes = DB::table('themes')
-            ->join('site_theme_bindings', function ($join) use ($currentSite): void {
-                $join->on('site_theme_bindings.theme_id', '=', 'themes.id')
-                    ->where('site_theme_bindings.site_id', '=', $currentSite->id);
-            })
-            ->leftJoin('theme_versions', function ($join): void {
-                $join->on('theme_versions.theme_id', '=', 'themes.id')
-                    ->where('theme_versions.is_current', '=', 1);
-            })
-            ->orderByRaw('CASE WHEN themes.id = ? THEN 0 ELSE 1 END', [(int) $currentSite->default_theme_id])
-            ->orderBy('themes.name')
+        $viewErrors = session('errors');
+        $createTemplateModalOpen = $viewErrors
+            ? $viewErrors->has('name') || $viewErrors->has('template_key')
+            : false;
+        $siteTemplates = DB::table('site_templates')
+            ->where('site_id', $currentSite->id)
+            ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [(int) ($currentSite->active_site_template_id ?? 0)])
+            ->orderBy('id')
             ->get([
-                'themes.id',
-                'themes.name',
-                'themes.code',
-                'themes.description',
-                'themes.cover_image',
-                'theme_versions.version',
+                'id',
+                'name',
+                'template_key',
+                'status',
+                'created_at',
+                'updated_at',
             ])
-            ->map(function (object $theme) use ($currentSite): object {
-                $templateCount = ThemeTemplateLocator::availableTemplatesForSite($currentSite->id, (string) $theme->code)->count();
-                $theme->template_count = $templateCount;
-                $theme->has_templates = $templateCount > 0;
+            ->map(function (object $siteTemplate) use ($currentSite): object {
+                $templateCount = ThemeTemplateLocator::availableTemplatesForSite($currentSite->id, (string) $siteTemplate->template_key)->count();
+                $siteTemplate->template_count = $templateCount;
+                $siteTemplate->has_templates = $templateCount > 0;
 
-                return $theme;
+                return $siteTemplate;
             });
 
-        $activeTheme = $this->activeBoundThemeCode($currentSite);
-        $activeThemeItem = $themes->firstWhere('code', $activeTheme);
-        $libraryThemes = $themes
-            ->reject(fn (object $theme): bool => $activeTheme !== '' && $theme->code === $activeTheme)
-            ->values();
+        $activeTemplateKey = $this->activeSiteTemplateKey($currentSite);
+        $activeTemplateItem = $siteTemplates->firstWhere('template_key', $activeTemplateKey);
+        $orphanTemplates = $this->orphanTemplateDirectories(
+            (string) $currentSite->site_key,
+            $siteTemplates->pluck('template_key')->map(fn ($key): string => trim((string) $key))
+        )->map(function (string $templateKey): object {
+            return (object) [
+                'name' => $templateKey,
+                'template_key' => $templateKey,
+                'template_count' => 0,
+                'has_templates' => false,
+            ];
+        });
 
         return view('admin.site.themes.index', [
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
-            'themes' => $themes,
-            'activeTheme' => $activeTheme,
-            'activeThemeItem' => $activeThemeItem,
-            'libraryThemes' => $libraryThemes,
+            'siteTemplates' => $siteTemplates,
+            'activeTemplateKey' => $activeTemplateKey,
+            'activeTemplateItem' => $activeTemplateItem,
+            'orphanTemplates' => $orphanTemplates,
+            'createTemplateModalOpen' => $createTemplateModalOpen,
         ]);
     }
 
@@ -83,41 +89,241 @@ class ThemeController extends Controller
         $this->authorizeSite($request, $currentSite->id, 'theme.use');
 
         $validated = $request->validate([
-            'theme_code' => ['required', 'string', 'max:50'],
+            'site_template_id' => ['required', 'integer'],
         ]);
 
-        $theme = DB::table('themes')
-            ->join('site_theme_bindings', function ($join) use ($currentSite): void {
-                $join->on('site_theme_bindings.theme_id', '=', 'themes.id')
-                    ->where('site_theme_bindings.site_id', '=', $currentSite->id);
-            })
-            ->where('code', $validated['theme_code'])
-            ->first(['themes.*']);
+        $siteTemplate = DB::table('site_templates')
+            ->where('site_id', $currentSite->id)
+            ->where('id', (int) $validated['site_template_id'])
+            ->first();
 
-        abort_unless($theme, 404);
+        abort_unless($siteTemplate, 404);
 
         DB::table('sites')
             ->where('id', $currentSite->id)
             ->update([
-                'default_theme_id' => $theme->id,
+                'active_site_template_id' => $siteTemplate->id,
                 'updated_at' => now(),
             ]);
 
         $this->logOperation(
             'site',
             'theme',
-            'switch',
+            'activate_template',
             $currentSite->id,
             $request->user()->id,
-            'theme',
-            $theme->id,
-            ['code' => $theme->code],
+            'site_template',
+            $siteTemplate->id,
+            ['template_key' => $siteTemplate->template_key],
             $request,
         );
 
         return redirect()
             ->route('admin.themes.index')
-            ->with('status', '站点主题已切换。');
+            ->with('status', '站点模版已启用。');
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'theme.edit');
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:100',
+                'regex:/^(?!\s)(?!.*\s$)(?!.*<[^>]+>).*$/u',
+                Rule::unique('site_templates', 'name')->where(fn ($query) => $query->where('site_id', $currentSite->id)),
+            ],
+            'template_key' => [
+                'required',
+                'string',
+                'max:50',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique('site_templates', 'template_key')->where(fn ($query) => $query->where('site_id', $currentSite->id)),
+            ],
+        ], [
+            'name.regex' => '模版名称不能包含首尾空格或 HTML 标签。',
+            'name.unique' => '当前站点已存在同名模版，请更换模版名称。',
+            'template_key.regex' => '模版标识只能使用小写字母、数字和中划线。',
+            'template_key.unique' => '当前站点已存在相同模版标识，请更换后再试。',
+        ], [
+            'name' => '模版名称',
+            'template_key' => '模版标识',
+        ]);
+
+        $siteTemplateId = DB::transaction(function () use ($currentSite, $validated, $request): int {
+            $site = DB::table('sites')
+                ->where('id', $currentSite->id)
+                ->lockForUpdate()
+                ->first(['id', 'site_key', 'template_limit']);
+
+            abort_unless($site, 404);
+
+            $currentCount = (int) DB::table('site_templates')
+                ->where('site_id', $site->id)
+                ->count();
+
+            if ($currentCount >= (int) $site->template_limit) {
+                throw ValidationException::withMessages([
+                    'template_key' => '当前站点模版数量已达上限，请先删除未使用模版后再新增。',
+                ]);
+            }
+
+            $siteTemplateId = (int) DB::table('site_templates')->insertGetId([
+                'site_id' => $site->id,
+                'name' => trim((string) $validated['name']),
+                'template_key' => trim((string) $validated['template_key']),
+                'status' => 1,
+                'created_by' => $request->user()->id,
+                'updated_by' => $request->user()->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $this->ensureInitialSiteTemplateFiles((string) $site->site_key, trim((string) $validated['template_key']));
+
+            return $siteTemplateId;
+        });
+
+        $this->logOperation(
+            'site',
+            'theme',
+            'create_site_template',
+            $currentSite->id,
+            $request->user()->id,
+            'site_template',
+            $siteTemplateId,
+            ['name' => $validated['name'], 'template_key' => $validated['template_key']],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.themes.index')
+            ->with('status', '站点模版已创建。');
+    }
+
+    public function destroy(Request $request, string $siteTemplateId): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'theme.edit');
+
+        $siteTemplate = DB::table('site_templates')
+            ->where('site_id', $currentSite->id)
+            ->where('id', (int) $siteTemplateId)
+            ->first();
+
+        abort_unless($siteTemplate, 404);
+
+        if ((int) $currentSite->active_site_template_id === (int) $siteTemplate->id) {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['template' => '当前启用中的模版不能删除，请先切换到其他模版。']);
+        }
+
+        $templateCount = (int) DB::table('site_templates')
+            ->where('site_id', $currentSite->id)
+            ->count();
+
+        if ($templateCount <= 1) {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['template' => '站点至少需要保留一个模版。']);
+        }
+
+        DB::transaction(function () use ($siteTemplate, $currentSite, $request): void {
+            DB::table('site_templates')
+                ->where('id', (int) $siteTemplate->id)
+                ->delete();
+
+            $root = SitePath::siteTemplateRoot((string) $currentSite->site_key, (string) $siteTemplate->template_key);
+
+            if (File::isDirectory($root)) {
+                File::deleteDirectory($root);
+            }
+        });
+
+        $this->logOperation(
+            'site',
+            'theme',
+            'delete_site_template',
+            $currentSite->id,
+            $request->user()->id,
+            'site_template',
+            (int) $siteTemplate->id,
+            ['template_key' => $siteTemplate->template_key],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.themes.index')
+            ->with('status', '站点模版已删除。');
+    }
+
+    public function destroyOrphan(Request $request): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'theme.edit');
+
+        $validated = $request->validate([
+            'template_key' => ['required', 'string', 'max:120'],
+        ], [], [
+            'template_key' => '异常模版目录',
+        ]);
+
+        $templateKey = trim((string) ($validated['template_key'] ?? ''));
+
+        if ($templateKey === '' || str_contains($templateKey, '/') || str_contains($templateKey, '\\') || in_array($templateKey, ['.', '..'], true)) {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['template' => '异常模版目录参数不合法，无法删除。']);
+        }
+
+        $existsInDb = DB::table('site_templates')
+            ->where('site_id', (int) $currentSite->id)
+            ->where('template_key', $templateKey)
+            ->exists();
+
+        if ($existsInDb) {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['template' => '该目录已存在于模板库，请使用模板卡片的删除操作。']);
+        }
+
+        $themeRoot = SitePath::root((string) $currentSite->site_key).DIRECTORY_SEPARATOR.'theme';
+        $resolvedThemeRoot = realpath($themeRoot);
+        $targetPath = $themeRoot.DIRECTORY_SEPARATOR.$templateKey;
+        $resolvedTargetPath = realpath($targetPath);
+
+        if (
+            ! is_string($resolvedThemeRoot) ||
+            ! is_string($resolvedTargetPath) ||
+            ! is_dir($resolvedTargetPath) ||
+            ! str_starts_with($resolvedTargetPath, $resolvedThemeRoot.DIRECTORY_SEPARATOR)
+        ) {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['template' => '异常模版目录不存在或无法访问。']);
+        }
+
+        File::deleteDirectory($resolvedTargetPath);
+
+        $this->logOperation(
+            'site',
+            'theme',
+            'delete_orphan_site_template',
+            $currentSite->id,
+            $request->user()->id,
+            'site_template_orphan',
+            null,
+            ['template_key' => $templateKey],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.themes.index')
+            ->with('status', '异常模版目录已删除。');
     }
 
     /**
@@ -127,15 +333,17 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         if ($templates->isEmpty()) {
             return redirect()
                 ->route('admin.themes.index')
-                ->withErrors(['theme' => '当前启用主题未提供可编辑的模板文件，请先补充主题模板后再进入模板编辑。']);
+                ->withErrors(['theme' => '当前模版未提供可编辑的模板文件，请先补充模板文件后再进入模板编辑。']);
         }
         $template = $this->selectedTemplate($request, $templates);
         $templateMeta = $templates->firstWhere('key', $template);
@@ -170,6 +378,7 @@ class ThemeController extends Controller
         $themeAssetPaginator = new LengthAwarePaginator([], 0, $themeAssetPerPage, $themeAssetPage, [
             'pageName' => 'asset_page',
             'path' => route('admin.themes.editor', array_filter([
+                'site_template_id' => $siteTemplateId,
                 'template' => $template,
                 'panel' => $workspacePanel !== 'editor' ? $workspacePanel : null,
             ])),
@@ -207,8 +416,9 @@ class ThemeController extends Controller
         return view('admin.site.themes.editor', [
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
+            'siteTemplateId' => $siteTemplateId,
             'themeCode' => $themeCode,
-            'themeName' => $this->themeDisplayName($themeCode),
+            'themeName' => trim((string) ($siteTemplate->name ?? '')) !== '' ? trim((string) $siteTemplate->name) : $this->templateDisplayName($currentSite->id, $themeCode),
             'workspacePanel' => $workspacePanel,
             'template' => $template,
             'currentTemplate' => $template,
@@ -235,7 +445,7 @@ class ThemeController extends Controller
             'templateHistory' => $templateHistory,
             'compareVersion' => $compareVersion,
             'diffRows' => $diffRows,
-            'templateQuickGuideUrl' => url('/docs/theme-template-quick-reference.html'),
+            'templateQuickGuideUrl' => url('/docs/theme-template-development-guide.html'),
         ]);
     }
 
@@ -260,10 +470,12 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         $template = $this->selectedTemplate($request, $templates);
 
@@ -307,7 +519,8 @@ class ThemeController extends Controller
         );
 
         return redirect()
-            ->route('admin.themes.editor', ['template' => $template])
+            ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId, 'template' => $template])
+            ->with('keep_theme_editor_open', true)
             ->with('status', '模板源码已保存。');
     }
 
@@ -315,10 +528,12 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
 
         $validated = $request->validateWithBag('createTemplate', [
             'template_prefix' => ['nullable', 'string', Rule::in(['list', 'detail', 'page', 'css', 'js'])],
@@ -387,56 +602,20 @@ class ThemeController extends Controller
         );
 
         return redirect()
-            ->route('admin.themes.editor', ['template' => $template])
+            ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId, 'template' => $template])
             ->with('status', '自定义模板已创建。');
-    }
-
-    public function resetTemplate(Request $request): RedirectResponse
-    {
-        $currentSite = $this->currentSite($request);
-        $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
-        }
-        $templates = $this->availableTemplates($currentSite->id, $themeCode);
-        $template = $this->selectedTemplate($request, $templates);
-        $templateMeta = $templates->firstWhere('key', $template);
-
-        abort_unless(($templateMeta['source'] ?? null) === 'override', 404);
-
-        $paths = $this->themePaths($currentSite->id, $themeCode, $template);
-        abort_unless($paths['existing_override'] && File::exists($paths['existing_override']), 404);
-
-        $this->snapshotTemplateState($currentSite->id, $themeCode, $template, 'reset_template', $request->user()->id);
-        File::delete($paths['existing_override']);
-        $this->clearLegacyTemplateAttachmentRelations($currentSite->id, $themeCode, $template);
-
-        $this->logOperation(
-            'site',
-            'theme',
-            'reset_template',
-            $currentSite->id,
-            $request->user()->id,
-            'theme',
-            null,
-            ['code' => $themeCode, 'template' => $template],
-            $request,
-        );
-
-        return redirect()
-            ->route('admin.themes.editor', ['template' => $template])
-            ->with('status', '站点自定义模板已恢复为平台默认版本。');
     }
 
     public function deleteTemplate(Request $request): RedirectResponse
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         $template = $this->selectedTemplate($request, $templates);
         $templateMeta = $templates->firstWhere('key', $template);
@@ -464,7 +643,7 @@ class ThemeController extends Controller
         );
 
         return redirect()
-            ->route('admin.themes.editor')
+            ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId])
             ->with('status', '自定义模板已删除。');
     }
 
@@ -472,10 +651,12 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
 
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         $template = $this->selectedTemplate($request, $templates);
@@ -486,7 +667,7 @@ class ThemeController extends Controller
 
         if (! $version) {
             return redirect()
-                ->route('admin.themes.editor', ['template' => $template])
+                ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId, 'template' => $template])
                 ->withErrors(['template' => '当前模板暂无可回滚的历史版本。']);
         }
 
@@ -502,7 +683,7 @@ class ThemeController extends Controller
 
         $this->clearLegacyTemplateAttachmentRelations($currentSite->id, $themeCode, $template);
 
-        DB::table('site_theme_template_versions')
+        DB::table('site_template_versions')
             ->where('id', $version->id)
             ->update([
                 'consumed_at' => now(),
@@ -522,7 +703,7 @@ class ThemeController extends Controller
         );
 
         return redirect()
-            ->route('admin.themes.editor', ['template' => $template])
+            ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId, 'template' => $template])
             ->with('status', '模板已回滚到上一版。');
     }
 
@@ -530,10 +711,12 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
 
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         $template = $this->selectedTemplate($request, $templates);
@@ -546,7 +729,7 @@ class ThemeController extends Controller
 
         abort_unless($snapshot, 404);
 
-        DB::table('site_theme_template_versions')
+        DB::table('site_template_versions')
             ->where('id', $versionId)
             ->delete();
 
@@ -563,7 +746,7 @@ class ThemeController extends Controller
         );
 
         return redirect()
-            ->route('admin.themes.snapshots', ['template' => $template])
+            ->route('admin.themes.snapshots', ['site_template_id' => $siteTemplateId, 'template' => $template])
             ->with('status', '模板快照已删除。');
     }
 
@@ -571,10 +754,12 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
 
         $templates = $this->availableTemplates($currentSite->id, $themeCode);
         $template = $this->selectedTemplate($request, $templates);
@@ -589,7 +774,7 @@ class ThemeController extends Controller
 
         $nextFavoriteState = ! (bool) ($snapshot->is_favorite ?? false);
 
-        DB::table('site_theme_template_versions')
+        DB::table('site_template_versions')
             ->where('id', $versionId)
             ->update([
                 'is_favorite' => $nextFavoriteState ? 1 : 0,
@@ -609,7 +794,7 @@ class ThemeController extends Controller
         );
 
         return redirect()
-            ->route('admin.themes.snapshots', ['template' => $template, 'version' => $request->input('version') ?: null])
+            ->route('admin.themes.snapshots', ['site_template_id' => $siteTemplateId, 'template' => $template, 'version' => $request->input('version') ?: null])
             ->with('status', $nextFavoriteState ? '模板快照已收藏。' : '模板快照已取消收藏。');
     }
 
@@ -617,10 +802,12 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
 
         $validated = $request->validateWithBag('themeAssets', [
             'asset' => ['required', 'file', 'max:10240'],
@@ -688,6 +875,7 @@ class ThemeController extends Controller
 
         return redirect()
             ->route('admin.themes.editor', [
+                'site_template_id' => $siteTemplateId,
                 'template' => (string) $request->input('template', 'home'),
                 'open_assets' => 1,
             ])
@@ -698,10 +886,12 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
-        $themeCode = $this->requireCurrentBoundTheme($currentSite);
-        if ($themeCode instanceof RedirectResponse) {
-            return $themeCode;
+        $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
+        if ($siteTemplate instanceof RedirectResponse) {
+            return $siteTemplate;
         }
+        $siteTemplateId = (int) $siteTemplate->id;
+        $themeCode = trim((string) $siteTemplate->template_key);
 
         $assetPath = ThemeTemplateLocator::normalizeAssetPath((string) $request->input('asset_path', ''));
         abort_unless($assetPath !== null && str_starts_with($assetPath, 'assets/'), 404);
@@ -725,6 +915,7 @@ class ThemeController extends Controller
 
         return redirect()
             ->route('admin.themes.editor', [
+                'site_template_id' => $siteTemplateId,
                 'template' => (string) $request->input('template', 'home'),
                 'open_assets' => 1,
             ])
@@ -772,9 +963,10 @@ class ThemeController extends Controller
 
     protected function latestTemplateVersion(int $siteId, string $themeCode, string $template): ?object
     {
-        return DB::table('site_theme_template_versions')
-            ->where('site_id', $siteId)
-            ->where('theme_code', $themeCode)
+        $siteTemplateId = $this->resolveSiteTemplateId($siteId, $themeCode);
+
+        return DB::table('site_template_versions')
+            ->where('site_template_id', $siteTemplateId)
             ->where('template_name', $template)
             ->whereNull('consumed_at')
             ->orderByDesc('id')
@@ -783,9 +975,10 @@ class ThemeController extends Controller
 
     protected function templateHistory(int $siteId, string $themeCode, string $template): Collection
     {
-        return DB::table('site_theme_template_versions')
-            ->where('site_id', $siteId)
-            ->where('theme_code', $themeCode)
+        $siteTemplateId = $this->resolveSiteTemplateId($siteId, $themeCode);
+
+        return DB::table('site_template_versions')
+            ->where('site_template_id', $siteTemplateId)
             ->where('template_name', $template)
             ->whereNull('consumed_at')
             ->orderByDesc('is_favorite')
@@ -1017,6 +1210,7 @@ class ThemeController extends Controller
     protected function snapshotTemplateState(int $siteId, string $themeCode, string $template, string $action, ?int $userId = null): void
     {
         $paths = $this->themePaths($siteId, $themeCode, $template);
+        $siteTemplateId = $this->resolveSiteTemplateId($siteId, $themeCode);
         $sourceType = 'missing';
         $source = null;
 
@@ -1028,9 +1222,8 @@ class ThemeController extends Controller
             $source = File::get($paths['default']);
         }
 
-        DB::table('site_theme_template_versions')->insert([
-            'site_id' => $siteId,
-            'theme_code' => $themeCode,
+        DB::table('site_template_versions')->insert([
+            'site_template_id' => $siteTemplateId,
             'template_name' => $template,
             'source_type' => $sourceType,
             'template_source' => $source,
@@ -1040,9 +1233,8 @@ class ThemeController extends Controller
             'updated_at' => now(),
         ]);
 
-        $snapshotIdsToDelete = DB::table('site_theme_template_versions')
-            ->where('site_id', $siteId)
-            ->where('theme_code', $themeCode)
+        $snapshotIdsToDelete = DB::table('site_template_versions')
+            ->where('site_template_id', $siteTemplateId)
             ->where('template_name', $template)
             ->whereNull('consumed_at')
             ->orderByDesc('is_favorite')
@@ -1052,7 +1244,7 @@ class ThemeController extends Controller
             ->values();
 
         if ($snapshotIdsToDelete->isNotEmpty()) {
-            DB::table('site_theme_template_versions')
+            DB::table('site_template_versions')
                 ->whereIn('id', $snapshotIdsToDelete->all())
                 ->delete();
         }
@@ -1060,9 +1252,10 @@ class ThemeController extends Controller
 
     protected function templateCustomTitle(int $siteId, string $themeCode, string $template): ?string
     {
-        return DB::table('site_theme_template_meta')
-            ->where('site_id', $siteId)
-            ->where('theme_code', $themeCode)
+        $siteTemplateId = $this->resolveSiteTemplateId($siteId, $themeCode);
+
+        return DB::table('site_template_meta')
+            ->where('site_template_id', $siteTemplateId)
             ->where('template_name', $template)
             ->value('title');
     }
@@ -1070,10 +1263,11 @@ class ThemeController extends Controller
     protected function persistTemplateTitle(int $siteId, string $themeCode, string $template, ?string $title): void
     {
         $title = trim((string) $title);
-        DB::table('site_theme_template_meta')->updateOrInsert(
+        $siteTemplateId = $this->resolveSiteTemplateId($siteId, $themeCode);
+
+        DB::table('site_template_meta')->updateOrInsert(
             [
-                'site_id' => $siteId,
-                'theme_code' => $themeCode,
+                'site_template_id' => $siteTemplateId,
                 'template_name' => $template,
             ],
             [
@@ -1086,48 +1280,55 @@ class ThemeController extends Controller
 
     protected function deleteTemplateMeta(int $siteId, string $themeCode, string $template): void
     {
-        DB::table('site_theme_template_meta')
-            ->where('site_id', $siteId)
-            ->where('theme_code', $themeCode)
+        $siteTemplateId = $this->resolveSiteTemplateId($siteId, $themeCode);
+
+        DB::table('site_template_meta')
+            ->where('site_template_id', $siteTemplateId)
             ->where('template_name', $template)
             ->delete();
     }
 
-    protected function activeBoundThemeCode(object $site): string
+    protected function activeSiteTemplateKey(object $site): string
     {
-        if (empty($site->default_theme_id)) {
-            return '';
-        }
-
-        return (string) DB::table('themes')
-            ->join('site_theme_bindings', function ($join) use ($site): void {
-                $join->on('site_theme_bindings.theme_id', '=', 'themes.id')
-                    ->where('site_theme_bindings.site_id', '=', $site->id);
-            })
-            ->where('themes.id', (int) $site->default_theme_id)
-            ->value('themes.code');
+        return $this->siteThemeCode($site);
     }
 
-    protected function themeDisplayName(string $themeCode): string
+    protected function templateDisplayName(int $siteId, string $themeCode): string
     {
-        $themeName = DB::table('themes')
-            ->where('code', $themeCode)
+        $themeName = DB::table('site_templates')
+            ->where('site_id', $siteId)
+            ->where('template_key', $themeCode)
             ->value('name');
 
         return is_string($themeName) && trim($themeName) !== '' ? trim($themeName) : $themeCode;
     }
 
-    protected function requireCurrentBoundTheme(object $site): string|RedirectResponse
+    protected function resolveEditableSiteTemplate(Request $request, object $site): stdClass|RedirectResponse
     {
-        $themeCode = $this->activeBoundThemeCode($site);
+        $requestedTemplateId = (int) $request->input('site_template_id', $request->query('site_template_id', 0));
 
-        if ($themeCode !== '') {
-            return $themeCode;
+        if ($requestedTemplateId <= 0) {
+            $requestedTemplateId = (int) ($site->active_site_template_id ?? 0);
         }
 
-        return redirect()
-            ->route('admin.themes.index')
-            ->withErrors(['theme' => '当前站点尚未启用主题，请先在模板管理中启用一个已绑定主题。']);
+        if ($requestedTemplateId <= 0) {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['theme' => '当前站点尚未启用模版，请先在模板管理中启用一个可用模版。']);
+        }
+
+        $siteTemplate = DB::table('site_templates')
+            ->where('site_id', (int) $site->id)
+            ->where('id', $requestedTemplateId)
+            ->first(['id', 'site_id', 'name', 'template_key', 'status']);
+
+        if (! $siteTemplate || trim((string) ($siteTemplate->template_key ?? '')) === '') {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['theme' => '目标模版不存在或已被删除，请刷新后重试。']);
+        }
+
+        return $siteTemplate;
     }
 
     protected function resolveRequestedTemplateName(array $validated): string
@@ -1207,9 +1408,9 @@ class ThemeController extends Controller
 
     protected function clearLegacyTemplateAttachmentRelations(int $siteId, string $themeCode, string $template): void
     {
-        $templateMetaId = (int) DB::table('site_theme_template_meta')
-            ->where('site_id', $siteId)
-            ->where('theme_code', $themeCode)
+        $siteTemplateId = $this->resolveSiteTemplateId($siteId, $themeCode);
+        $templateMetaId = (int) DB::table('site_template_meta')
+            ->where('site_template_id', $siteTemplateId)
             ->where('template_name', $template)
             ->value('id');
 
@@ -1294,6 +1495,53 @@ class ThemeController extends Controller
         }
 
         return $basename.'.'.$extension;
+    }
+
+    protected function resolveSiteTemplateId(int $siteId, string $themeCode): int
+    {
+        return (int) DB::table('site_templates')
+            ->where('site_id', $siteId)
+            ->where('template_key', $themeCode)
+            ->value('id');
+    }
+
+    protected function ensureInitialSiteTemplateFiles(string $siteKey, string $templateKey): void
+    {
+        $root = SitePath::siteTemplateRoot($siteKey, $templateKey);
+        File::ensureDirectoryExists($root);
+
+        $homeTemplate = $root.DIRECTORY_SEPARATOR.'home.tpl';
+
+        if (File::exists($homeTemplate)) {
+            return;
+        }
+
+        File::put($homeTemplate, '站点模版还未启用，请完善模版后再访问。');
+    }
+
+    /**
+     * @param Collection<int, string> $templateKeys
+     * @return Collection<int, string>
+     */
+    protected function orphanTemplateDirectories(string $siteKey, Collection $templateKeys): Collection
+    {
+        $themeRoot = SitePath::root($siteKey).DIRECTORY_SEPARATOR.'theme';
+
+        if (! File::isDirectory($themeRoot)) {
+            return collect();
+        }
+
+        $templateKeySet = $templateKeys
+            ->map(fn (string $templateKey): string => trim($templateKey))
+            ->filter(fn (string $templateKey): bool => $templateKey !== '')
+            ->values();
+
+        return collect(File::directories($themeRoot))
+            ->map(fn (string $path): string => trim((string) basename($path)))
+            ->filter(fn (string $templateKey): bool => $templateKey !== '' && $templateKey !== '.' && $templateKey !== '..')
+            ->reject(fn (string $templateKey): bool => $templateKeySet->contains($templateKey))
+            ->sort()
+            ->values();
     }
 
     protected function uniqueThemeAssetFilename(int $siteId, string $themeCode, string $filename): string

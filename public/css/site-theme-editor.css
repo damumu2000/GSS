@@ -331,11 +331,6 @@
             color: #1d4ed8;
         }
 
-        .template-badge.is-custom {
-            background: #eefaf1;
-            color: #15803d;
-        }
-
         .workspace-note {
             color: #98a2b3;
             font-size: 12px;
@@ -641,6 +636,11 @@
         .template-tree-link {
             display: block;
             text-decoration: none;
+        }
+
+        .template-tree-link.is-filter-hidden,
+        .template-tree-group.is-filter-hidden {
+            display: none !important;
         }
 
         .summary-card {
@@ -1698,11 +1698,6 @@
         .template-source-badge.is-override {
             background: #eef6ff;
             color: #1d4ed8;
-        }
-
-        .template-source-badge.is-custom {
-            background: #eefaf1;
-            color: #15803d;
         }
 
         .summary-detail-grid {

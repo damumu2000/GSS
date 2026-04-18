@@ -14,7 +14,7 @@ class PlatformRoleController extends Controller
 {
     protected function isBuiltInRole(?object $role): bool
     {
-        return $role && in_array($role->code, ['super_admin', 'platform_admin', 'theme_admin'], true);
+        return $role && in_array($role->code, ['super_admin', 'platform_admin'], true);
     }
 
     protected function isLockedRole(?object $role): bool

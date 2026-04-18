@@ -90,6 +90,11 @@ class Site
         return static::root($site).DIRECTORY_SEPARATOR.'theme'.DIRECTORY_SEPARATOR.$themeCode;
     }
 
+    public static function siteTemplateRoot(int|object|string $site, string $templateKey): string
+    {
+        return static::themeOverrideRoot($site, $templateKey);
+    }
+
     protected static function resolveKeyById(int $siteId): string
     {
         $siteKey = DB::table('sites')->where('id', $siteId)->value('site_key');

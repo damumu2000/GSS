@@ -18,7 +18,6 @@
     const compareCleanUrl = configRoot?.dataset.compareCleanUrl || '';
     const editor = document.getElementById('template_source');
     const gutter = document.getElementById('template_source_gutter');
-    const resetForm = document.getElementById('theme-reset-form');
     const deleteForm = document.getElementById('theme-delete-form');
     const rollbackForm = document.getElementById('theme-rollback-form');
     const modal = document.querySelector('[data-editor-modal]');
@@ -1052,14 +1051,12 @@
         document.querySelectorAll('[data-template-tree-link]').forEach((link) => {
             const text = (link.getAttribute('data-search-text') || '').toLowerCase();
             const isVisible = keyword === '' || text.includes(keyword);
-            link.hidden = !isVisible;
-            link.hidden = !isVisible;
+            link.classList.toggle('is-filter-hidden', !isVisible);
         });
 
         document.querySelectorAll('[data-template-group]').forEach((group) => {
-            const visibleItems = group.querySelectorAll('[data-template-tree-link]:not([hidden])').length;
-            group.hidden = visibleItems === 0;
-            group.hidden = visibleItems === 0;
+            const visibleItems = group.querySelectorAll('[data-template-tree-link]:not(.is-filter-hidden)').length;
+            group.classList.toggle('is-filter-hidden', visibleItems === 0);
         });
     }
 
@@ -1121,12 +1118,6 @@
             }
         });
     };
-
-    bindDangerForm(resetForm, {
-        title: '确认恢复平台默认模板？',
-        text: '恢复后，当前站点对这个模板的自定义修改会被移除。',
-        confirmText: '恢复默认',
-    });
 
     bindDangerForm(deleteForm, {
         title: '确认删除自定义模板？',

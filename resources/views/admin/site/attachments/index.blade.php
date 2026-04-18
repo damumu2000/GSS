@@ -26,6 +26,7 @@
 @section('content')
     <div id="attachment-index-config"
          hidden
+         data-upload-url="{{ route('admin.attachments.library-upload') }}"
          data-replace-url-template="{{ route('admin.attachments.replace', ['attachment' => '__ATTACHMENT__']) }}"
          data-usage-url-template="{{ route('admin.attachments.usages', ['attachment' => '__ATTACHMENT__']) }}"></div>
     <section class="page-header">
@@ -36,9 +37,10 @@
         <div class="page-header-actions">
             <form id="attachment-upload-form" method="POST" action="{{ route('admin.attachments.store') }}" enctype="multipart/form-data">
                 @csrf
-                <input id="attachment-upload-file" type="file" name="file" hidden required>
+                <input id="attachment-upload-file" type="file" name="files[]" hidden multiple required>
             </form>
             <input id="attachment-replace-file" type="file" hidden>
+            <span id="attachment-upload-status" class="attachment-upload-status" aria-live="polite"></span>
             <button id="attachment-upload-trigger" class="button" type="button">上传新资源</button>
         </div>
     </section>

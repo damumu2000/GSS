@@ -141,7 +141,7 @@
                                                 </svg>
                                             </span>
                                         @endif
-                                        <div class="content-title" data-tooltip="ID {{ $content->id }} · {{ $content->title }}">
+                                        <div class="content-title" data-tooltip="{{ $content->title }}">
                                             <span class="content-title-text {{ implode(' ', $titleClasses) }}">{{ $content->title }}</span>
                                             @if ($type === 'article' && ($content->is_top || $content->is_recommend))
                                                 <span class="content-title-flags">

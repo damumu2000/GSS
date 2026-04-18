@@ -12,6 +12,46 @@
         'approved' => '已通过',
         'rejected' => '已驳回',
     ];
+    $serviceNow = now('Asia/Shanghai');
+    $serviceOpenedAt = $currentSite?->opened_at ? \Illuminate\Support\Carbon::parse($currentSite->opened_at, 'Asia/Shanghai') : null;
+    $serviceExpiresAt = $currentSite?->expires_at ? \Illuminate\Support\Carbon::parse($currentSite->expires_at, 'Asia/Shanghai')->endOfDay() : null;
+    $serviceExpireDays = $serviceExpiresAt
+        ? $serviceNow->copy()->startOfDay()->diffInDays($serviceExpiresAt->copy()->startOfDay(), false)
+        : null;
+    $serviceExpireTotalHours = $serviceExpiresAt ? (int) floor($serviceNow->diffInHours($serviceExpiresAt, false)) : null;
+    $serviceExpireRemainingText = null;
+
+    if ($serviceExpireTotalHours !== null && $serviceExpireTotalHours >= 0) {
+        $remainingDays = intdiv($serviceExpireTotalHours, 24);
+        $remainingHours = $serviceExpireTotalHours % 24;
+        $serviceExpireRemainingText = $remainingDays . '天' . $remainingHours . '小时';
+    }
+
+    $serviceRunYears = null;
+    $serviceRunDays = null;
+    $serviceStableRunText = null;
+
+    if ($serviceOpenedAt) {
+        $serviceRunInterval = $serviceOpenedAt->copy()->startOfDay()->diff($serviceNow->copy()->startOfDay());
+        $serviceRunYears = (int) $serviceRunInterval->y;
+        $serviceRunDays = (int) $serviceRunInterval->d;
+        $serviceStableRunText = $serviceRunYears > 0
+            ? $serviceRunYears . '年' . $serviceRunDays . '天'
+            : $serviceRunDays . '天';
+    }
+
+    $serviceExpireCritical = $serviceExpireTotalHours !== null && $serviceExpireTotalHours >= 0 && $serviceExpireTotalHours < (10 * 24);
+    $serviceExpireSoon = $serviceExpireTotalHours !== null && $serviceExpireTotalHours >= (10 * 24) && $serviceExpireTotalHours < (30 * 24);
+    $serviceExpired = $serviceExpireTotalHours !== null && $serviceExpireTotalHours < 0;
+    $serviceExpireLabel = $serviceExpiresAt ? $serviceExpiresAt->format('Y-m-d') : '长期有效';
+    $serviceExpireNoteLines = match (true) {
+        $serviceExpired => ['服务已到期', '请尽快联系处理续期。'],
+        $serviceExpireCritical => ['距离到期仅剩 ' . $serviceExpireRemainingText . '，请联系客服续期。', ''],
+        $serviceExpireSoon => ['距离到期仅剩 ' . $serviceExpireRemainingText . '，请联系客服续期。', ''],
+        $serviceExpireDays !== null && $serviceOpenedAt => ['网站已经稳定运行了' . $serviceStableRunText . '。', ''],
+        $serviceExpireDays !== null => ['当前服务状态正常', '请按期关注续费时间。'],
+        default => ['当前站点未设置到期时间', '按长期有效处理。'],
+    };
 @endphp
 
 @push('styles')
@@ -85,6 +125,22 @@
             <h2 class="page-header-title">站点工作台</h2>
             <div class="page-header-desc">{{ $headerDateLine }} {{ $headerGreetingLine }}</div>
         </div>
+        <aside class="dashboard-expire-card @if ($serviceExpireCritical || $serviceExpired) is-danger @elseif ($serviceExpireSoon) is-warning @endif">
+            <div class="dashboard-expire-note">
+                <div>
+                    <span class="dashboard-expire-note-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <path d="M12 3 5 6v6c0 5 3.2 8.6 7 10 3.8-1.4 7-5 7-10V6z" />
+                            <path d="m9.5 12 1.7 1.7 3.3-3.4" />
+                        </svg>
+                    </span>
+                    {{ $serviceExpireNoteLines[0] }}
+                </div>
+                @if (! empty($serviceExpireNoteLines[1]))
+                    <div>{{ $serviceExpireNoteLines[1] }}</div>
+                @endif
+            </div>
+        </aside>
     </section>
 
     <section class="insights-content">
@@ -151,7 +207,7 @@
                     @forelse ($insights['top_articles'] as $index => $article)
                         <div class="insight-rank-item">
                             <div class="insight-rank-no">{{ $index + 1 }}</div>
-                            <div class="insight-rank-main">
+                            <div class="insight-rank-main" data-tooltip="{{ $article['title'] }}">
                                 <div class="insight-rank-title">{{ $article['title'] }}</div>
                                 <div class="insight-rank-subtitle">{{ $article['channel_name'] }}</div>
                                 <div class="insight-rank-bar-track">
@@ -324,13 +380,12 @@
                             data-notice-content-id="platform-notice-content-{{ $notice->id }}"
                         >
                             <div class="notice-item-top">
-                                <div class="notice-item-title">
-                                    @php
-                                        $noticeTitleText = (string) $notice->title;
-                                    @endphp
+                                @php
+                                    $noticeTitleText = (string) $notice->title;
+                                @endphp
+                                <div class="notice-item-title" data-tooltip="{{ $noticeTitleText }}">
                                     <span
                                         class="notice-item-title-text {{ $noticeTitleColorClass }} @if (! empty($notice->title_bold)) is-bold @endif @if (! empty($notice->title_italic)) is-italic @endif"
-                                        data-tooltip="{{ $noticeTitleText }}"
                                     >{{ $noticeTitleText }}</span>
                                     @if (! empty($notice->is_top) || ! empty($notice->is_recommend))
                                         <span class="notice-item-title-flags">

@@ -7,6 +7,7 @@ use App\Modules\Payroll\Support\PayrollModule;
 use App\Modules\Payroll\Support\PayrollSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
@@ -37,11 +38,26 @@ class PayrollSettingsController extends Controller
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, (int) $currentSite->id, 'payroll.view');
         $module = $this->resolveModuleOrAbort((int) $currentSite->id);
+        $settings = $this->payrollSettings->forSite((int) $currentSite->id);
+        $primaryDomain = DB::table('site_domains')
+            ->where('site_id', (int) $currentSite->id)
+            ->where('status', 1)
+            ->orderByDesc('is_primary')
+            ->orderBy('domain')
+            ->value('domain');
+
+        $payrollDomainUrl = is_string($primaryDomain) && trim($primaryDomain) !== ''
+            ? 'https://'.trim($primaryDomain)
+            : null;
 
         return view('payroll::admin.help', [
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
             'module' => $module,
+            'settings' => $settings,
+            'payrollDomainUrl' => $payrollDomainUrl,
+            'wechatRedirectUrl' => $payrollDomainUrl ? $payrollDomainUrl.'/payroll/wechat/redirect' : null,
+            'wechatCallbackUrl' => $payrollDomainUrl ? $payrollDomainUrl.'/payroll/wechat/callback' : null,
         ]);
     }
 

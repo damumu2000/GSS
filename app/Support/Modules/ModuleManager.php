@@ -75,11 +75,19 @@ class ModuleManager
         return DB::table('site_module_bindings')
             ->where('site_id', $siteId)
             ->orderBy('module_id')
-            ->get(['module_id'])
+            ->get(['id', 'module_id', 'is_trial', 'is_paused'])
             ->map(function ($row) use ($modules): ?array {
                 $module = $modules->get((int) $row->module_id);
 
-                return is_array($module) ? $module : null;
+                if (! is_array($module)) {
+                    return null;
+                }
+
+                $module['site_module_binding_id'] = (int) ($row->id ?? 0);
+                $module['binding_is_trial'] = (bool) ($row->is_trial ?? false);
+                $module['binding_is_paused'] = (bool) ($row->is_paused ?? false);
+
+                return $module;
             })
             ->filter()
             ->when($enabledOnly, fn (Collection $collection) => $collection->filter(fn (array $module): bool => $module['status'] && ! ($module['missing_manifest'] ?? false) && ! ($module['invalid_manifest'] ?? false)))

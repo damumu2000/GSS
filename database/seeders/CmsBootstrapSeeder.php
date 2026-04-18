@@ -2,8 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Support\Site as SitePath;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 
 class CmsBootstrapSeeder extends Seeder
 {
@@ -17,7 +19,6 @@ class CmsBootstrapSeeder extends Seeder
         $platformRoles = [
             ['name' => '总管理员', 'code' => 'super_admin', 'description' => '拥有平台和所有站点权限'],
             ['name' => '平台管理员', 'code' => 'platform_admin', 'description' => '负责平台运维配置'],
-            ['name' => '主题管理员', 'code' => 'theme_admin', 'description' => '负责主题市场管理'],
         ];
 
         foreach ($platformRoles as $role) {
@@ -47,7 +48,6 @@ class CmsBootstrapSeeder extends Seeder
             ['module' => 'database', 'name' => '管理数据库', 'code' => 'database.manage'],
             ['module' => 'module', 'name' => '管理功能模块', 'code' => 'module.manage', 'description' => '管理平台模块列表、启用和禁用模块'],
             ['module' => 'site', 'name' => '管理站点', 'code' => 'site.manage'],
-            ['module' => 'theme', 'name' => '管理主题市场', 'code' => 'theme.market.manage'],
             ['module' => 'user', 'name' => '管理平台用户', 'code' => 'platform.user.manage'],
             ['module' => 'platform_role', 'name' => '管理平台角色', 'code' => 'platform.role.manage'],
             ['module' => 'system', 'name' => '查看系统检查', 'code' => 'system.check.view'],
@@ -61,6 +61,14 @@ class CmsBootstrapSeeder extends Seeder
                 $permission + ['created_at' => $now, 'updated_at' => $now],
             );
         }
+
+        DB::table('platform_role_permissions')
+            ->whereIn('permission_id', DB::table('platform_permissions')->where('code', 'theme.market.manage')->pluck('id'))
+            ->delete();
+
+        DB::table('platform_permissions')
+            ->where('code', 'theme.market.manage')
+            ->delete();
 
         $legacyPlatformNoticePermissionId = DB::table('platform_permissions')
             ->where('code', 'platform.notice.manage')
@@ -154,36 +162,6 @@ class CmsBootstrapSeeder extends Seeder
                 ->delete();
         }
 
-        $themeId = DB::table('themes')->where('code', 'site')->value('id');
-
-        if (! $themeId) {
-            DB::table('themes')->insert([
-                'name' => 'School Fresh',
-                'code' => 'site',
-                'description' => '默认简约清新的学校官网主题',
-                'status' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            $themeId = DB::getPdo()->lastInsertId();
-        }
-
-        DB::table('theme_versions')->updateOrInsert(
-            ['theme_id' => $themeId, 'version' => '1.0.0'],
-            [
-                'package_path' => 'storage/app/theme_templates/site',
-                'manifest_json' => json_encode([
-                    'name' => 'School Fresh',
-                    'code' => 'site',
-                    'version' => '1.0.0',
-                ], JSON_UNESCAPED_UNICODE),
-                'is_current' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ],
-        );
-
         $siteId = DB::table('sites')->where('site_key', 'site')->value('id');
 
         if (! $siteId) {
@@ -191,7 +169,8 @@ class CmsBootstrapSeeder extends Seeder
                 'name' => '示例学校',
                 'site_key' => 'site',
                 'status' => 1,
-                'default_theme_id' => $themeId,
+                'template_limit' => 5,
+                'active_site_template_id' => null,
                 'contact_phone' => '010-88886666',
                 'contact_email' => 'office@example-school.cn',
                 'address' => '北京市示例区教育路 66 号',
@@ -206,11 +185,36 @@ class CmsBootstrapSeeder extends Seeder
             $siteId = DB::getPdo()->lastInsertId();
         }
 
-        if ($themeId && $siteId) {
-            DB::table('site_theme_bindings')->updateOrInsert(
-                ['site_id' => $siteId, 'theme_id' => $themeId],
-                ['created_at' => $now, 'updated_at' => $now],
-            );
+        $siteTemplateId = DB::table('site_templates')
+            ->where('site_id', $siteId)
+            ->where('template_key', 'default')
+            ->value('id');
+
+        if (! $siteTemplateId) {
+            $siteTemplateId = DB::table('site_templates')->insertGetId([
+                'site_id' => $siteId,
+                'name' => '默认模板',
+                'template_key' => 'default',
+                'status' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        DB::table('sites')
+            ->where('id', $siteId)
+            ->update([
+                'template_limit' => max(1, (int) (DB::table('sites')->where('id', $siteId)->value('template_limit') ?: 5)),
+                'active_site_template_id' => $siteTemplateId,
+                'updated_at' => $now,
+            ]);
+
+        $templateRoot = SitePath::siteTemplateRoot('site', 'default');
+        $legacyTemplateRoot = storage_path('app/theme_templates/site');
+        $this->syncDefaultTemplateScaffold($templateRoot, $legacyTemplateRoot);
+
+        if (! File::exists($templateRoot.DIRECTORY_SEPARATOR.'home.tpl')) {
+            File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', '站点模版还未启用，请完善模版后再访问。');
         }
 
         DB::table('site_domains')->updateOrInsert(
@@ -308,6 +312,27 @@ class CmsBootstrapSeeder extends Seeder
                     'updated_at' => $now,
                 ],
             );
+        }
+    }
+
+    protected function syncDefaultTemplateScaffold(string $templateRoot, string $legacyTemplateRoot): void
+    {
+        File::ensureDirectoryExists($templateRoot);
+
+        if (! File::isDirectory($legacyTemplateRoot)) {
+            return;
+        }
+
+        foreach (File::allFiles($legacyTemplateRoot) as $file) {
+            $relativePath = ltrim(str_replace($legacyTemplateRoot, '', $file->getPathname()), DIRECTORY_SEPARATOR);
+            $targetPath = $templateRoot.DIRECTORY_SEPARATOR.$relativePath;
+
+            if (File::exists($targetPath)) {
+                continue;
+            }
+
+            File::ensureDirectoryExists(dirname($targetPath));
+            File::copy($file->getPathname(), $targetPath);
         }
     }
 }

@@ -335,6 +335,7 @@ let attachmentLibraryPagination = {
             const searchInput = document.getElementById('attachment-library-search');
             const uploadTrigger = document.getElementById('attachment-library-upload-trigger');
             const uploadWrap = uploadTrigger?.closest('.attachment-library-upload');
+            const uploadInput = document.getElementById('attachment-library-file');
             const insertSelectedButton = document.getElementById('attachment-library-insert-selected');
             const clearSelectedButton = document.getElementById('attachment-library-clear-selected');
             const panel = document.querySelector('#attachment-library-modal .attachment-library-panel');
@@ -359,6 +360,9 @@ let attachmentLibraryPagination = {
                 }
                 if (uploadTrigger) {
                     uploadTrigger.textContent = '上传头像';
+                }
+                if (uploadInput) {
+                    uploadInput.removeAttribute('multiple');
                 }
                 if (uploadWrap) {
                     uploadWrap.hidden = !attachmentLibraryWorkspaceEnabled;
@@ -385,6 +389,9 @@ let attachmentLibraryPagination = {
                 if (uploadTrigger) {
                     uploadTrigger.textContent = '上传封面';
                 }
+                if (uploadInput) {
+                    uploadInput.removeAttribute('multiple');
+                }
                 if (uploadWrap) {
                     uploadWrap.hidden = false;
                 }
@@ -407,7 +414,14 @@ let attachmentLibraryPagination = {
                 searchInput.placeholder = '搜索文件名';
             }
             if (uploadTrigger) {
-                uploadTrigger.textContent = '上传新资源';
+                uploadTrigger.textContent = canBatchUploadInLibrary() ? '批量上传资源' : '上传新资源';
+            }
+            if (uploadInput) {
+                if (canBatchUploadInLibrary()) {
+                    uploadInput.setAttribute('multiple', 'multiple');
+                } else {
+                    uploadInput.removeAttribute('multiple');
+                }
             }
             if (uploadWrap) {
                 uploadWrap.hidden = false;
@@ -633,6 +647,96 @@ let attachmentLibraryPagination = {
 
             status.textContent = message;
             status.classList.toggle('is-error', isError);
+        }
+
+        function setAttachmentUploadBusy(isBusy) {
+            const trigger = document.getElementById('attachment-library-upload-trigger');
+            const input = document.getElementById('attachment-library-file');
+
+            if (trigger) {
+                trigger.disabled = Boolean(isBusy);
+            }
+
+            if (input) {
+                input.disabled = Boolean(isBusy);
+            }
+        }
+
+        function canBatchUploadInLibrary() {
+            return attachmentLibraryMode === 'editor' && attachmentLibrarySession?.context === 'content';
+        }
+
+        function normalizeAttachmentUploadErrors(payload) {
+            if (Array.isArray(payload?.errors)) {
+                return payload.errors
+                    .map((item) => item?.message || '')
+                    .filter((message) => message !== '');
+            }
+
+            if (payload?.errors && typeof payload.errors === 'object') {
+                return Object.values(payload.errors)
+                    .flat()
+                    .filter((message) => typeof message === 'string' && message !== '');
+            }
+
+            if (typeof payload?.message === 'string' && payload.message !== '') {
+                return [payload.message];
+            }
+
+            return [];
+        }
+
+        function uploadAttachmentsToLibrary(files) {
+            return new Promise((resolve, reject) => {
+                const uploadUrl = attachmentLibraryConfig.uploadUrl || '';
+
+                if (!uploadUrl) {
+                    reject(new Error('资源上传地址未配置'));
+                    return;
+                }
+
+                const formData = new FormData();
+                files.forEach((file) => {
+                    formData.append(files.length > 1 ? 'files[]' : 'file', file);
+                });
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', uploadUrl, true);
+                xhr.withCredentials = true;
+                xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken());
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.setRequestHeader('Accept', 'application/json');
+
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (!event.lengthComputable) {
+                        return;
+                    }
+
+                    const percent = Math.max(1, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+                    setAttachmentUploadStatus(`正在上传 ${files.length} 个资源（${percent}%）...`);
+                });
+
+                xhr.addEventListener('load', () => {
+                    let payload = {};
+
+                    try {
+                        payload = JSON.parse(xhr.responseText || '{}');
+                    } catch (error) {
+                        payload = {};
+                    }
+
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(payload);
+                        return;
+                    }
+
+                    const errors = normalizeAttachmentUploadErrors(payload);
+                    reject(new Error(errors[0] || '资源上传失败'));
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('资源上传失败')));
+                xhr.send(formData);
+            });
         }
 
         function insertAttachmentLink(targetId, fileName, fileUrl) {
@@ -1153,6 +1257,8 @@ let attachmentLibraryPagination = {
             }
             if (fileInput) {
                 fileInput.removeAttribute('accept');
+                fileInput.removeAttribute('multiple');
+                fileInput.value = '';
             }
             if (replaceInput) {
                 replaceInput.removeAttribute('accept');
@@ -1163,33 +1269,6 @@ let attachmentLibraryPagination = {
             updateAttachmentSelectionSummary();
             syncAttachmentLibraryUi();
             session?.onClose?.();
-        }
-
-        async function uploadAttachmentToLibrary(file) {
-            const formData = new FormData();
-            formData.append('file', file);
-            setAttachmentUploadStatus(`正在上传 ${file.name}...`);
-
-            const response = await fetch(attachmentLibraryConfig.uploadUrl || '', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: formData,
-                credentials: 'same-origin',
-            });
-
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok || !data.attachment) {
-                throw new Error(data.message || '资源上传失败');
-            }
-
-            await reloadAttachmentLibrary(true);
-            setAttachmentUploadStatus(`已上传：${data.attachment.name}`);
-
-            return data.attachment;
         }
 
         async function replaceAttachmentInLibrary(attachment, file) {
@@ -1307,18 +1386,46 @@ let attachmentLibraryPagination = {
             });
             document.getElementById('attachment-library-file')?.addEventListener('change', async (event) => {
                 const input = event.target;
-                const file = input.files?.[0];
+                const files = Array.from(input.files || []);
 
-                if (!file) {
+                if (!files.length) {
+                    return;
+                }
+
+                if (!canBatchUploadInLibrary() && files.length > 1) {
+                    setAttachmentUploadStatus('当前场景仅支持单个资源上传。', true);
+                    input.value = '';
                     return;
                 }
 
                 try {
-                    const attachment = await uploadAttachmentToLibrary(file);
-                    insertAttachmentFromLibrary(attachment);
+                    setAttachmentUploadBusy(true);
+                    const payload = await uploadAttachmentsToLibrary(files);
+                    const uploadedAttachments = Array.isArray(payload.attachments)
+                        ? payload.attachments
+                        : (payload.attachment ? [payload.attachment] : []);
+                    const errors = normalizeAttachmentUploadErrors(payload);
+
+                    if (uploadedAttachments.length === 0) {
+                        throw new Error(errors[0] || payload.message || '资源上传失败');
+                    }
+
+                    await reloadAttachmentLibrary(true);
+
+                    if (uploadedAttachments.length === 1 && errors.length === 0 && files.length === 1) {
+                        setAttachmentUploadStatus(`已上传：${uploadedAttachments[0].name}`);
+                        insertAttachmentFromLibrary(uploadedAttachments[0]);
+                        return;
+                    }
+
+                    setAttachmentUploadStatus(
+                        payload.message || `已上传 ${uploadedAttachments.length} 个资源。`,
+                        errors.length > 0,
+                    );
                 } catch (error) {
                     setAttachmentUploadStatus(error.message || '资源上传失败', true);
                 } finally {
+                    setAttachmentUploadBusy(false);
                     input.value = '';
                 }
             });

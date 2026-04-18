@@ -17,15 +17,20 @@
 
 @section('content')
     @php
-        $sourceLabel = ($templateMeta['source'] ?? 'default') === 'override'
-            ? '站点自定义模板'
-            : (($templateMeta['source'] ?? 'default') === 'custom' ? '站点新增' : '平台默认');
+        $sourceType = (string) ($templateMeta['source'] ?? 'default');
+        $sourceLabel = match ($sourceType) {
+            'override' => '站点自定义模板',
+            'custom' => '站点模板',
+            default => '当前模板',
+        };
+        $sourceBadgeClass = $sourceType === 'override' ? ' is-override' : '';
+        $showSourceBadge = $sourceType !== 'custom';
         $templateGroupMeta = [
             'templates' => ['title' => '模板文件', 'desc' => '所有 TPL 模板文件与公共结构模板'],
             'styles' => ['title' => 'CSS 文件', 'desc' => '当前主题使用的样式文件'],
             'scripts' => ['title' => 'JS 文件', 'desc' => '当前主题使用的脚本文件'],
         ];
-        $editorModalOpen = $errors->has('template_title') || $errors->has('template_source');
+        $editorModalOpen = session('keep_theme_editor_open') || $errors->has('template_title') || $errors->has('template_source');
         $editorErrors = array_values(array_unique(array_merge(
             $errors->get('template_title'),
             $errors->get('template_source'),
@@ -36,6 +41,7 @@
         $oldTemplateSuffix = old('template_suffix', '');
         $themeAssetErrors = $errors->themeAssets;
         $themeAssetsModalOpen = $themeAssetErrors->isNotEmpty() || request()->boolean('open_assets');
+        $editorRouteSiteTemplateParam = ['site_template_id' => $siteTemplateId];
     @endphp
 
     <section class="page-header">
@@ -88,16 +94,18 @@
                                 </div>
                                 <div class="template-tree-list">
                                     @foreach ($group['items'] as $item)
-                                        <a class="template-tree-link" href="{{ route('admin.themes.editor', ['template' => $item['key'], 'panel' => $workspacePanel === 'snapshots' ? 'snapshots' : null]) }}" data-template-tree-link data-search-text="{{ strtolower($item['label'].' '.$item['file']) }}">
+                                        <a class="template-tree-link" href="{{ route('admin.themes.editor', array_filter(array_merge($editorRouteSiteTemplateParam, ['template' => $item['key'], 'panel' => $workspacePanel === 'snapshots' ? 'snapshots' : null]))) }}" data-template-tree-link data-search-text="{{ strtolower($item['label'].' '.$item['file']) }}">
                                             <article class="template-tree-item @if ($item['key'] === $template) is-active @endif">
                                                 <div class="template-tree-item-head">
                                                     <div class="template-tree-item-title">{{ $item['label'] }}</div>
                                                 </div>
                                                 <div class="template-tree-item-subline">
                                                     <div class="template-tree-item-file">{{ $item['file'] }}</div>
-                                                    <span class="template-badge{{ ($item['source'] ?? 'default') === 'override' ? ' is-override' : (($item['source'] ?? 'default') === 'custom' ? ' is-custom' : '') }}">
-                                                        {{ ($item['source'] ?? 'default') === 'override' ? '站点自定义模板' : (($item['source'] ?? 'default') === 'custom' ? '站点新增' : '平台默认') }}
-                                                    </span>
+                                                    @if (($item['source'] ?? 'default') !== 'custom')
+                                                        <span class="template-badge{{ ($item['source'] ?? 'default') === 'override' ? ' is-override' : '' }}">
+                                                            {{ ($item['source'] ?? 'default') === 'override' ? '站点自定义模板' : '平台默认' }}
+                                                        </span>
+                                                    @endif
                                                 </div>
                                             </article>
                                         </a>
@@ -125,16 +133,17 @@
                     </div>
                 </div>
                 <div class="editor-panel-header-actions">
-                    <a class="button neutral-action editor-doc-button @if($workspacePanel === 'editor') is-active @endif" href="{{ route('admin.themes.editor', ['template' => $template]) }}" @if($workspacePanel === 'editor') aria-current="page" @endif>模板编辑</a>
-                    <a class="button neutral-action editor-doc-button @if($workspacePanel === 'create') is-active @endif" href="{{ route('admin.themes.editor.template-create-form', ['template' => $template]) }}" @if($workspacePanel === 'create') aria-current="page" @endif>创建模板</a>
-                    <a class="button neutral-action editor-doc-button @if($workspacePanel === 'snapshots') is-active @endif" href="{{ route('admin.themes.snapshots', ['template' => $template]) }}" @if($workspacePanel === 'snapshots') aria-current="page" @endif>模板快照</a>
-                    <a class="button neutral-action editor-doc-button" href="{{ $templateQuickGuideUrl }}" target="_blank">模版帮助文档</a>
+                    <a class="button neutral-action editor-doc-button @if($workspacePanel === 'editor') is-active @endif" href="{{ route('admin.themes.editor', array_merge($editorRouteSiteTemplateParam, ['template' => $template])) }}" @if($workspacePanel === 'editor') aria-current="page" @endif>模板编辑</a>
+                    <a class="button neutral-action editor-doc-button @if($workspacePanel === 'create') is-active @endif" href="{{ route('admin.themes.editor.template-create-form', array_merge($editorRouteSiteTemplateParam, ['template' => $template])) }}" @if($workspacePanel === 'create') aria-current="page" @endif>创建模板</a>
+                    <a class="button neutral-action editor-doc-button @if($workspacePanel === 'snapshots') is-active @endif" href="{{ route('admin.themes.snapshots', array_merge($editorRouteSiteTemplateParam, ['template' => $template])) }}" @if($workspacePanel === 'snapshots') aria-current="page" @endif>模板快照</a>
+                    <a class="button neutral-action editor-doc-button" href="{{ $templateQuickGuideUrl }}" target="_blank">模版开发文档</a>
                 </div>
             </div>
             <div class="editor-panel-body">
                 @if ($workspacePanel === 'create')
                     <form method="POST" action="{{ route('admin.themes.editor.template-create') }}" id="theme-template-create-form" novalidate>
                         @csrf
+                        <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                         <div class="workspace-form-grid is-compact">
                             <label class="field-group workspace-field-fixed">
                                 <span class="field-label">模板标题</span>
@@ -197,6 +206,7 @@
                                             <div class="history-card-title-row">
                                                 <form method="POST" action="{{ route('admin.themes.editor.template-snapshot-favorite') }}">
                                                     @csrf
+                                                    <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                                                     <input type="hidden" name="template" value="{{ $template }}">
                                                     <input type="hidden" name="version_id" value="{{ $historyItem->id }}">
                                                     @if ($compareVersion)
@@ -210,7 +220,6 @@
                                                     {{ match($historyItem->action) {
                                                         'edit_template' => '保存模板前快照',
                                                         'create_template' => '创建模板前快照',
-                                                        'reset_template' => '恢复默认前快照',
                                                         'delete_template' => '删除模板前快照',
                                                         'rollback_template' => '回滚模板前快照',
                                                         default => '模板历史快照',
@@ -222,7 +231,7 @@
                                                 ·
                                                 {{ match($historyItem->source_type) {
                                                     'override' => '站点自定义模板',
-                                                    'custom' => '站点新增',
+                                                    'custom' => '站点模板',
                                                     'default' => '平台默认',
                                                     'missing' => '创建前为空',
                                                     default => '模板快照',
@@ -233,15 +242,17 @@
                                             </div>
                                         </div>
                                         <div class="history-card-actions">
-                                            <a class="button secondary" href="{{ route('admin.themes.snapshots', ['template' => $template, 'version' => $historyItem->id]) }}" data-template-compare-link>查看对比</a>
+                                            <a class="button secondary" href="{{ route('admin.themes.snapshots', array_merge($editorRouteSiteTemplateParam, ['template' => $template, 'version' => $historyItem->id])) }}" data-template-compare-link>查看对比</a>
                                             <form method="POST" action="{{ route('admin.themes.editor.template-rollback') }}">
                                                 @csrf
+                                                <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                                                 <input type="hidden" name="template" value="{{ $template }}">
                                                 <input type="hidden" name="version_id" value="{{ $historyItem->id }}">
                                                 <button class="button secondary" type="submit" data-template-rollback-button>回滚到此版</button>
                                             </form>
                                             <form method="POST" action="{{ route('admin.themes.editor.template-snapshot-delete') }}">
                                                 @csrf
+                                                <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                                                 <input type="hidden" name="template" value="{{ $template }}">
                                                 <input type="hidden" name="version_id" value="{{ $historyItem->id }}">
                                                 <button class="button secondary" type="submit" data-template-snapshot-delete-button>删除快照</button>
@@ -257,7 +268,9 @@
                         <div class="summary-card-title">{{ $templateMeta['label'] ?? $template }}</div>
                         <div class="summary-card-meta">
                             <span class="template-badge">{{ $themeCode }}</span>
-                            <span class="template-badge{{ ($templateMeta['source'] ?? 'default') === 'override' ? ' is-override' : (($templateMeta['source'] ?? 'default') === 'custom' ? ' is-custom' : '') }}">{{ $sourceLabel }}</span>
+                            @if ($showSourceBadge)
+                                <span class="template-badge{{ $sourceBadgeClass }}">{{ $sourceLabel }}</span>
+                            @endif
                             @if ($latestTemplateVersion)
                                 <span class="template-badge">可回滚</span>
                             @endif
@@ -276,19 +289,19 @@
                                 <div class="summary-side-note">当前编辑对象的实际模板文件名。</div>
                             </section>
 
-                            <section class="summary-side-card">
-                                <div class="summary-side-label">模板来源</div>
-                                <div class="summary-side-value">{{ $sourceLabel }}</div>
-                                <div class="summary-side-note">
-                                    @if (($templateMeta['source'] ?? 'default') === 'default')
-                                        保存后会在站点目录生成自定义版本。
-                                    @elseif (($templateMeta['source'] ?? 'default') === 'override')
-                                        当前模板基于平台默认模板进行了站点级自定义。
-                                    @else
-                                        这是站点新增模板，可直接删除。
-                                    @endif
-                                </div>
-                            </section>
+                            @if ($sourceType !== 'custom')
+                                <section class="summary-side-card">
+                                    <div class="summary-side-label">模板来源</div>
+                                    <div class="summary-side-value">{{ $sourceLabel }}</div>
+                                    <div class="summary-side-note">
+                                        @if ($sourceType === 'default')
+                                            保存后会在当前站点模板目录生成自定义版本。
+                                        @else
+                                            当前模板文件已经存在站点级自定义版本。
+                                        @endif
+                                    </div>
+                                </section>
+                            @endif
 
                             @if ($latestTemplateVersion)
                                 <section class="summary-side-card">
@@ -301,14 +314,10 @@
                     </section>
                 @endif
 
-                @if (($templateMeta['source'] ?? 'default') === 'override')
-                    <form id="theme-reset-form" method="POST" action="{{ route('admin.themes.editor.template-reset') }}">
-                        @csrf
-                        <input type="hidden" name="template" value="{{ $template }}">
-                    </form>
-                @elseif (($templateMeta['source'] ?? 'default') === 'custom')
+                @if (($templateMeta['source'] ?? 'default') === 'custom')
                     <form id="theme-delete-form" method="POST" action="{{ route('admin.themes.editor.template-delete') }}">
                         @csrf
+                        <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                         <input type="hidden" name="template" value="{{ $template }}">
                     </form>
                 @endif
@@ -316,6 +325,7 @@
                 @if ($latestTemplateVersion)
                     <form id="theme-rollback-form" method="POST" action="{{ route('admin.themes.editor.template-rollback') }}">
                         @csrf
+                        <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                         <input type="hidden" name="template" value="{{ $template }}">
                     </form>
                 @endif
@@ -367,6 +377,7 @@
                     <div class="history-compare-dialog-actions">
                         <form method="POST" action="{{ route('admin.themes.editor.template-rollback') }}">
                             @csrf
+                            <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                             <input type="hidden" name="template" value="{{ $template }}">
                             <input type="hidden" name="version_id" value="{{ $compareVersion->id }}">
                             <button class="button secondary" type="submit" data-template-rollback-button>回滚到此版</button>
@@ -415,7 +426,7 @@
         <div class="editor-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="template-editor-modal-title">
                 <div class="editor-modal-head">
                     <div>
-                        <div class="editor-modal-title" id="template-editor-modal-title">编辑模板源码</div>
+                        <div class="editor-modal-title" id="template-editor-modal-title">编辑模板</div>
                         <div class="editor-modal-desc">{{ $templateMeta['label'] ?? $template }}（{{ $templateMeta['file'] ?? \App\Support\ThemeTemplateLocator::editorFilename($template) }}）</div>
                     </div>
                     <div class="editor-modal-actions">
@@ -424,10 +435,7 @@
                         @if ($latestTemplateVersion)
                             <button class="button secondary" type="submit" form="theme-rollback-form">回滚上一版</button>
                         @endif
-                    @if (($templateMeta['source'] ?? 'default') === 'override')
-                        <button class="button secondary" type="submit" form="theme-reset-form">恢复默认</button>
-                    @endif
-                    <a class="button neutral-action editor-doc-button" href="{{ route('admin.themes.snapshots', ['template' => $template]) }}">模板快照</a>
+                    <a class="button neutral-action editor-doc-button" href="{{ route('admin.themes.snapshots', array_merge($editorRouteSiteTemplateParam, ['template' => $template])) }}">模板快照</a>
                     <button class="editor-modal-close" type="button" data-close-editor-modal aria-label="关闭源码编辑弹窗">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
                     </button>
@@ -436,6 +444,7 @@
 
             <form id="theme-editor-form" class="editor-modal-form" method="POST" action="{{ route('admin.themes.editor.update') }}" novalidate>
                 @csrf
+                <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                 <input type="hidden" name="template" value="{{ $template }}">
                 <div class="editor-modal-body">
                     <div class="editor-modal-fields">
@@ -448,7 +457,9 @@
                             <span class="field-label">当前主题</span>
                             <div class="template-status-stack">
                                 <span class="template-badge">{{ $themeCode }}</span>
-                                <span class="template-badge{{ ($templateMeta['source'] ?? 'default') === 'override' ? ' is-override' : (($templateMeta['source'] ?? 'default') === 'custom' ? ' is-custom' : '') }}">{{ $sourceLabel }}</span>
+                                @if ($showSourceBadge)
+                                    <span class="template-badge{{ $sourceBadgeClass }}">{{ $sourceLabel }}</span>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -480,6 +491,7 @@
         <div class="theme-assets-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-assets-modal-title">
             <form class="theme-assets-upload" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-upload-form>
                 @csrf
+                <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                 <input type="hidden" name="template" value="{{ $template }}">
                 <input type="hidden" name="open_assets" value="1">
             <div class="theme-assets-modal-head">
@@ -569,6 +581,7 @@
                                     <button class="button neutral-action editor-doc-button theme-asset-action-button" type="button" data-insert-theme-asset data-asset-path="{{ $asset['path'] }}">插入路径</button>
                                     <form class="theme-asset-replace-form" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-replace-form>
                                         @csrf
+                                        <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                                         <input type="hidden" name="template" value="{{ $template }}">
                                         <input type="hidden" name="open_assets" value="1">
                                         <input type="hidden" name="replace_asset_path" value="{{ $asset['path'] }}">
@@ -578,6 +591,7 @@
                                     @if ($asset['source'] === 'override')
                                         <form class="theme-asset-delete-form" method="POST" action="{{ route('admin.themes.editor.asset-delete') }}" data-theme-assets-delete-form>
                                             @csrf
+                                            <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                                             <input type="hidden" name="template" value="{{ $template }}">
                                             <input type="hidden" name="open_assets" value="1">
                                             <input type="hidden" name="asset_path" value="{{ $asset['path'] }}">
@@ -644,7 +658,7 @@
         hidden
         data-server-editor-errors='@json($editorErrors)'
         data-server-create-errors='@json(array_values(array_unique($createTemplateErrors->all())))'
-        data-compare-clean-url="{{ route('admin.themes.snapshots', ['template' => $template]) }}"
+        data-compare-clean-url="{{ route('admin.themes.snapshots', array_merge($editorRouteSiteTemplateParam, ['template' => $template])) }}"
         data-theme-assets-open="{{ $themeAssetsModalOpen ? '1' : '0' }}"
     ></div>
 @endsection

@@ -12,7 +12,7 @@ Route::get('/guestbook/{displayNo}', [FrontendGuestbookController::class, 'detai
     ->whereNumber('displayNo')
     ->name('site.guestbook.show');
 
-Route::middleware(['auth', 'admin.access'])
+Route::middleware(['auth', 'admin.access', 'module.admin.active:guestbook'])
     ->prefix('admin/site/guestbook')
     ->group(function (): void {
         Route::get('/', [AdminGuestbookController::class, 'index'])->name('admin.guestbook.index');

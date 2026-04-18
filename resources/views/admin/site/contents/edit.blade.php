@@ -129,6 +129,27 @@
 
                             <section class="content-editor-pane" data-editor-pane="basic">
                                 <div class="content-pane-grid">
+                                    @if (in_array($type, ['article', 'page'], true))
+                                        <div class="content-pane-card is-plain">
+                                            <h4 class="content-pane-card-title">{{ $type === 'page' ? '单页模板' : '详情模板' }}</h4>
+                                            <div class="site-select" data-site-select>
+                                                <select id="template_name" name="template_name" class="field site-select-native" @error('template_name') aria-invalid="true" @enderror>
+                                                    <option value="">{{ $type === 'page' ? '默认单页模板' : '默认详情模板' }}</option>
+                                                    @foreach (($templateOptions ?? []) as $value => $label)
+                                                        <option value="{{ $value }}" @selected(old('template_name', $content->template_name ?? '') === $value)>{{ $label }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <button class="site-select-trigger @error('template_name') is-error @enderror" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">{{ ($templateOptions ?? [])[old('template_name', $content->template_name ?? '')] ?? ($type === 'page' ? '默认单页模板' : '默认详情模板') }}</button>
+                                                <div class="site-select-panel" data-select-panel role="listbox"></div>
+                                            </div>
+                                            @error('template_name')
+                                                <span class="form-error">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    @endif
+
+                                </div>
+                                <div class="content-pane-grid">
                                     <div class="content-pane-card is-plain">
                                         <h4 class="content-pane-card-title">摘要</h4>
                                         <textarea class="field textarea" id="summary" name="summary">{{ old('summary', $content->summary) }}</textarea>

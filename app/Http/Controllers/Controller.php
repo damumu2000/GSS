@@ -10,29 +10,32 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 abstract class Controller
 {
+    protected function activeSiteTemplate(int|object $site): ?object
+    {
+        $siteId = is_object($site) ? (int) $site->id : (int) $site;
+        $activeTemplateId = is_object($site) && isset($site->active_site_template_id)
+            ? $site->active_site_template_id
+            : DB::table('sites')->where('id', $siteId)->value('active_site_template_id');
+
+        if (! $activeTemplateId) {
+            return null;
+        }
+
+        return DB::table('site_templates')
+            ->where('site_id', $siteId)
+            ->where('id', (int) $activeTemplateId)
+            ->first();
+    }
+
     /**
-     * Resolve the explicitly selected and bound theme code for a site.
+     * Resolve the currently active site template key for a site.
      */
     protected function siteThemeCode(int|object $site): string
     {
-        $siteId = is_object($site) ? (int) $site->id : (int) $site;
-        $defaultThemeId = is_object($site) && isset($site->default_theme_id)
-            ? $site->default_theme_id
-            : DB::table('sites')->where('id', $siteId)->value('default_theme_id');
+        $template = $this->activeSiteTemplate($site);
+        $templateKey = is_object($template) ? trim((string) ($template->template_key ?? '')) : '';
 
-        if (! $defaultThemeId) {
-            return '';
-        }
-
-        $themeCode = DB::table('themes')
-            ->join('site_theme_bindings', function ($join) use ($siteId): void {
-                $join->on('site_theme_bindings.theme_id', '=', 'themes.id')
-                    ->where('site_theme_bindings.site_id', '=', $siteId);
-            })
-            ->where('themes.id', (int) $defaultThemeId)
-            ->value('themes.code');
-
-        return is_string($themeCode) && $themeCode !== '' ? $themeCode : '';
+        return $templateKey !== '' ? $templateKey : '';
     }
 
     /**
@@ -1002,7 +1005,7 @@ abstract class Controller
                 ->get()
                 ->mapWithKeys(fn ($attachment) => [(int) $attachment->id => trim((string) ($attachment->origin_name ?: $attachment->stored_name))])
                 ->all(),
-            'theme' => DB::table('themes')
+            'theme', 'site_template' => DB::table('site_templates')
                 ->whereIn('id', $targetIds)
                 ->pluck('name', 'id')
                 ->map(fn ($name) => trim((string) $name))

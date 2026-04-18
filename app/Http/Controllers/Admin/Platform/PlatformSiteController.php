@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Support\AttachmentUsageTracker;
 use App\Support\Modules\ModuleManager;
 use App\Support\Site as SitePath;
 use DOMDocument;
@@ -12,6 +13,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -49,13 +52,21 @@ class PlatformSiteController extends Controller
             ->value('id');
 
         $managedSites = DB::table('sites')
-            ->leftJoin('themes', 'themes.id', '=', 'sites.default_theme_id')
             ->leftJoinSub(
                 DB::table('site_domains')
                     ->select('site_id', DB::raw('MIN(CASE WHEN is_primary = 1 THEN domain END) AS primary_domain'), DB::raw('COUNT(*) AS domain_count'))
                     ->groupBy('site_id'),
                 'site_domain_summary',
                 'site_domain_summary.site_id',
+                '=',
+                'sites.id',
+            )
+            ->leftJoinSub(
+                DB::table('site_templates')
+                    ->select('site_id', DB::raw('COUNT(*) AS template_count'))
+                    ->groupBy('site_id'),
+                'site_template_summary',
+                'site_template_summary.site_id',
                 '=',
                 'sites.id',
             )
@@ -90,7 +101,6 @@ class PlatformSiteController extends Controller
                 $query->where(function ($subQuery) use ($keyword): void {
                     $subQuery->where('sites.name', 'like', '%'.$keyword.'%')
                         ->orWhere('sites.site_key', 'like', '%'.$keyword.'%')
-                        ->orWhere('themes.name', 'like', '%'.$keyword.'%')
                         ->orWhere('site_domain_summary.primary_domain', 'like', '%'.$keyword.'%')
                         ->orWhere('site_admin_summary.admin_names', 'like', '%'.$keyword.'%');
                 });
@@ -115,14 +125,15 @@ class PlatformSiteController extends Controller
                 'sites.name',
                 'sites.site_key',
                 'sites.status',
+                'sites.template_limit',
                 'sites.opened_at',
                 'sites.expires_at',
-                'themes.name as theme_name',
                 'sites.logo',
                 'sites.favicon',
                 'sites.remark',
                 'site_domain_summary.primary_domain',
                 'site_domain_summary.domain_count',
+                'site_template_summary.template_count',
                 'site_module_summary.module_names',
                 'site_admin_summary.admin_names',
             ]);
@@ -141,24 +152,14 @@ class PlatformSiteController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizePlatform($request, 'site.manage');
-        $this->moduleManager->synchronize();
-
-        $themes = DB::table('themes')
-            ->where('status', 1)
-            ->orderBy('name')
-            ->get(['id', 'name', 'code']);
 
         $candidateAdmins = $this->candidateSiteAdmins();
 
         return view('admin.platform.sites.create', [
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
-            'themes' => $themes,
-            'modules' => $this->moduleManager->bindableSiteModules(),
             'candidateAdmins' => $candidateAdmins,
             'attachmentStorageLimitMb' => (string) old('attachment_storage_limit_mb', '0'),
-            'selectedThemeIds' => collect(old('theme_ids', []))->map(fn ($id) => (int) $id)->all(),
-            'selectedModuleIds' => collect(old('module_ids', []))->map(fn ($id) => (int) $id)->all(),
             'selectedSiteAdminIds' => collect(old('site_admin_ids', [$request->user()->id]))->map(fn ($id) => (int) $id)->all(),
         ]);
     }
@@ -177,11 +178,6 @@ class PlatformSiteController extends Controller
             ->orderBy('domain')
             ->get();
 
-        $themes = DB::table('themes')
-            ->where('status', 1)
-            ->orderBy('name')
-            ->get(['id', 'name', 'code']);
-
         $candidateAdmins = $this->candidateSiteAdmins();
 
         $siteAdminRoleId = (int) DB::table('site_roles')
@@ -195,31 +191,34 @@ class PlatformSiteController extends Controller
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        $selectedThemeIds = DB::table('site_theme_bindings')
-            ->where('site_id', $siteId)
-            ->pluck('theme_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $selectedModuleIds = DB::table('site_module_bindings')
-            ->where('site_id', $siteId)
-            ->pluck('module_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
         $attachmentStorageLimitMb = (string) (DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', 'attachment.storage_limit_mb')
             ->value('setting_value') ?? '0');
 
-        $editableModules = $this->moduleManager->bindableSiteModules()
-            ->concat($this->moduleManager->boundSiteModules((int) $siteId, false))
-            ->keyBy('id')
-            ->sortBy([
-                ['status', 'desc'],
-                ['sort', 'asc'],
-                ['name', 'asc'],
-            ])
+        $boundModules = DB::table('site_module_bindings')
+            ->join('modules', 'modules.id', '=', 'site_module_bindings.module_id')
+            ->where('site_module_bindings.site_id', (int) $siteId)
+            ->orderBy('modules.sort')
+            ->orderBy('modules.name')
+            ->get([
+                'modules.id',
+                'modules.name',
+                'modules.code',
+                'site_module_bindings.is_trial',
+                'site_module_bindings.is_paused',
+                'site_module_bindings.created_at',
+                'site_module_bindings.updated_at',
+            ]);
+
+        $boundModuleIds = $boundModules
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        $availableModules = $this->moduleManager
+            ->bindableSiteModules()
+            ->reject(fn (array $module): bool => in_array((int) ($module['id'] ?? 0), $boundModuleIds, true))
             ->values();
 
         return view('admin.platform.sites.edit', [
@@ -227,12 +226,10 @@ class PlatformSiteController extends Controller
             'currentSite' => $currentSite,
             'site' => $site,
             'domains' => $domains,
-            'themes' => $themes,
-            'modules' => $editableModules,
             'candidateAdmins' => $candidateAdmins,
+            'boundModules' => $boundModules,
+            'availableModules' => $availableModules,
             'attachmentStorageLimitMb' => (string) old('attachment_storage_limit_mb', $attachmentStorageLimitMb),
-            'selectedThemeIds' => collect(old('theme_ids', $selectedThemeIds))->map(fn ($id) => (int) $id)->all(),
-            'selectedModuleIds' => collect(old('module_ids', $selectedModuleIds))->map(fn ($id) => (int) $id)->all(),
             'selectedSiteAdminIds' => collect(old('site_admin_ids', $selectedSiteAdminIds))->map(fn ($id) => (int) $id)->all(),
         ]);
     }
@@ -240,41 +237,45 @@ class PlatformSiteController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->authorizePlatform($request, 'site.manage');
-        $this->moduleManager->synchronize();
         $validated = $this->validateSite($request);
-        $resolvedDefaultThemeId = $this->resolveDefaultThemeIdFromBindings(
-            $validated['theme_ids'] ?? [],
-            null,
-        );
+        $siteId = DB::transaction(function () use ($validated, $request): int {
+            $siteId = DB::table('sites')->insertGetId([
+                'name' => $validated['name'],
+                'site_key' => $validated['site_key'],
+                'status' => (int) ($validated['status'] ?? 1),
+                'template_limit' => (int) ($validated['template_limit'] ?? 1),
+                'active_site_template_id' => null,
+                'logo' => $validated['logo'] ?? null,
+                'favicon' => $validated['favicon'] ?? null,
+                'remark' => $validated['remark'] ?? null,
+                'contact_phone' => $validated['contact_phone'] ?? null,
+                'contact_email' => $validated['contact_email'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'seo_title' => $validated['seo_title'] ?? $validated['name'],
+                'seo_keywords' => $validated['seo_keywords'] ?? null,
+                'seo_description' => $validated['seo_description'] ?? null,
+                'created_at' => now(),
+                'opened_at' => $validated['opened_at'] ?? now(),
+                'expires_at' => $validated['expires_at'] ?? null,
+                'updated_at' => now(),
+            ]);
 
-        $siteId = DB::table('sites')->insertGetId([
-            'name' => $validated['name'],
-            'site_key' => $validated['site_key'],
-            'status' => (int) ($validated['status'] ?? 1),
-            'default_theme_id' => $resolvedDefaultThemeId,
-            'logo' => $validated['logo'] ?? null,
-            'favicon' => $validated['favicon'] ?? null,
-            'remark' => $validated['remark'] ?? null,
-            'contact_phone' => $validated['contact_phone'] ?? null,
-            'contact_email' => $validated['contact_email'] ?? null,
-            'address' => $validated['address'] ?? null,
-            'seo_title' => $validated['seo_title'] ?? $validated['name'],
-            'seo_keywords' => $validated['seo_keywords'] ?? null,
-            'seo_description' => $validated['seo_description'] ?? null,
-            'created_at' => now(),
-            'opened_at' => $validated['opened_at'] ?? now(),
-            'expires_at' => $validated['expires_at'] ?? null,
-            'updated_at' => now(),
-        ]);
+            $templateId = $this->createInitialSiteTemplate((int) $siteId, (string) $validated['site_key'], (int) $request->user()->id);
 
-        $this->syncSiteDomains($siteId, $validated['domains'] ?? '');
-        $this->syncDefaultSiteRolePermissions((int) $siteId);
-        $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
-        $this->syncSiteThemeBindings((int) $siteId, $validated['theme_ids'] ?? []);
-        $this->syncSiteModuleBindings((int) $siteId, $validated['module_ids'] ?? []);
-        $this->syncSiteSettings((int) $siteId, [
-            'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
-        ], (int) $request->user()->id);
+            DB::table('sites')->where('id', $siteId)->update([
+                'active_site_template_id' => $templateId,
+                'updated_at' => now(),
+            ]);
+
+            $this->syncSiteDomains($siteId, $validated['domains'] ?? '');
+            $this->syncDefaultSiteRolePermissions((int) $siteId);
+            $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
+            $this->syncSiteSettings((int) $siteId, [
+                'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
+            ], (int) $request->user()->id);
+
+            return (int) $siteId;
+        });
 
         $this->logOperation(
             'platform',
@@ -294,7 +295,6 @@ class PlatformSiteController extends Controller
     public function update(Request $request, string $siteId): RedirectResponse
     {
         $this->authorizePlatform($request, 'site.manage');
-        $this->moduleManager->synchronize();
         $site = DB::table('sites')->where('id', $siteId)->first();
         abort_unless($site, 404);
 
@@ -303,37 +303,33 @@ class PlatformSiteController extends Controller
         ]);
 
         $validated = $this->validateSite($request, $siteId);
-        $resolvedDefaultThemeId = $this->resolveDefaultThemeIdFromBindings(
-            $validated['theme_ids'] ?? [],
-            (int) ($site->default_theme_id ?? 0),
-        );
 
-        DB::table('sites')->where('id', $siteId)->update([
-            'name' => $validated['name'],
-            'site_key' => $validated['site_key'],
-            'status' => (int) ($validated['status'] ?? 1),
-            'default_theme_id' => $resolvedDefaultThemeId,
-            'logo' => $validated['logo'] ?? null,
-            'favicon' => $validated['favicon'] ?? null,
-            'remark' => $validated['remark'] ?? null,
-            'contact_phone' => $validated['contact_phone'] ?? null,
-            'contact_email' => $validated['contact_email'] ?? null,
-            'address' => $validated['address'] ?? null,
-            'seo_title' => $validated['seo_title'] ?? $validated['name'],
-            'seo_keywords' => $validated['seo_keywords'] ?? null,
-            'seo_description' => $validated['seo_description'] ?? null,
-            'opened_at' => $validated['opened_at'] ?? $site->opened_at,
-            'expires_at' => $validated['expires_at'] ?? null,
-            'updated_at' => now(),
-        ]);
+        DB::transaction(function () use ($siteId, $site, $validated, $request): void {
+            DB::table('sites')->where('id', $siteId)->update([
+                'name' => $validated['name'],
+                'site_key' => $validated['site_key'],
+                'status' => (int) ($validated['status'] ?? 1),
+                'template_limit' => (int) ($validated['template_limit'] ?? 1),
+                'logo' => $validated['logo'] ?? null,
+                'favicon' => $validated['favicon'] ?? null,
+                'remark' => $validated['remark'] ?? null,
+                'contact_phone' => $validated['contact_phone'] ?? null,
+                'contact_email' => $validated['contact_email'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'seo_title' => $validated['seo_title'] ?? $validated['name'],
+                'seo_keywords' => $validated['seo_keywords'] ?? null,
+                'seo_description' => $validated['seo_description'] ?? null,
+                'opened_at' => $validated['opened_at'] ?? $site->opened_at,
+                'expires_at' => $validated['expires_at'] ?? null,
+                'updated_at' => now(),
+            ]);
 
-        $this->syncSiteDomains($siteId, $validated['domains'] ?? '');
-        $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
-        $this->syncSiteThemeBindings((int) $siteId, $validated['theme_ids'] ?? []);
-        $this->syncSiteModuleBindings((int) $siteId, $validated['module_ids'] ?? []);
-        $this->syncSiteSettings((int) $siteId, [
-            'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
-        ], (int) $request->user()->id);
+            $this->syncSiteDomains($siteId, $validated['domains'] ?? '');
+            $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
+            $this->syncSiteSettings((int) $siteId, [
+                'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
+            ], (int) $request->user()->id);
+        });
 
         $this->logOperation(
             'platform',
@@ -348,6 +344,229 @@ class PlatformSiteController extends Controller
         );
 
         return redirect()->route('admin.platform.sites.edit', $siteId)->with('status', '站点信息已更新。');
+    }
+
+    public function modules(Request $request, string $siteId): View
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizePlatform($request, 'site.manage');
+        $this->moduleManager->synchronize();
+
+        $site = DB::table('sites')->where('id', (int) $siteId)->first();
+        abort_unless($site, 404);
+
+        $boundModules = DB::table('site_module_bindings')
+            ->join('modules', 'modules.id', '=', 'site_module_bindings.module_id')
+            ->where('site_module_bindings.site_id', (int) $siteId)
+            ->orderBy('modules.sort')
+            ->orderBy('modules.name')
+            ->get([
+                'modules.id',
+                'modules.name',
+                'modules.code',
+                'modules.status',
+                'site_module_bindings.is_trial',
+                'site_module_bindings.is_paused',
+                'site_module_bindings.created_at',
+                'site_module_bindings.updated_at',
+            ]);
+
+        $boundModuleIds = $boundModules
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        $availableModules = $this->moduleManager
+            ->bindableSiteModules()
+            ->reject(fn (array $module): bool => in_array((int) ($module['id'] ?? 0), $boundModuleIds, true))
+            ->values();
+
+        return view('admin.platform.sites.modules', [
+            'sites' => $this->adminSites(),
+            'currentSite' => $currentSite,
+            'site' => $site,
+            'boundModules' => $boundModules,
+            'availableModules' => $availableModules,
+        ]);
+    }
+
+    public function addModule(Request $request, string $siteId): RedirectResponse
+    {
+        $this->authorizePlatform($request, 'site.manage');
+        $this->moduleManager->synchronize();
+
+        $site = DB::table('sites')->where('id', (int) $siteId)->first();
+        abort_unless($site, 404);
+
+        $validated = $request->validate([
+            'module_id' => ['required', 'integer', 'exists:modules,id'],
+            'is_trial' => ['nullable', 'boolean'],
+            'is_paused' => ['nullable', 'boolean'],
+        ], [], [
+            'module_id' => '模块',
+        ]);
+
+        $module = $this->moduleManager->all()->firstWhere('id', (int) $validated['module_id']);
+        abort_unless(is_array($module), 404);
+
+        if (
+            ($module['scope'] ?? 'site') !== 'site'
+            || ! ($module['status'] ?? false)
+            || ($module['missing_manifest'] ?? false)
+            || ($module['invalid_manifest'] ?? false)
+        ) {
+            return $this->moduleManagementRedirect($request, (int) $siteId)
+                ->withErrors(['module' => '该模块当前不可绑定，请先确认模块状态、作用域和模块文件是否正常。']);
+        }
+
+        $bindingQuery = DB::table('site_module_bindings')
+            ->where('site_id', (int) $siteId)
+            ->where('module_id', (int) $validated['module_id']);
+
+        if ($bindingQuery->exists()) {
+            $bindingQuery->update([
+                'is_trial' => $request->boolean('is_trial'),
+                'is_paused' => $request->boolean('is_paused'),
+                'updated_at' => now(),
+            ]);
+        } else {
+            DB::table('site_module_bindings')->insert([
+                'site_id' => (int) $siteId,
+                'module_id' => (int) $validated['module_id'],
+                'is_trial' => $request->boolean('is_trial'),
+                'is_paused' => $request->boolean('is_paused'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->logOperation(
+            'platform',
+            'site',
+            'add_site_module_binding',
+            (int) $siteId,
+            $request->user()->id,
+            'site_module_binding',
+            (int) $validated['module_id'],
+            [
+                'module_code' => (string) $module['code'],
+                'is_trial' => $request->boolean('is_trial'),
+                'is_paused' => $request->boolean('is_paused'),
+            ],
+            $request,
+        );
+
+        return $this->moduleManagementRedirect($request, (int) $siteId)
+            ->with('status', '模块已添加到当前站点。');
+    }
+
+    public function updateModuleBinding(Request $request, string $siteId, string $moduleId): RedirectResponse
+    {
+        $this->authorizePlatform($request, 'site.manage');
+        $site = DB::table('sites')->where('id', (int) $siteId)->first();
+        abort_unless($site, 404);
+
+        $request->validate([
+            'is_trial' => ['nullable', 'boolean'],
+            'is_paused' => ['nullable', 'boolean'],
+        ]);
+
+        $bindingExists = DB::table('site_module_bindings')
+            ->where('site_id', (int) $siteId)
+            ->where('module_id', (int) $moduleId)
+            ->exists();
+
+        abort_unless($bindingExists, 404);
+
+        DB::table('site_module_bindings')
+            ->where('site_id', (int) $siteId)
+            ->where('module_id', (int) $moduleId)
+            ->update([
+                'is_trial' => $request->boolean('is_trial'),
+                'is_paused' => $request->boolean('is_paused'),
+                'updated_at' => now(),
+            ]);
+
+        $moduleCode = (string) (DB::table('modules')->where('id', (int) $moduleId)->value('code') ?? '');
+
+        $this->logOperation(
+            'platform',
+            'site',
+            'update_site_module_binding',
+            (int) $siteId,
+            $request->user()->id,
+            'site_module_binding',
+            (int) $moduleId,
+            [
+                'module_code' => $moduleCode,
+                'is_trial' => $request->boolean('is_trial'),
+                'is_paused' => $request->boolean('is_paused'),
+            ],
+            $request,
+        );
+
+        return $this->moduleManagementRedirect($request, (int) $siteId)
+            ->with('status', '模块状态已更新。');
+    }
+
+    public function removeModule(Request $request, string $siteId, string $moduleId): RedirectResponse
+    {
+        $this->authorizePlatform($request, 'site.manage');
+        $this->moduleManager->synchronize();
+
+        $site = DB::table('sites')->where('id', (int) $siteId)->first();
+        abort_unless($site, 404);
+
+        $binding = DB::table('site_module_bindings')
+            ->where('site_id', (int) $siteId)
+            ->where('module_id', (int) $moduleId)
+            ->first();
+        abort_unless($binding, 404);
+
+        $module = $this->moduleManager->all()->firstWhere('id', (int) $moduleId);
+        abort_unless(is_array($module), 404);
+
+        $deletedStats = DB::transaction(function () use ($siteId, $moduleId, $module): array {
+            $deletedStats = $this->cleanupSiteModuleData((int) $siteId, $module);
+
+            DB::table('site_module_bindings')
+                ->where('site_id', (int) $siteId)
+                ->where('module_id', (int) $moduleId)
+                ->delete();
+
+            return $deletedStats;
+        });
+
+        (new AttachmentUsageTracker())->rebuildAll((int) $siteId);
+
+        $this->logOperation(
+            'platform',
+            'site',
+            'remove_site_module_binding',
+            (int) $siteId,
+            $request->user()->id,
+            'site_module_binding',
+            (int) $moduleId,
+            [
+                'module_code' => (string) ($module['code'] ?? ''),
+                'cleanup_tables' => $deletedStats['tables'] ?? [],
+                'cleanup_settings' => (int) ($deletedStats['settings'] ?? 0),
+                'cleanup_relations' => (int) ($deletedStats['relations'] ?? 0),
+            ],
+            $request,
+        );
+
+        return $this->moduleManagementRedirect($request, (int) $siteId)
+            ->with('status', '模块已移除，所属站点模块数据已同步清理。');
+    }
+
+    protected function moduleManagementRedirect(Request $request, int $siteId): RedirectResponse
+    {
+        if ((string) $request->input('_module_ui') === 'embedded') {
+            return redirect()->route('admin.platform.sites.edit', ['site' => $siteId, 'tab' => 'modules']);
+        }
+
+        return redirect()->route('admin.platform.sites.modules', $siteId);
     }
 
     public function mediaUpload(Request $request): JsonResponse
@@ -419,11 +638,8 @@ class PlatformSiteController extends Controller
             'name' => ['required', 'string', 'max:100'],
             'site_key' => ['required', 'string', 'max:50', 'regex:/^[a-z0-9][a-z0-9\-]*$/', $siteKeyRule],
             'status' => ['nullable', 'integer', 'in:0,1'],
+            'template_limit' => ['required', 'integer', 'min:1', 'max:50'],
             'domains' => ['nullable', 'string', 'max:2000'],
-            'theme_ids' => ['nullable', 'array'],
-            'theme_ids.*' => ['integer', 'exists:themes,id'],
-            'module_ids' => ['nullable', 'array'],
-            'module_ids.*' => ['integer', 'exists:modules,id'],
             'logo' => ['nullable', 'string', 'max:255'],
             'favicon' => ['nullable', 'string', 'max:255'],
             'contact_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9\-\+\s()#]{6,50}$/'],
@@ -444,8 +660,6 @@ class PlatformSiteController extends Controller
             'site_key.regex' => '站点标识只能使用小写字母、数字和中划线，且必须以字母或数字开头。',
             'site_key.unique' => '该站点标识已存在，请更换后重试。',
             'status.in' => '站点状态参数无效，请刷新页面后重试。',
-            'theme_ids.*.exists' => '所选绑定主题不存在，请刷新页面后重试。',
-            'module_ids.*.exists' => '所选绑定模块不存在，请刷新页面后重试。',
             'contact_phone.regex' => '联系电话格式不正确，请输入有效的电话或手机号。',
             'contact_email.email' => '联系邮箱格式不正确，请重新填写。',
             'expires_at.after_or_equal' => '到期时间不能早于开通时间。',
@@ -508,42 +722,6 @@ class PlatformSiteController extends Controller
                 }
             }
 
-            $themeIds = collect($request->input('theme_ids', []))
-                ->map(fn ($id) => (int) $id)
-                ->filter()
-                ->unique()
-                ->values();
-
-            $moduleIds = collect($request->input('module_ids', []))
-                ->map(fn ($id) => (int) $id)
-                ->filter()
-                ->unique()
-                ->values();
-
-            if ($moduleIds->isNotEmpty()) {
-                $allowedModuleIds = DB::table('modules')
-                    ->whereIn('id', $moduleIds->all())
-                    ->where('scope', 'site')
-                    ->where(function ($query) use ($siteId): void {
-                        $query->where('status', 1);
-
-                        if ($siteId) {
-                            $query->orWhereIn('id', function ($subQuery) use ($siteId): void {
-                                $subQuery->select('module_id')
-                                    ->from('site_module_bindings')
-                                    ->where('site_id', (int) $siteId);
-                            });
-                        }
-                    })
-                    ->pluck('id')
-                    ->count();
-
-                if ($allowedModuleIds !== $moduleIds->count()) {
-                    $validator->errors()->add('module_ids', $siteId
-                        ? '绑定模块中包含未启用且当前站点未绑定的模块，或模块不属于站点端，请刷新页面后重试。'
-                        : '绑定模块中包含未启用或不属于站点端的模块，请刷新页面后重试。');
-                }
-            }
         });
 
         if ($validator->fails()) {
@@ -794,85 +972,96 @@ class PlatformSiteController extends Controller
     }
 
     /**
-     * @param  array<int, mixed>  $themeIds
+     * @param  array<string, mixed>  $module
+     * @return array{tables: array<string, int>, settings: int, relations: int}
      */
-    protected function syncSiteThemeBindings(int $siteId, array $themeIds): void
+    protected function cleanupSiteModuleData(int $siteId, array $module): array
     {
-        $resolvedThemeIds = collect($themeIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        $moduleCode = trim((string) ($module['code'] ?? ''));
+        $tableStats = [];
 
-        DB::table('site_theme_bindings')->where('site_id', $siteId)->delete();
+        foreach ((array) ($module['tables'] ?? []) as $table) {
+            $tableName = trim((string) $table);
 
-        if ($resolvedThemeIds === []) {
-            return;
+            if (
+                $tableName === ''
+                || ! Str::startsWith($tableName, 'module_')
+                || ! Schema::hasTable($tableName)
+                || ! Schema::hasColumn($tableName, 'site_id')
+            ) {
+                continue;
+            }
+
+            $deleted = DB::table($tableName)->where('site_id', $siteId)->delete();
+            $tableStats[$tableName] = (int) $deleted;
         }
 
-        $timestamp = now();
+        $deletedSettings = 0;
+        if ($moduleCode !== '') {
+            $deletedSettings = DB::table('site_settings')
+                ->where('site_id', $siteId)
+                ->where('setting_key', 'like', 'module.'.$moduleCode.'.%')
+                ->delete();
+        }
 
-        DB::table('site_theme_bindings')->insert(
-            collect($resolvedThemeIds)->map(fn (int $themeId): array => [
-                'site_id' => $siteId,
-                'theme_id' => $themeId,
-                'created_at' => $timestamp,
-                'updated_at' => $timestamp,
-            ])->all()
-        );
+        $deletedRelations = 0;
+        if ($moduleCode === 'guestbook') {
+            $siteAttachmentIds = DB::table('attachments')
+                ->where('site_id', $siteId)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if ($siteAttachmentIds !== []) {
+                $deletedRelations = DB::table('attachment_relations')
+                    ->whereIn('attachment_id', $siteAttachmentIds)
+                    ->where('relation_type', 'guestbook_setting')
+                    ->delete();
+            }
+        }
+
+        return [
+            'tables' => $tableStats,
+            'settings' => (int) $deletedSettings,
+            'relations' => (int) $deletedRelations,
+        ];
     }
 
-    /**
-     * @param  array<int, mixed>  $moduleIds
-     */
-    protected function syncSiteModuleBindings(int $siteId, array $moduleIds): void
+    protected function createInitialSiteTemplate(int $siteId, string $siteKey, int $userId): int
     {
-        $resolvedModuleIds = collect($moduleIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        $templateId = DB::table('site_templates')->insertGetId([
+            'site_id' => $siteId,
+            'name' => '默认模板',
+            'template_key' => 'default',
+            'status' => 1,
+            'created_by' => $userId,
+            'updated_by' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
-        DB::table('site_module_bindings')->where('site_id', $siteId)->delete();
+        $templateRoot = SitePath::siteTemplateRoot($siteKey, 'default');
+        File::ensureDirectoryExists($templateRoot);
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', implode("\n", [
+            '<!DOCTYPE html>',
+            '<html lang="zh-CN">',
+            '<head>',
+            '    <meta charset="UTF-8">',
+            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+            '    <title>站点模板未启用</title>',
+            '</head>',
+            '<body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;background:#f8fafc;color:#0f172a;">',
+            '    <main style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;">',
+            '        <div style="max-width:520px;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;padding:40px;text-align:center;box-shadow:0 12px 40px rgba(15,23,42,0.08);">',
+            '            <h1 style="margin:0;font-size:28px;line-height:1.5;">站点模版还未启用，请完善模版后再访问。</h1>',
+            '        </div>',
+            '    </main>',
+            '</body>',
+            '</html>',
+            '',
+        ]));
 
-        if ($resolvedModuleIds === []) {
-            return;
-        }
-
-        $timestamp = now();
-
-        DB::table('site_module_bindings')->insert(
-            collect($resolvedModuleIds)->map(fn (int $moduleId): array => [
-                'site_id' => $siteId,
-                'module_id' => $moduleId,
-                'created_at' => $timestamp,
-                'updated_at' => $timestamp,
-            ])->all()
-        );
-    }
-
-    /**
-     * @param  array<int, mixed>  $themeIds
-     */
-    protected function resolveDefaultThemeIdFromBindings(array $themeIds, ?int $currentDefaultThemeId = null): ?int
-    {
-        $resolvedThemeIds = collect($themeIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => $id > 0)
-            ->unique()
-            ->values();
-
-        if ($resolvedThemeIds->isEmpty()) {
-            return null;
-        }
-
-        if ($currentDefaultThemeId && $resolvedThemeIds->contains($currentDefaultThemeId)) {
-            return $currentDefaultThemeId;
-        }
-
-        return (int) $resolvedThemeIds->first();
+        return (int) $templateId;
     }
 
     /**

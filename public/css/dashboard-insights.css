@@ -39,7 +39,7 @@
 
         .page-header {
             display: flex;
-            justify-content: flex-start;
+            justify-content: space-between;
             gap: 20px;
             align-items: flex-start;
             padding: 24px 32px;
@@ -50,6 +50,99 @@
 
         .page-header-main {
             min-width: 0;
+        }
+
+        .dashboard-expire-card {
+            display: inline-grid;
+            width: fit-content;
+            max-width: 100%;
+            flex: 0 0 auto;
+            align-self: flex-start;
+            gap: 6px;
+            padding: 14px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #fcfdff 0%, #f8fafc 100%);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+        }
+
+        .dashboard-expire-card.is-warning {
+            border-color: rgba(217, 119, 6, 0.28);
+            background: linear-gradient(180deg, #fffaf0 0%, #fff7ed 100%);
+            box-shadow: 0 10px 24px rgba(217, 119, 6, 0.10);
+        }
+
+        .dashboard-expire-card.is-danger {
+            border-color: rgba(220, 38, 38, 0.26);
+            background: linear-gradient(180deg, #fff5f5 0%, #fef2f2 100%);
+            box-shadow: 0 10px 24px rgba(220, 38, 38, 0.10);
+        }
+
+        .dashboard-expire-label {
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .dashboard-expire-value {
+            color: #0f172a;
+            font-size: 24px;
+            line-height: 1.2;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .dashboard-expire-card.is-warning .dashboard-expire-value {
+            color: #b45309;
+        }
+
+        .dashboard-expire-card.is-danger .dashboard-expire-value {
+            color: #b91c1c;
+        }
+
+        .dashboard-expire-note {
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.6;
+            width: fit-content;
+        }
+
+        .dashboard-expire-note > div {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .dashboard-expire-note-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            margin-top: 3px;
+            flex: none;
+            color: currentColor;
+        }
+
+        .dashboard-expire-note-icon svg {
+            width: 100%;
+            height: 100%;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .dashboard-expire-card.is-warning .dashboard-expire-note {
+            color: #9a3412;
+            font-weight: 600;
+        }
+
+        .dashboard-expire-card.is-danger .dashboard-expire-note {
+            color: #991b1b;
+            font-weight: 600;
         }
 
         .page-header-title {
@@ -1429,6 +1522,16 @@
         }
 
         @media (max-width: 860px) {
+            .page-header {
+                flex-direction: column;
+            }
+
+            .dashboard-expire-card {
+                width: 100%;
+                max-width: none;
+                min-width: 0;
+            }
+
             .insights-hero-grid,
             .insights-board {
                 grid-template-columns: 1fr;

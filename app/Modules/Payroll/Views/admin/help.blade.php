@@ -92,6 +92,33 @@
                     </div>
                 </div>
             </div>
+
+            <div class="payroll-help-card">
+                <span class="payroll-help-kicker">接入信息</span>
+                <h2 class="payroll-help-section-title">前端微信配置与菜单配置</h2>
+                <p class="payroll-help-section-desc">下面这些信息可以直接提供给前端或公众号运营同事使用，避免来回确认。</p>
+                <ul class="payroll-help-notes">
+                    <li>
+                        <span class="payroll-help-note-dot"></span>
+                        <span><strong>前端微信配置：</strong> 当前公众号 APPID @if(!empty($settings['wechat_app_id'])) 已填写为 {{ $settings['wechat_app_id'] }} @else 尚未填写，请先到“工资查询配置”中补充 APPID 和 APPSECRET。 @endif</span>
+                    </li>
+                    @if ($payrollDomainUrl)
+                        <li>
+                            <span class="payroll-help-note-dot"></span>
+                            <span><strong>公众号菜单配置：</strong> 菜单可直接指向工资查询首页 {{ $payrollDomainUrl }}/payroll，首次进入时系统会自动走微信授权；如需单独排查授权跳转，可使用 {{ $wechatRedirectUrl }}。</span>
+                        </li>
+                        <li>
+                            <span class="payroll-help-note-dot"></span>
+                            <span><strong>绑定域名地址：</strong> <a href="{{ $payrollDomainUrl }}/payroll" target="_blank" rel="noopener">{{ $payrollDomainUrl }}/payroll</a></span>
+                        </li>
+                    @else
+                        <li>
+                            <span class="payroll-help-note-dot"></span>
+                            <span><strong>绑定域名地址：</strong> 当前站点尚未绑定可用域名，请先到站点设置中完成域名绑定后，再给前端或公众号运营同事配置正式地址。</span>
+                        </li>
+                    @endif
+                </ul>
+            </div>
         </section>
     </div>
 @endsection

@@ -27,6 +27,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('site_id')->constrained('sites')->cascadeOnDelete();
             $table->foreignId('module_id')->constrained('modules')->cascadeOnDelete();
+            $table->boolean('is_trial')->default(false);
+            $table->boolean('is_paused')->default(false);
             $table->timestamps();
             $table->unique(['site_id', 'module_id']);
         });

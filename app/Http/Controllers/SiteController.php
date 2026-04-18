@@ -76,8 +76,6 @@ class SiteController extends Controller
         }
 
         if ($channel->type === 'page') {
-            $pageTemplate = $channel->detail_template ?: 'page';
-            $tags->withContext('page', (int) $channel->id, $pageTemplate);
             $page = DB::table('contents')
                 ->where('site_id', $site->id)
                 ->where('type', 'page')
@@ -93,6 +91,8 @@ class SiteController extends Controller
                 ->first();
 
             abort_unless($page, 404);
+            $pageTemplate = $page->template_name ?: ($channel->detail_template ?: 'page');
+            $tags->withContext('page', (int) $channel->id, $pageTemplate);
 
             return $this->renderTheme($site, $themeCode, $pageTemplate, [
                 'site' => $this->sitePayload($site, $settings),
@@ -170,7 +170,7 @@ class SiteController extends Controller
 
         abort_unless($article, 404);
         $this->recordSiteVisit((int) $site->id, 'article', (int) $article->id);
-        $detailTemplate = $article->channel_slug ? $this->channelDetailTemplate($site->id, $article->channel_slug) : 'detail';
+        $detailTemplate = $this->articleTemplate($site->id, (int) $article->id, (string) ($article->channel_slug ?? ''));
         $tags->withContext('detail', $article->channel_id ? (int) $article->channel_id : null, $detailTemplate);
 
         $attachments = DB::table('attachment_relations')
@@ -304,7 +304,7 @@ class SiteController extends Controller
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
         $navItems = $tags->nav()->values();
-        $detailTemplate = $articleRecord->channel_slug ? $this->channelDetailTemplate($site->id, $articleRecord->channel_slug) : 'detail';
+        $detailTemplate = $this->articleTemplate($site->id, (int) $articleRecord->id, (string) ($articleRecord->channel_slug ?? ''));
         $tags->withContext('detail', $articleRecord->channel_id ? (int) $articleRecord->channel_id : null, $detailTemplate);
 
         $attachments = DB::table('attachment_relations')
@@ -416,7 +416,7 @@ class SiteController extends Controller
 
         $site = DB::table('sites')
             ->where('site_key', $siteKey)
-            ->first(['id', 'site_key', 'default_theme_id']);
+            ->first(['id', 'site_key', 'active_site_template_id']);
 
         abort_unless($site, 404);
         abort_unless($this->frontendThemeCode((int) $site->id) === $theme, 404);
@@ -577,7 +577,7 @@ class SiteController extends Controller
             Log::error('Theme template render failed.', [
                 'site_id' => $site->id,
                 'site_key' => $site->site_key,
-                'theme_code' => $themeCode,
+                'template_key' => $themeCode,
                 'template' => $template,
                 'message' => $exception->getMessage(),
             ]);
@@ -613,13 +613,27 @@ class SiteController extends Controller
             ->value('detail_template') ?: 'detail';
     }
 
+    protected function articleTemplate(int $siteId, int $articleId, string $channelSlug = ''): string
+    {
+        $template = DB::table('contents')
+            ->where('site_id', $siteId)
+            ->where('id', $articleId)
+            ->value('template_name');
+
+        if (is_string($template) && trim($template) !== '') {
+            return trim($template);
+        }
+
+        return $channelSlug !== '' ? $this->channelDetailTemplate($siteId, $channelSlug) : 'detail';
+    }
+
     protected function pageTemplate(int $siteId, int $pageId): string
     {
         return DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
             ->where('contents.site_id', $siteId)
             ->where('contents.id', $pageId)
-            ->value('channels.detail_template') ?: 'page';
+            ->value(DB::raw("COALESCE(NULLIF(contents.template_name, ''), NULLIF(channels.detail_template, ''), 'page')")) ?: 'page';
     }
 
     /**
@@ -696,6 +710,7 @@ class SiteController extends Controller
             ? [
                 'id' => $content['id'] ?? null,
                 'title' => $content['title'] ?? '',
+                'view_count' => $content['view_count'] ?? 0,
                 'url' => $content['url'] ?? '',
                 'channel_id' => $content['channel_id'] ?? null,
                 'type' => $content['type'] ?? (isset($payload['article']) ? 'article' : (isset($payload['page']) ? 'page' : '')),
@@ -703,6 +718,7 @@ class SiteController extends Controller
             : [
                 'id' => null,
                 'title' => '',
+                'view_count' => 0,
                 'url' => '',
                 'channel_id' => null,
                 'type' => '',
@@ -745,6 +761,7 @@ class SiteController extends Controller
         return [
             'id' => $article->id,
             'title' => $article->title,
+            'view_count' => (int) ($article->view_count ?? 0),
             'title_color' => $article->title_color ?? '',
             'title_bold' => (bool) ($article->title_bold ?? false),
             'title_italic' => (bool) ($article->title_italic ?? false),
@@ -766,6 +783,7 @@ class SiteController extends Controller
         return [
             'id' => $page->id,
             'title' => $page->title,
+            'view_count' => (int) ($page->view_count ?? 0),
             'title_color' => $page->title_color ?? '',
             'title_bold' => (bool) ($page->title_bold ?? false),
             'title_italic' => (bool) ($page->title_italic ?? false),
@@ -774,7 +792,7 @@ class SiteController extends Controller
             'channel_id' => $page->channel_id !== null ? (int) $page->channel_id : null,
             'published_at' => $page->published_at ?? null,
             'channel_name' => $channel->name ?? '单页面',
-            'channel_slug' => $page->channel_slug,
+            'channel_slug' => $page->channel_slug ?? ($channel->slug ?? null),
             'type' => 'page',
             'url' => route('site.page', ['id' => $page->id, 'site' => $site->site_key]),
         ];

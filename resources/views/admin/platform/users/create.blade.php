@@ -15,7 +15,7 @@
     <section class="page-header">
         <div>
             <h2 class="page-header-title">新增平台管理员</h2>
-            <div class="page-header-desc">创建新的平台级账号，并分配平台角色以控制站点管理、主题市场和平台配置能力。</div>
+            <div class="page-header-desc">创建新的平台级账号，并分配平台角色以控制站点管理、模块配置和平台设置能力。</div>
         </div>
         <div class="topbar-right">
             <a class="button secondary" href="{{ route('admin.platform.users.index') }}">返回平台管理员</a>

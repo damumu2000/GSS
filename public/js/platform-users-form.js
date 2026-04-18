@@ -4,6 +4,15 @@
         return;
     }
 
+    const formatErrorMessage = (messages) => {
+        const normalized = messages
+            .filter((message) => typeof message === 'string' && message.trim() !== '')
+            .map((message) => message.trim().replace(/[，。；、\s]+$/u, ''))
+            .filter((message, index, list) => message !== '' && list.indexOf(message) === index);
+
+        return normalized.length > 0 ? `${normalized.join('，')}。` : '';
+    };
+
     const rawErrors = form.dataset.validationErrors || '[]';
     let serverValidationErrors = [];
 
@@ -14,10 +23,10 @@
     }
 
     if (Array.isArray(serverValidationErrors) && serverValidationErrors.length > 0) {
-        const messages = [...new Set(serverValidationErrors.filter((message) => typeof message === 'string' && message.trim() !== ''))];
-        if (messages.length > 0) {
+        const messageText = formatErrorMessage(serverValidationErrors);
+        if (messageText !== '') {
             window.setTimeout(() => {
-                window.showMessage?.(messages.join('，'), 'error');
+                window.showMessage?.(messageText, 'error');
             }, 0);
         }
     }
@@ -173,7 +182,7 @@
 
         if (messages.length > 0) {
             event.preventDefault();
-            window.showMessage?.([...new Set(messages)].join('，'), 'error');
+            window.showMessage?.(formatErrorMessage(messages), 'error');
             firstInvalid?.focus();
             firstInvalid?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }

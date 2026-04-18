@@ -66,16 +66,16 @@ class SiteSecurity
             return null;
         }
 
-        if ($this->isMediaRequest($request)) {
-            return $this->matchRateLimit($request, (int) $site->id);
-        }
-
-        if ($rule = $this->matchBadPath($request)) {
+        if (! $this->isMediaRequest($request) && ($rule = $this->matchBadPath($request))) {
             return $rule;
         }
 
         if ($rule = $this->matchPathTraversal($request)) {
             return $rule;
+        }
+
+        if ($this->isMediaRequest($request)) {
+            return $this->matchRateLimit($request, (int) $site->id);
         }
 
         if ($rule = $this->matchBadUpload($request)) {

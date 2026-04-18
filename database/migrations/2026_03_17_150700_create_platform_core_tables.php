@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('name', 100);
             $table->string('site_key', 50)->unique();
             $table->unsignedTinyInteger('status')->default(1);
-            $table->unsignedBigInteger('default_theme_id')->nullable();
             $table->string('logo')->nullable();
             $table->string('favicon')->nullable();
             $table->string('contact_phone', 50)->nullable();
@@ -118,27 +117,6 @@ return new class extends Migration
             $table->unique(['site_id', 'user_id'], 'site_user_roles_site_id_user_id_unique');
         });
 
-        Schema::create('themes', function (Blueprint $table) {
-            $table->id();
-            $table->string('name', 100);
-            $table->string('code', 50)->unique();
-            $table->string('description', 500)->nullable();
-            $table->string('cover_image')->nullable();
-            $table->unsignedTinyInteger('status')->default(1);
-            $table->timestamps();
-        });
-
-        Schema::create('theme_versions', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('theme_id')->constrained()->cascadeOnDelete();
-            $table->string('version', 30);
-            $table->string('package_path');
-            $table->json('manifest_json')->nullable();
-            $table->boolean('is_current')->default(true);
-            $table->timestamps();
-            $table->unique(['theme_id', 'version']);
-        });
-
         Schema::create('operation_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('site_id')->nullable()->constrained()->nullOnDelete();
@@ -162,8 +140,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('operation_logs');
-        Schema::dropIfExists('theme_versions');
-        Schema::dropIfExists('themes');
         Schema::dropIfExists('site_user_roles');
         Schema::dropIfExists('site_role_permissions');
         Schema::dropIfExists('site_permissions');

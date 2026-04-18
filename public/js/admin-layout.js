@@ -272,8 +272,32 @@
         updateScrollThumb();
     })();
 
+    function normalizeMessageText(message) {
+        if (typeof message !== 'string') {
+            return '';
+        }
+
+        let text = message.trim().replace(/\s+/g, ' ');
+        if (text === '') {
+            return '';
+        }
+
+        text = text
+            .replace(/[。；、]+(?=\s*[，,])/g, '')
+            .replace(/\s*[，,]\s*/g, '，')
+            .replace(/[，。；、]+$/g, '')
+            .trim();
+
+        if (text === '') {
+            return '';
+        }
+
+        return /[。！？]$/.test(text) ? text : `${text}。`;
+    }
+
     function showMessage(message, type = 'success') {
-        if (!message) {
+        const normalizedMessage = normalizeMessageText(message);
+        if (!normalizedMessage) {
             return;
         }
 
@@ -292,7 +316,7 @@
             </span>
             <span class="toast-text"></span>
         `;
-        toast.querySelector('.toast-text').textContent = message;
+        toast.querySelector('.toast-text').textContent = normalizedMessage;
         document.body.appendChild(toast);
 
         requestAnimationFrame(() => {
@@ -306,6 +330,8 @@
             }, 240);
         }, 3000);
     }
+
+    window.formatAdminMessageText = normalizeMessageText;
 
     function inferMessageType(message) {
         if (typeof message !== 'string') {
@@ -468,14 +494,30 @@
             floatingTooltip = null;
         };
 
+        const shouldPlaceTooltipBelow = (target, tooltip) => {
+            if (!target || !tooltip) {
+                return false;
+            }
+
+            const rect = target.getBoundingClientRect();
+            const tooltipHeight = tooltip.offsetHeight || 0;
+
+            return rect.top < (tooltipHeight + 18);
+        };
+
         const positionFloatingTooltip = (target, tooltip) => {
             if (!target || !tooltip) {
                 return;
             }
 
             const rect = target.getBoundingClientRect();
+            const placeBelow = shouldPlaceTooltipBelow(target, tooltip);
+
+            tooltip.classList.toggle('is-below', placeBelow);
             tooltip.style.left = `${rect.left + (rect.width / 2)}px`;
-            tooltip.style.top = `${rect.top - 10}px`;
+            tooltip.style.top = placeBelow
+                ? `${rect.bottom + 10}px`
+                : `${rect.top - 10}px`;
         };
 
         const hideTooltip = () => {
@@ -519,6 +561,8 @@
             tooltip.textContent = label;
             target.classList.add('has-global-tooltip');
             target.appendChild(tooltip);
+
+            tooltip.classList.toggle('is-below', shouldPlaceTooltipBelow(target, tooltip));
 
             requestAnimationFrame(() => {
                 tooltip.classList.add('is-visible');
