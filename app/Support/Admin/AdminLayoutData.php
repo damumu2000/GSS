@@ -18,7 +18,7 @@ class AdminLayoutData
     {
         $currentSite = $currentSite ?? null;
         $sites = collect($sites ?? []);
-        $showSiteSwitcher = $showSiteSwitcher && $sites->count() > 1 && ! empty($currentSite?->id);
+        $showSiteSwitcher = $sites->count() > 1 && ! empty($currentSite?->id);
         $displayName = $authUser->real_name ?? $authUser->name ?? $authUser->username ?? '管理员';
 
         $isSuperAdmin = false;
