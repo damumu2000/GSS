@@ -50,7 +50,7 @@
         $serviceExpireSoon => ['距离到期仅剩 ' . $serviceExpireRemainingText . '，请联系客服续期。', ''],
         $serviceExpireDays !== null && $serviceOpenedAt => ['网站已经稳定运行了' . $serviceStableRunText . '。', ''],
         $serviceExpireDays !== null => ['当前服务状态正常', '请按期关注续费时间。'],
-        default => ['当前站点未设置到期时间', '按长期有效处理。'],
+        default => ['到期时间未设置', ''],
     };
 @endphp
 
