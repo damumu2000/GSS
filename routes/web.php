@@ -46,6 +46,8 @@ Route::get('/site-media/{siteKey}/{path}', [SiteMediaController::class, 'show'])
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->middleware('html.minify')->name('login');
+    Route::get('/login/captcha', [AuthenticatedSessionController::class, 'captcha'])->name('login.captcha');
+    Route::post('/login/captcha/check', [AuthenticatedSessionController::class, 'captchaCheck'])->name('login.captcha.check');
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
 

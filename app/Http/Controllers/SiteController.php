@@ -22,7 +22,9 @@ class SiteController extends Controller
     public function show(Request $request): Response
     {
         $site = $this->resolvedSite($request);
-        abort_unless($site, 404);
+        if (! $site) {
+            return $this->renderDomainUnboundPage($request);
+        }
         $this->recordSiteVisit((int) $site->id, 'home');
 
         $settings = $this->siteSettings($site->id);
@@ -51,6 +53,9 @@ class SiteController extends Controller
     public function channel(Request $request, string $slug): Response
     {
         $site = $this->resolvedSite($request);
+        if (! $site) {
+            return $this->renderDomainUnboundPage($request);
+        }
         $this->recordSiteVisit((int) $site->id, 'channel');
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
@@ -146,6 +151,9 @@ class SiteController extends Controller
     public function article(Request $request, string $id): Response
     {
         $site = $this->resolvedSite($request);
+        if (! $site) {
+            return $this->renderDomainUnboundPage($request);
+        }
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
         if ($themeCode === null) {
@@ -217,6 +225,9 @@ class SiteController extends Controller
     public function page(Request $request, string $id): Response
     {
         $site = $this->resolvedSite($request);
+        if (! $site) {
+            return $this->renderDomainUnboundPage($request);
+        }
         $this->recordSiteVisit((int) $site->id, 'page');
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
@@ -491,17 +502,23 @@ class SiteController extends Controller
 
     protected function resolvedSite(Request $request): ?object
     {
-        $host = $request->getHost();
+        $host = mb_strtolower(trim((string) $request->getHost()));
 
-        $site = DB::table('site_domains')
-            ->join('sites', 'sites.id', '=', 'site_domains.site_id')
-            ->where('site_domains.domain', $host)
-            ->where('site_domains.status', 1)
-            ->where('sites.status', 1)
-            ->first(['sites.*']);
+        if ($host !== '') {
+            $site = DB::table('site_domains')
+                ->join('sites', 'sites.id', '=', 'site_domains.site_id')
+                ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
+                ->where('site_domains.status', 1)
+                ->where('sites.status', 1)
+                ->first(['sites.*']);
 
-        if ($site) {
-            return $site;
+            if ($site) {
+                return $site;
+            }
+        }
+
+        if (! in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return null;
         }
 
         $siteKey = trim((string) $request->query('site', ''));
@@ -521,6 +538,13 @@ class SiteController extends Controller
             ->where('status', 1)
             ->orderBy('id')
             ->first();
+    }
+
+    protected function renderDomainUnboundPage(Request $request): Response
+    {
+        return response()->view('site.domain-unbound', [
+            'host' => mb_strtolower(trim((string) $request->getHost())),
+        ], 404);
     }
 
     protected function siteSettings(int $siteId)

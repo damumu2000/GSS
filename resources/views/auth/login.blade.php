@@ -4,12 +4,13 @@
 @php($loginSeoTitle = $loginSiteBrand?->seo_title ?: $loginSiteName)
 @php($loginSeoKeywords = $loginSiteBrand?->seo_keywords)
 @php($loginSeoDescription = $loginSiteBrand?->seo_description ?: $loginSiteName)
+@php($showLoginCaptchaField = ! empty($loginCaptchaRequired) || $errors->has('captcha'))
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>后台登录 - {{ $loginSeoTitle }}</title>
+    <title>系统登录 - {{ $loginSiteName }}</title>
     @if (! empty($loginSeoKeywords))
         <meta name="keywords" content="{{ $loginSeoKeywords }}">
     @endif
@@ -25,7 +26,7 @@
     ! empty($databaseHealthWarning) ? [$databaseHealthWarning] : [],
     ! empty($adminDisabledMessage) ? [$adminDisabledMessage] : [],
     $errors->all()
-))))'>
+))))' data-login-captcha-base="{{ route('login.captcha') }}" data-login-captcha-check="{{ route('login.captcha.check') }}" data-login-captcha-required="{{ ! empty($loginCaptchaRequired) ? '1' : '0' }}">
     <div class="page">
         <section class="intro">
             <div class="intro-bg" aria-hidden="true">
@@ -79,7 +80,7 @@
                                     <rect x="4" y="11" width="16" height="9" rx="2"/>
                                     <path d="M8 11V8a4 4 0 1 1 8 0v3"/>
                                 </svg>
-                                <input id="password" type="password" name="password" placeholder="请输入您的密码" required>
+                                <input id="password" type="password" name="password" placeholder="请输入您的密码" autocomplete="current-password" required>
                                 <button class="toggle-password" type="button" data-toggle-password aria-label="显示或隐藏密码">
                                     <svg data-eye-open viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                                         <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/>
@@ -94,6 +95,22 @@
                                 </button>
                             </div>
                         </div>
+
+                        @if ($showLoginCaptchaField)
+                            <div class="field login-captcha-field">
+                                <label for="captcha">验证码</label>
+                                <div class="captcha-row">
+                                    <div class="input-wrap captcha">
+                                        <input id="captcha" type="text" name="captcha" value="{{ old('captcha') }}" maxlength="4" inputmode="text" autocomplete="off" required>
+                                    </div>
+                                    <div class="captcha-image-wrap" id="login-captcha-trigger" tabindex="0" role="button" aria-label="验证码，点击更换">
+                                        <img class="captcha-image" src="{{ route('login.captcha') }}?t={{ time() }}" alt="验证码" id="login-captcha-image">
+                                        <span class="captcha-tooltip">点击更换</span>
+                                    </div>
+                                </div>
+                                <div class="captcha-hint">为保障账号安全，请填写图形验证码。</div>
+                            </div>
+                        @endif
 
                         <div class="row login-options">
                             <label class="remember">
@@ -171,6 +188,7 @@
         </div>
     </div>
 
+    <script src="/js/toast-config.js"></script>
     <script src="/js/login.js"></script>
 </body>
 </html>

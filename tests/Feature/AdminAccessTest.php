@@ -82,6 +82,45 @@ class AdminAccessTest extends TestCase
         return User::query()->findOrFail((int) config('cms.super_admin_user_id', 1));
     }
 
+    protected function loginCaptcha(): string
+    {
+        $response = $this->get(route('login.captcha'));
+        $content = (string) $response->getContent();
+
+        if (preg_match('/<text[^>]*>([A-Z0-9]{4})<\/text>/', $content, $matches) === 1) {
+            return $matches[1];
+        }
+
+        $captcha = session('auth.login.captcha', '');
+
+        return is_string($captcha) ? $captcha : '';
+    }
+
+    protected function loginThrottleKeyForCurrentDevice(string $username): string
+    {
+        $this->get(route('login'))->assertOk();
+
+        return 'auth-login:'.sha1((string) session('auth.login.device').'|127.0.0.1|'.mb_strtolower(trim($username)));
+    }
+
+    protected function siteSecurityRateKeyForPath(string $path): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-rate:'.$siteId.':'.sha1('127.0.0.1|'.$path);
+    }
+
+    protected function disableSiteSecurityRateLimit(): void
+    {
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.rate_limit_enabled'],
+            ['setting_value' => '0'],
+        );
+    }
+
     public function test_login_page_returns_security_headers(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -98,6 +137,18 @@ class AdminAccessTest extends TestCase
     public function test_login_page_uses_hsts_when_request_is_forwarded_as_https(): void
     {
         $this->seed(DatabaseSeeder::class);
+
+        $defaultSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_domains')->updateOrInsert(
+            ['site_id' => $defaultSiteId, 'domain' => 'www.guanshanshan.cn'],
+            [
+                'is_primary' => 0,
+                'status' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
 
         $this->withServerVariables([
             'REMOTE_ADDR' => '127.0.0.1',
@@ -5399,8 +5450,11 @@ class AdminAccessTest extends TestCase
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
 
-        $this->get('/site-preview?site=site&keyword='.urlencode('union select 1'))
-            ->assertForbidden();
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截')
+            ->assertSee('SQL 注入拦截')
+            ->assertDontSee('无权访问当前页面');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -5412,7 +5466,7 @@ class AdminAccessTest extends TestCase
             'site_id' => $siteId,
             'rule_code' => 'sql_injection',
             'rule_name' => 'SQL 注入拦截',
-            'request_path' => '/site-preview',
+            'request_path' => '/',
             'request_method' => 'GET',
         ]);
     }
@@ -7238,6 +7292,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors([
@@ -7265,6 +7320,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('admin.site-dashboard'));
 
@@ -7301,6 +7357,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $platformAdmin->username,
                 'password' => 'ChangeMe123!',
+                'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('admin.dashboard'));
 
@@ -7323,23 +7380,54 @@ class AdminAccessTest extends TestCase
     public function test_login_is_rate_limited_after_repeated_failures_and_clears_on_success(): void
     {
         $this->seed(DatabaseSeeder::class);
+        $this->disableSiteSecurityRateLimit();
 
         $operator = $this->createSiteOperator('login-rate-limit-user', true, 'editor');
-        $throttleKey = 'auth-login:'.sha1(mb_strtolower($operator->username).'|127.0.0.1');
+        $throttleKey = $this->loginThrottleKeyForCurrentDevice($operator->username);
 
         RateLimiter::clear($throttleKey);
 
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 10; $i++) {
             $this->from(route('login'))
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                    'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'))
-                ->assertSessionHasErrors([
-                    'username' => '用户名或密码不正确。',
-                ]);
+                ->assertSessionHasErrors(['username']);
         }
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'bad-password',
+                'captcha' => $this->loginCaptcha(),
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '登录尝试过于频繁，请稍后再试。剩余 5 分钟后可再试。',
+            ]);
+
+        RateLimiter::clear($throttleKey);
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/login/captcha'));
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+                'captcha' => $this->loginCaptcha(),
+            ])
+            ->assertRedirect(route('admin.site-dashboard'));
+
+        $this->assertSame(0, RateLimiter::attempts($throttleKey));
+    }
+
+    public function test_login_page_prompts_captcha_after_too_many_failures(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('login-captcha-user', true, 'editor');
 
         $this->from(route('login'))
             ->post(route('login.store'), [
@@ -7348,19 +7436,452 @@ class AdminAccessTest extends TestCase
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors([
-                'username' => '登录尝试过于频繁，请稍后再试。',
+                'username' => '用户名或密码不正确。 再输错 9 次后将限制登录5分钟。',
             ]);
 
-        RateLimiter::clear($throttleKey);
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('为保障账号安全，请填写图形验证码。');
+
+        for ($i = 0; $i < 1; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors([
+                    'username' => '用户名或密码不正确。 再输错 8 次后将限制登录5分钟。',
+                ]);
+        }
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('为保障账号安全，请填写图形验证码。');
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('为保障账号安全，请填写图形验证码。');
+    }
+
+    public function test_login_failure_does_not_keep_password_value_on_login_page(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('login-password-keep-user', true, 'editor');
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'bad-password',
+            ])
+            ->assertRedirect(route('login'));
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('value="bad-password"', false);
+    }
+
+    public function test_login_captcha_error_keeps_captcha_visible_and_uses_new_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('login-captcha-error-user', true, 'editor');
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors(['username']);
+        }
+
+        $captcha = $this->loginCaptcha();
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+                'captcha' => 'WRNG',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'captcha' => '验证码输入错误，请从新输入。 再输错 7 次后将限制登录5分钟。',
+            ]);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('验证码')
+            ->assertSee('为保障账号安全，请填写图形验证码。');
+
+        $this->assertNotSame('', $captcha);
+    }
+
+    public function test_login_captcha_required_request_without_captcha_does_not_error(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('login-captcha-missing-user', true, 'editor');
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors(['username']);
+        }
 
         $this->from(route('login'))
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
             ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'captcha' => '验证码输入错误，请从新输入。 再输错 7 次后将限制登录5分钟。',
+            ]);
+    }
+
+    public function test_login_page_keeps_captcha_visible_after_lockout_refresh(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->disableSiteSecurityRateLimit();
+
+        $operator = $this->createSiteOperator('login-lockout-refresh-user', true, 'editor');
+        $throttleKey = $this->loginThrottleKeyForCurrentDevice($operator->username);
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors(['username']);
+        }
+
+        while (RateLimiter::attempts($throttleKey) < 10) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                    'captcha' => $this->loginCaptcha(),
+                ])
+                ->assertRedirect(route('login'));
+        }
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+                'captcha' => $this->loginCaptcha(),
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '登录尝试过于频繁，请稍后再试。剩余 5 分钟后可再试。',
+            ]);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('验证码')
+            ->assertSee('为保障账号安全，请填写图形验证码。');
+    }
+
+    public function test_lockout_requires_correct_captcha_before_showing_lockout_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('login-lockout-captcha-user', true, 'editor');
+        $throttleKey = $this->loginThrottleKeyForCurrentDevice($operator->username);
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors(['username']);
+        }
+
+        while (RateLimiter::attempts($throttleKey) < 10) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                    'captcha' => $this->loginCaptcha(),
+                ])
+                ->assertRedirect(route('login'));
+        }
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+                'captcha' => 'WRNG',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '登录尝试过于频繁，请稍后再试。剩余 5 分钟后可再试。',
+            ]);
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+                'captcha' => $this->loginCaptcha(),
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '登录尝试过于频繁，请稍后再试。剩余 5 分钟后可再试。',
+            ]);
+    }
+
+    public function test_login_captcha_remains_visible_and_lockout_restarts_count_after_expiry(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->disableSiteSecurityRateLimit();
+
+        $operator = $this->createSiteOperator('login-lockout-expired-user', true, 'editor');
+        $throttleKey = $this->loginThrottleKeyForCurrentDevice($operator->username);
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors(['username']);
+        }
+
+        while (RateLimiter::attempts($throttleKey) < 10) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                    'captcha' => $this->loginCaptcha(),
+                ])
+                ->assertRedirect(route('login'));
+        }
+
+        $this->travel(301)->seconds();
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('验证码')
+            ->assertSee('为保障账号安全，请填写图形验证码。');
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+                'captcha' => 'WRNG',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'captcha' => '验证码输入错误，请从新输入。 再输错 9 次后将限制登录5分钟。',
+            ]);
+
+        $this->assertSame(1, RateLimiter::attempts($throttleKey));
+    }
+
+    public function test_login_failure_message_counts_captcha_errors_toward_lockout(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('login-captcha-count-user', true, 'editor');
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors(['username']);
+        }
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+                'captcha' => 'WRNG',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'captcha' => '验证码输入错误，请从新输入。 再输错 7 次后将限制登录5分钟。',
+            ]);
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'bad-password',
+                'captcha' => $this->loginCaptcha(),
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '用户名或密码不正确。 再输错 6 次后将限制登录5分钟。',
+            ]);
+    }
+
+    public function test_login_failure_count_does_not_reset_when_switching_username_on_same_device(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $firstOperator = $this->createSiteOperator('login-device-user-one', true, 'editor');
+        $secondOperator = $this->createSiteOperator('login-device-user-two', true, 'editor');
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $firstOperator->username,
+                'password' => 'bad-password',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '用户名或密码不正确。 再输错 9 次后将限制登录5分钟。',
+            ]);
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $secondOperator->username,
+                'password' => 'bad-password',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '用户名或密码不正确。 再输错 9 次后将限制登录5分钟。',
+            ]);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('为保障账号安全，请填写图形验证码。');
+    }
+
+    public function test_login_lockout_does_not_apply_to_other_username_on_same_device(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->disableSiteSecurityRateLimit();
+
+        $firstOperator = $this->createSiteOperator('login-lock-user-one', true, 'editor');
+        $secondOperator = $this->createSiteOperator('login-lock-user-two', true, 'editor');
+        $firstThrottleKey = $this->loginThrottleKeyForCurrentDevice($firstOperator->username);
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $firstOperator->username,
+                    'password' => 'bad-password',
+                ])
+                ->assertRedirect(route('login'));
+        }
+
+        while (RateLimiter::attempts($firstThrottleKey) < 10) {
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $firstOperator->username,
+                    'password' => 'bad-password',
+                    'captcha' => $this->loginCaptcha(),
+                ])
+                ->assertRedirect(route('login'));
+        }
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $secondOperator->username,
+                'password' => 'bad-password',
+                'captcha' => $this->loginCaptcha(),
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'username' => '用户名或密码不正确。 再输错 9 次后将限制登录5分钟。',
+            ]);
+    }
+
+    public function test_site_operator_can_only_login_on_bound_site_domain_but_platform_admin_is_not_affected(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $remoteSiteId = $this->createAdditionalSite('remote-login-site', '远程登录站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'remote-login.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $foreignOperator = $this->createSiteOperator('foreign-domain-operator', true, 'editor');
+        $remoteOperator = $this->createSiteOperator('remote-domain-operator', false);
+        $editorRoleId = (int) DB::table('site_roles')->where('code', 'editor')->value('id');
+
+        DB::table('site_user_roles')->insert([
+            'site_id' => $remoteSiteId,
+            'user_id' => $remoteOperator->id,
+            'role_id' => $editorRoleId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->from('http://remote-login.test/login')
+            ->post('http://remote-login.test/login', [
+                'username' => $foreignOperator->username,
+                'password' => 'ChangeMe123!',
+            ])
+            ->assertRedirect('http://remote-login.test/login')
+            ->assertSessionHasErrors([
+                'username' => '当前账号无权登录该站点，请使用对应站点域名登录。',
+            ]);
+
+        $this->from('http://remote-login.test/login')
+            ->post('http://remote-login.test/login', [
+                'username' => $remoteOperator->username,
+                'password' => 'ChangeMe123!',
+            ])
             ->assertRedirect(route('admin.site-dashboard'));
 
-        $this->assertSame(0, RateLimiter::attempts($throttleKey));
+        \Illuminate\Support\Facades\Auth::logout();
+
+        $this->from('http://remote-login.test/login')
+            ->post('http://remote-login.test/login', [
+                'username' => 'superadmin',
+                'password' => 'ChangeMe123!',
+            ])
+            ->assertRedirect(route('admin.dashboard'));
+    }
+
+    public function test_unbound_domain_shows_domain_unbound_page_for_site_and_login(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->get('http://unbound-domain.test/')
+            ->assertNotFound()
+            ->assertSee('当前域名尚未绑定站点')
+            ->assertSee('unbound-domain.test');
+
+        $this->get('http://unbound-domain.test/login')
+            ->assertNotFound()
+            ->assertSee('当前域名尚未绑定站点')
+            ->assertSee('unbound-domain.test')
+            ->assertDontSee('欢迎登录');
+    }
+
+    public function test_login_captcha_check_is_guarded_by_site_security_rate_limit(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->post(route('login.captcha.check'), ['captcha' => 'ABCD'])
+                ->assertOk();
+        }
+
+        $this->post(route('login.captcha.check'), ['captcha' => 'ABCD'])
+            ->assertForbidden();
     }
 
     public function test_disabled_site_operator_is_logged_out_on_next_admin_request(): void

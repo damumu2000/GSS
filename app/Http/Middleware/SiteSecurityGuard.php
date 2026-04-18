@@ -31,7 +31,10 @@ class SiteSecurityGuard
         if ($rule !== null) {
             $this->siteSecurity->recordBlocked($site, $rule, $request);
 
-            abort(403);
+            return response()->view('errors.security-blocked', [
+                'blockedRule' => $rule,
+                'blockedPath' => '/'.trim((string) $request->path(), '/'),
+            ], 403);
         }
 
         return $next($request);
@@ -45,7 +48,7 @@ class SiteSecurityGuard
             return false;
         }
 
-        foreach (['admin', 'login', 'logout'] as $prefix) {
+        foreach (['admin', 'logout'] as $prefix) {
             if ($path === $prefix || str_starts_with($path, $prefix.'/')) {
                 return true;
             }

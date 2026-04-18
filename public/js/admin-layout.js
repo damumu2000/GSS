@@ -295,6 +295,10 @@
         return /[。！？]$/.test(text) ? text : `${text}。`;
     }
 
+    const toastConfig = window.CMS_TOAST_CONFIG || {};
+    const toastVisibleDuration = Number.isFinite(toastConfig.visibleDuration) ? toastConfig.visibleDuration : 5000;
+    const toastExitDuration = Number.isFinite(toastConfig.exitDuration) ? toastConfig.exitDuration : 240;
+
     function showMessage(message, type = 'success') {
         const normalizedMessage = normalizeMessageText(message);
         if (!normalizedMessage) {
@@ -327,8 +331,8 @@
             toast.classList.remove('is-visible');
             window.setTimeout(() => {
                 toast.remove();
-            }, 240);
-        }, 3000);
+            }, toastExitDuration);
+        }, toastVisibleDuration);
     }
 
     window.formatAdminMessageText = normalizeMessageText;

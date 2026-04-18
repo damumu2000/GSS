@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    @php($systemName = \App\Support\ErrorPageBrand::systemName())
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ config('app.name') }} - 无权访问</title>
+    <title>{{ $systemName }} - 无权访问</title>
     <link rel="stylesheet" href="{{ asset('css/site-theme-status-pages.css') }}">
 </head>
 <body>

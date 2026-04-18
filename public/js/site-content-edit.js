@@ -1269,6 +1269,10 @@ function applySmartTypesetting(editor) {
 }
 
 function showArticleTypesettingToast() {
+    const toastConfig = window.CMS_TOAST_CONFIG || {};
+    const toastVisibleDuration = Number.isFinite(toastConfig.visibleDuration) ? toastConfig.visibleDuration : 5000;
+    const toastExitDuration = Number.isFinite(toastConfig.exitDuration) ? toastConfig.exitDuration : 240;
+
     document.querySelectorAll('.article-typesetting-toast').forEach((node) => node.remove());
 
     const toast = document.createElement('div');
@@ -1293,8 +1297,8 @@ function showArticleTypesettingToast() {
 
     window.setTimeout(() => {
         toast.classList.remove('is-visible');
-        window.setTimeout(() => toast.remove(), 220);
-    }, 2800);
+        window.setTimeout(() => toast.remove(), toastExitDuration);
+    }, toastVisibleDuration);
 }
 
 function clearEditorFormatting(editor) {

@@ -330,6 +330,7 @@
     </div>
 </div>
 </body>
+<script src="/js/toast-config.js"></script>
 <script src="/js/admin-layout.js"></script>
 @stack('scripts')
 </html>
