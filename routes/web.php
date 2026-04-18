@@ -32,11 +32,7 @@ use App\Http\Controllers\SiteMediaController;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect()->route('site.home');
-});
-
-Route::get('/site-preview', [SiteController::class, 'show'])->name('site.home');
+Route::get('/', [SiteController::class, 'show'])->name('site.home');
 Route::get('/cat/{slug}', [SiteController::class, 'channel'])->name('site.channel');
 Route::get('/article/{id}', [SiteController::class, 'article'])->name('site.article');
 Route::get('/page/{id}', [SiteController::class, 'page'])->name('site.page');
