@@ -1516,7 +1516,7 @@ class ThemeController extends Controller
             return;
         }
 
-        File::put($homeTemplate, '站点模版还未启用，请完善模版后再访问。');
+        File::put($homeTemplate, '站点模板还未启用，请先在后台模板管理中启用可访问模板。');
     }
 
     /**

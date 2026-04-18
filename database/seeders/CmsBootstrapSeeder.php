@@ -214,7 +214,7 @@ class CmsBootstrapSeeder extends Seeder
         $this->syncDefaultTemplateScaffold($templateRoot, $legacyTemplateRoot);
 
         if (! File::exists($templateRoot.DIRECTORY_SEPARATOR.'home.tpl')) {
-            File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', '站点模版还未启用，请完善模版后再访问。');
+            File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', '站点模板还未启用，请先在后台模板管理中启用可访问模板。');
         }
 
         DB::table('site_domains')->updateOrInsert(

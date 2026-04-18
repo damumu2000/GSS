@@ -1042,24 +1042,7 @@ class PlatformSiteController extends Controller
 
         $templateRoot = SitePath::siteTemplateRoot($siteKey, 'default');
         File::ensureDirectoryExists($templateRoot);
-        File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', implode("\n", [
-            '<!DOCTYPE html>',
-            '<html lang="zh-CN">',
-            '<head>',
-            '    <meta charset="UTF-8">',
-            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
-            '    <title>站点模板未启用</title>',
-            '</head>',
-            '<body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;background:#f8fafc;color:#0f172a;">',
-            '    <main style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;">',
-            '        <div style="max-width:520px;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;padding:40px;text-align:center;box-shadow:0 12px 40px rgba(15,23,42,0.08);">',
-            '            <h1 style="margin:0;font-size:28px;line-height:1.5;">站点模版还未启用，请完善模版后再访问。</h1>',
-            '        </div>',
-            '    </main>',
-            '</body>',
-            '</html>',
-            '',
-        ]));
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', '站点模板还未启用，请先在后台模板管理中启用可访问模板。');
 
         return (int) $templateId;
     }
