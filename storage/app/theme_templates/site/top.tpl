@@ -18,7 +18,7 @@
 
             <nav class="site-nav">
                 {% for navItem in navItems %}
-                    {% if activeChannelSlug == navItem.slug %}
+                    {% if navItem.is_active %}
                         <a class="is-active" href="{{ navItem.url }}"{% if navItem.target == '_blank' %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ navItem.name }}</a>
                     {% else %}
                         <a href="{{ navItem.url }}"{% if navItem.target == '_blank' %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ navItem.name }}</a>

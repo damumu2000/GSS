@@ -763,6 +763,11 @@
                                     <td><code>{{ current.channel.slug }}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">current.channel.is_active</td>
+                                    <td>当前栏目是否处于激活态。通常用于栏目本身列表中的选中样式判断；导航高亮更推荐直接使用 <code>navItem.is_active</code>。</td>
+                                    <td><code>{% if current.channel.is_active %}...{% endif %}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">current.content.id</td>
                                     <td>当前内容 ID。</td>
                                     <td><code>{{ current.content.id }}</code></td>
@@ -1140,8 +1145,13 @@
                             <tbody>
                                 <tr>
                                     <td class="mono">nav</td>
-                                    <td>快速返回导航栏目列表，本质上等同于导航栏目快捷调用。</td>
+                                    <td>快速返回导航栏目列表，本质上等同于导航栏目快捷调用。每一项默认包含 <code>id</code>、<code>name</code>、<code>slug</code>、<code>url</code>、<code>target</code>、<code>is_active</code> 等字段。</td>
                                     <td><code>{% set navItems = nav limit=8 %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">navItem.is_active</td>
+                                    <td>导航项是否应该高亮。系统会自动处理“当前栏目”和“当前栏目的祖先栏目”两种情况，适合头部导航直接使用。</td>
+                                    <td><code>{% if navItem.is_active %}&lt;a class="is-active"&gt;...&lt;/a&gt;{% endif %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">stats</td>
@@ -1409,9 +1419,9 @@
                     </div>
 
                     <div class="code">
-                        <pre>{% set navChannels = channels is_nav=true limit=8 fields='name,url' %}
-{% for item in navChannels %}
-    &lt;a href="{{ item.url }}"&gt;{{ item.name }}&lt;/a&gt;
+                        <pre>{% set navItems = nav limit=8 %}
+{% for item in navItems %}
+    &lt;a{% if item.is_active %} class="is-active"{% endif %} href="{{ item.url }}"{% if item.target == '_blank' %} target="_blank" rel="noopener noreferrer"{% endif %}&gt;{{ item.name }}&lt;/a&gt;
 {% endfor %}
 
 {% set breadcrumbs = breadcrumb channel_id=current.channel.id %}
@@ -1421,7 +1431,7 @@
                     </div>
                     <div class="tip">
                         <strong>范例 9：导航栏和面包屑</strong>
-                        <span>第一段用了 <code>channels is_nav=true limit=8 fields='name,url'</code>，只取导航栏目常用字段。第二段用了 <code>breadcrumb channel_id=current.channel.id</code> 生成当前栏目路径。适合页面头部导航和栏目页面包屑。</span>
+                        <span>第一段推荐直接用 <code>nav limit=8</code>，每个导航项会附带 <code>is_active</code> 和 <code>target</code>，适合头部导航高亮。第二段用了 <code>breadcrumb channel_id=current.channel.id</code> 生成当前栏目路径。适合页面头部导航和栏目页面包屑。</span>
                     </div>
 
                     <div class="tip">

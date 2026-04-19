@@ -25,6 +25,11 @@ class ThemeTags
     protected ?Collection $siteChannelsBySlugCache = null;
 
     /**
+     * @var array<int, int>|null
+     */
+    protected ?array $currentChannelAncestorIdsCache = null;
+
+    /**
      * @var array<string, mixed>|null
      */
     protected ?array $guestbookStateCache = null;
@@ -46,6 +51,7 @@ class ThemeTags
         $this->currentPageScope = $pageScope;
         $this->currentChannelId = $channelId;
         $this->currentTemplateName = $templateName;
+        $this->currentChannelAncestorIdsCache = null;
 
         return $this;
     }
@@ -1182,7 +1188,45 @@ class ThemeTags
             'target' => ($channel->type ?? 'list') === 'link'
                 ? ($channel->link_target ?: '_self')
                 : '_self',
+            'is_active' => $this->isChannelActive($channel),
         ];
+    }
+
+    protected function isChannelActive(object $channel): bool
+    {
+        $channelId = (int) ($channel->id ?? 0);
+
+        if ($channelId <= 0 || $this->currentChannelId === null) {
+            return false;
+        }
+
+        if ($channelId === $this->currentChannelId) {
+            return true;
+        }
+
+        return in_array($channelId, $this->currentChannelAncestorIds(), true);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function currentChannelAncestorIds(): array
+    {
+        if ($this->currentChannelAncestorIdsCache !== null) {
+            return $this->currentChannelAncestorIdsCache;
+        }
+
+        $ancestorIds = [];
+        $current = $this->resolveCurrentChannel();
+        $parentId = $current?->parent_id !== null ? (int) $current->parent_id : null;
+
+        while ($parentId !== null && $parentId > 0) {
+            $ancestorIds[] = $parentId;
+            $parent = $this->siteChannelsById()->get($parentId);
+            $parentId = $parent?->parent_id !== null ? (int) $parent->parent_id : null;
+        }
+
+        return $this->currentChannelAncestorIdsCache = array_values(array_unique($ancestorIds));
     }
 
     protected function mapContent(object $content): array
@@ -1254,6 +1298,7 @@ class ThemeTags
             'link_target' => '_self',
             'url' => '',
             'target' => '_self',
+            'is_active' => false,
         ];
     }
 

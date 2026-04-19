@@ -64,7 +64,6 @@ class SiteController extends Controller
         }
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
-        $navItems = $tags->nav()->values();
 
         $channel = DB::table('channels')
             ->where('site_id', $site->id)
@@ -98,6 +97,7 @@ class SiteController extends Controller
             abort_unless($page, 404);
             $pageTemplate = $page->template_name ?: ($channel->detail_template ?: 'page');
             $tags->withContext('page', (int) $channel->id, $pageTemplate);
+            $navItems = $tags->nav()->values();
 
             return $this->renderTheme($site, $themeCode, $pageTemplate, [
                 'site' => $this->sitePayload($site, $settings),
@@ -113,6 +113,7 @@ class SiteController extends Controller
         $channelIds = $this->channelAndDescendantLeafIds($site->id, (int) $channel->id);
         $listTemplate = $channel->list_template ?: 'list';
         $tags->withContext('channel', (int) $channel->id, $listTemplate);
+        $navItems = $tags->nav()->values();
 
         $items = DB::table('contents')
             ->where('site_id', $site->id)
@@ -161,7 +162,6 @@ class SiteController extends Controller
         }
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
-        $navItems = $tags->nav()->values();
 
         $article = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
@@ -180,6 +180,7 @@ class SiteController extends Controller
         $this->recordSiteVisit((int) $site->id, 'article', (int) $article->id);
         $detailTemplate = $this->articleTemplate($site->id, (int) $article->id, (string) ($article->channel_slug ?? ''));
         $tags->withContext('detail', $article->channel_id ? (int) $article->channel_id : null, $detailTemplate);
+        $navItems = $tags->nav()->values();
 
         $attachments = DB::table('attachment_relations')
             ->join('attachments', 'attachments.id', '=', 'attachment_relations.attachment_id')
@@ -236,7 +237,6 @@ class SiteController extends Controller
         }
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
-        $navItems = $tags->nav()->values();
 
         $page = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
@@ -254,6 +254,7 @@ class SiteController extends Controller
         abort_unless($page, 404);
         $pageTemplate = $this->pageTemplate($site->id, $page->id);
         $tags->withContext('page', $page->channel_id ? (int) $page->channel_id : null, $pageTemplate);
+        $navItems = $tags->nav()->values();
 
         $channel = (object) ['name' => $page->channel_name ?: '单页面', 'slug' => $page->channel_slug];
 
@@ -314,9 +315,9 @@ class SiteController extends Controller
         }
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
-        $navItems = $tags->nav()->values();
         $detailTemplate = $this->articleTemplate($site->id, (int) $articleRecord->id, (string) ($articleRecord->channel_slug ?? ''));
         $tags->withContext('detail', $articleRecord->channel_id ? (int) $articleRecord->channel_id : null, $detailTemplate);
+        $navItems = $tags->nav()->values();
 
         $attachments = DB::table('attachment_relations')
             ->join('attachments', 'attachments.id', '=', 'attachment_relations.attachment_id')
@@ -402,9 +403,9 @@ class SiteController extends Controller
         }
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
-        $navItems = $tags->nav()->values();
         $pageTemplate = $this->pageTemplate($site->id, (int) $pageRecord->id);
         $tags->withContext('page', $pageRecord->channel_id ? (int) $pageRecord->channel_id : null, $pageTemplate);
+        $navItems = $tags->nav()->values();
         $channel = (object) ['name' => $pageRecord->channel_name ?: '单页面', 'slug' => $pageRecord->channel_slug];
 
         return $this->renderTheme($site, $themeCode, $pageTemplate, [
