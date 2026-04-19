@@ -40,6 +40,7 @@
                 type="submit"
                 form="content-editor-form"
                 data-page-save-button
+                data-loading-text="{{ $isCreate ? '创建中...' : '保存中...' }}"
                 data-label-draft="{{ $type === 'article' ? '保存草稿' : ($isCreate ? '创建' . $typeLabel : '保存修改') }}"
                 data-label-published="{{ $type === 'article' ? $initialPublishActionLabel : ($isCreate ? '创建' . $typeLabel : '保存修改') }}"
             >
@@ -56,6 +57,7 @@
             data-tip="{{ $initialSaveActionLabel }}"
             aria-label="{{ $initialSaveActionLabel }}"
             data-floating-save-button
+            data-loading-text="{{ $isCreate ? '创建中...' : '保存中...' }}"
         ><span>@if($isCreate)创<br>建@else保<br>存@endif</span></button>
     </div>
 
