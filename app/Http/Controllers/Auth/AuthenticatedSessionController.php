@@ -373,7 +373,7 @@ class AuthenticatedSessionController extends Controller
     {
         return response()->view('site.domain-unbound', [
             'host' => mb_strtolower(trim((string) $request->getHost())),
-        ], 404);
+        ]);
     }
 
     protected function loginThrottleKey(Request $request, string $username): string

@@ -545,7 +545,7 @@ class SiteController extends Controller
     {
         return response()->view('site.domain-unbound', [
             'host' => mb_strtolower(trim((string) $request->getHost())),
-        ], 404);
+        ]);
     }
 
     protected function siteSettings(int $siteId)
