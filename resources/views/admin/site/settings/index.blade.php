@@ -22,7 +22,7 @@
             <div class="page-header-desc">维护站点基础信息、备案信息、联系方式和搜索优化配置。</div>
         </div>
         <div class="topbar-right">
-            <a class="button secondary" href="{{ route('site.home', ['site' => $currentSite->site_key]) }}" target="_blank">预览前台</a>
+            <a class="button secondary" href="{{ \App\Support\SiteFrontendUrl::homeUrl($currentSite) }}" target="_blank">预览前台</a>
             <button class="button" type="submit" form="site-setting-form" data-loading-text="保存中...">保存站点设置</button>
         </div>
     </section>

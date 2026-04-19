@@ -543,6 +543,18 @@
                 return;
             }
 
+            if (target === activeTarget) {
+                if (isSvgTooltipTarget(target) && floatingTooltip?.textContent === label) {
+                    positionFloatingTooltip(target, floatingTooltip);
+                    return;
+                }
+
+                const existingTooltip = target.querySelector(':scope > .global-tooltip');
+                if (existingTooltip?.textContent === label) {
+                    return;
+                }
+            }
+
             if (isSvgTooltipTarget(target)) {
                 removeFloatingTooltip();
                 const tooltip = document.createElement('span');

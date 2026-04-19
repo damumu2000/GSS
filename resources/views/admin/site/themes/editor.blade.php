@@ -59,7 +59,7 @@
         </div>
         <div class="topbar-right">
             <a class="button secondary" href="{{ route('admin.themes.index') }}">返回模板管理</a>
-            <a class="button secondary" href="{{ route('site.home', ['site' => $currentSite->site_key]) }}" target="_blank">预览前台</a>
+            <a class="button secondary" href="{{ \App\Support\SiteFrontendUrl::homeUrl($currentSite) }}" target="_blank">预览前台</a>
         </div>
     </section>
 
