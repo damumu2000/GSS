@@ -65,7 +65,7 @@ class ThemeTags
             'seo_description' => $this->site->seo_description ?? '',
             'remark' => $this->site->remark ?? '',
             'icp_no' => $this->settings->get('site.filing_number', ''),
-            'home_url' => route('site.home', ['site' => $this->site->site_key]),
+            'home_url' => route('site.home', $this->frontendRouteParameters()),
         ];
 
         return $map[$key] ?? $default;
@@ -942,13 +942,26 @@ class ThemeTags
 
     protected function url(string $type, mixed $target = null): string
     {
+        $base = $this->frontendRouteParameters();
+
         return match ($type) {
-            'home' => route('site.home', ['site' => $this->site->site_key]),
-            'channel' => route('site.channel', ['slug' => is_object($target) ? $target->slug : $target, 'site' => $this->site->site_key]),
-            'article' => route('site.article', ['id' => is_object($target) ? $target->id : $target, 'site' => $this->site->site_key]),
-            'page' => route('site.page', ['id' => is_object($target) ? $target->id : $target, 'site' => $this->site->site_key]),
+            'home' => route('site.home', $base),
+            'channel' => route('site.channel', ['slug' => is_object($target) ? $target->slug : $target] + $base),
+            'article' => route('site.article', ['id' => is_object($target) ? $target->id : $target] + $base),
+            'page' => route('site.page', ['id' => is_object($target) ? $target->id : $target] + $base),
             default => '#',
         };
+    }
+
+    protected function frontendRouteParameters(): array
+    {
+        $host = mb_strtolower(trim((string) request()->getHost()));
+
+        if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return ['site' => $this->site->site_key];
+        }
+
+        return [];
     }
 
     protected function applyOrder($query, string $order): void

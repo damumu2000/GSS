@@ -50,6 +50,7 @@ git pull --ff-only origin "$DEPLOY_BRANCH"
 
 if command -v composer >/dev/null 2>&1; then
   echo "[deploy] installing composer dependencies..."
+  export COMPOSER_ALLOW_SUPERUSER=1
   composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-progress
 else
   echo "[deploy] composer not found, aborting."

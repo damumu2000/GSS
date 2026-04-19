@@ -776,7 +776,7 @@ class SiteController extends Controller
             'published_at' => $item->published_at,
             'channel_name' => $channel->name,
             'channel_slug' => $channel->slug,
-            'url' => route('site.article', ['id' => $item->id, 'site' => $site->site_key]),
+            'url' => route('site.article', ['id' => $item->id] + $this->frontendRouteParameters($site)),
         ];
     }
 
@@ -798,7 +798,7 @@ class SiteController extends Controller
             'channel_name' => $article->channel_name ?: '新闻资讯',
             'channel_slug' => $article->channel_slug,
             'type' => 'article',
-            'url' => route('site.article', ['id' => $article->id, 'site' => $site->site_key]),
+            'url' => route('site.article', ['id' => $article->id] + $this->frontendRouteParameters($site)),
         ];
     }
 
@@ -818,8 +818,19 @@ class SiteController extends Controller
             'channel_name' => $channel->name ?? '单页面',
             'channel_slug' => $page->channel_slug ?? ($channel->slug ?? null),
             'type' => 'page',
-            'url' => route('site.page', ['id' => $page->id, 'site' => $site->site_key]),
+            'url' => route('site.page', ['id' => $page->id] + $this->frontendRouteParameters($site)),
         ];
+    }
+
+    protected function frontendRouteParameters(object $site): array
+    {
+        $host = mb_strtolower(trim((string) request()->getHost()));
+
+        if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return ['site' => $site->site_key];
+        }
+
+        return [];
     }
 
     protected function recordSiteVisit(int $siteId, string $type, ?int $contentId = null): void
