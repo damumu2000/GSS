@@ -105,13 +105,23 @@ class RuntimeHealthCheck
         $linkPath = public_path('storage');
 
         if (is_link($linkPath)) {
+            $details = '';
+
+            if (function_exists('readlink')) {
+                $resolved = readlink($linkPath);
+                $details = is_string($resolved) ? $resolved : '';
+            } else {
+                $resolved = realpath($linkPath);
+                $details = is_string($resolved) ? $resolved : 'readlink 不可用（可能被 disable_functions 禁用）';
+            }
+
             return [
                 'label' => '公开存储链接',
                 'status' => 'ok',
                 'value' => 'public/storage',
                 'message' => '公开存储软链接存在。',
                 'suggestion' => '',
-                'details' => (string) readlink($linkPath),
+                'details' => $details,
             ];
         }
 
