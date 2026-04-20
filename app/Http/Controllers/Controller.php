@@ -638,10 +638,30 @@ abstract class Controller
      */
     protected function canAccessVisibleAttachmentUrl(int $siteId, int $userId, array $candidates, bool $imageOnly = false): bool
     {
-        $candidates = array_values(array_filter(array_map(
-            static fn ($value) => trim((string) $value),
-            $candidates
-        )));
+        $candidates = collect($candidates)
+            ->flatMap(static function ($value): array {
+                $value = trim((string) $value);
+
+                if ($value === '') {
+                    return [];
+                }
+
+                $normalized = [$value];
+                $valueWithoutQuery = preg_replace('/[?#].*$/', '', $value) ?: $value;
+                $normalized[] = trim((string) $valueWithoutQuery);
+                $parsedPath = parse_url($value, PHP_URL_PATH);
+
+                if (is_string($parsedPath) && trim($parsedPath) !== '') {
+                    $normalized[] = trim($parsedPath);
+                }
+
+                return $normalized;
+            })
+            ->map(static fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         if ($candidates === []) {
             return false;

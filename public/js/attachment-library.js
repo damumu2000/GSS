@@ -1345,8 +1345,34 @@ let attachmentLibraryPagination = {
                 return closeAttachmentLibrary();
             };
 
+            const isCoverRemoveClick = (event) => {
+                const target = event.target;
+                const targetElement = target instanceof Element
+                    ? target
+                    : (target instanceof Node ? target.parentElement : null);
+
+                if (targetElement?.closest('[data-cover-remove]')) {
+                    return true;
+                }
+
+                if (typeof event.composedPath === 'function') {
+                    return event.composedPath().some((node) => (
+                        node instanceof Element
+                        && (node.matches('[data-cover-remove]') || node.closest('[data-cover-remove]'))
+                    ));
+                }
+
+                return false;
+            };
+
             document.querySelectorAll('[data-open-cover-library]').forEach((element) => {
-                element.addEventListener('click', () => {
+                element.addEventListener('click', (event) => {
+                    if (isCoverRemoveClick(event)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
+
                     window.openSiteAttachmentLibrary({
                         editorId: 'content',
                         mode: 'cover',

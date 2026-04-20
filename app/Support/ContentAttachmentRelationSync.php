@@ -199,6 +199,7 @@ class ContentAttachmentRelationSync
                 }
 
                 $candidates = [$url];
+                $candidates[] = preg_replace('/[?#].*$/', '', $url) ?: $url;
 
                 if (str_starts_with($url, '/')) {
                     $candidates[] = url($url);
