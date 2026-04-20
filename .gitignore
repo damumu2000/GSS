@@ -12,6 +12,7 @@
 /.vscode
 /.zed
 /.codex-artifacts
+/.playwright-cli
 /.editorconfig
 /.gitattributes
 /auth.json
