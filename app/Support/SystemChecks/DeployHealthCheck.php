@@ -152,6 +152,10 @@ class DeployHealthCheck
 
     protected function runGitCommand(string $command): ?string
     {
+        if (! function_exists('shell_exec')) {
+            return null;
+        }
+
         $fullCommand = sprintf(
             'cd %s && %s 2>/dev/null',
             escapeshellarg(base_path()),
