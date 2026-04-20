@@ -295,6 +295,18 @@ class ThemeTemplateLocator
             return $baseLabel;
         }
 
+        if (preg_match('/^通用标签模板（(.+)）$/u', $baseLabel, $matches) === 1) {
+            $tagKey = trim((string) ($matches[1] ?? ''));
+
+            return $tagKey !== '' ? '标签_'.$customTitle.' （'.$tagKey.'）' : '标签_'.$customTitle;
+        }
+
+        if (preg_match('/^单页模板（(.+)）$/u', $baseLabel, $matches) === 1) {
+            $pageKey = trim((string) ($matches[1] ?? ''));
+
+            return $pageKey !== '' ? $customTitle.'_单页（'.$pageKey.'）' : $customTitle.'_单页';
+        }
+
         return $baseLabel.'_'.$customTitle;
     }
 
@@ -326,7 +338,11 @@ class ThemeTemplateLocator
         }
 
         if (str_starts_with($template, 'page-')) {
-            return '自定义单页模板（'.substr($template, 5).'）';
+            return '单页模板（'.substr($template, 5).'）';
+        }
+
+        if (str_starts_with($template, 'tag-')) {
+            return '通用标签模板（'.substr($template, 4).'）';
         }
 
         return '自定义模板（'.$template.'）';

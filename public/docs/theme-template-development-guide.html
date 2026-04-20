@@ -422,6 +422,7 @@
                 <a class="tag" href="#syntax">基础语法</a>
                 <a class="tag" href="#assets-csp">模板资源</a>
                 <a class="tag" href="#assets-csp">CSP 约束</a>
+                <a class="tag" href="#tag-templates">Tag 通用模版标签</a>
                 <a class="tag" href="#site-values">站点信息</a>
                 <a class="tag" href="#context">当前上下文</a>
                 <a class="tag" href="#channels">栏目</a>
@@ -454,6 +455,7 @@
                     <h2>快速跳转</h2>
                     <a class="nav-link" href="#syntax">基础语法与限制</a>
                     <a class="nav-link" href="#assets-csp">模板资源与 CSP</a>
+                    <a class="nav-link" href="#tag-templates">Tag 通用模版标签</a>
                     <a class="nav-link" href="#site-values">站点信息</a>
                     <a class="nav-link" href="#context">当前上下文</a>
                     <a class="nav-link" href="#channels">栏目参数</a>
@@ -538,6 +540,8 @@
                     <ul class="rules-list">
                         <li><strong>参数写法固定：</strong>所有参数都必须按 <code>key=value</code> 书写，只能使用文档列出的参数名。</li>
                         <li><strong>模板名有格式限制：</strong>模板名和 <code>include</code> 引用名只支持字母、数字、短横线和下划线。</li>
+                        <li><strong>通用标签模板约定：</strong>复用片段统一使用 <code>tag-xxx.tpl</code> 命名，在业务模板中通过 <code>{% include "tag-xxx" %}</code> 直接调用。</li>
+                        <li><strong>后台创建模板类型：</strong>模板工作台新增 <code>Tag 模板</code> 类型，创建时会生成 <code>tag-标识.tpl</code> 文件，适合跨列表页、详情页、单页复用同一段结构。</li>
                         <li><strong>条件能力是有限的：</strong>不支持括号、三元表达式、数组字面量、函数调用和任意 JS / PHP 风格表达式。</li>
                         <li><strong>模板里不允许写 PHP：</strong>模板源码中不能出现 PHP 代码标签，保存时后端会直接拦截。</li>
                     </ul>
@@ -608,6 +612,75 @@
                         <strong>保存前最容易踩坑的地方</strong>
                         <span>以下写法会在模板保存时被直接拦截：内联 <code>&lt;script&gt;</code>、内联 <code>&lt;style&gt;</code>、任何 <code>style=</code>、任何 <code>onclick</code> 这类内联事件属性。正确做法是：HTML 里只保留类名和结构，交互统一写进主题 JS，样式统一写进主题 CSS。</span>
                     </div>
+                </section>
+
+                <section class="section" id="tag-templates">
+                    <div class="section-head">
+                        <h2>Tag 通用模版标签</h2>
+                        <span class="section-kicker">跨页面复用首选</span>
+                    </div>
+                    <p><code>tag-xxx.tpl</code> 是通用标签模板，适合把“同一段结构”抽成一个片段，在列表页、详情页、单页中复用。当前系统已在模板工作台提供 <code>Tag 模板</code> 类型，创建后会生成 <code>tag-标识.tpl</code>。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>约定</th>
+                                    <th>说明</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">文件命名</td>
+                                    <td>统一使用 <code>tag-</code> 前缀，便于模板树识别和团队协作。</td>
+                                    <td><code>tag-article-cards.tpl</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">调用方式</td>
+                                    <td>直接用 <code>include</code>，不新增语法，不改引擎。</td>
+                                    <td><code>{% include "tag-article-cards" %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">参数传递</td>
+                                    <td>调用前先 <code>set</code> 变量，建议统一前缀 <code>tag_</code>，避免变量冲突。</td>
+                                    <td><code>{% set tag_items = contentList channel='news' limit=6 %}</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="code-sample">
+<pre>&lt;!-- list.tpl / detail.tpl / page-xxx.tpl 中都可以这样调用 --&gt;
+{% set tag_title = '最新动态' %}
+{% set tag_items = contentList channel_id=current.channel.id limit=6 %}
+{% include "tag-article-cards" %}</pre>
+                    </div>
+
+                    <div class="code-sample">
+<pre>&lt;!-- tag-article-cards.tpl --&gt;
+&lt;section class="news-cards"&gt;
+  &lt;h2&gt;{{ tag_title }}&lt;/h2&gt;
+  {% if tag_items %}
+    &lt;div class="news-cards-grid"&gt;
+      {% for item in tag_items %}
+        &lt;article class="news-card"&gt;
+          &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
+        &lt;/article&gt;
+      {% endfor %}
+    &lt;/div&gt;
+  {% else %}
+    &lt;div class="news-cards-empty"&gt;暂无内容&lt;/div&gt;
+  {% endif %}
+&lt;/section&gt;</pre>
+                    </div>
+
+                    <ul class="rules-list">
+                        <li><strong>Tag 模板只放结构：</strong>样式和交互建议由页面统一通过 <code>themeStyle</code> / <code>themeScript</code> 引入，避免重复加载。</li>
+                        <li><strong>变量要防冲突：</strong>建议统一使用 <code>tag_</code> 前缀（如 <code>tag_items</code>、<code>tag_title</code>）。</li>
+                        <li><strong>禁止循环 include：</strong><code>tag</code> 片段不要反向引用调用方模板，避免 include 循环。</li>
+                        <li><strong>参数应可兜底：</strong>片段内部建议先判断变量是否为空，避免在不同页面上下文中出现空数据异常。</li>
+                    </ul>
                 </section>
 
                 <section class="section" id="site-values">
@@ -1339,7 +1412,7 @@
                     </div>
 
                     <div class="code">
-<pre>{# 联系页表单常用写法（简化） #}
+<pre>&lt;!-- 联系页表单常用写法（简化） --&gt;
 &lt;form id="contact-form"
       action="/guestbook"
       method="post"

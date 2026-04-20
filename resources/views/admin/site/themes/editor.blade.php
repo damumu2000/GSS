@@ -26,9 +26,10 @@
         $sourceBadgeClass = $sourceType === 'override' ? ' is-override' : '';
         $showSourceBadge = $sourceType !== 'custom';
         $templateGroupMeta = [
-            'templates' => ['title' => '模板文件', 'desc' => '所有 TPL 模板文件与公共结构模板'],
-            'styles' => ['title' => 'CSS 文件', 'desc' => '当前主题使用的样式文件'],
-            'scripts' => ['title' => 'JS 文件', 'desc' => '当前主题使用的脚本文件'],
+            'templates' => ['title' => '模板文件'],
+            'tags' => ['title' => '模版标签'],
+            'styles' => ['title' => 'CSS 文件'],
+            'scripts' => ['title' => 'JS 文件'],
         ];
         $editorModalOpen = session('keep_theme_editor_open') || $errors->has('template_title') || $errors->has('template_source');
         $editorErrors = array_values(array_unique(array_merge(
@@ -42,6 +43,14 @@
         $themeAssetErrors = $errors->themeAssets;
         $themeAssetsModalOpen = $themeAssetErrors->isNotEmpty() || request()->boolean('open_assets');
         $editorRouteSiteTemplateParam = ['site_template_id' => $siteTemplateId];
+        $templatePrefixOptions = [
+            'list' => '列表模板',
+            'detail' => '详情模板',
+            'page' => '单页模板',
+            'tag' => 'Tag 模板',
+            'css' => 'CSS 文件',
+            'js' => 'JS 文件',
+        ];
     @endphp
 
     <section class="page-header">
@@ -82,13 +91,12 @@
                     <div class="template-tree-groups">
                         @foreach ($templateGroups as $group)
                             @php
-                                $groupMeta = $templateGroupMeta[$group['key']] ?? ['title' => $group['title'], 'desc' => '模板文件分组'];
+                                $groupMeta = $templateGroupMeta[$group['key']] ?? ['title' => $group['title']];
                             @endphp
                             <section class="template-tree-group" data-template-group>
                                 <div class="template-tree-group-head">
                                     <div>
                                         <div class="template-tree-group-title">{{ $groupMeta['title'] }}</div>
-                                        <div class="template-tree-group-desc">{{ $groupMeta['desc'] }}</div>
                                     </div>
                                     <span class="template-tree-group-count">{{ $group['items']->count() }}</span>
                                 </div>
@@ -161,17 +169,15 @@
                                 <span class="field-label">模板类型</span>
                                 <div class="custom-select @if($createTemplateErrors->has('template_prefix')) is-error @endif" data-custom-select data-template-prefix-select>
                                     <select class="custom-select-native" name="template_prefix" data-select-native data-template-prefix-input>
-                                        <option value="list" @selected($oldTemplatePrefix === 'list')>列表模板</option>
-                                        <option value="detail" @selected($oldTemplatePrefix === 'detail')>详情模板</option>
-                                        <option value="page" @selected($oldTemplatePrefix === 'page')>单页模板</option>
-                                        <option value="css" @selected($oldTemplatePrefix === 'css')>CSS 文件</option>
-                                        <option value="js" @selected($oldTemplatePrefix === 'js')>JS 文件</option>
+                                        @foreach ($templatePrefixOptions as $prefixValue => $prefixLabel)
+                                            <option value="{{ $prefixValue }}" @selected($oldTemplatePrefix === $prefixValue)>{{ $prefixLabel }}</option>
+                                        @endforeach
                                     </select>
                                     <button class="custom-select-trigger" type="button" data-select-trigger aria-expanded="false">
-                                        <span data-select-label>{{ ['list' => '列表模板', 'detail' => '详情模板', 'page' => '单页模板', 'css' => 'CSS 文件', 'js' => 'JS 文件'][$oldTemplatePrefix] ?? '列表模板' }}</span>
+                                        <span data-select-label>{{ $templatePrefixOptions[$oldTemplatePrefix] ?? '列表模板' }}</span>
                                     </button>
                                     <div class="custom-select-panel">
-                                        @foreach (['list' => '列表模板', 'detail' => '详情模板', 'page' => '单页模板', 'css' => 'CSS 文件', 'js' => 'JS 文件'] as $prefixValue => $prefixLabel)
+                                        @foreach ($templatePrefixOptions as $prefixValue => $prefixLabel)
                                             <button class="custom-select-option @if($oldTemplatePrefix === $prefixValue) is-active @endif" type="button" data-select-option data-value="{{ $prefixValue }}">
                                                 <span>{{ $prefixLabel }}</span>
                                                 <svg class="custom-select-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>

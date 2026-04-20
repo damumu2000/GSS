@@ -536,7 +536,7 @@ class ThemeController extends Controller
         $themeCode = trim((string) $siteTemplate->template_key);
 
         $validated = $request->validateWithBag('createTemplate', [
-            'template_prefix' => ['nullable', 'string', Rule::in(['list', 'detail', 'page', 'css', 'js'])],
+            'template_prefix' => ['required', 'string', Rule::in(['list', 'detail', 'page', 'tag', 'css', 'js'])],
             'template_suffix' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/'],
             'template_title' => ['required', 'string', 'max:10'],
             'template_source' => ['nullable', 'string', 'max:200000'],
@@ -1164,6 +1164,7 @@ class ThemeController extends Controller
     {
         $groups = collect([
             ['key' => 'templates', 'title' => '模板文件', 'items' => collect()],
+            ['key' => 'tags', 'title' => '模版标签', 'items' => collect()],
             ['key' => 'styles', 'title' => 'CSS 文件', 'items' => collect()],
             ['key' => 'scripts', 'title' => 'JS 文件', 'items' => collect()],
         ])->keyBy('key');
@@ -1183,6 +1184,14 @@ class ThemeController extends Controller
                 ->sortBy(fn (array $template): string => (string) ($template['sort_key'] ?? $template['file'] ?? $template['key'] ?? ''))
                 ->values();
             $groups->put('templates', $templateGroup);
+        }
+
+        $tagGroup = $groups->get('tags');
+        if ($tagGroup) {
+            $tagGroup['items'] = $tagGroup['items']
+                ->sortBy(fn (array $template): string => (string) ($template['sort_key'] ?? $template['file'] ?? $template['key'] ?? ''))
+                ->values();
+            $groups->put('tags', $tagGroup);
         }
 
         $styleGroup = $groups->get('styles');
@@ -1335,6 +1344,7 @@ class ThemeController extends Controller
     {
         $prefix = trim((string) ($validated['template_prefix'] ?? ''));
         $suffix = strtolower(trim((string) ($validated['template_suffix'] ?? '')));
+        $allowedTplPrefixes = ['list', 'detail', 'page', 'tag'];
 
         if ($suffix === '') {
             return '';
@@ -1343,12 +1353,16 @@ class ThemeController extends Controller
         return match ($prefix) {
             'css' => $suffix.'.css',
             'js' => $suffix.'.js',
-            default => $prefix.'-'.$suffix,
+            default => in_array($prefix, $allowedTplPrefixes, true) ? $prefix.'-'.$suffix : '',
         };
     }
 
     protected function templateWorkspaceGroupKey(string $file): string
     {
+        if (str_ends_with($file, '.tpl') && str_starts_with(pathinfo($file, PATHINFO_FILENAME), 'tag-')) {
+            return 'tags';
+        }
+
         $extension = ThemeTemplateLocator::editorExtension($file);
 
         if ($extension === 'css') {
