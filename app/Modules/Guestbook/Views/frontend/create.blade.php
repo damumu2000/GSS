@@ -16,7 +16,7 @@
         <section class="card">
             <h1 class="title">提交留言</h1>
 
-            <form method="post" action="{{ route('site.guestbook.store', $siteQuery) }}" data-captcha-base="{{ $settings['captcha_enabled'] ? $captchaUrl : '' }}">
+            <form method="post" action="{{ route('site.guestbook.store', $siteQuery) }}" data-captcha-base="{{ $settings['captcha_enabled'] ? $captchaUrl : '' }}" data-captcha-verify="{{ $settings['captcha_enabled'] ? route('site.guestbook.captcha.verify', $siteQuery) : '' }}">
                 @csrf
                 <div class="grid">
                     <label>
@@ -48,10 +48,9 @@
                             <span class="field-label">验证码</span>
                             <div class="captcha-row">
                                 <input class="field captcha-input" type="text" name="captcha" value="{{ old('captcha') }}" placeholder="请输入验证码" maxlength="4" inputmode="text" autocomplete="off">
-                                <img class="captcha-image" src="{{ $captchaUrl }}{{ str_contains($captchaUrl, '?') ? '&' : '?' }}t={{ time() }}" alt="验证码" id="guestbook-captcha-image">
-                                <button class="button secondary" type="button" id="guestbook-refresh-captcha">换一张</button>
+                                <img class="captcha-image" src="{{ $captchaUrl }}{{ str_contains($captchaUrl, '?') ? '&' : '?' }}t={{ time() }}" alt="验证码，点击更换" id="guestbook-captcha-image" role="button" tabindex="0">
+                                <div class="error captcha-inline-error" data-captcha-live-error hidden></div>
                             </div>
-                            <div class="error" data-captcha-live-error hidden></div>
                             @error('captcha')<div class="error">{{ $message }}</div>@enderror
                         </label>
                     @endif

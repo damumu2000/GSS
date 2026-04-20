@@ -8,6 +8,7 @@ Route::get('/guestbook', [FrontendGuestbookController::class, 'index'])->name('s
 Route::get('/guestbook/create', [FrontendGuestbookController::class, 'create'])->name('site.guestbook.create');
 Route::post('/guestbook', [FrontendGuestbookController::class, 'store'])->name('site.guestbook.store');
 Route::get('/guestbook/captcha', [FrontendGuestbookController::class, 'captcha'])->name('site.guestbook.captcha');
+Route::post('/guestbook/captcha/verify', [FrontendGuestbookController::class, 'verifyCaptcha'])->name('site.guestbook.captcha.verify');
 Route::get('/guestbook/{displayNo}', [FrontendGuestbookController::class, 'detail'])
     ->whereNumber('displayNo')
     ->name('site.guestbook.show');

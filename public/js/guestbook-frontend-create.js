@@ -1,6 +1,5 @@
 (() => {
     const image = document.getElementById('guestbook-captcha-image');
-    const refresh = document.getElementById('guestbook-refresh-captcha');
     const textarea = document.querySelector('textarea[name="content"][data-textarea-limit]');
     const counter = document.querySelector('[data-textarea-counter]');
     const contentLiveError = document.querySelector('[data-content-live-error]');
@@ -12,6 +11,41 @@
     const captchaLiveError = document.querySelector('[data-captcha-live-error]');
     const form = document.querySelector('form');
     const captchaBase = form?.dataset.captchaBase || '';
+    const captchaVerifyUrl = form?.dataset.captchaVerify || '';
+    const csrfToken = form?.querySelector('input[name="_token"]')?.value || '';
+    let captchaVerifySerial = 0;
+    let captchaVerifiedValue = '';
+    const setContentFieldState = (state) => {
+        if (!textarea) {
+            return;
+        }
+        textarea.classList.remove('is-error', 'is-valid');
+        if (state === 'error') {
+            textarea.classList.add('is-error');
+        }
+        if (state === 'valid') {
+            textarea.classList.add('is-valid');
+        }
+    };
+
+    const setCaptchaMessage = (message, valid = false) => {
+        if (!captchaLiveError) {
+            return;
+        }
+        captchaLiveError.textContent = message;
+        captchaLiveError.hidden = message === '';
+        captchaLiveError.classList.toggle('is-valid', valid && message !== '');
+    };
+
+    const refreshCaptcha = () => {
+        if (!image || !captchaBase) {
+            return;
+        }
+        image.src = `${captchaBase}${captchaBase.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        captchaVerifiedValue = '';
+        captchaVerifySerial += 1;
+        setCaptchaMessage('');
+    };
 
     const syncNameValidation = () => {
         if (!nameInput || !nameLiveError) {
@@ -71,6 +105,18 @@
 
         contentLiveError.textContent = message;
         contentLiveError.hidden = message === '';
+        if (message !== '') {
+            setContentFieldState('error');
+        } else if (raw.length > 0) {
+            setContentFieldState('valid');
+            contentLiveError.textContent = '输入正确';
+            contentLiveError.hidden = false;
+            contentLiveError.classList.add('is-valid');
+            return true;
+        } else {
+            setContentFieldState('');
+        }
+        contentLiveError.classList.remove('is-valid');
 
         return message === '';
     };
@@ -82,14 +128,69 @@
         const raw = captchaInput.value || '';
         const trimmed = raw.trim();
         let message = '';
+        let valid = true;
         if (raw.length > 4) {
             message = '验证码应为 4 位字符，请重新输入。';
+            valid = false;
         } else if (trimmed !== '' && trimmed.length !== 4) {
             message = '验证码应为 4 位字符，请重新输入。';
+            valid = false;
         }
-        captchaLiveError.textContent = message;
-        captchaLiveError.hidden = message === '';
-        return message === '';
+        setCaptchaMessage(message, false);
+        return valid;
+    };
+
+    const verifyCaptcha = async (captcha) => {
+        if (!captchaVerifyUrl || !captchaLiveError) {
+            return false;
+        }
+        if (!csrfToken) {
+            setCaptchaMessage('验证码校验失败，请刷新页面后重试。', false);
+            return false;
+        }
+
+        const serial = ++captchaVerifySerial;
+        const verifyPayload = new URLSearchParams();
+        verifyPayload.set('captcha', captcha);
+
+        try {
+            const response = await fetch(captchaVerifyUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: verifyPayload.toString(),
+                credentials: 'same-origin',
+            });
+
+            const payload = await response.json();
+            if (serial !== captchaVerifySerial) {
+                return false;
+            }
+
+            if (!response.ok) {
+                setCaptchaMessage(payload?.message || '验证码校验失败，请稍后重试。', false);
+                return false;
+            }
+
+            if (payload?.valid) {
+                captchaVerifiedValue = captcha;
+                setCaptchaMessage('输入正确', true);
+                return true;
+            }
+
+            captchaVerifiedValue = '';
+            setCaptchaMessage(payload?.message || '验证码不正确，请重新输入。', false);
+            return false;
+        } catch (error) {
+            if (serial === captchaVerifySerial) {
+                setCaptchaMessage('验证码校验失败，请稍后重试。', false);
+            }
+            return false;
+        }
     };
 
     const syncCounter = () => {
@@ -126,22 +227,49 @@
     if (textarea && counter) {
         textarea.addEventListener('input', () => {
             syncCounter();
-            contentLiveError.hidden = true;
+            syncContentValidation();
         });
         textarea.addEventListener('blur', syncContentValidation);
         syncCounter();
     }
 
     if (captchaInput) {
-        captchaInput.addEventListener('input', () => {
-            captchaInput.value = captchaInput.value.toUpperCase();
-            captchaLiveError.hidden = true;
+        captchaInput.addEventListener('input', async () => {
+            captchaInput.value = captchaInput.value.toUpperCase().slice(0, 4);
+            const trimmed = (captchaInput.value || '').trim().toUpperCase();
+            if (captchaVerifiedValue && captchaVerifiedValue !== trimmed) {
+                captchaVerifiedValue = '';
+            }
+
+            const formatValid = syncCaptchaValidation();
+            if (!formatValid) {
+                return;
+            }
+
+            if (trimmed === '') {
+                setCaptchaMessage('');
+                return;
+            }
+
+            if (trimmed.length === 4 && captchaVerifiedValue !== trimmed) {
+                await verifyCaptcha(trimmed);
+            } else if (captchaVerifiedValue === trimmed) {
+                setCaptchaMessage('输入正确', true);
+            } else {
+                setCaptchaMessage('');
+            }
         });
-        captchaInput.addEventListener('blur', syncCaptchaValidation);
+        captchaInput.addEventListener('blur', async () => {
+            const trimmed = (captchaInput.value || '').trim().toUpperCase();
+            const formatValid = syncCaptchaValidation();
+            if (formatValid && trimmed.length === 4 && captchaVerifiedValue !== trimmed) {
+                await verifyCaptcha(trimmed);
+            }
+        });
     }
 
     if (form) {
-        form.addEventListener('submit', (event) => {
+        form.addEventListener('submit', async (event) => {
             const valid = [
                 syncNameValidation(),
                 syncPhoneValidation(),
@@ -160,13 +288,29 @@
                 } else if (!syncCaptchaValidation()) {
                     captchaInput?.focus();
                 }
+                return;
+            }
+
+            if (captchaInput) {
+                const trimmed = (captchaInput.value || '').trim().toUpperCase();
+                if (trimmed.length === 4 && captchaVerifiedValue !== trimmed) {
+                    const verified = await verifyCaptcha(trimmed);
+                    if (!verified) {
+                        event.preventDefault();
+                        captchaInput.focus();
+                    }
+                }
             }
         });
     }
 
-    if (image && refresh && captchaBase) {
-        refresh.addEventListener('click', () => {
-            image.src = `${captchaBase}${captchaBase.includes('?') ? '&' : '?'}t=${Date.now()}`;
+    if (image && captchaBase) {
+        image.addEventListener('click', refreshCaptcha);
+        image.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                refreshCaptcha();
+            }
         });
     }
 })();

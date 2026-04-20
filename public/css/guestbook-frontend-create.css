@@ -21,6 +21,14 @@ body { margin: 0; font-family: "PingFang SC","Microsoft YaHei",sans-serif; backg
     width:100%; min-height:44px; padding:0 14px; border:1px solid #dbe2ea; border-radius:12px; background:#fff;
     color:#1f2937; font-size:14px; line-height:1.4;
 }
+.field.is-error {
+    border-color: rgba(220, 38, 38, 0.52);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+.field.is-valid {
+    border-color: rgba(5, 150, 105, 0.52);
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+}
 textarea.field { min-height: 180px; padding: 12px 14px; resize: vertical; }
 .textarea-wrap { position: relative; }
 .textarea-counter {
@@ -55,7 +63,15 @@ textarea.field { min-height: 180px; padding: 12px 14px; resize: vertical; }
     text-transform: uppercase;
     letter-spacing: 0.08em;
 }
-.captcha-image { width:120px; height:40px; border-radius:10px; border:1px solid #dbe2ea; background:#fff; display:block; }
+.captcha-image { width:120px; height:40px; border-radius:10px; border:1px solid #dbe2ea; background:#fff; display:block; cursor:pointer; }
+.captcha-inline-error {
+    margin-top: 0;
+    min-height: 20px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+}
+.captcha-inline-error.is-valid { color: #059669; }
 .button {
     display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:0 18px; border-radius:999px;
     border:1px solid transparent; background:var(--primary); color:#fff; font-size:14px; font-weight:700; cursor:pointer;
@@ -65,6 +81,7 @@ textarea.field { min-height: 180px; padding: 12px 14px; resize: vertical; }
 .button.secondary:hover { background:#fff; color:var(--primary-deep); border-color: var(--primary-border); }
 .actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:24px; }
 .error { margin-top:8px; color:var(--danger); font-size:12px; line-height:1.7; }
+.error.is-valid { color: #059669; }
 .error[hidden] { display: none; }
 .form-error {
     margin-top: 16px;

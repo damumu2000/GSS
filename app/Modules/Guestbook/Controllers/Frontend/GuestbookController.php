@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
 class GuestbookController extends SiteController
@@ -93,6 +94,7 @@ class GuestbookController extends SiteController
 
         $rateLimitKey = $this->rateLimitKey($request, (int) $site->id);
         $this->ensureSubmissionAllowed($request, (int) $site->id);
+        $rawPhone = $this->sanitizePlainText($request->input('phone'));
 
         $request->merge([
             'name' => $this->sanitizePlainText($request->input('name')),
@@ -107,16 +109,16 @@ class GuestbookController extends SiteController
             'content' => ['required', 'string', 'max:1000'],
             'captcha' => [$settings['captcha_enabled'] ? 'required' : 'nullable', 'string', 'size:4'],
         ], [
-            'name.required' => '请填写称呼。',
-            'name.min' => '称呼至少需要 2 个字符。',
-            'name.max' => '称呼不能超过 20 个字符。',
-            'name.regex' => '称呼请填写真实姓名，仅支持中文、英文和间隔号。',
-            'phone.required' => '请填写手机号码。',
-            'phone.regex' => '手机号码格式不正确，请填写 11 位大陆手机号。',
-            'content.required' => '请填写留言内容。',
-            'content.max' => '留言内容不能超过 1000 字。',
+            'name.required' => '请输入你的称呼。',
+            'name.min' => '你的称呼格式错误，请重新输入。',
+            'name.max' => '你的称呼格式错误，请重新输入。',
+            'name.regex' => '你的称呼格式错误，请重新输入。',
+            'phone.required' => $rawPhone === null ? '请输入联系电话。' : '联系电话格式错误，请输入正确的手机号码。',
+            'phone.regex' => '联系电话格式错误，请输入正确的手机号码。',
+            'content.required' => '请输入你的需求。',
+            'content.max' => '你的需求内容不能超过 1000 字。',
             'captcha.required' => '请输入验证码。',
-            'captcha.size' => '验证码应为 4 位字符，请重新输入。',
+            'captcha.size' => '验证码格式错误，请输入 4 位验证码。',
         ]);
 
         $validator->after(function ($validator) use ($request, $settings): void {
@@ -133,7 +135,7 @@ class GuestbookController extends SiteController
         });
 
         if ($validator->fails()) {
-            RateLimiter::hit($rateLimitKey, 600);
+            RateLimiter::hit($rateLimitKey, 30);
             throw new ValidationException($validator);
         }
 
@@ -165,7 +167,7 @@ class GuestbookController extends SiteController
         });
 
         $request->session()->forget('guestbook_captcha');
-        RateLimiter::hit($rateLimitKey, 600);
+        RateLimiter::hit($rateLimitKey, 30);
 
         return redirect()
             ->route('site.guestbook.index', $siteQuery)
@@ -193,7 +195,13 @@ class GuestbookController extends SiteController
             imagesetpixel($image, random_int(0, 119), random_int(0, 39), $noiseColor);
         }
 
-        imagestring($image, 5, 22, 12, $code, $textColor);
+        $font = 5;
+        $textWidth = imagefontwidth($font) * strlen($code);
+        $textHeight = imagefontheight($font);
+        $textX = max(0, (int) floor((120 - $textWidth) / 2));
+        $textY = max(0, (int) floor((40 - $textHeight) / 2));
+
+        imagestring($image, $font, $textX, $textY, $code, $textColor);
 
         ob_start();
         imagepng($image);
@@ -204,6 +212,37 @@ class GuestbookController extends SiteController
             'Content-Type' => 'image/png',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
+        ]);
+    }
+
+    public function verifyCaptcha(Request $request): JsonResponse
+    {
+        [$site, , , $available] = $this->resolveGuestbookContext($request);
+        abort_unless($available, 404);
+
+        $limitKey = $this->captchaVerifyRateLimitKey((int) $site->id, $request);
+        if (RateLimiter::tooManyAttempts($limitKey, 10)) {
+            return response()->json([
+                'valid' => false,
+                'message' => '验证码校验过于频繁，请稍后再试。',
+            ], 429);
+        }
+        RateLimiter::hit($limitKey, 30);
+
+        $submitted = strtoupper((string) ($this->sanitizePlainText($request->input('captcha')) ?? ''));
+        if ($submitted === '' || strlen($submitted) !== 4) {
+            return response()->json([
+                'valid' => false,
+                'message' => '验证码格式错误，请输入 4 位验证码。',
+            ]);
+        }
+
+        $expected = strtoupper((string) $request->session()->get('guestbook_captcha', ''));
+        $isValid = $expected !== '' && hash_equals($expected, $submitted);
+
+        return response()->json([
+            'valid' => $isValid,
+            'message' => $isValid ? '输入正确' : '验证码不正确，请重新输入。',
         ]);
     }
 
@@ -275,8 +314,18 @@ class GuestbookController extends SiteController
 
     protected function ensureSubmissionAllowed(Request $request, int $siteId): void
     {
+        $lockKey = $this->rateLimitLockKey($request, $siteId);
+        if (RateLimiter::tooManyAttempts($lockKey, 1)) {
+            throw ValidationException::withMessages([
+                'form' => '提交过于频繁，请稍后再试。',
+            ]);
+        }
+
         $key = $this->rateLimitKey($request, $siteId);
-        if (RateLimiter::tooManyAttempts($key, 5)) {
+        if (RateLimiter::tooManyAttempts($key, 20)) {
+            RateLimiter::hit($lockKey, 300);
+            RateLimiter::clear($key);
+
             throw ValidationException::withMessages([
                 'form' => '提交过于频繁，请稍后再试。',
             ]);
@@ -286,6 +335,18 @@ class GuestbookController extends SiteController
     protected function rateLimitKey(Request $request, int $siteId): string
     {
         return 'guestbook-submit:'.$siteId.':'.sha1((string) $request->ip());
+    }
+
+    protected function rateLimitLockKey(Request $request, int $siteId): string
+    {
+        return 'guestbook-submit-lock:'.$siteId.':'.sha1((string) $request->ip());
+    }
+
+    protected function captchaVerifyRateLimitKey(int $siteId, Request $request): string
+    {
+        $sessionPart = (string) $request->session()->getId();
+
+        return 'guestbook-captcha-verify:'.$siteId.':'.sha1((string) $request->ip().':'.$sessionPart);
     }
 
     /**

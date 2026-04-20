@@ -591,6 +591,7 @@ class SiteController extends Controller
     {
         abort_unless(file_exists(ThemeTemplateLocator::resolvePath($site->site_key, $themeCode, $template)), 404);
 
+        $payload['csrfToken'] = csrf_token();
         $payload['current'] = $this->themeCurrentPayload($payload);
         $engine = new ThemeTemplateEngine(SitePath::key($site), $themeCode, $payload['tags']);
 

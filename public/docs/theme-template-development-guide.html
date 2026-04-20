@@ -1278,6 +1278,84 @@
                         <strong>范例：首页留言反馈区</strong>
                         <span>先用 <code>guestbookStats</code> 判断留言板是否启用，再决定是否查询 <code>guestbookMessages</code>。这样可以同时兼顾模块关闭提示、姓名脱敏规则和“回复后才显示”的公开规则，适合首页互动反馈区。</span>
                     </div>
+
+                    <div class="tip">
+                        <strong>补充：模板内“可提交留言”接入说明（以联系我们页面为例）</strong>
+                        <span>当前模板里除了展示留言列表，还支持把 <code>page-contact.tpl</code> 的表单接入留言模块提交接口。实际实现采用“前端交互校验 + 后端最终校验 + 验证码核验 + 限流”四层闭环，建议按下面的参数映射和安全要求执行。</span>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>项</th>
+                                    <th>当前实现</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">提交接口</td>
+                                    <td><code>POST /guestbook</code></td>
+                                    <td>留言提交接口。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">验证码图片</td>
+                                    <td><code>GET /guestbook/captcha</code></td>
+                                    <td>验证码图片获取接口。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">验证码即时核验</td>
+                                    <td><code>POST /guestbook/captcha/verify</code></td>
+                                    <td>输入 4 位后即时核验。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">字段映射</td>
+                                    <td><code>name / phone / content / captcha</code></td>
+                                    <td><code>单位名称</code>、<code>电子邮箱</code> 作为选填并拼接到 <code>content</code>（方案 A）。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">后端最终校验</td>
+                                    <td><code>name</code>、<code>phone</code>、<code>content</code>、<code>captcha</code></td>
+                                    <td>以后端校验为准；前端校验仅用于交互反馈，不作为安全边界。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">提交限流</td>
+                                    <td>30 秒 20 次，超限封禁 5 分钟</td>
+                                    <td>针对提交接口进行限流。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">验证码核验限流</td>
+                                    <td>30 秒 10 次</td>
+                                    <td>针对核验接口进行限流，用于降低暴力试码风险。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">CSRF</td>
+                                    <td>提交与验证码核验均要求 token</td>
+                                    <td>前端请求头需带 <code>X-CSRF-TOKEN</code>，避免被跨站伪造请求利用。</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="code">
+<pre>{# 联系页表单常用写法（简化） #}
+&lt;form id="contact-form"
+      action="/guestbook"
+      method="post"
+      data-captcha-url="/guestbook/captcha"
+      data-captcha-verify-url="/guestbook/captcha/verify"
+      data-csrf-token="{{ csrfToken }}"&gt;
+    ...
+&lt;/form&gt;</pre>
+                    </div>
+
+                    <ul class="rules-list">
+                        <li><strong>前后端口径要一致：</strong>前端长度与格式校验应尽量按后端真实入参口径计算，避免“前端通过、提交失败”的体验问题。</li>
+                        <li><strong>验证码核验不要走 URL query：</strong>当前推荐使用 <code>POST</code> 请求体传参，减少验证码值进入访问日志的风险。</li>
+                        <li><strong>提交成功建议有明确反馈：</strong>可采用友好弹窗或醒目的页面提示，确保用户知道提交已生效。</li>
+                        <li><strong>上线前建议做最小验收：</strong>成功提交流程、字段级错误提示、验证码刷新与核验、限流提示、后台入库可见这五项至少全测一遍。</li>
+                    </ul>
                 </section>
 
                 <section class="section" id="snippets">
