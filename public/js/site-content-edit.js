@@ -1530,7 +1530,7 @@ async function uploadImportedImage(file) {
     return String(payload.location);
 }
 
-async function replaceEmbeddedImagesForImport(html) {
+async function replaceEmbeddedImagesForImport(html, onProgress = null) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(`<div data-import-wrap>${html}</div>`, 'text/html');
     const root = doc.body.querySelector('[data-import-wrap]');
@@ -1550,6 +1550,17 @@ async function replaceEmbeddedImagesForImport(html) {
 
     let uploaded = 0;
     const failures = [];
+    const total = images.length;
+    const notifyProgress = typeof onProgress === 'function'
+        ? onProgress
+        : () => {};
+
+    notifyProgress({
+        total,
+        uploaded,
+        failed: 0,
+        remaining: total,
+    });
 
     for (let i = 0; i < images.length; i += 1) {
         const node = images[i];
@@ -1564,6 +1575,12 @@ async function replaceEmbeddedImagesForImport(html) {
             } catch (error) {
                 failures.push(`第 ${i + 1} 张图片下载失败，已跳过`);
                 node.remove();
+                notifyProgress({
+                    total,
+                    uploaded,
+                    failed: failures.length,
+                    remaining: Math.max(0, total - uploaded - failures.length),
+                });
                 continue;
             }
         }
@@ -1571,6 +1588,12 @@ async function replaceEmbeddedImagesForImport(html) {
         if (!file) {
             failures.push(`第 ${i + 1} 张图片格式不支持`);
             node.remove();
+            notifyProgress({
+                total,
+                uploaded,
+                failed: failures.length,
+                remaining: Math.max(0, total - uploaded - failures.length),
+            });
             continue;
         }
 
@@ -1582,6 +1605,13 @@ async function replaceEmbeddedImagesForImport(html) {
             failures.push(`第 ${i + 1} 张图片上传失败`);
             node.remove();
         }
+
+        notifyProgress({
+            total,
+            uploaded,
+            failed: failures.length,
+            remaining: Math.max(0, total - uploaded - failures.length),
+        });
     }
 
     return {
@@ -1622,7 +1652,18 @@ async function importRichContent(editor, payload) {
     const shouldSyncImages = await confirmImportImageSync(importableImageCount);
 
     const uploadResult = shouldSyncImages
-        ? await replaceEmbeddedImagesForImport(importedHtml)
+        ? await replaceEmbeddedImagesForImport(importedHtml, ({ total, uploaded, remaining }) => {
+            if (total <= 0) {
+                return;
+            }
+
+            openEditorNotice(
+                editor,
+                `文章和图片资源正在导入中，已导入 ${uploaded} 张，还剩余 ${remaining} 张，请耐心等待完成。`,
+                'info',
+                6000
+            );
+        })
         : {
             html: stripImagesFromImportedHtml(importedHtml),
             uploaded: 0,
