@@ -786,6 +786,22 @@
 &lt;meta name="keywords" content="{{ siteValue key='seo_keywords' }}"&gt;
 &lt;meta name="description" content="{{ siteValue key='seo_description' }}"&gt;</pre>
                     </div>
+
+                    <h3>页面 SEO 变量（推荐）</h3>
+                    <p>前台模板统一提供 <code>meta</code> 变量，适合直接写在 <code>head.tpl</code>。系统会按“当前页面优先，站点默认兜底”自动取值：</p>
+                    <ul class="rules-list">
+                        <li><strong>meta.title</strong>：当前页 SEO 标题（无则回退站点 SEO 标题/站点名称）。</li>
+                        <li><strong>meta.keywords</strong>：当前页 SEO 关键词（无则回退站点 SEO 关键词）。</li>
+                        <li><strong>meta.description</strong>：当前页 SEO 描述（无则回退站点 SEO 描述/站点名称）。</li>
+                    </ul>
+
+                    <div class="code-sample">
+<pre>&lt;title&gt;{{ meta.title }}&lt;/title&gt;
+&lt;meta name="keywords" content="{{ meta.keywords }}"&gt;
+&lt;meta name="description" content="{{ meta.description }}"&gt;</pre>
+                    </div>
+
+                    <p><strong>兼容说明：</strong><code>page.meta_keywords</code> / <code>page.meta_description</code> 为旧模板写法，建议逐步迁移到 <code>meta.*</code>，避免不同页面上下文不一致。</p>
                 </section>
 
                 <section class="section" id="context">

@@ -44,6 +44,7 @@ class SiteController extends Controller
             'primaryChannel' => $navItems->first(),
             'activeChannelSlug' => null,
             'page' => $this->pageMeta($site, $settings),
+            'meta' => $this->metaPayload($site),
         ]);
     }
 
@@ -107,6 +108,12 @@ class SiteController extends Controller
                 'activeChannelSlug' => $channel->slug,
                 'channel' => $this->channelPayload($channel),
                 'page' => $this->pagePayload($page, $site, $channel),
+                'meta' => $this->metaPayload(
+                    $site,
+                    trim((string) ($page->seo_title ?? '')) !== '' ? (string) $page->seo_title : ((string) $page->title.' - '.$site->name),
+                    (string) ($page->seo_keywords ?? ''),
+                    trim((string) ($page->seo_description ?? '')) !== '' ? (string) $page->seo_description : (string) ($page->summary ?? '')
+                ),
             ]);
         }
 
@@ -141,6 +148,7 @@ class SiteController extends Controller
             'navItems' => $navItems,
             'activeChannelSlug' => $channel->slug,
             'page' => $this->pageMeta($site, $settings, $channel->name.' - '.$site->name),
+            'meta' => $this->metaPayload($site, $channel->name.' - '.$site->name),
             'channel' => $this->channelPayload($channel),
             'items' => $items,
         ]);
@@ -212,6 +220,12 @@ class SiteController extends Controller
             'navItems' => $navItems,
             'activeChannelSlug' => $article->channel_slug,
             'page' => $this->pageMeta($site, $settings, $article->title.' - '.$site->name),
+            'meta' => $this->metaPayload(
+                $site,
+                trim((string) ($article->seo_title ?? '')) !== '' ? (string) $article->seo_title : ((string) $article->title.' - '.$site->name),
+                (string) ($article->seo_keywords ?? ''),
+                trim((string) ($article->seo_description ?? '')) !== '' ? (string) $article->seo_description : (string) ($article->summary ?? '')
+            ),
             'article' => $this->articlePayload($article, $site),
             'attachments' => $attachments,
             'previousArticle' => $tags->previous($article),
@@ -265,6 +279,12 @@ class SiteController extends Controller
             'navItems' => $navItems,
             'activeChannelSlug' => $page->channel_slug,
             'page' => $this->pagePayload($page, $site, $channel),
+            'meta' => $this->metaPayload(
+                $site,
+                trim((string) ($page->seo_title ?? '')) !== '' ? (string) $page->seo_title : ((string) $page->title.' - '.$site->name),
+                (string) ($page->seo_keywords ?? ''),
+                trim((string) ($page->seo_description ?? '')) !== '' ? (string) $page->seo_description : (string) ($page->summary ?? '')
+            ),
             'channel' => $this->channelPayload($channel),
         ]);
     }
@@ -349,6 +369,12 @@ class SiteController extends Controller
             'navItems' => $navItems,
             'activeChannelSlug' => $articleRecord->channel_slug,
             'page' => $this->pageMeta($site, $settings, '[预览] '.$articleRecord->title.' - '.$site->name),
+            'meta' => $this->metaPayload(
+                $site,
+                '[预览] '.(trim((string) ($articleRecord->seo_title ?? '')) !== '' ? (string) $articleRecord->seo_title : ((string) $articleRecord->title.' - '.$site->name)),
+                (string) ($articleRecord->seo_keywords ?? ''),
+                trim((string) ($articleRecord->seo_description ?? '')) !== '' ? (string) $articleRecord->seo_description : (string) ($articleRecord->summary ?? '')
+            ),
             'article' => $this->articlePayload($articleRecord, $site),
             'attachments' => $attachments,
             'previousArticle' => $tags->previous($articleRecord),
@@ -415,6 +441,12 @@ class SiteController extends Controller
             'navItems' => $navItems,
             'activeChannelSlug' => $pageRecord->channel_slug,
             'page' => $this->pagePayload($pageRecord, $site, $channel),
+            'meta' => $this->metaPayload(
+                $site,
+                '[预览] '.(trim((string) ($pageRecord->seo_title ?? '')) !== '' ? (string) $pageRecord->seo_title : ((string) $pageRecord->title.' - '.$site->name)),
+                (string) ($pageRecord->seo_keywords ?? ''),
+                trim((string) ($pageRecord->seo_description ?? '')) !== '' ? (string) $pageRecord->seo_description : (string) ($pageRecord->summary ?? '')
+            ),
             'channel' => $this->channelPayload($channel),
         ]);
     }
@@ -720,6 +752,39 @@ class SiteController extends Controller
             'title' => $title ?: ($site->seo_title ?: $site->name),
             'meta_keywords' => $site->seo_keywords ?: '',
             'meta_description' => $site->seo_description ?: $site->name,
+        ];
+    }
+
+    protected function metaPayload(
+        object $site,
+        ?string $title = null,
+        ?string $keywords = null,
+        ?string $description = null
+    ): array {
+        $siteName = trim((string) ($site->name ?? ''));
+        $siteSeoTitle = trim((string) ($site->seo_title ?? ''));
+        $siteSeoKeywords = trim((string) ($site->seo_keywords ?? ''));
+        $siteSeoDescription = trim((string) ($site->seo_description ?? ''));
+
+        $resolvedTitle = trim((string) ($title ?? ''));
+        if ($resolvedTitle === '') {
+            $resolvedTitle = $siteSeoTitle !== '' ? $siteSeoTitle : $siteName;
+        }
+
+        $resolvedKeywords = trim((string) ($keywords ?? ''));
+        if ($resolvedKeywords === '') {
+            $resolvedKeywords = $siteSeoKeywords;
+        }
+
+        $resolvedDescription = trim((string) ($description ?? ''));
+        if ($resolvedDescription === '') {
+            $resolvedDescription = $siteSeoDescription !== '' ? $siteSeoDescription : $siteName;
+        }
+
+        return [
+            'title' => $resolvedTitle,
+            'keywords' => $resolvedKeywords,
+            'description' => $resolvedDescription,
         ];
     }
 
