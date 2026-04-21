@@ -267,6 +267,26 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $user = $request->user();
+
+        if ($user) {
+            $userId = (int) $user->id;
+            $isPlatformAdmin = in_array('platform.admin', $this->platformPermissionCodes($userId), true);
+            $currentSiteId = (int) $request->session()->get('current_site_id', 0);
+
+            $this->logOperation(
+                $isPlatformAdmin ? 'platform' : 'site',
+                'auth',
+                'logout',
+                ! $isPlatformAdmin && $currentSiteId > 0 ? $currentSiteId : null,
+                $userId,
+                'user',
+                $userId,
+                ['username' => (string) ($user->username ?? '')],
+                $request,
+            );
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

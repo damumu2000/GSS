@@ -93,6 +93,23 @@ class SystemCheckController extends Controller
         try {
             $result = $this->staticVendorManager->upgrade($asset);
 
+            $this->logOperation(
+                'platform',
+                'system_check',
+                'upgrade_static_vendor',
+                null,
+                (int) $request->user()->id,
+                'module',
+                null,
+                [
+                    'asset' => $asset,
+                    'package' => (string) ($result['package'] ?? ''),
+                    'version' => (string) ($result['version'] ?? ''),
+                    'updated' => (bool) ($result['updated'] ?? false),
+                ],
+                $request,
+            );
+
             $message = ! empty($result['updated'])
                 ? sprintf('%s 已升级到 %s。', strtoupper((string) $result['package']), (string) $result['version'])
                 : sprintf('%s 当前已经是最新版本。', strtoupper((string) $result['package']));

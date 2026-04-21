@@ -25,6 +25,24 @@ class SiteContextController extends Controller
 
         if ($site) {
             $request->session()->put('current_site_id', $site->id);
+
+            $userId = (int) $request->user()->id;
+            $isPlatformAdmin = in_array('platform.admin', $this->platformPermissionCodes($userId), true);
+
+            $this->logOperation(
+                $isPlatformAdmin ? 'platform' : 'site',
+                'auth',
+                'switch_site_context',
+                ! $isPlatformAdmin ? (int) $site->id : null,
+                $userId,
+                'site',
+                (int) $site->id,
+                [
+                    'site_name' => (string) $site->name,
+                    'site_key' => (string) ($site->site_key ?? ''),
+                ],
+                $request,
+            );
         } else {
             return back()->with('status', '当前账号不能进入所选站点。');
         }

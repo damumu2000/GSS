@@ -4,6 +4,28 @@
 @section('breadcrumb', '后台管理 / ' . ($pageTitle ?? '操作日志'))
 
 @php
+    $moduleMap = [
+        'auth' => '登录认证',
+        'site' => '站点管理',
+        'user' => '平台管理员',
+        'site_user' => '站点操作员',
+        'platform_role' => '平台角色',
+        'site_role' => '站点角色',
+        'role' => '站点角色',
+        'channel' => '栏目管理',
+        'content' => '内容管理',
+        'attachment' => '资源库',
+        'theme' => '模板管理',
+        'setting' => '站点设置',
+        'system_setting' => '系统设置',
+        'system_check' => '系统检查',
+        'recycle_bin' => '回收站',
+        'promo' => '图宣管理',
+        'guestbook' => '留言板',
+        'article_review' => '文章审核',
+        'module' => '模块管理',
+    ];
+
     $actionMap = [
         'create' => '新增',
         'update' => '更新',
@@ -36,6 +58,44 @@
         'submit_review' => '提交审核',
         'approve_content' => '审核通过',
         'reject_content' => '驳回内容',
+        'bulk_approve_content' => '批量审核通过',
+        'force_delete' => '彻底删除',
+        'empty' => '清空',
+        'reorder' => '拖拽排序',
+        'replace' => '替换',
+        'activate_template' => '启用站点模板',
+        'create_site_template' => '新建站点模板',
+        'delete_site_template' => '删除站点模板',
+        'delete_orphan_site_template' => '删除孤立模板',
+        'create_template' => '新建模板文件',
+        'delete_template' => '删除模板文件',
+        'rollback_template' => '回滚模板',
+        'delete_template_snapshot' => '删除模板快照',
+        'favorite_template_snapshot' => '收藏模板快照',
+        'unfavorite_template_snapshot' => '取消收藏模板快照',
+        'upload_theme_asset' => '上传模板资源',
+        'replace_theme_asset' => '替换模板资源',
+        'delete_theme_asset' => '删除模板资源',
+        'create_item' => '新增图宣项',
+        'update_item' => '更新图宣项',
+        'replace_item_image' => '替换图宣图片',
+        'delete_item' => '删除图宣项',
+        'enable_item' => '启用图宣项',
+        'disable_item' => '停用图宣项',
+        'move_item' => '移动图宣项',
+        'reorder_items' => '图宣项排序',
+        'duplicate_item' => '复制图宣项',
+        'add_site_module_binding' => '新增站点模块绑定',
+        'update_site_module_binding' => '更新站点模块绑定',
+        'remove_site_module_binding' => '移除站点模块绑定',
+        'upgrade_static_vendor' => '升级静态资源',
+        'clear_cache_view' => '清理视图缓存',
+        'clear_cache_config' => '清理配置缓存',
+        'clear_cache_route' => '清理路由缓存',
+        'clear_cache_app' => '清理应用缓存',
+        'clear_cache_all' => '一键清除缓存',
+        'bulk_offline' => '批量下线',
+        'switch_site_context' => '切换当前站点',
     ];
 
     $actionOptions = [
@@ -71,6 +131,44 @@
         'submit_review' => '提交审核',
         'approve_content' => '审核通过',
         'reject_content' => '驳回内容',
+        'bulk_approve_content' => '批量审核通过',
+        'force_delete' => '彻底删除',
+        'empty' => '清空',
+        'reorder' => '拖拽排序',
+        'replace' => '替换',
+        'activate_template' => '启用站点模板',
+        'create_site_template' => '新建站点模板',
+        'delete_site_template' => '删除站点模板',
+        'delete_orphan_site_template' => '删除孤立模板',
+        'create_template' => '新建模板文件',
+        'delete_template' => '删除模板文件',
+        'rollback_template' => '回滚模板',
+        'delete_template_snapshot' => '删除模板快照',
+        'favorite_template_snapshot' => '收藏模板快照',
+        'unfavorite_template_snapshot' => '取消收藏模板快照',
+        'upload_theme_asset' => '上传模板资源',
+        'replace_theme_asset' => '替换模板资源',
+        'delete_theme_asset' => '删除模板资源',
+        'create_item' => '新增图宣项',
+        'update_item' => '更新图宣项',
+        'replace_item_image' => '替换图宣图片',
+        'delete_item' => '删除图宣项',
+        'enable_item' => '启用图宣项',
+        'disable_item' => '停用图宣项',
+        'move_item' => '移动图宣项',
+        'reorder_items' => '图宣项排序',
+        'duplicate_item' => '复制图宣项',
+        'add_site_module_binding' => '新增站点模块绑定',
+        'update_site_module_binding' => '更新站点模块绑定',
+        'remove_site_module_binding' => '移除站点模块绑定',
+        'upgrade_static_vendor' => '升级静态资源',
+        'clear_cache_view' => '清理视图缓存',
+        'clear_cache_config' => '清理配置缓存',
+        'clear_cache_route' => '清理路由缓存',
+        'clear_cache_app' => '清理应用缓存',
+        'clear_cache_all' => '一键清除缓存',
+        'bulk_offline' => '批量下线',
+        'switch_site_context' => '切换当前站点',
     ];
 @endphp
 
@@ -112,7 +210,7 @@
                     <select class="custom-select-native" id="module" name="module">
                         <option value="">全部模块</option>
                         @foreach ($moduleOptions as $moduleOption)
-                            <option value="{{ $moduleOption }}" @selected($selectedModule === $moduleOption)>{{ $moduleOption }}</option>
+                            <option value="{{ $moduleOption }}" @selected($selectedModule === $moduleOption)>{{ $moduleMap[$moduleOption] ?? ('未定义模块（'.$moduleOption.'）') }}</option>
                         @endforeach
                     </select>
                     <button class="custom-select-trigger" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">全部模块</button>
@@ -160,8 +258,8 @@
                     <tr>
                         <td>{{ $log->created_at }}</td>
                         <td><span class="log-badge">{{ $log->scope === 'platform' ? '平台' : '站点' }}</span></td>
-                        <td><span class="log-badge">{{ $log->module ?: '-' }}</span></td>
-                        <td class="log-action">{{ $actionMap[$log->action] ?? str_replace('_', ' ', $log->action) }}</td>
+                        <td><span class="log-badge">{{ $log->module ? ($moduleMap[$log->module] ?? ('未定义模块（'.$log->module.'）')) : '-' }}</span></td>
+                        <td class="log-action">{{ $actionMap[$log->action] ?? ('未定义动作（'.$log->action.'）') }}</td>
                         <td>{{ $log->user_name ?: $log->username ?: '系统' }}</td>
                         <td>{{ $log->target_display ?? (($log->target_type ?: '-') . ($log->target_id ? '#'.$log->target_id : '')) }}</td>
                     </tr>
