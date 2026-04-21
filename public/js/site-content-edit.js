@@ -1281,10 +1281,10 @@ function normalizeArticleTypography(root) {
 function applySmartTypesetting(editor) {
     const rawHtml = editor.getContent({ format: 'html' }).trim();
     if (rawHtml === '') {
-        editor.notificationManager.open({
+        showStyledEditorToast({
+            title: '排版提示',
             text: '请先输入文章内容，再使用一键排版。',
-            type: 'warning',
-            timeout: 2200,
+            timeout: 5000,
         });
         return;
     }
