@@ -750,8 +750,6 @@ class SiteController extends Controller
     {
         return [
             'title' => $title ?: ($site->seo_title ?: $site->name),
-            'meta_keywords' => $site->seo_keywords ?: '',
-            'meta_description' => $site->seo_description ?: $site->name,
         ];
     }
 
