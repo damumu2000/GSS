@@ -94,7 +94,11 @@ class StaticVendorHealthCheck
             ];
         }
 
-        $latestVersion = $this->manager->latestVersion($package);
+        try {
+            $latestVersion = $this->manager->latestVersion($package);
+        } catch (\Throwable) {
+            $latestVersion = null;
+        }
 
         if (is_string($latestVersion) && $latestVersion !== '' && $latestVersion !== $version) {
             return [
@@ -125,7 +129,11 @@ class StaticVendorHealthCheck
     protected function laravelVersionItem(): array
     {
         $currentVersion = $this->packageVersion('laravel/framework');
-        $latestVersion = $this->latestLaravelVersion();
+        try {
+            $latestVersion = $this->latestLaravelVersion();
+        } catch (\Throwable) {
+            $latestVersion = null;
+        }
 
         if ($currentVersion === null) {
             return [
@@ -176,10 +184,15 @@ class StaticVendorHealthCheck
     protected function latestLaravelVersion(): ?string
     {
         return Cache::remember(self::LARAVEL_LATEST_CACHE_KEY, 1800, function (): ?string {
-            $response = Http::acceptJson()
-                ->timeout(5)
-                ->withHeaders(['User-Agent' => 'GSS-system-check'])
-                ->get('https://repo.packagist.org/p2/laravel/framework.json');
+            try {
+                $response = Http::acceptJson()
+                    ->connectTimeout(3)
+                    ->timeout(5)
+                    ->withHeaders(['User-Agent' => 'GSS-system-check'])
+                    ->get('https://repo.packagist.org/p2/laravel/framework.json');
+            } catch (\Throwable) {
+                return null;
+            }
 
             if (! $response->successful()) {
                 return null;

@@ -41,10 +41,15 @@ class StaticVendorManager
             'system-checks:static-vendor:'.$package,
             (int) config('cms.static_vendor_version_cache_seconds', 1800),
             function () use ($package): ?string {
-                $response = Http::acceptJson()
-                    ->timeout(5)
-                    ->withHeaders(['User-Agent' => 'GSS-system-check'])
-                    ->get("https://registry.npmjs.org/{$package}/latest");
+                try {
+                    $response = Http::acceptJson()
+                        ->connectTimeout(3)
+                        ->timeout(5)
+                        ->withHeaders(['User-Agent' => 'GSS-system-check'])
+                        ->get("https://registry.npmjs.org/{$package}/latest");
+                } catch (\Throwable) {
+                    return null;
+                }
 
                 if (! $response->successful()) {
                     return null;
