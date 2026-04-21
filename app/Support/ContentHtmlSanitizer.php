@@ -299,7 +299,7 @@ class ContentHtmlSanitizer
             return false;
         }
 
-        if ($allowImageData && preg_match('/^\s*data:image\//i', $value) === 1) {
+        if ($allowImageData && preg_match('/^\s*data:image\/(?:png|jpe?g|gif|webp)(?:;[^,]*)?,/i', $value) === 1) {
             return true;
         }
 

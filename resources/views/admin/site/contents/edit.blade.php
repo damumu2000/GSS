@@ -591,6 +591,8 @@
         data-type-label="{{ $typeLabel }}"
         data-bilibili-resolve-url="{{ route('admin.articles.resolve-bilibili') }}"
         data-image-upload-url="{{ route('admin.attachments.image-upload') }}"
+        data-rich-import-url="{{ route('admin.contents.import-rich') }}"
+        data-rich-image-fetch-url="{{ route('admin.contents.import-image-fetch') }}"
         data-editor-errors='@json(array_values(array_filter([$errors->first("title"), $errors->first("content")])))'
     ></div>
 

@@ -149,6 +149,8 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::post('/articles/bulk', [ContentController::class, 'bulk'])->defaults('type', 'article')->name('articles.bulk');
             Route::post('/articles/reorder', [ContentController::class, 'reorder'])->defaults('type', 'article')->name('articles.reorder');
             Route::post('/articles/resolve-bilibili', [ContentController::class, 'resolveBilibiliVideo'])->name('articles.resolve-bilibili');
+            Route::post('/contents/import-rich', [ContentController::class, 'importRichContent'])->middleware('throttle:12,1')->name('contents.import-rich');
+            Route::post('/contents/import-image-fetch', [ContentController::class, 'importImageFetch'])->middleware('throttle:30,1')->name('contents.import-image-fetch');
             Route::get('/articles/{content}', [ContentController::class, 'edit'])->defaults('type', 'article')->name('articles.edit');
             Route::post('/articles/{content}', [ContentController::class, 'update'])->defaults('type', 'article')->name('articles.update');
             Route::post('/articles/{content}/delete', [ContentController::class, 'destroy'])->defaults('type', 'article')->name('articles.destroy');

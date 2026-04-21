@@ -1766,6 +1766,17 @@
             letter-spacing: -0.03em;
         }
 
+        .content-editor-body .tox-tbtn[title="导入 Word/WPS 内容（图文）"] .tox-tbtn__select-label,
+        .content-editor-body .tox-tbtn[aria-label="导入 Word/WPS 内容（图文）"] .tox-tbtn__select-label,
+        .content-editor-body .tox-tbtn[title="导入 Word/WPS 内容（图文）"] .tox-tbtn__status-label,
+        .content-editor-body .tox-tbtn[aria-label="导入 Word/WPS 内容（图文）"] .tox-tbtn__status-label,
+        .content-editor-body .tox-tbtn[title="导入Word"] .tox-tbtn__select-label,
+        .content-editor-body .tox-tbtn[aria-label="导入Word"] .tox-tbtn__select-label,
+        .content-editor-body .tox-tbtn[title="导入Word"] .tox-tbtn__status-label,
+        .content-editor-body .tox-tbtn[aria-label="导入Word"] .tox-tbtn__status-label {
+            font-weight: 800 !important;
+        }
+
         .content-editor-body .tox .tox-tbtn[aria-label="撤销"],
         .content-editor-body .tox .tox-tbtn[aria-label="重做"],
         .content-editor-body .tox .tox-tbtn[aria-label="减少缩进"],

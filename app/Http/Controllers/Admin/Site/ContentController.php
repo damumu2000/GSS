@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Support\AttachmentUsageTracker;
 use App\Support\ContentHtmlSanitizer;
 use App\Support\ContentAttachmentRelationSync;
+use App\Support\RichContentImportService;
+use App\Support\SystemSettings;
 use App\Support\ThemeTemplateLocator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use function defined;
 
 class ContentController extends Controller
 {
@@ -1390,6 +1393,144 @@ class ContentController extends Controller
         ]);
     }
 
+    public function importRichContent(Request $request): JsonResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'content.manage');
+
+        $validated = $request->validate([
+            'file' => ['nullable', 'file', 'max:30720'],
+            'html' => ['nullable', 'string', 'max:2000000'],
+        ], [
+            'file.max' => '导入文件不能超过 30MB。',
+            'html.max' => '导入内容过大，请分段导入。',
+        ], [
+            'file' => '导入文件',
+            'html' => '导入内容',
+        ]);
+
+        $hasFile = $request->hasFile('file');
+        $htmlInput = trim((string) ($validated['html'] ?? ''));
+
+        if (! $hasFile && $htmlInput === '') {
+            return response()->json([
+                'message' => '请先选择 Word 文件或粘贴内容后再导入。',
+            ], 422);
+        }
+
+        if ($hasFile) {
+            $extension = strtolower((string) ($validated['file']->getClientOriginalExtension() ?: $validated['file']->extension() ?: ''));
+            if (! in_array($extension, ['docx', 'doc', 'wps'], true)) {
+                return response()->json([
+                    'message' => '仅支持导入 docx、doc、wps 文件。',
+                ], 422);
+            }
+        }
+
+        try {
+            $imageMaxBytes = max(1, app(SystemSettings::class)->attachmentImageMaxSizeMb()) * 1024 * 1024;
+            $service = new RichContentImportService($imageMaxBytes, $imageMaxBytes * 20);
+            $result = $hasFile
+                ? $service->importFromOfficeFile($validated['file'])
+                : $service->importFromHtml($htmlInput);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => $exception instanceof \RuntimeException && $exception->getMessage() !== ''
+                    ? $exception->getMessage()
+                    : '导入失败，请稍后重试。',
+            ], 422);
+        }
+
+        return response()->json($result);
+    }
+
+    public function importImageFetch(Request $request): JsonResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'content.manage');
+
+        $validated = $request->validate([
+            'url' => ['required', 'url', 'max:2000'],
+        ], [], [
+            'url' => '图片地址',
+        ]);
+
+        $url = trim((string) ($validated['url'] ?? ''));
+        if (! $this->isImportImageUrlAllowed($url)) {
+            return response()->json([
+                'message' => '图片地址不安全或不可访问，请改用上传图片方式。',
+            ], 422);
+        }
+
+        try {
+            $requestOptions = [
+                'allow_redirects' => false,
+                'verify' => true,
+            ];
+            if (defined('CURLOPT_IPRESOLVE') && defined('CURL_IPRESOLVE_V4')) {
+                $requestOptions['curl'] = [
+                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                ];
+            }
+
+            $response = Http::withOptions($requestOptions)
+                ->timeout(10)
+                ->accept('*/*')
+                ->get($url);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => '图片下载失败，请稍后重试。',
+            ], 422);
+        }
+
+        if (! $response->successful()) {
+            return response()->json([
+                'message' => '图片下载失败，请稍后重试。',
+            ], 422);
+        }
+
+        $contentType = strtolower(trim((string) $response->header('Content-Type', '')));
+        $contentType = explode(';', $contentType)[0] ?? '';
+        if (! in_array($contentType, ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'], true)) {
+            return response()->json([
+                'message' => '仅支持 jpeg、png、gif、webp 图片资源。',
+            ], 422);
+        }
+
+        $contentLength = (int) $response->header('Content-Length', 0);
+        $maxImageBytes = max(1, app(SystemSettings::class)->attachmentImageMaxSizeMb()) * 1024 * 1024;
+        $maxImageMb = (int) ceil($maxImageBytes / 1024 / 1024);
+        if ($contentLength > $maxImageBytes) {
+            return response()->json([
+                'message' => sprintf('图片体积超限（最大 %dMB）。', $maxImageMb),
+            ], 422);
+        }
+
+        $body = $response->body();
+        $bytes = strlen($body);
+        if ($bytes <= 0 || $bytes > $maxImageBytes) {
+            return response()->json([
+                'message' => sprintf('图片体积超限（最大 %dMB）。', $maxImageMb),
+            ], 422);
+        }
+
+        $imageInfo = @getimagesizefromstring($body);
+        $detectedMime = strtolower((string) ($imageInfo['mime'] ?? ''));
+        if ($imageInfo === false || ! in_array($detectedMime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+            return response()->json([
+                'message' => '图片内容校验失败，请上传有效的 jpeg、png、gif、webp 图片。',
+            ], 422);
+        }
+
+        return response()->json([
+            'data_url' => 'data:'.$detectedMime.';base64,'.base64_encode($body),
+        ]);
+    }
+
     /**
      * Sync attachment relations for a content entry.
      *
@@ -1516,6 +1657,50 @@ class ContentController extends Controller
         }
 
         return 'pending';
+    }
+
+    protected function isImportImageUrlAllowed(string $url): bool
+    {
+        $parsed = parse_url($url);
+        if (! is_array($parsed)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) ($parsed['scheme'] ?? ''));
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        $host = strtolower((string) ($parsed['host'] ?? ''));
+        if ($host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            return false;
+        }
+
+        if (str_ends_with($host, '.local') || str_ends_with($host, '.internal')) {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return ! $this->isPrivateOrReservedIp($host);
+        }
+
+        $hasResolvableAddress = false;
+        $resolvedIps = gethostbynamel($host);
+        if (is_array($resolvedIps) && $resolvedIps !== []) {
+            $hasResolvableAddress = true;
+            foreach ($resolvedIps as $ip) {
+                if ($this->isPrivateOrReservedIp($ip)) {
+                    return false;
+                }
+            }
+        }
+
+        return $hasResolvableAddress;
+    }
+
+    protected function isPrivateOrReservedIp(string $ip): bool
+    {
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
     }
 
     protected function resolvePublishedAt(mixed $submittedPublishedAt, string $resolvedStatus, mixed $currentPublishedAt = null): mixed

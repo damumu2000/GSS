@@ -38,7 +38,15 @@ const siteContentEditConfig = document.getElementById('site-content-edit-config'
 const siteContentTypeLabel = siteContentEditConfig?.dataset.typeLabel || '文章';
 const bilibiliVideoResolveUrl = siteContentEditConfig?.dataset.bilibiliResolveUrl || '';
 const imageUploadUrl = siteContentEditConfig?.dataset.imageUploadUrl || '';
+const richImportUrl = siteContentEditConfig?.dataset.richImportUrl || '';
+const richImageFetchUrl = siteContentEditConfig?.dataset.richImageFetchUrl || '';
 const siteContentEditErrors = JSON.parse(siteContentEditConfig?.dataset.editorErrors || '[]');
+
+function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        || document.querySelector('input[name="_token"]')?.value
+        || '';
+}
 
 (() => {
     const input = document.getElementById('cover_image');
@@ -1164,6 +1172,33 @@ function normalizeLeadingParagraphIndent(root) {
     }
 }
 
+function stripParagraphLeadingWhitespace(node) {
+    if (!node || node.tagName?.toLowerCase() !== 'p') {
+        return;
+    }
+
+    for (const child of Array.from(node.childNodes)) {
+        if (child.nodeType !== Node.TEXT_NODE) {
+            break;
+        }
+
+        const text = child.textContent || '';
+        if (text === '') {
+            child.remove();
+            continue;
+        }
+
+        const trimmed = text.replace(/^[\s\u00a0\u3000]+/u, '');
+        if (trimmed === '') {
+            child.remove();
+            continue;
+        }
+
+        child.textContent = trimmed;
+        break;
+    }
+}
+
 function normalizeArticleTypography(root) {
     splitMixedMediaParagraphs(root);
 
@@ -1201,6 +1236,7 @@ function normalizeArticleTypography(root) {
             return;
         }
 
+        stripParagraphLeadingWhitespace(node);
         node.classList.add('cms-article-paragraph--text');
     });
 
@@ -1268,9 +1304,13 @@ function applySmartTypesetting(editor) {
     showArticleTypesettingToast();
 }
 
-function showArticleTypesettingToast() {
+function showStyledEditorToast(options = {}) {
     const toastConfig = window.CMS_TOAST_CONFIG || {};
-    const toastVisibleDuration = Number.isFinite(toastConfig.visibleDuration) ? toastConfig.visibleDuration : 5000;
+    const title = String(options.title || '操作提示');
+    const text = String(options.text || '');
+    const toastVisibleDuration = Number.isFinite(options.timeout)
+        ? Number(options.timeout)
+        : (Number.isFinite(toastConfig.visibleDuration) ? toastConfig.visibleDuration : 5000);
     const toastExitDuration = Number.isFinite(toastConfig.exitDuration) ? toastConfig.exitDuration : 240;
 
     document.querySelectorAll('.article-typesetting-toast').forEach((node) => node.remove());
@@ -1279,18 +1319,32 @@ function showArticleTypesettingToast() {
     toast.className = 'article-typesetting-toast';
     toast.setAttribute('role', 'status');
     toast.setAttribute('aria-live', 'polite');
-    toast.innerHTML = `
-        <span class="article-typesetting-toast__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-                <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"></path>
-                <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"></path>
-            </svg>
-        </span>
-        <span class="article-typesetting-toast__body">
-            <strong class="article-typesetting-toast__title">排版已优化完成</strong>
-            <span class="article-typesetting-toast__text">正文已统一为 14px，段落、列表和表格也一起整理好了。</span>
-        </span>
+
+    const icon = document.createElement('span');
+    icon.className = 'article-typesetting-toast__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = `
+        <svg viewBox="0 0 24 24">
+            <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"></path>
+            <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"></path>
+        </svg>
     `;
+
+    const body = document.createElement('span');
+    body.className = 'article-typesetting-toast__body';
+
+    const titleNode = document.createElement('strong');
+    titleNode.className = 'article-typesetting-toast__title';
+    titleNode.textContent = title;
+
+    const textNode = document.createElement('span');
+    textNode.className = 'article-typesetting-toast__text';
+    textNode.textContent = text;
+
+    body.appendChild(titleNode);
+    body.appendChild(textNode);
+    toast.appendChild(icon);
+    toast.appendChild(body);
 
     document.body.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('is-visible'));
@@ -1299,6 +1353,372 @@ function showArticleTypesettingToast() {
         toast.classList.remove('is-visible');
         window.setTimeout(() => toast.remove(), toastExitDuration);
     }, toastVisibleDuration);
+}
+
+function openEditorNotice(editor, text, type = 'info', timeout = 2800) {
+    const title = type === 'success' ? '导入成功' : '导入提示';
+
+    showStyledEditorToast({
+        title,
+        text,
+        timeout,
+    });
+}
+
+function isImportableImageSource(src) {
+    const value = String(src || '').trim();
+    if (value === '') {
+        return false;
+    }
+
+    return /^data:image\//i.test(value) || /^https?:\/\//i.test(value);
+}
+
+function countImportableImagesInHtml(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div data-import-count-wrap>${html}</div>`, 'text/html');
+    const root = doc.body.querySelector('[data-import-count-wrap]');
+
+    if (!root) {
+        return 0;
+    }
+
+    return Array.from(root.querySelectorAll('img'))
+        .filter((node) => isImportableImageSource(node.getAttribute('src') || ''))
+        .length;
+}
+
+function stripImagesFromImportedHtml(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div data-import-strip-wrap>${html}</div>`, 'text/html');
+    const root = doc.body.querySelector('[data-import-strip-wrap]');
+
+    if (!root) {
+        return html;
+    }
+
+    root.querySelectorAll('img').forEach((node) => node.remove());
+
+    return root.innerHTML;
+}
+
+function confirmImportImageSync(imageCount) {
+    if (!Number.isFinite(imageCount) || imageCount <= 0) {
+        return Promise.resolve(true);
+    }
+
+    const message = `本次导入的内容包含${imageCount}张图片，是否将图片同步上传到资源库中。`;
+
+    return new Promise((resolve) => {
+        if (typeof window.showConfirmDialog !== 'function') {
+            resolve(window.confirm(message));
+            return;
+        }
+
+        const modal = document.querySelector('.js-confirm-modal');
+        const cancelButtons = modal ? Array.from(modal.querySelectorAll('.js-confirm-cancel')) : [];
+        let settled = false;
+
+        const finish = (value) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            cancelButtons.forEach((button) => button.removeEventListener('click', onCancel));
+            document.removeEventListener('keydown', onEscape, true);
+            resolve(value);
+        };
+
+        const onCancel = () => finish(false);
+        const onEscape = (event) => {
+            if (event.key === 'Escape') {
+                finish(false);
+            }
+        };
+
+        cancelButtons.forEach((button) => button.addEventListener('click', onCancel, { once: true }));
+        document.addEventListener('keydown', onEscape, true);
+
+        window.showConfirmDialog({
+            title: '同步图片到资源库？',
+            text: message,
+            confirmText: '确认同步',
+            onConfirm: () => finish(true),
+        });
+    });
+}
+
+function dataUrlToFile(dataUrl, filename = 'import-image.png') {
+    const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/i);
+    if (!match) {
+        return null;
+    }
+
+    const mimeType = (match[1] || 'image/png').toLowerCase();
+    if (!mimeType.startsWith('image/')) {
+        return null;
+    }
+
+    const extension = mimeType.split('/')[1] || 'png';
+    const binary = window.atob(match[2] || '');
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new File([bytes], `${filename}.${extension}`.replace(/\.+/g, '.'), { type: mimeType });
+}
+
+async function remoteImageUrlToFile(url, filename = 'import-image') {
+    if (!richImageFetchUrl) {
+        throw new Error('导入图片抓取接口未配置');
+    }
+
+    const payload = new FormData();
+    payload.append('url', url);
+
+    const response = await fetch(richImageFetchUrl, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+        body: payload,
+        credentials: 'same-origin',
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.status === 429) {
+        throw new Error('操作过于频繁，请稍后再试。');
+    }
+    if (!response.ok || !result?.data_url) {
+        throw new Error(result?.message || '图片下载失败');
+    }
+
+    const file = dataUrlToFile(String(result.data_url || ''), filename);
+    if (!file) {
+        throw new Error('图片格式不支持');
+    }
+
+    return file;
+}
+
+async function uploadImportedImage(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(imageUploadUrl, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+        body: formData,
+        credentials: 'same-origin',
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 429) {
+        throw new Error('操作过于频繁，请稍后再试。');
+    }
+    if (!response.ok || !payload?.location) {
+        throw new Error(payload?.message || '图片上传失败');
+    }
+
+    return String(payload.location);
+}
+
+async function replaceEmbeddedImagesForImport(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div data-import-wrap>${html}</div>`, 'text/html');
+    const root = doc.body.querySelector('[data-import-wrap]');
+
+    if (!root) {
+        return { html, uploaded: 0, failed: 0, failures: [] };
+    }
+
+    const images = Array.from(root.querySelectorAll('img')).filter((node) => isImportableImageSource(node.getAttribute('src') || ''));
+    if (images.length === 0) {
+        return { html: root.innerHTML, uploaded: 0, failed: 0, failures: [] };
+    }
+
+    if (images.length > 20) {
+        throw new Error(`图片数量超出限制：当前 ${images.length} 张，最多允许 20 张。`);
+    }
+
+    let uploaded = 0;
+    const failures = [];
+
+    for (let i = 0; i < images.length; i += 1) {
+        const node = images[i];
+        const src = (node.getAttribute('src') || '').trim();
+        let file = null;
+
+        if (/^data:image\//i.test(src)) {
+            file = dataUrlToFile(src, `import-${Date.now()}-${i + 1}`);
+        } else if (/^https?:\/\//i.test(src)) {
+            try {
+                file = await remoteImageUrlToFile(src, `import-${Date.now()}-${i + 1}`);
+            } catch (error) {
+                failures.push(`第 ${i + 1} 张图片下载失败，已跳过`);
+                node.remove();
+                continue;
+            }
+        }
+
+        if (!file) {
+            failures.push(`第 ${i + 1} 张图片格式不支持`);
+            node.remove();
+            continue;
+        }
+
+        try {
+            const location = await uploadImportedImage(file);
+            node.setAttribute('src', location);
+            uploaded += 1;
+        } catch (error) {
+            failures.push(`第 ${i + 1} 张图片上传失败`);
+            node.remove();
+        }
+    }
+
+    return {
+        html: root.innerHTML,
+        uploaded,
+        failed: images.length - uploaded,
+        failures,
+    };
+}
+
+async function importRichContent(editor, payload) {
+    if (!richImportUrl) {
+        openEditorNotice(editor, '导入接口未配置，请联系管理员。', 'warning');
+        return;
+    }
+
+    const response = await fetch(richImportUrl, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+        body: payload,
+        credentials: 'same-origin',
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.status === 429) {
+        throw new Error('操作过于频繁，请稍后再试。');
+    }
+
+    if (!response.ok || !result?.html) {
+        throw new Error(result?.message || '导入失败，请稍后重试。');
+    }
+
+    const importedHtml = String(result.html || '');
+    const importableImageCount = countImportableImagesInHtml(importedHtml);
+    const shouldSyncImages = await confirmImportImageSync(importableImageCount);
+
+    const uploadResult = shouldSyncImages
+        ? await replaceEmbeddedImagesForImport(importedHtml)
+        : {
+            html: stripImagesFromImportedHtml(importedHtml),
+            uploaded: 0,
+            failed: 0,
+            failures: [],
+        };
+
+    const finalHtml = String(uploadResult.html || '').trim();
+    if (finalHtml === '') {
+        throw new Error('导入内容为空，请检查原始文档。');
+    }
+
+    editor.undoManager.transact(() => {
+        editor.insertContent(finalHtml);
+        editor.save();
+    });
+
+    const serverWarnings = Array.isArray(result?.warnings) ? result.warnings.filter((item) => typeof item === 'string' && item.trim() !== '') : [];
+    serverWarnings.slice(0, 2).forEach((warning) => {
+        openEditorNotice(editor, warning, 'info', 5000);
+    });
+
+    if (!shouldSyncImages && importableImageCount > 0) {
+        openEditorNotice(editor, `已按你的选择仅导入文本，未同步 ${importableImageCount} 张图片。`, 'info', 5000);
+        return;
+    }
+
+    if (uploadResult.failed > 0) {
+        openEditorNotice(editor, `导入完成：图片成功 ${uploadResult.uploaded} 张，失败 ${uploadResult.failed} 张。`, 'warning', 5000);
+        uploadResult.failures.slice(0, 2).forEach((message) => {
+            openEditorNotice(editor, message, 'warning', 5000);
+        });
+        return;
+    }
+
+    openEditorNotice(editor, `导入完成：文本已插入，图片成功 ${uploadResult.uploaded} 张。`, 'success', 5000);
+}
+
+function createWordImportInput(editor) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.docx,.doc,.wps';
+    input.hidden = true;
+    input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        input.value = '';
+
+        if (!file) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            await importRichContent(editor, formData);
+        } catch (error) {
+            openEditorNotice(editor, error instanceof Error ? error.message : '导入失败，请稍后重试。', 'warning', 5000);
+        }
+    });
+
+    document.body.appendChild(input);
+    return input;
+}
+
+function bindSmartPasteImport(editor) {
+    editor.on('paste', async (event) => {
+        const clipboardData = event?.clipboardData || event?.originalEvent?.clipboardData;
+        const html = clipboardData?.getData?.('text/html') || '';
+
+        if (!html || html.trim() === '') {
+            return;
+        }
+
+        const likelyOfficeOrRichContent = /class=["'][^"']*Mso|urn:schemas-microsoft-com|<img\b/i.test(html);
+        if (!likelyOfficeOrRichContent) {
+            return;
+        }
+
+        event.preventDefault();
+        const formData = new FormData();
+        formData.append('html', html);
+
+        try {
+            await importRichContent(editor, formData);
+        } catch (error) {
+            openEditorNotice(editor, error instanceof Error ? error.message : '粘贴导入失败，请稍后重试。', 'warning', 5000);
+        }
+    });
+}
+
+function showArticleTypesettingToast() {
+    showStyledEditorToast({
+        title: '排版已优化完成',
+        text: '正文已统一为 14px，段落、列表和表格也一起整理好了。',
+    });
 }
 
 function clearEditorFormatting(editor) {
@@ -1396,6 +1816,14 @@ tinymce.init({
             tooltip: '一键排版',
             onAction: () => applySmartTypesetting(editor),
         });
+        editor.ui.registry.addIcon('word-import', '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M5 3.75A1.75 1.75 0 0 1 6.75 2h7.5a1.75 1.75 0 0 1 1.75 1.75V7h1.75A1.75 1.75 0 0 1 19.5 8.75v11.5A1.75 1.75 0 0 1 17.75 22h-11.5A1.75 1.75 0 0 1 4.5 20.25V3.75Zm1.5 0v16.5c0 .14.11.25.25.25h11a.25.25 0 0 0 .25-.25V8.75a.25.25 0 0 0-.25-.25H15.5V3.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm3.1 8.35h1.2l.85 4.05.94-2.74h1.02l.95 2.74.84-4.05h1.2l-1.5 6.15h-1.01l-1-2.9-1.01 2.9H11.1l-1.5-6.15Z"/></svg>');
+        const wordImportInput = createWordImportInput(editor);
+        editor.ui.registry.addButton('wordImportCn', {
+            icon: 'word-import',
+            text: 'Word！',
+            tooltip: '导入 Word/WPS 内容（图文）',
+            onAction: () => wordImportInput.click(),
+        });
         editor.ui.registry.addToggleButton('visualBlocksCn', {
             text: '显示块',
             tooltip: '显示块',
@@ -1429,6 +1857,7 @@ tinymce.init({
             window.setTimeout(() => attachResourceLibraryMenubarButton(editor), 320);
             document.dispatchEvent(new CustomEvent('tinymce-editor-ready', { detail: { id: editor.id } }));
         });
+        bindSmartPasteImport(editor);
         editor.on('click', (event) => {
             const node = findVideoEmbedNode(event.target);
             if (node) {
@@ -1458,7 +1887,7 @@ tinymce.init({
         });
         editor.on('change input undo redo', () => editor.save());
     },
-    toolbar: 'undo redo fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent table visualblocks quoteCn linkCn codeSampleCn codeCn clearCn schoolVideoEmbed schoolEmojiPicker smartArticleFormat schoolResourceLibrary schoolFullscreen',
+    toolbar: 'undo redo wordImportCn fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent table visualblocks quoteCn linkCn codeSampleCn codeCn clearCn schoolVideoEmbed schoolEmojiPicker smartArticleFormat schoolResourceLibrary schoolFullscreen',
     images_upload_handler: (blobInfo, progress) => new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', imageUploadUrl);
