@@ -1628,78 +1628,91 @@ async function importRichContent(editor, payload) {
         return;
     }
 
-    const response = await fetch(richImportUrl, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': csrfToken(),
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json',
-        },
-        body: payload,
-        credentials: 'same-origin',
-    });
-    const result = await response.json().catch(() => ({}));
-    if (response.status === 429) {
-        throw new Error('操作过于频繁，请稍后再试。');
-    }
+    const importingWord = typeof payload?.has === 'function' && payload.has('file');
+    const preparingText = importingWord
+        ? '文章和图片资源正在导入中，正在解析 Word 内容，请耐心等待完成。'
+        : '文章和图片资源正在导入中，正在处理粘贴内容，请耐心等待完成。';
+    openEditorNotice(editor, preparingText, 'info', 5000);
+    const pendingNoticeTimer = window.setInterval(() => {
+        openEditorNotice(editor, preparingText, 'info', 5000);
+    }, 4500);
 
-    if (!response.ok || !result?.html) {
-        throw new Error(result?.message || '导入失败，请稍后重试。');
-    }
-
-    const importedHtml = String(result.html || '');
-    const importableImageCount = countImportableImagesInHtml(importedHtml);
-    const shouldSyncImages = await confirmImportImageSync(importableImageCount);
-
-    const uploadResult = shouldSyncImages
-        ? await replaceEmbeddedImagesForImport(importedHtml, ({ total, uploaded, remaining }) => {
-            if (total <= 0) {
-                return;
-            }
-
-            openEditorNotice(
-                editor,
-                `文章和图片资源正在导入中，已导入 ${uploaded} 张，还剩余 ${remaining} 张，请耐心等待完成。`,
-                'info',
-                6000
-            );
-        })
-        : {
-            html: stripImagesFromImportedHtml(importedHtml),
-            uploaded: 0,
-            failed: 0,
-            failures: [],
-        };
-
-    const finalHtml = String(uploadResult.html || '').trim();
-    if (finalHtml === '') {
-        throw new Error('导入内容为空，请检查原始文档。');
-    }
-
-    editor.undoManager.transact(() => {
-        editor.insertContent(finalHtml);
-        editor.save();
-    });
-
-    const serverWarnings = Array.isArray(result?.warnings) ? result.warnings.filter((item) => typeof item === 'string' && item.trim() !== '') : [];
-    serverWarnings.slice(0, 2).forEach((warning) => {
-        openEditorNotice(editor, warning, 'info', 5000);
-    });
-
-    if (!shouldSyncImages && importableImageCount > 0) {
-        openEditorNotice(editor, `已按你的选择仅导入文本，未同步 ${importableImageCount} 张图片。`, 'info', 5000);
-        return;
-    }
-
-    if (uploadResult.failed > 0) {
-        openEditorNotice(editor, `导入完成：图片成功 ${uploadResult.uploaded} 张，失败 ${uploadResult.failed} 张。`, 'warning', 5000);
-        uploadResult.failures.slice(0, 2).forEach((message) => {
-            openEditorNotice(editor, message, 'warning', 5000);
+    try {
+        const response = await fetch(richImportUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            body: payload,
+            credentials: 'same-origin',
         });
-        return;
-    }
+        const result = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+            throw new Error('操作过于频繁，请稍后再试。');
+        }
 
-    openEditorNotice(editor, `导入完成：文本已插入，图片成功 ${uploadResult.uploaded} 张。`, 'success', 5000);
+        if (!response.ok || !result?.html) {
+            throw new Error(result?.message || '导入失败，请稍后重试。');
+        }
+
+        const importedHtml = String(result.html || '');
+        const importableImageCount = countImportableImagesInHtml(importedHtml);
+        const shouldSyncImages = await confirmImportImageSync(importableImageCount);
+
+        const uploadResult = shouldSyncImages
+            ? await replaceEmbeddedImagesForImport(importedHtml, ({ total, uploaded, remaining }) => {
+                if (total <= 0) {
+                    return;
+                }
+
+                openEditorNotice(
+                    editor,
+                    `文章和图片资源正在导入中，已导入 ${uploaded} 张，还剩余 ${remaining} 张，请耐心等待完成。`,
+                    'info',
+                    6000
+                );
+            })
+            : {
+                html: stripImagesFromImportedHtml(importedHtml),
+                uploaded: 0,
+                failed: 0,
+                failures: [],
+            };
+
+        const finalHtml = String(uploadResult.html || '').trim();
+        if (finalHtml === '') {
+            throw new Error('导入内容为空，请检查原始文档。');
+        }
+
+        editor.undoManager.transact(() => {
+            editor.insertContent(finalHtml);
+            editor.save();
+        });
+
+        const serverWarnings = Array.isArray(result?.warnings) ? result.warnings.filter((item) => typeof item === 'string' && item.trim() !== '') : [];
+        serverWarnings.slice(0, 2).forEach((warning) => {
+            openEditorNotice(editor, warning, 'info', 5000);
+        });
+
+        if (!shouldSyncImages && importableImageCount > 0) {
+            openEditorNotice(editor, `已按你的选择仅导入文本，未同步 ${importableImageCount} 张图片。`, 'info', 5000);
+            return;
+        }
+
+        if (uploadResult.failed > 0) {
+            openEditorNotice(editor, `导入完成：图片成功 ${uploadResult.uploaded} 张，失败 ${uploadResult.failed} 张。`, 'warning', 5000);
+            uploadResult.failures.slice(0, 2).forEach((message) => {
+                openEditorNotice(editor, message, 'warning', 5000);
+            });
+            return;
+        }
+
+        openEditorNotice(editor, `导入完成：文本已插入，图片成功 ${uploadResult.uploaded} 张。`, 'success', 5000);
+    } finally {
+        window.clearInterval(pendingNoticeTimer);
+    }
 }
 
 function createWordImportInput(editor) {
