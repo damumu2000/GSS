@@ -88,6 +88,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/settings', [SystemSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [SystemSettingController::class, 'update'])->name('settings.update');
             Route::get('/system-checks', [SystemCheckController::class, 'index'])->name('system-checks.index');
+            Route::post('/system-checks/cache/clear-all', [SystemCheckController::class, 'clearAllCache'])->name('system-checks.cache.clear-all');
             Route::post('/system-checks/static-vendors/{asset}/upgrade', [SystemCheckController::class, 'upgradeStaticVendor'])->name('system-checks.static-vendors.upgrade');
             Route::post('/system-checks/cache/{action}/clear', [SystemCheckController::class, 'clearCache'])->name('system-checks.cache.clear');
             Route::get('/users', [PlatformUserController::class, 'index'])->name('users.index');

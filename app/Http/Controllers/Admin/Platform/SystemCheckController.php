@@ -82,6 +82,7 @@ class SystemCheckController extends Controller
             'overallStatus' => $this->overallStatus($groups),
             'checkedAt' => now(),
             'cacheActions' => self::CACHE_ACTIONS,
+            'activeTab' => in_array((string) $request->query('tab'), ['cache', 'base'], true) ? (string) $request->query('tab') : 'base',
         ]);
     }
 
@@ -160,6 +161,57 @@ class SystemCheckController extends Controller
             return redirect()
                 ->route('admin.platform.system-checks.index')
                 ->with('status', $definition['label'].'清理失败：'.$exception->getMessage());
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    public function clearAllCache(Request $request): RedirectResponse
+    {
+        $this->authorizePlatform($request, 'system.setting.manage');
+
+        if (! $this->isSuperAdmin((int) $request->user()->id)) {
+            return redirect()
+                ->route('admin.platform.system-checks.index', ['tab' => 'cache'])
+                ->with('status', '只有总管理员可以执行缓存清理。');
+        }
+
+        $lock = Cache::lock('system-checks:cache-action:all', 45);
+
+        if (! $lock->get()) {
+            return redirect()
+                ->route('admin.platform.system-checks.index', ['tab' => 'cache'])
+                ->with('status', '一键清除正在处理中，请稍后再试。');
+        }
+
+        try {
+            Artisan::call('optimize:clear');
+            $output = trim((string) Artisan::output());
+
+            $this->logOperation(
+                'platform',
+                'system_check',
+                'clear_cache_all',
+                null,
+                (int) $request->user()->id,
+                'cache_action',
+                null,
+                [
+                    'action' => 'all',
+                    'label' => '一键清除',
+                    'command' => 'optimize:clear',
+                    'output' => $output === '' ? null : mb_substr($output, 0, 500),
+                ],
+                $request,
+            );
+
+            return redirect()
+                ->route('admin.platform.system-checks.index', ['tab' => 'cache'])
+                ->with('status', '已完成一键清除。');
+        } catch (Throwable $exception) {
+            return redirect()
+                ->route('admin.platform.system-checks.index', ['tab' => 'cache'])
+                ->with('status', '一键清除失败：'.$exception->getMessage());
         } finally {
             optional($lock)->release();
         }
