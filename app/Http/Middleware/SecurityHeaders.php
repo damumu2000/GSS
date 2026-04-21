@@ -37,10 +37,12 @@ class SecurityHeaders
             "frame-src 'self' https://player.bilibili.com",
         ]));
 
-        if (
-            $request->isSecure()
-            && filter_var((string) env('SECURITY_HEADERS_HSTS_APP', false), FILTER_VALIDATE_BOOL)
-        ) {
+        $hstsEnabled = filter_var(
+            (string) env('SECURITY_HEADERS_HSTS_APP', app()->environment('production', 'staging', 'testing')),
+            FILTER_VALIDATE_BOOL
+        );
+
+        if ($request->isSecure() && $hstsEnabled) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
 

@@ -326,6 +326,7 @@ class PlatformSiteController extends Controller
 
             $this->syncSiteDomains($siteId, $validated['domains'] ?? '');
             $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
+            $this->syncSiteModules((int) $siteId, $validated['module_ids'] ?? []);
             $this->syncSiteSettings((int) $siteId, [
                 'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
             ], (int) $request->user()->id);
@@ -638,7 +639,7 @@ class PlatformSiteController extends Controller
             'name' => ['required', 'string', 'max:100'],
             'site_key' => ['required', 'string', 'max:50', 'regex:/^[a-z0-9][a-z0-9\-]*$/', $siteKeyRule],
             'status' => ['nullable', 'integer', 'in:0,1'],
-            'template_limit' => ['required', 'integer', 'min:1', 'max:50'],
+            'template_limit' => [$siteId ? 'nullable' : 'required', 'integer', 'min:1', 'max:50'],
             'domains' => ['nullable', 'string', 'max:2000'],
             'logo' => ['nullable', 'string', 'max:255'],
             'favicon' => ['nullable', 'string', 'max:255'],
@@ -646,6 +647,8 @@ class PlatformSiteController extends Controller
             'contact_email' => ['nullable', 'email:filter', 'max:100'],
             'address' => ['nullable', 'string', 'max:255'],
             'attachment_storage_limit_mb' => ['nullable', 'integer', 'min:0', 'max:1048576'],
+            'module_ids' => ['nullable', 'array'],
+            'module_ids.*' => ['integer', 'exists:modules,id'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_keywords' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string', 'max:500'],
@@ -1145,6 +1148,58 @@ class PlatformSiteController extends Controller
                 'site_id' => $siteId,
                 'user_id' => $userId,
                 'role_id' => $siteAdminRoleId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, mixed>  $moduleIds
+     */
+    protected function syncSiteModules(int $siteId, array $moduleIds): void
+    {
+        $selectedModuleIds = collect($moduleIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($selectedModuleIds->isEmpty()) {
+            DB::table('site_module_bindings')
+                ->where('site_id', $siteId)
+                ->delete();
+
+            return;
+        }
+
+        DB::table('site_module_bindings')
+            ->where('site_id', $siteId)
+            ->whereNotIn('module_id', $selectedModuleIds->all())
+            ->delete();
+
+        foreach ($selectedModuleIds as $moduleId) {
+            $exists = DB::table('site_module_bindings')
+                ->where('site_id', $siteId)
+                ->where('module_id', $moduleId)
+                ->exists();
+
+            if ($exists) {
+                DB::table('site_module_bindings')
+                    ->where('site_id', $siteId)
+                    ->where('module_id', $moduleId)
+                    ->update([
+                        'updated_at' => now(),
+                    ]);
+
+                continue;
+            }
+
+            DB::table('site_module_bindings')->insert([
+                'site_id' => $siteId,
+                'module_id' => $moduleId,
+                'is_trial' => false,
+                'is_paused' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

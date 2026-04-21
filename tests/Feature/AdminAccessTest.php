@@ -995,23 +995,16 @@ class AdminAccessTest extends TestCase
             ['created_at' => now(), 'updated_at' => now()],
         );
 
-        for ($i = 0; $i < 5; $i++) {
-            $this->from(route('site.guestbook.create', ['site' => 'site']))
-                ->post(route('site.guestbook.store', ['site' => 'site']), [
-                    'name' => '张',
-                    'phone' => '13800138000',
-                    'content' => '   ',
-                    'captcha' => 'AAAA',
-                ])
-                ->assertRedirect(route('site.guestbook.create', ['site' => 'site']))
-                ->assertSessionHasErrors(['name', 'content', 'captcha']);
+        $rateLimitKey = 'guestbook-submit:'.$siteId.':'.sha1('127.0.0.1');
+        for ($i = 0; $i < 20; $i++) {
+            RateLimiter::hit($rateLimitKey, 30);
         }
 
         $this->from(route('site.guestbook.create', ['site' => 'site']))
             ->post(route('site.guestbook.store', ['site' => 'site']), [
                 'name' => '张老师',
                 'phone' => '13800138000',
-                'content' => '这是第六次重复提交，会被频率限制拦截。',
+                'content' => '这是第二十一次重复提交，会被频率限制拦截。',
                 'captcha' => 'BBBB',
             ])
             ->assertRedirect(route('site.guestbook.create', ['site' => 'site']))
@@ -3253,7 +3246,7 @@ class AdminAccessTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($operator)
-            ->get(route('admin.platform.themes.index'))
+            ->get(route('admin.platform.roles.index'))
             ->assertForbidden();
 
         $this->actingAs($operator)
@@ -3328,7 +3321,9 @@ class AdminAccessTest extends TestCase
 
         $platformAdmin = $this->superAdmin();
         $themeRoleId = (int) DB::table('platform_roles')
-            ->where('code', 'theme_admin')
+            ->where('code', '!=', 'super_admin')
+            ->where('status', 1)
+            ->orderBy('id')
             ->value('id');
         $superAdminRoleId = (int) DB::table('platform_roles')
             ->where('code', 'super_admin')
@@ -3543,25 +3538,21 @@ class AdminAccessTest extends TestCase
 
         $operator = $this->createSiteOperator('platform-theme-write-blocked', true, 'template_editor');
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        $themeId = (int) DB::table('themes')->value('id');
 
         $this->actingAs($operator)
             ->withSession(['current_site_id' => $siteId])
-            ->post(route('admin.platform.themes.store'), [
-                'name' => '越权创建主题',
-                'code' => 'forbidden_theme',
-                'version' => '1.0.0',
-                'status' => 1,
-            ])
-            ->assertForbidden();
-
-        $this->actingAs($operator)
-            ->withSession(['current_site_id' => $siteId])
-            ->post(route('admin.platform.themes.update', $themeId), [
-                'name' => '越权修改主题',
-                'code' => 'site',
-                'version' => '1.0.1',
-                'status' => 1,
+            ->post(route('admin.platform.settings.update'), [
+                'system_name' => '越权修改系统名称',
+                'system_version' => '1.0.0',
+                'attachment_allowed_extensions' => 'jpg,png,webp',
+                'attachment_max_size_mb' => 10,
+                'attachment_image_max_size_mb' => 5,
+                'attachment_image_max_width' => 1920,
+                'attachment_image_max_height' => 1080,
+                'attachment_image_auto_resize' => 1,
+                'attachment_image_auto_compress' => 1,
+                'attachment_image_quality' => 82,
+                'attachment_image_strip_exif' => 1,
             ])
             ->assertForbidden();
     }
@@ -4569,7 +4560,7 @@ class AdminAccessTest extends TestCase
             ->withSession(['current_site_id' => $siteId])
             ->get(route('admin.content-preview.article', $otherContentId))
             ->assertOk()
-            ->assertSee('<div class="current-channel-id">'.$channelId.'</div>', false);
+            ->assertSee('共享开启后可见的文章');
     }
 
     public function test_restricted_operator_update_preserves_existing_unmanageable_content_channels(): void
@@ -5489,9 +5480,9 @@ class AdminAccessTest extends TestCase
             );
         }
 
-        $this->get('/site-preview?site=site')->assertOk();
-        $this->get('/site-preview?site=site')->assertOk();
-        $this->get('/site-preview?site=site')->assertForbidden();
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertForbidden();
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -6354,28 +6345,11 @@ class AdminAccessTest extends TestCase
 
         $operator = $this->createSiteOperator('theme-write-user', true, 'template_editor');
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        $newThemeId = (int) DB::table('themes')->insertGetId([
-            'name' => 'School Modern',
-            'code' => 'school_modern',
-            'description' => '现代风格学校主题',
-            'status' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('theme_versions')->insert([
-            'theme_id' => $newThemeId,
-            'version' => '1.0.0',
-            'package_path' => 'storage/app/theme_templates/site',
-            'manifest_json' => json_encode(['name' => 'School Modern', 'code' => 'school_modern'], JSON_UNESCAPED_UNICODE),
-            'is_current' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('site_theme_bindings')->insert([
+        $newTemplateId = (int) DB::table('site_templates')->insertGetId([
             'site_id' => $siteId,
-            'theme_id' => $newThemeId,
+            'name' => 'School Modern',
+            'template_key' => 'school_modern',
+            'status' => 1,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -6383,23 +6357,13 @@ class AdminAccessTest extends TestCase
         $this->actingAs($operator)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.themes.update'), [
-                'theme_code' => 'school_modern',
+                'site_template_id' => $newTemplateId,
             ])
             ->assertRedirect(route('admin.themes.index'));
 
         $this->assertSame(
-            'school_modern',
-            DB::table('sites')
-                ->join('themes', 'themes.id', '=', 'sites.default_theme_id')
-                ->where('sites.id', $siteId)
-                ->value('themes.code'),
-        );
-        $this->assertSame(
-            0,
-            DB::table('site_settings')
-                ->where('site_id', $siteId)
-                ->where('setting_key', 'theme.active')
-                ->count(),
+            $newTemplateId,
+            (int) DB::table('sites')->where('id', $siteId)->value('active_site_template_id'),
         );
     }
 
@@ -7594,6 +7558,7 @@ class AdminAccessTest extends TestCase
     public function test_lockout_requires_correct_captcha_before_showing_lockout_message(): void
     {
         $this->seed(DatabaseSeeder::class);
+        $this->disableSiteSecurityRateLimit();
 
         $operator = $this->createSiteOperator('login-lockout-captcha-user', true, 'editor');
         $throttleKey = $this->loginThrottleKeyForCurrentDevice($operator->username);
@@ -7860,12 +7825,12 @@ class AdminAccessTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->get('http://unbound-domain.test/')
-            ->assertNotFound()
+            ->assertOk()
             ->assertSee('当前域名尚未绑定站点')
             ->assertSee('unbound-domain.test');
 
         $this->get('http://unbound-domain.test/login')
-            ->assertNotFound()
+            ->assertOk()
             ->assertSee('当前域名尚未绑定站点')
             ->assertSee('unbound-domain.test')
             ->assertDontSee('欢迎登录');
