@@ -1835,8 +1835,8 @@ function clearEditorFormatting(editor) {
 tinymce.init({
     selector: 'textarea.rich-editor',
     height: 520,
-    language: 'zh_CN',
-    language_url: '/vendor/tinymce/langs/zh_CN.js',
+    language: 'zh-CN',
+    language_url: '/assets/tinymce/langs/zh-CN.js',
     toolbar_mode: 'wrap',
     menubar: false,
     branding: false,
