@@ -1365,6 +1365,31 @@ function openEditorNotice(editor, text, type = 'info', timeout = 2800) {
     });
 }
 
+function resolveImportRequestErrorMessage(response, payload, fallback = '导入失败，请稍后重试。') {
+    const status = Number(response?.status || 0);
+    const rawMessage = typeof payload?.message === 'string' ? payload.message.trim() : '';
+    const normalized = rawMessage.toLowerCase();
+
+    if (
+        status === 401
+        || status === 419
+        || normalized.includes('unauthenticated')
+        || normalized.includes('csrf token mismatch')
+    ) {
+        return '登录状态已过期，请先重新登录后再继续导入。';
+    }
+
+    if (status === 429) {
+        return '操作过于频繁，请稍后再试。';
+    }
+
+    if (rawMessage !== '') {
+        return rawMessage;
+    }
+
+    return fallback;
+}
+
 function isImportableImageSource(src) {
     const value = String(src || '').trim();
     if (value === '') {
@@ -1489,11 +1514,8 @@ async function remoteImageUrlToFile(url, filename = 'import-image') {
         credentials: 'same-origin',
     });
     const result = await response.json().catch(() => ({}));
-    if (response.status === 429) {
-        throw new Error('操作过于频繁，请稍后再试。');
-    }
     if (!response.ok || !result?.data_url) {
-        throw new Error(result?.message || '图片下载失败');
+        throw new Error(resolveImportRequestErrorMessage(response, result, '图片下载失败'));
     }
 
     const file = dataUrlToFile(String(result.data_url || ''), filename);
@@ -1520,11 +1542,8 @@ async function uploadImportedImage(file) {
     });
 
     const payload = await response.json().catch(() => ({}));
-    if (response.status === 429) {
-        throw new Error('操作过于频繁，请稍后再试。');
-    }
     if (!response.ok || !payload?.location) {
-        throw new Error(payload?.message || '图片上传失败');
+        throw new Error(resolveImportRequestErrorMessage(response, payload, '图片上传失败'));
     }
 
     return String(payload.location);
@@ -1649,12 +1668,9 @@ async function importRichContent(editor, payload) {
             credentials: 'same-origin',
         });
         const result = await response.json().catch(() => ({}));
-        if (response.status === 429) {
-            throw new Error('操作过于频繁，请稍后再试。');
-        }
 
         if (!response.ok || !result?.html) {
-            throw new Error(result?.message || '导入失败，请稍后重试。');
+            throw new Error(resolveImportRequestErrorMessage(response, result, '导入失败，请稍后重试。'));
         }
 
         const importedHtml = String(result.html || '');

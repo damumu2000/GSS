@@ -268,6 +268,28 @@ class ContentHtmlSanitizer
             return in_array($tagName, ['p', 'figure', 'img', 'figcaption'], true);
         }
 
+        if (str_starts_with($className, 'cms-article-')) {
+            return in_array($tagName, [
+                'p',
+                'span',
+                'div',
+                'h1',
+                'h2',
+                'h3',
+                'h4',
+                'ul',
+                'ol',
+                'li',
+                'blockquote',
+                'table',
+                'th',
+                'td',
+                'img',
+                'figure',
+                'figcaption',
+            ], true);
+        }
+
         if (str_starts_with($className, 'bilibili-video-embed')) {
             return $tagName === 'div';
         }
