@@ -1,14 +1,14 @@
 {% include "head" %}
-{{ themeStyle path="theme.css" }}
-{{ themeStyle path="home.css" }}
+{{ themeStyle(path='theme.css') }}
+{{ themeStyle(path='home.css') }}
 {% include "top" %}
-{% set heroPromo = promo code="home.hero" %}
-{% set carouselPromos = promos code="home.carousel" display_mode="carousel" limit="5" %}
-{% set newsItems = contentList type="article" limit="6" order="published_at_desc" %}
-{% set pageItems = contentList type="page" limit="4" order="updated_at_desc" status=null %}
-{% set stats = stats %}
-{% set guestbook = guestbookStats %}
-{% set feedbackItems = guestbookMessages limit="4" fields="display_no,name,summary,reply_summary,created_at_label,detail_url" %}
+{% set heroPromo = promo(code='home.hero') %}
+{% set carouselPromos = promos(code='home.carousel', display_mode='carousel', limit=5) %}
+{% set newsItems = contentList(type='article', limit=6, order='published_at_desc') %}
+{% set pageItems = contentList(type='page', limit=4, order='updated_at_desc', status=null) %}
+{% set stats = stats() %}
+{% set guestbook = guestbookStats() %}
+{% set feedbackItems = guestbookMessages(limit=4, fields='display_no,name,summary,reply_summary,created_at_label,detail_url') %}
 <div class="container">
     <section class="hero-grid">
         <article class="panel hero-card">
@@ -228,5 +228,5 @@
         </div>
     </section>
 </div>
-{{ themeScript path="home.js" }}
+{{ themeScript(path='home.js') }}
 {% include "foot" %}

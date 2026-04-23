@@ -1,6 +1,6 @@
 {% include "head" %}
-{{ themeStyle path="theme.css" }}
-{{ themeStyle path="detail-focus.css" }}
+{{ themeStyle(path='theme.css') }}
+{{ themeStyle(path='detail-focus.css') }}
 {% include "top" %}
 <div class="container detail-layout">
     <article class="panel detail-paper">

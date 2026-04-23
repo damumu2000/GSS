@@ -1,6 +1,6 @@
 {% include "head" %}
-{{ themeStyle path="theme.css" }}
-{{ themeStyle path="page-clean.css" }}
+{{ themeStyle(path='theme.css') }}
+{{ themeStyle(path='page-clean.css') }}
 {% include "top" %}
 <div class="container page-layout">
     <section class="panel page-panel">

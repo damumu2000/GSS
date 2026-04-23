@@ -1,6 +1,6 @@
 {% include "head" %}
-{{ themeStyle path="theme.css" }}
-{{ themeStyle path="list-grid.css" }}
+{{ themeStyle(path='theme.css') }}
+{{ themeStyle(path='list-grid.css') }}
 {% include "top" %}
 <div class="container">
     <section class="panel channel-hero">

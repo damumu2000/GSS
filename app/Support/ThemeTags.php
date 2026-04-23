@@ -2,12 +2,14 @@
 
 namespace App\Support;
 
+use App\Support\ThemeDsl\ThemeDslSpec;
 use App\Modules\Guestbook\Support\GuestbookModule;
 use App\Modules\Guestbook\Support\GuestbookSettings;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class ThemeTags
@@ -89,6 +91,23 @@ class ThemeTags
         return $this->scalarToString($this->site($key, $default), $default);
     }
 
+    public function configValue(string $key, mixed $default = ''): mixed
+    {
+        $key = trim($key);
+
+        if ($key === '' || ! ThemeDslSpec::isAllowedConfigPath($key)) {
+            return $default;
+        }
+
+        if (str_starts_with($key, 'site.')) {
+            return $this->site(substr($key, 5), $default);
+        }
+
+        $value = $this->settings->get($key, $default);
+
+        return $value === null ? $default : $value;
+    }
+
     public function nav(int $limit = 8): Collection
     {
         return $this->channels
@@ -100,12 +119,17 @@ class ThemeTags
     public function current(): array
     {
         $channel = $this->resolveCurrentChannel();
+        $allQuery = strtolower(trim((string) request()->query('all', '0')));
+        $showAllInChannelPage = $this->currentPageScope === 'channel'
+            && in_array($allQuery, ['1', 'true', 'yes'], true);
 
         return [
             'page' => [
                 'scope' => $this->currentPageScope ?? '',
                 'type' => $this->resolveCurrentPageType(),
                 'template_name' => $this->currentTemplateName ?? '',
+                'show_all' => $showAllInChannelPage,
+                'keyword' => $this->normalizeSearchKeyword((string) request()->query('keyword', '')),
             ],
             'channel' => $channel ? $this->mapChannel($channel) : $this->emptyChannelPayload(),
         ];
@@ -530,11 +554,11 @@ class ThemeTags
         }
     }
 
-    public function textToHtml(array $options = []): string
+    public function textToHtml(array $options = []): HtmlString
     {
         $value = (string) ($options['value'] ?? '');
 
-        return nl2br(e($value), false);
+        return new HtmlString(nl2br(e($value), false));
     }
 
     public function promo(string $code, array $options = []): ?array
@@ -732,108 +756,13 @@ class ThemeTags
 
     public function contentList(array $options = []): Collection
     {
-        $type = (string) ($options['type'] ?? 'article');
-
-        $query = DB::table('contents')
-            ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
-            ->where('contents.site_id', $this->site->id)
-            ->where('contents.type', $type)
-            ->whereNull('contents.deleted_at');
-
-        if (array_key_exists('status', $options)) {
-            if ($options['status'] !== null) {
-                $query->where('contents.status', (string) $options['status']);
-            }
-        } elseif ($type === 'article') {
-            $query->where('contents.status', 'published');
-        }
-
-        $channelId = $this->resolveChannelIdFromOptions([
-            'id' => $options['channel_id'] ?? null,
-            'slug' => $options['channel_slug'] ?? null,
-        ]);
-
-        if ($channelId === null && array_key_exists('channel', $options) && $options['channel'] !== '') {
-            $channel = $options['channel'];
-            $channelId = is_numeric($channel)
-                ? (int) $channel
-                : $this->resolveChannelIdFromOptions(['slug' => (string) $channel]);
-        }
-
-        if ($channelId !== null) {
-            $this->applyChannelMembershipFilter($query, $this->channelAndDescendantLeafIds($channelId));
-        } elseif (
-            (array_key_exists('channel', $options) && $options['channel'] !== '')
-            || (! empty($options['channel_id']))
-            || (! empty($options['channel_slug']))
-        ) {
-            $query->whereRaw('1 = 0');
-        }
-
-        if (! empty($options['is_top'])) {
-            $query->where('contents.is_top', 1);
-        }
-
-        if (! empty($options['is_recommend'])) {
-            $query->where('contents.is_recommend', 1);
-        }
-
-        if (! empty($options['with_cover']) || ! empty($options['has_image'])) {
-            $query->whereNotNull('contents.cover_image')->where('contents.cover_image', '!=', '');
-        }
-
-        if (! empty($options['author'])) {
-            $query->where('contents.author', (string) $options['author']);
-        }
-
-        if (! empty($options['source'])) {
-            $query->where('contents.source', (string) $options['source']);
-        }
-
-        $includeIds = $this->normalizeIdList($options['include_ids'] ?? null);
-        if ($includeIds !== []) {
-            $query->whereIn('contents.id', $includeIds);
-        }
-
-        $excludeIds = $this->normalizeIdList($options['exclude_ids'] ?? null);
-        if ($excludeIds !== []) {
-            $query->whereNotIn('contents.id', $excludeIds);
-        }
-
-        if (! empty($options['keyword'])) {
-            $keyword = trim((string) $options['keyword']);
-
-            $query->where(function ($keywordQuery) use ($keyword): void {
-                $keywordQuery->where('contents.title', 'like', '%'.$keyword.'%')
-                    ->orWhere('contents.summary', 'like', '%'.$keyword.'%');
-            });
-        }
-
-        if (! empty($options['published_after'])) {
-            $query->where('contents.published_at', '>=', (string) $options['published_after']);
-        }
-
-        if (! empty($options['published_before'])) {
-            $query->where('contents.published_at', '<=', (string) $options['published_before']);
-        }
-
-        if (! empty($options['random'])) {
-            $query->inRandomOrder();
-        } elseif (! empty($options['order_by']) || ! empty($options['order_dir'])) {
-            $this->applyCustomOrder(
-                $query,
-                (string) ($options['order_by'] ?? 'published_at'),
-                (string) ($options['order_dir'] ?? 'desc')
-            );
-        } else {
-            $this->applyOrder($query, (string) ($options['order'] ?? 'published_at_desc'));
-        }
+        $query = $this->buildContentQuery($options);
 
         if (! empty($options['offset'])) {
             $query->offset(max(0, (int) $options['offset']));
         }
 
-        $query->limit((int) ($options['limit'] ?? 10));
+        $query->limit(max(1, min(ThemeDslSpec::maxLimit(), (int) ($options['limit'] ?? 10))));
 
         $contents = $query->get([
             'contents.*',
@@ -861,6 +790,53 @@ class ThemeTags
                 return $payload;
             })
             ->values();
+    }
+
+    public function contentPage(array $options = []): array
+    {
+        $query = $this->buildContentQuery($options);
+        $perPage = max(1, min(ThemeDslSpec::maxPerPage(), (int) ($options['per_page'] ?? 10)));
+        $pageName = trim((string) ($options['page_name'] ?? 'page'));
+        $pageName = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $pageName) ? $pageName : 'page';
+        $requestedPage = array_key_exists('page', $options)
+            ? (int) $options['page']
+            : (int) request()->query($pageName, 1);
+        $requestedPage = max(1, $requestedPage);
+        $total = (int) (clone $query)->count('contents.id');
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $currentPage = min($requestedPage, $totalPages);
+
+        $contents = (clone $query)
+            ->forPage($currentPage, $perPage)
+            ->get([
+                'contents.*',
+                'channels.name as channel_name',
+                'channels.slug as channel_slug',
+            ])
+            ->map(fn ($content) => $this->mapContent($content))
+            ->values();
+
+        $fields = $this->normalizeFieldList($options['fields'] ?? null);
+        if ($fields !== []) {
+            $fields = array_values(array_unique(array_merge(['id'], $fields)));
+            $contents = $contents
+                ->map(function (array $content) use ($fields): array {
+                    $payload = [];
+                    foreach ($fields as $field) {
+                        $payload[$field] = $content[$field] ?? null;
+                    }
+
+                    return $payload;
+                })
+                ->values();
+        }
+
+        $window = max(1, min(ThemeDslSpec::maxWindow(), (int) ($options['window'] ?? 2)));
+
+        return [
+            'items' => $contents,
+            'pagination' => $this->buildPaginationPayload($currentPage, $perPage, $total, $totalPages, $pageName, $window),
+        ];
     }
 
     public function stats(): array
@@ -980,6 +956,184 @@ class ThemeTags
             'published_at_asc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderBy('contents.published_at')->orderBy('contents.id'),
             default => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderByDesc('contents.published_at')->orderByDesc('contents.id'),
         };
+    }
+
+    protected function buildContentQuery(array $options)
+    {
+        $type = (string) ($options['type'] ?? 'article');
+
+        $query = DB::table('contents')
+            ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
+            ->where('contents.site_id', $this->site->id)
+            ->where('contents.type', $type)
+            ->whereNull('contents.deleted_at');
+
+        if (array_key_exists('status', $options)) {
+            if ($options['status'] !== null) {
+                $query->where('contents.status', (string) $options['status']);
+            }
+        } elseif ($type === 'article') {
+            $query->where('contents.status', 'published');
+        }
+
+        $channelId = $this->resolveChannelIdFromOptions([
+            'id' => $options['channel_id'] ?? null,
+            'slug' => $options['channel_slug'] ?? null,
+        ]);
+
+        if ($channelId === null && array_key_exists('channel', $options) && $options['channel'] !== '') {
+            $channel = $options['channel'];
+            $channelId = is_numeric($channel)
+                ? (int) $channel
+                : $this->resolveChannelIdFromOptions(['slug' => (string) $channel]);
+        }
+
+        $siteWide = ! empty($options['site_wide']);
+        $allQuery = strtolower(trim((string) request()->query('all', '0')));
+        $showAllInChannelPage = $siteWide
+            || ($this->currentPageScope === 'channel' && in_array($allQuery, ['1', 'true', 'yes'], true));
+
+        if (! $showAllInChannelPage) {
+            if ($channelId !== null) {
+                $this->applyChannelMembershipFilter($query, $this->channelAndDescendantLeafIds($channelId));
+            } elseif (
+                (array_key_exists('channel', $options) && $options['channel'] !== '')
+                || (! empty($options['channel_id']))
+                || (! empty($options['channel_slug']))
+            ) {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        if (! empty($options['is_top'])) {
+            $query->where('contents.is_top', 1);
+        }
+
+        if (! empty($options['is_recommend'])) {
+            $query->where('contents.is_recommend', 1);
+        }
+
+        if (! empty($options['with_cover']) || ! empty($options['has_image'])) {
+            $query->whereNotNull('contents.cover_image')->where('contents.cover_image', '!=', '');
+        }
+
+        if (! empty($options['author'])) {
+            $query->where('contents.author', (string) $options['author']);
+        }
+
+        if (! empty($options['source'])) {
+            $query->where('contents.source', (string) $options['source']);
+        }
+
+        $includeIds = $this->normalizeIdList($options['include_ids'] ?? null);
+        if ($includeIds !== []) {
+            $query->whereIn('contents.id', $includeIds);
+        }
+
+        $excludeIds = $this->normalizeIdList($options['exclude_ids'] ?? null);
+        if ($excludeIds !== []) {
+            $query->whereNotIn('contents.id', $excludeIds);
+        }
+
+        if (! empty($options['keyword'])) {
+            $keyword = $this->normalizeSearchKeyword((string) $options['keyword']);
+
+            if ($keyword !== '') {
+                $query->where(function ($keywordQuery) use ($keyword): void {
+                    $keywordQuery->where('contents.title', 'like', '%'.$keyword.'%')
+                        ->orWhere('contents.summary', 'like', '%'.$keyword.'%');
+                });
+            }
+        }
+
+        if (! empty($options['published_after'])) {
+            $query->where('contents.published_at', '>=', (string) $options['published_after']);
+        }
+
+        if (! empty($options['published_before'])) {
+            $query->where('contents.published_at', '<=', (string) $options['published_before']);
+        }
+
+        if (! empty($options['random'])) {
+            $query->inRandomOrder();
+        } elseif (! empty($options['order_by']) || ! empty($options['order_dir'])) {
+            $this->applyCustomOrder(
+                $query,
+                (string) ($options['order_by'] ?? 'published_at'),
+                (string) ($options['order_dir'] ?? 'desc')
+            );
+        } else {
+            $this->applyOrder($query, (string) ($options['order'] ?? 'published_at_desc'));
+        }
+
+        return $query;
+    }
+
+    protected function buildPaginationPayload(
+        int $currentPage,
+        int $perPage,
+        int $total,
+        int $totalPages,
+        string $pageName,
+        int $window
+    ): array {
+        $pages = [];
+        $start = max(1, $currentPage - $window);
+        $end = min($totalPages, $currentPage + $window);
+
+        if ($start > 1) {
+            $pages[] = $this->buildPaginationPageItem(1, $currentPage, $pageName);
+        }
+        if ($start > 2) {
+            $pages[] = ['type' => 'ellipsis', 'label' => '...'];
+        }
+        for ($page = $start; $page <= $end; $page++) {
+            $pages[] = $this->buildPaginationPageItem($page, $currentPage, $pageName);
+        }
+        if ($end < $totalPages - 1) {
+            $pages[] = ['type' => 'ellipsis', 'label' => '...'];
+        }
+        if ($end < $totalPages) {
+            $pages[] = $this->buildPaginationPageItem($totalPages, $currentPage, $pageName);
+        }
+
+        $hasPrev = $currentPage > 1;
+        $hasNext = $currentPage < $totalPages;
+
+        return [
+            'page_name' => $pageName,
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => $totalPages,
+            'has_prev' => $hasPrev,
+            'has_next' => $hasNext,
+            'prev_page' => $hasPrev ? $currentPage - 1 : null,
+            'next_page' => $hasNext ? $currentPage + 1 : null,
+            'prev_url' => $hasPrev ? $this->buildPaginationUrl($pageName, $currentPage - 1) : null,
+            'next_url' => $hasNext ? $this->buildPaginationUrl($pageName, $currentPage + 1) : null,
+            'pages' => $pages,
+        ];
+    }
+
+    protected function buildPaginationPageItem(int $page, int $currentPage, string $pageName): array
+    {
+        return [
+            'type' => 'page',
+            'number' => $page,
+            'label' => (string) $page,
+            'is_current' => $page === $currentPage,
+            'url' => $this->buildPaginationUrl($pageName, $page),
+        ];
+    }
+
+    protected function buildPaginationUrl(string $pageName, int $page): string
+    {
+        $request = request();
+        $query = $request->query();
+        $query[$pageName] = max(1, $page);
+
+        return $request->url().'?'.http_build_query($query);
     }
 
     protected function applyCustomOrder($query, string $orderBy, string $orderDir): void
@@ -1240,7 +1394,7 @@ class ThemeTags
             'title_italic' => (bool) ($content->title_italic ?? false),
             'is_recommend' => (bool) ($content->is_recommend ?? false),
             'summary' => $content->summary,
-            'content_html' => EmbeddedContentRenderer::render($content->content ?? ''),
+            'content_html' => new HtmlString(EmbeddedContentRenderer::render($content->content ?? '')),
             'cover_image' => $content->cover_image ?? '',
             'author' => $content->author ?: '本站编辑',
             'source' => $content->source ?? '',
@@ -1300,6 +1454,17 @@ class ThemeTags
             'target' => '_self',
             'is_active' => false,
         ];
+    }
+
+    protected function normalizeSearchKeyword(string $keyword): string
+    {
+        $keyword = trim($keyword);
+
+        if ($keyword === '') {
+            return '';
+        }
+
+        return mb_substr($keyword, 0, ThemeDslSpec::maxKeywordLength());
     }
 
     protected function resolveChannelIdFromOptions(array $options): ?int

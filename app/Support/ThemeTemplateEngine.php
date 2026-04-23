@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Support\ThemeDsl\ThemeDslSpec;
+use App\Support\ThemeDsl\ThemeQueryChain;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\HtmlString;
@@ -13,12 +15,19 @@ class ThemeTemplateEngine
      */
     protected const DIRECTIVE_ARGUMENTS = [
         'siteValue' => ['key', 'default'],
+        'config' => ['key', 'default'],
         'linkTo' => ['type', 'id', 'channel_id', 'slug', 'target', 'default'],
         'contentList' => [
             'type', 'status', 'channel', 'channel_id', 'channel_slug', 'is_top', 'is_recommend',
             'with_cover', 'has_image', 'author', 'source', 'include_ids', 'exclude_ids',
             'keyword', 'published_after', 'published_before', 'random', 'order', 'order_by',
             'order_dir', 'offset', 'limit', 'fields',
+        ],
+        'contentPage' => [
+            'type', 'status', 'channel', 'channel_id', 'channel_slug', 'is_top', 'is_recommend',
+            'with_cover', 'has_image', 'author', 'source', 'include_ids', 'exclude_ids',
+            'keyword', 'published_after', 'published_before', 'random', 'order', 'order_by',
+            'order_dir', 'fields', 'page', 'per_page', 'page_name', 'window',
         ],
         'channels' => ['status', 'parent_id', 'is_nav', 'type', 'slug', 'include_ids', 'exclude_ids', 'keyword', 'random', 'fields', 'limit'],
         'channel' => ['id', 'channel_id', 'slug'],
@@ -37,10 +46,10 @@ class ThemeTemplateEngine
         'textToHtml' => ['value'],
         'nav' => ['limit'],
         'stats' => [],
-        'previous' => [],
-        'next' => [],
-        'related' => ['limit'],
-        'first' => [],
+        'previous' => ['value'],
+        'next' => ['value'],
+        'related' => ['value', 'limit'],
+        'first' => ['value'],
         'promo' => ['code', 'page_scope', 'display_mode', 'channel_id', 'channel_slug', 'template_name', 'limit', 'fields', 'random'],
         'promos' => ['code', 'page_scope', 'display_mode', 'channel_id', 'channel_slug', 'template_name', 'limit', 'fields', 'random'],
         'themeAsset' => ['path'],
@@ -285,23 +294,7 @@ class ThemeTemplateEngine
             throw ThemeTemplateException::syntax('set 语句格式无效');
         }
 
-        $expression = trim($matches[2]);
-
-        if (! preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+(.+))?$/', $expression, $directiveMatches)) {
-            return;
-        }
-
-        $command = $directiveMatches[1];
-        $tail = trim($directiveMatches[2] ?? '');
-
-        if (! array_key_exists($command, self::DIRECTIVE_ARGUMENTS)) {
-            throw ThemeTemplateException::syntax('不支持的动态标签 '.$command);
-        }
-
-        $this->assertAllowedArguments(
-            $command,
-            $this->extractNamedArgumentsForValidation($command, $tail, $context)
-        );
+        $this->validateExpression(trim($matches[2]), $context);
     }
 
     protected function validateExpression(string $expression, array $context): void
@@ -311,56 +304,30 @@ class ThemeTemplateEngine
 
     protected function resolveDirective(string $expression, array $context, bool $validateOnly = false): mixed
     {
-        if (! preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+(.+))?$/', $expression, $matches)) {
-            return $this->resolveValue($expression, $context);
+        $expression = trim($expression);
+
+        if ($expression === '') {
+            return null;
         }
 
-        $command = $matches[1];
-        $tail = trim($matches[2] ?? '');
+        if ($this->containsTopLevelPipe($expression)) {
+            return $this->resolvePipelineExpression($expression, $context, $validateOnly);
+        }
 
-        $this->assertAllowedArguments(
-            $command,
-            $this->extractNamedArgumentsForValidation($command, $tail, $context)
-        );
+        if ($this->looksLikeFunctionCall($expression)) {
+            return $this->resolveFunctionCallExpression($expression, $context, $validateOnly);
+        }
 
-        return match ($command) {
-            'siteValue' => $this->tags->siteValue($this->parseNamedArguments($tail, $context)),
-            'linkTo' => $this->tags->linkTo($this->parseNamedArguments($tail, $context)),
-            'contentList' => $this->tags->contentList($this->parseNamedArguments($tail, $context)),
-            'channels' => $this->tags->channels($this->parseNamedArguments($tail, $context)),
-            'channel' => $this->tags->channel($this->parseNamedArguments($tail, $context)),
-            'children' => $this->tags->children($this->parseNamedArguments($tail, $context)),
-            'parent' => $this->tags->parent($this->parseNamedArguments($tail, $context)),
-            'siblings' => $this->tags->siblings($this->parseNamedArguments($tail, $context)),
-            'breadcrumb' => $this->tags->breadcrumb($this->parseNamedArguments($tail, $context)),
-            'content' => $this->tags->content($this->parseNamedArguments($tail, $context)),
-            'guestbookMessages' => $this->tags->guestbookMessages($this->parseNamedArguments($tail, $context)),
-            'guestbookStats' => $this->tags->guestbookStats(),
-            'valueOr' => $this->tags->valueOr($this->parseNamedArguments($tail, $context)),
-            'truncate' => $this->tags->truncate($this->parseNamedArguments($tail, $context)),
-            'plainText' => $this->tags->plainText($this->parseNamedArguments($tail, $context)),
-            'formatDate' => $this->tags->formatDate($this->parseNamedArguments($tail, $context)),
-            'timeAgo' => $this->tags->timeAgo($this->parseNamedArguments($tail, $context)),
-            'textToHtml' => $this->tags->textToHtml($this->parseNamedArguments($tail, $context)),
-            'nav' => $this->tags->nav((int) ($this->parseNamedArguments($tail, $context)['limit'] ?? 8)),
-            'stats' => $this->tags->stats(),
-            'previous' => $this->tags->previous($this->resolveValue($tail, $context)),
-            'next' => $this->tags->next($this->resolveValue($tail, $context)),
-            'related' => $this->resolveRelatedDirective($tail, $context),
-            'first' => $this->resolveFirstDirective($tail, $context),
-            'promo' => $this->resolvePromoDirective($tail, $context),
-            'promos' => $this->resolvePromosDirective($tail, $context),
-            'themeAsset' => $this->resolveThemeAssetDirective($tail, $context, $validateOnly),
-            'themeStyle' => $this->resolveThemeStyleDirective($tail, $context, $validateOnly),
-            'themeScript' => $this->resolveThemeScriptDirective($tail, $context, $validateOnly),
-            default => $this->resolveValue($expression, $context),
-        };
+        if ($this->looksLikeLegacyDirectiveSyntax($expression)) {
+            throw ThemeTemplateException::syntax('表达式语法错误');
+        }
+
+        return $this->resolveValue($expression, $context);
     }
 
-    protected function resolveThemeAssetDirective(string $tail, array $context, bool $validateOnly = false): string
+    protected function resolveThemeAssetDirective(string $path, bool $validateOnly = false): string
     {
-        $options = $this->parseNamedArguments($tail, $context);
-        $path = trim((string) ($options['path'] ?? ''));
+        $path = trim($path);
 
         if ($path === '') {
             if ($validateOnly) {
@@ -394,148 +361,380 @@ class ThemeTemplateEngine
         ]);
     }
 
-    protected function resolveThemeStyleDirective(string $tail, array $context, bool $validateOnly = false): HtmlString
+    protected function resolveThemeStyleDirective(string $path, bool $validateOnly = false): HtmlString
     {
-        $url = $this->resolveThemeAssetDirective($tail, $context, $validateOnly);
+        $url = $this->resolveThemeAssetDirective($path, $validateOnly);
 
         return new HtmlString($url === '' ? '' : '<link rel="stylesheet" href="'.e($url).'">');
     }
 
-    protected function resolveThemeScriptDirective(string $tail, array $context, bool $validateOnly = false): HtmlString
+    protected function resolveThemeScriptDirective(string $path, bool $validateOnly = false): HtmlString
     {
-        $url = $this->resolveThemeAssetDirective($tail, $context, $validateOnly);
+        $url = $this->resolveThemeAssetDirective($path, $validateOnly);
 
         return new HtmlString($url === '' ? '' : '<script src="'.e($url).'"></script>');
     }
 
-    protected function resolveRelatedDirective(string $tail, array $context): Collection
+    /**
+     * @param  array<string, mixed>  $options
+     */
+    protected function resolveConfigDirective(array $options): mixed
     {
-        $parts = preg_split('/\s+/', trim($tail), 2);
-        $subject = $this->resolveValue($parts[0] ?? '', $context);
-        $options = $this->parseNamedArguments($parts[1] ?? '', $context);
+        $key = trim((string) ($options['key'] ?? ''));
+        $default = $options['default'] ?? '';
 
-        return $this->tags->related($subject, (int) ($options['limit'] ?? 4));
+        return $this->tags->configValue($key, $default);
     }
 
-    protected function resolveFirstDirective(string $tail, array $context): mixed
+    protected function looksLikeFunctionCall(string $expression): bool
     {
-        $value = $this->resolveValue(trim($tail), $context);
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_]*\s*\(.*\)$/s', trim($expression)) === 1;
+    }
 
+    protected function looksLikeLegacyDirectiveSyntax(string $expression): bool
+    {
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_]*\s+.+$/s', $expression) === 1;
+    }
+
+    protected function containsTopLevelPipe(string $expression): bool
+    {
+        return count($this->splitTopLevel($expression, '|')) > 1;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function splitTopLevel(string $source, string $delimiter): array
+    {
+        $result = [];
+        $buffer = '';
+        $depth = 0;
+        $quote = null;
+        $length = strlen($source);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+
+            if ($quote !== null) {
+                $buffer .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $buffer .= $source[$i + 1];
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === '\'') {
+                $quote = $char;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === $delimiter && $depth === 0) {
+                $result[] = trim($buffer);
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        if (trim($buffer) !== '') {
+            $result[] = trim($buffer);
+        }
+
+        return $result;
+    }
+
+    protected function resolvePipelineExpression(string $expression, array $context, bool $validateOnly = false): mixed
+    {
+        $segments = $this->splitTopLevel($expression, '|');
+        $value = $this->resolveDirective(array_shift($segments) ?? '', $context, $validateOnly);
+
+        foreach ($segments as $segment) {
+            if ($segment === '') {
+                continue;
+            }
+
+            [$name, $positional, $named] = $this->parsePipelineSegment($segment, $context, $validateOnly);
+
+            if ($value instanceof ThemeQueryChain) {
+                if (! ThemeDslSpec::isAllowedQueryMethod($name)) {
+                    throw ThemeTemplateException::syntax('query 不支持方法 '.$name);
+                }
+                $value = $value->apply($name, $positional, $named);
+                continue;
+            }
+
+            $value = $this->applyPipeFilter($name, $value, $positional, $named, $validateOnly);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array{0:string,1:array<int,mixed>,2:array<string,mixed>}
+     */
+    protected function parsePipelineSegment(string $segment, array $context, bool $validateOnly = false): array
+    {
+        $segment = trim($segment);
+
+        if ($this->looksLikeFunctionCall($segment)) {
+            [$name, $positional, $named] = $this->parseFunctionCall($segment, $context, $validateOnly);
+
+            return [$name, $positional, $named];
+        }
+
+        if (! preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $segment)) {
+            throw ThemeTemplateException::syntax('管道片段格式无效：'.$segment);
+        }
+
+        return [$segment, [], []];
+    }
+
+    protected function resolveFunctionCallExpression(string $expression, array $context, bool $validateOnly = false): mixed
+    {
+        [$name, $positional, $named] = $this->parseFunctionCall($expression, $context, $validateOnly);
+
+        if (! ThemeDslSpec::isAllowedFunction($name)) {
+            throw ThemeTemplateException::syntax('不支持的函数调用 '.$name);
+        }
+
+        if ($name === 'query') {
+            $type = strtolower(trim((string) ($positional[0] ?? $named['type'] ?? 'article')));
+            if (! in_array($type, ['article', 'page', 'channel', 'channels', 'promo', 'promos'], true)) {
+                throw ThemeTemplateException::syntax('query 仅支持 article/page/channel/channels/promo/promos');
+            }
+
+            return new ThemeQueryChain($this->tags, $type);
+        }
+
+        if ($name === 'config') {
+            $key = trim((string) ($positional[0] ?? $named['key'] ?? ''));
+            $default = $positional[1] ?? ($named['default'] ?? '');
+
+            return $this->tags->configValue($key, $default);
+        }
+
+        if ($name === 'default') {
+            $name = 'valueOr';
+        }
+
+        if (! array_key_exists($name, self::DIRECTIVE_ARGUMENTS)) {
+            throw ThemeTemplateException::syntax('不支持的函数调用 '.$name);
+        }
+
+        $options = $this->mergeCallArguments($name, $positional, $named);
+
+        return $this->invokeFunctionLikeCommand($name, $options, $context, $validateOnly);
+    }
+
+    /**
+     * @return array{0:string,1:array<int,mixed>,2:array<string,mixed>}
+     */
+    protected function parseFunctionCall(string $expression, array $context, bool $validateOnly = false): array
+    {
+        if (! preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/s', trim($expression), $matches)) {
+            throw ThemeTemplateException::syntax('函数调用格式无效：'.$expression);
+        }
+
+        $name = trim($matches[1]);
+        $args = trim($matches[2]);
+
+        if ($args === '') {
+            return [$name, [], []];
+        }
+
+        $parts = $this->splitTopLevel($args, ',');
+        $positional = [];
+        $named = [];
+
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/s', $part, $namedMatch)) {
+                $key = $namedMatch[1];
+                if (array_key_exists($key, $named)) {
+                    throw ThemeTemplateException::syntax('参数重复：'.$key);
+                }
+                $named[$key] = $this->resolveDirective(trim($namedMatch[2]), $context, $validateOnly);
+                continue;
+            }
+
+            $positional[] = $this->resolveDirective($part, $context, $validateOnly);
+        }
+
+        return [$name, $positional, $named];
+    }
+
+    /**
+     * @param  array<int, mixed>  $positional
+     * @param  array<string, mixed>  $named
+     * @return array<string, mixed>
+     */
+    protected function mergeCallArguments(string $name, array $positional, array $named): array
+    {
+        $allowed = self::DIRECTIVE_ARGUMENTS[$name] ?? [];
+        $options = $named;
+
+        foreach ($positional as $index => $value) {
+            if (! isset($allowed[$index])) {
+                continue;
+            }
+            $argName = $allowed[$index];
+            if (! array_key_exists($argName, $options)) {
+                $options[$argName] = $value;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param  array<string, mixed>  $options
+     */
+    protected function invokeFunctionLikeCommand(string $name, array $options, array $context, bool $validateOnly = false): mixed
+    {
+        $this->assertAllowedArguments($name, $options);
+
+        return match ($name) {
+            'siteValue' => $this->tags->siteValue($options),
+            'config' => $this->resolveConfigDirective($options),
+            'linkTo' => $this->tags->linkTo($options),
+            'contentList' => $this->tags->contentList($options),
+            'contentPage' => $this->tags->contentPage($options),
+            'channels' => $this->tags->channels($options),
+            'channel' => $this->tags->channel($options),
+            'children' => $this->tags->children($options),
+            'parent' => $this->tags->parent($options),
+            'siblings' => $this->tags->siblings($options),
+            'breadcrumb' => $this->tags->breadcrumb($options),
+            'content' => $this->tags->content($options),
+            'guestbookMessages' => $this->tags->guestbookMessages($options),
+            'guestbookStats' => $this->tags->guestbookStats(),
+            'valueOr' => $this->tags->valueOr($options),
+            'truncate' => $this->tags->truncate($options),
+            'plainText' => $this->tags->plainText($options),
+            'formatDate' => $this->tags->formatDate($options),
+            'timeAgo' => $this->tags->timeAgo($options),
+            'textToHtml' => $this->tags->textToHtml($options),
+            'nav' => $this->tags->nav((int) ($options['limit'] ?? 8)),
+            'stats' => $this->tags->stats(),
+            'previous' => $this->tags->previous($options['value'] ?? null),
+            'next' => $this->tags->next($options['value'] ?? null),
+            'related' => $this->tags->related($options['value'] ?? null, (int) ($options['limit'] ?? 4)),
+            'first' => $this->resolveFirstValue($options['value'] ?? null),
+            'promo' => $this->tags->promo((string) ($options['code'] ?? ''), $options),
+            'promos' => $this->tags->promos($options),
+            'themeAsset' => $this->resolveThemeAssetDirective((string) ($options['path'] ?? ''), $validateOnly),
+            'themeStyle' => $this->resolveThemeStyleDirective((string) ($options['path'] ?? ''), $validateOnly),
+            'themeScript' => $this->resolveThemeScriptDirective((string) ($options['path'] ?? ''), $validateOnly),
+            default => null,
+        };
+    }
+
+    protected function resolveFirstValue(mixed $value): mixed
+    {
         if ($value instanceof Collection) {
             return $value->first();
         }
 
         if (is_array($value)) {
-            return reset($value) ?: null;
+            if ($value === []) {
+                return null;
+            }
+
+            return array_values($value)[0];
         }
 
         return null;
     }
 
-    protected function resolvePromoDirective(string $tail, array $context): ?array
-    {
-        $options = $this->resolvePromoDirectiveOptions($tail, $context);
-        $code = trim((string) ($options['code'] ?? ''));
+    /**
+     * @param  array<int, mixed>  $positional
+     * @param  array<string, mixed>  $named
+     */
+    protected function applyPipeFilter(
+        string $filter,
+        mixed $value,
+        array $positional = [],
+        array $named = [],
+        bool $validateOnly = false
+    ): mixed {
+        $filter = trim($filter);
+        $canonical = ThemeDslSpec::canonicalName($filter);
 
-        if ($code === '') {
-            return null;
+        if ($canonical === 'htmlOut') {
+            $canonical = 'plainText';
         }
 
-        unset($options['code']);
-
-        return $this->tags->promo($code, $options);
-    }
-
-    protected function resolvePromosDirective(string $tail, array $context): Collection
-    {
-        return $this->tags->promos($this->resolvePromoDirectiveOptions($tail, $context));
-    }
-
-    protected function resolvePromoDirectiveOptions(string $tail, array $context): array
-    {
-        $tail = trim($tail);
-
-        if ($tail === '') {
-            return [];
+        if ($canonical === 'default') {
+            $canonical = 'valueOr';
         }
 
-        if (str_contains($tail, '=')) {
-            return $this->parseNamedArguments($tail, $context);
+        if (! ThemeDslSpec::isAllowedFilter($canonical) && ! in_array($canonical, ['valueOr'], true)) {
+            throw ThemeTemplateException::syntax('不支持的过滤器 '.$filter);
         }
 
-        return [
-            'code' => $this->resolveValue($tail, $context),
-        ];
-    }
+        $options = $named;
+        $options['value'] = $value;
 
-    protected function parseNamedArguments(string $source, array $context): array
-    {
-        $source = trim($source);
-
-        if ($source === '') {
-            return [];
-        }
-
-        $arguments = [];
-        $offset = 0;
-        $length = strlen($source);
-
-        while ($offset < $length) {
-            if (preg_match('/\G\s+/A', $source, $spacing, 0, $offset)) {
-                $offset += strlen($spacing[0]);
-                continue;
+        if ($canonical === 'truncate' && isset($positional[0]) && ! array_key_exists('length', $options)) {
+            $options['length'] = (int) $positional[0];
+        } elseif ($canonical === 'valueOr' && isset($positional[0]) && ! array_key_exists('default', $options)) {
+            $options['default'] = $positional[0];
+        } elseif ($canonical === 'formatDate' && isset($positional[0]) && ! array_key_exists('format', $options)) {
+            $options['format'] = $positional[0];
+            if (isset($positional[1]) && ! array_key_exists('default', $options)) {
+                $options['default'] = $positional[1];
             }
-
-            if (! preg_match('/\G([A-Za-z_][A-Za-z0-9_]*)=("(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|[^\s]+)/A', $source, $match, 0, $offset)) {
-                throw ThemeTemplateException::syntax('参数格式无效：'.$source);
-            }
-
-            if (array_key_exists($match[1], $arguments)) {
-                throw ThemeTemplateException::syntax('参数重复：'.$match[1]);
-            }
-
-            $arguments[$match[1]] = $this->parseLiteral($match[2], $context);
-            $offset += strlen($match[0]);
+        } elseif ($canonical === 'timeAgo' && isset($positional[0]) && ! array_key_exists('default', $options)) {
+            $options['default'] = $positional[0];
         }
 
-        return $arguments;
+        return $this->invokeFunctionLikeCommand($canonical, $options, [], $validateOnly);
     }
+
 
     protected function assertSafeSource(string $source): void
     {
         if (str_contains($source, '<?')) {
             throw ThemeTemplateException::syntax('模板源码中不允许包含 PHP 代码标签');
         }
-    }
 
-    /**
-     * @return array<string, mixed>
-     */
-    protected function extractNamedArgumentsForValidation(string $command, string $tail, array $context): array
-    {
-        $tail = trim($tail);
-
-        if ($tail === '' || ! str_contains($tail, '=')) {
-            return [];
+        if (preg_match('/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', $source) === 1) {
+            throw ThemeTemplateException::syntax('模板源码中不允许使用内联 script');
         }
 
-        if ($command === 'related') {
-            $parts = preg_split('/\s+/', $tail, 2);
-
-            return $this->parseNamedArguments($parts[1] ?? '', $context);
+        if (preg_match('/<style\b[^>]*>/i', $source) === 1) {
+            throw ThemeTemplateException::syntax('模板源码中不允许使用内联 style');
         }
 
-        if ($command === 'promo') {
-            if (str_starts_with($tail, 'code=')) {
-                return $this->parseNamedArguments($tail, $context);
-            }
-
-            $parts = preg_split('/\s+/', $tail, 2);
-
-            return $this->parseNamedArguments($parts[1] ?? '', $context);
+        if (preg_match('/\sstyle\s*=/i', $source) === 1) {
+            throw ThemeTemplateException::syntax('模板源码中不允许使用内联 style 属性');
         }
 
-        return $this->parseNamedArguments($tail, $context);
+        if (preg_match('/\son[a-z]+\s*=/i', $source) === 1) {
+            throw ThemeTemplateException::syntax('模板源码中不允许使用内联事件属性');
+        }
     }
 
     /**
@@ -773,6 +972,7 @@ class ThemeTemplateEngine
 
         $string = (string) ($value ?? '');
 
-        return $escape ? e($string) : $string;
+        // Even in raw mode, only trusted HtmlString is allowed to render unescaped.
+        return e($string);
     }
 }

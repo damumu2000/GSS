@@ -339,6 +339,68 @@
             line-height: 1.8;
         }
 
+        .example-card {
+            margin-top: 14px;
+            border: 1px solid var(--line-soft);
+            border-radius: var(--radius-md);
+            background: #fcfffe;
+            overflow: hidden;
+        }
+
+        .example-head {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--line-soft);
+            background: #f7fcfa;
+        }
+
+        .example-head strong {
+            display: block;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .example-head span {
+            display: block;
+            margin-top: 4px;
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .example-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            gap: 0;
+        }
+
+        .example-grid.example-grid-single {
+            grid-template-columns: 1fr;
+        }
+
+        .example-code {
+            border-right: 1px solid var(--line-soft);
+            padding: 14px 16px;
+            background: #0b1220;
+        }
+
+        .example-grid.example-grid-single .example-code {
+            border-right: 0;
+        }
+
+        .example-code pre {
+            margin: 0;
+            color: #f8fafc;
+            font-size: 13px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+
+        .code-comment {
+            color: #6b778c;
+        }
+
         .rules-list {
             margin: 14px 0 0;
             padding: 0;
@@ -403,6 +465,17 @@
                 font-size: 26px;
             }
         }
+
+        @media (max-width: 920px) {
+            .example-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .example-code {
+                border-right: 0;
+                border-bottom: 1px solid var(--line-soft);
+            }
+        }
     </style>
 </head>
 <body>
@@ -465,6 +538,7 @@
                     <a class="nav-link" href="#detail-helpers">详情与导航辅助</a>
                     <a class="nav-link" href="#guestbook">留言板模块参数</a>
                     <a class="nav-link" href="#snippets">常用片段</a>
+                    <a class="nav-link" href="#pitfalls">常见坑位</a>
                 </div>
             </aside>
 
@@ -499,7 +573,7 @@
                                 <tr>
                                     <td class="mono">{% set ... %}</td>
                                     <td>给变量赋值。右侧可以是标签调用、变量、字符串、数字、布尔值。</td>
-                                    <td><code>{% set articles = contentList channel='news' limit=6 %}</code></td>
+                                    <td><code>{% set articles = contentList(channel='news', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">{% if ... %}</td>
@@ -522,23 +596,23 @@
 
                     <div class="code-sample">
 <pre>{% include "head" %}
-{{ themeStyle path="theme.css" }}
-{{ themeStyle path="home.css" }}
+{{ themeStyle(path='theme.css') }}
+{{ themeStyle(path='home.css') }}
 {% include "top" %}
 
-{% set articles = contentList channel='news' limit=6 %}
+{% set articles = contentList(channel='news', limit=6)%}
 {% if articles %}
   {% for item in articles %}
     &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
   {% endfor %}
 {% endif %}
 
-{{ themeScript path="home.js" }}
+{{ themeScript(path='home.js') }}
 {% include "foot" %}</pre>
                     </div>
 
                     <ul class="rules-list">
-                        <li><strong>参数写法固定：</strong>所有参数都必须按 <code>key=value</code> 书写，只能使用文档列出的参数名。</li>
+                        <li><strong>参数写法：</strong>支持位置参数和 <code>key=value</code> 命名参数两种方式；参数名与含义以文档示例为准。</li>
                         <li><strong>模板名有格式限制：</strong>模板名和 <code>include</code> 引用名只支持字母、数字、短横线和下划线。</li>
                         <li><strong>通用标签模板约定：</strong>复用片段统一使用 <code>tag-xxx.tpl</code> 命名，在业务模板中通过 <code>{% include "tag-xxx" %}</code> 直接调用。</li>
                         <li><strong>后台创建模板类型：</strong>模板工作台新增 <code>Tag 模板</code> 类型，创建时会生成 <code>tag-标识.tpl</code> 文件，适合跨列表页、详情页、单页复用同一段结构。</li>
@@ -565,19 +639,19 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td class="mono">themeAsset path="..."</td>
+                                    <td class="mono">themeAsset(path='...')</td>
                                     <td>返回当前主题资源地址，适合图片、字体、JSON 等资源。</td>
-                                    <td><code>{{ themeAsset path='assets/banner.jpg' }}</code></td>
+                                    <td><code>{{ themeAsset(path='assets/banner.jpg') }}</code></td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">themeStyle path="..."</td>
+                                    <td class="mono">themeStyle(path='...')</td>
                                     <td>输出 <code>&lt;link rel="stylesheet"&gt;</code>，用于加载主题 CSS。</td>
-                                    <td><code>{{ themeStyle path='theme.css' }}</code></td>
+                                    <td><code>{{ themeStyle(path='theme.css') }}</code></td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">themeScript path="..."</td>
+                                    <td class="mono">themeScript(path='...')</td>
                                     <td>输出 <code>&lt;script src="..."&gt;&lt;/script&gt;</code>，用于加载主题 JS。</td>
-                                    <td><code>{{ themeScript path='home.js' }}</code></td>
+                                    <td><code>{{ themeScript(path='home.js') }}</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -585,15 +659,15 @@
 
                     <div class="code-sample">
 <pre>{% include "head" %}
-{{ themeStyle path="theme.css" }}
-{{ themeStyle path="landing.css" }}
+{{ themeStyle(path='theme.css') }}
+{{ themeStyle(path='landing.css') }}
 {% include "top" %}
 
 &lt;section class="hero"&gt;
-  &lt;img src="{{ themeAsset path='assets/hero-cover.jpg' }}" alt="封面图"&gt;
+  &lt;img src="{{ themeAsset(path='assets/hero-cover.jpg') }}" alt="封面图"&gt;
 &lt;/section&gt;
 
-{{ themeScript path="landing.js" }}
+{{ themeScript(path='landing.js') }}
 {% include "foot" %}</pre>
                     </div>
 
@@ -644,21 +718,21 @@
                                 <tr>
                                     <td class="mono">参数传递</td>
                                     <td>调用前先 <code>set</code> 变量，建议统一前缀 <code>tag_</code>，避免变量冲突。</td>
-                                    <td><code>{% set tag_items = contentList channel='news' limit=6 %}</code></td>
+                                    <td><code>{% set tag_items = contentList(channel='news', limit=6)%}</code></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
                     <div class="code-sample">
-<pre>&lt;!-- list.tpl / detail.tpl / page-xxx.tpl 中都可以这样调用 --&gt;
+<pre>&lt;!-- 这段是“调用方模板”示例：无论是列表页、详情页还是单页模板，都可以先准备参数再引入公共片段 --&gt;
 {% set tag_title = '最新动态' %}
-{% set tag_items = contentList channel_id=current.channel.id limit=6 %}
+{% set tag_items = contentList(channel_id=current.channel.id, limit=6)%}
 {% include "tag-article-cards" %}</pre>
                     </div>
 
                     <div class="code-sample">
-<pre>&lt;!-- tag-article-cards.tpl --&gt;
+<pre>&lt;!-- 这段是“被复用的片段模板”：专门负责把外部传进来的标题和文章列表渲染成统一样式 --&gt;
 &lt;section class="news-cards"&gt;
   &lt;h2&gt;{{ tag_title }}&lt;/h2&gt;
   {% if tag_items %}
@@ -691,9 +765,9 @@
                     <p><code>siteValue</code> 统一负责网站固定资料取值。网站名称、Logo、联系方式、备案号、简介和 SEO 信息都从这里取。</p>
 
                     <div class="code-sample">
-<pre>{{ siteValue key='name' default='网站名称' }}
-{{ siteValue key='contact_phone' default='暂无电话' }}
-{{ siteValue key='icp_no' default='未备案' }}</pre>
+<pre>{{ siteValue(key='name', default='网站名称')}}
+{{ siteValue(key='contact_phone', default='暂无电话')}}
+{{ siteValue(key='icp_no', default='未备案')}}</pre>
                     </div>
 
                     <div class="table-wrap">
@@ -709,67 +783,67 @@
                                 <tr>
                                     <td class="mono">id</td>
                                     <td>站点 ID，适合调试或特殊判断。</td>
-                                    <td><code>{{ siteValue key='id' }}</code></td>
+                                    <td><code>{{ siteValue(key='id')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">name</td>
                                     <td>固定站点资料：网站名称。</td>
-                                    <td><code>{{ siteValue key='name' default='网站名称' }}</code></td>
+                                    <td><code>{{ siteValue(key='name', default='网站名称')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">logo</td>
                                     <td>网站 Logo 地址。</td>
-                                    <td><code>{{ siteValue key='logo' }}</code></td>
+                                    <td><code>{{ siteValue(key='logo')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">favicon</td>
                                     <td>网站 favicon 地址。</td>
-                                    <td><code>{{ siteValue key='favicon' }}</code></td>
+                                    <td><code>{{ siteValue(key='favicon')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contact_phone</td>
                                     <td>固定站点资料：联系电话。</td>
-                                    <td><code>{{ siteValue key='contact_phone' default='暂无电话' }}</code></td>
+                                    <td><code>{{ siteValue(key='contact_phone', default='暂无电话')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contact_email</td>
                                     <td>固定站点资料：联系邮箱。</td>
-                                    <td><code>{{ siteValue key='contact_email' default='暂无邮箱' }}</code></td>
+                                    <td><code>{{ siteValue(key='contact_email', default='暂无邮箱')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">address</td>
                                     <td>固定站点资料：联系地址。</td>
-                                    <td><code>{{ siteValue key='address' default='暂无地址' }}</code></td>
+                                    <td><code>{{ siteValue(key='address', default='暂无地址')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">icp_no</td>
                                     <td>固定站点资料：备案号。</td>
-                                    <td><code>{{ siteValue key='icp_no' default='未备案' }}</code></td>
+                                    <td><code>{{ siteValue(key='icp_no', default='未备案')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">remark</td>
                                     <td>网站简介或备注。</td>
-                                    <td><code>{{ siteValue key='remark' default='这里放网站简介' }}</code></td>
+                                    <td><code>{{ siteValue(key='remark', default='这里放网站简介')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">seo_title</td>
                                     <td>固定站点资料：SEO 标题。</td>
-                                    <td><code>{{ siteValue key='seo_title' default='网站名称' }}</code></td>
+                                    <td><code>{{ siteValue(key='seo_title', default='网站名称')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">seo_keywords</td>
                                     <td>固定站点资料：SEO 关键词。</td>
-                                    <td><code>{{ siteValue key='seo_keywords' }}</code></td>
+                                    <td><code>{{ siteValue(key='seo_keywords')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">seo_description</td>
                                     <td>固定站点资料：SEO 描述。</td>
-                                    <td><code>{{ siteValue key='seo_description' }}</code></td>
+                                    <td><code>{{ siteValue(key='seo_description')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">home_url</td>
                                     <td>网站首页地址。</td>
-                                    <td><code>{{ siteValue key='home_url' }}</code></td>
+                                    <td><code>{{ siteValue(key='home_url')}}</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -777,14 +851,14 @@
 
                     <div class="code-sample">
 <pre>&lt;div class="site-meta"&gt;
-  &lt;span&gt;电话：{{ siteValue key='contact_phone' default='暂无电话' }}&lt;/span&gt;
-  &lt;span&gt;地址：{{ siteValue key='address' default='暂无地址' }}&lt;/span&gt;
-  &lt;span&gt;备案：{{ siteValue key='icp_no' default='未备案' }}&lt;/span&gt;
+  &lt;span&gt;电话：{{ siteValue(key='contact_phone', default='暂无电话')}}&lt;/span&gt;
+  &lt;span&gt;地址：{{ siteValue(key='address', default='暂无地址')}}&lt;/span&gt;
+  &lt;span&gt;备案：{{ siteValue(key='icp_no', default='未备案')}}&lt;/span&gt;
 &lt;/div&gt;
 
-&lt;title&gt;{{ siteValue key='seo_title' default='网站名称' }}&lt;/title&gt;
-&lt;meta name="keywords" content="{{ siteValue key='seo_keywords' }}"&gt;
-&lt;meta name="description" content="{{ siteValue key='seo_description' }}"&gt;</pre>
+&lt;title&gt;{{ siteValue(key='seo_title', default='网站名称')}}&lt;/title&gt;
+&lt;meta name="keywords" content="{{ siteValue(key='seo_keywords')}}"&gt;
+&lt;meta name="description" content="{{ siteValue(key='seo_description')}}"&gt;</pre>
                     </div>
 
                     <h3>页面 SEO 变量（推荐）</h3>
@@ -834,6 +908,16 @@
                                     <td class="mono">current.page.template_name</td>
                                     <td>当前页面模板名。文章和单页面都支持在内容编辑页单独选择模板；如果内容本身没有单独绑定，就会回退到所属栏目的默认模板。</td>
                                     <td><code>{{ current.page.template_name }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.page.keyword</td>
+                                    <td>当前请求中的搜索关键词（已做安全处理和长度限制），适合用于列表页搜索框回显，并传入 <code>contentPage(keyword=...)</code> 做服务端分页搜索。</td>
+                                    <td><code>{{ current.page.keyword }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.page.show_all</td>
+                                    <td>当前栏目页是否处于“全部内容”模式。访问栏目地址并带 <code>all=1</code> 时为 <code>true</code>，可用于“全部内容”按钮高亮和栏目高亮切换。</td>
+                                    <td><code>{% if current.page.show_all %}...{% endif %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">current.channel.id</td>
@@ -901,77 +985,92 @@
                                 <tr>
                                     <td class="mono">channel</td>
                                     <td>取单个栏目。不传参数时默认取当前栏目。</td>
-                                    <td><code>{% set currentChannel = channel %}</code></td>
+                                    <td><code>{% set currentChannel = channel() %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channel id / slug</td>
                                     <td>按栏目 ID 或栏目别名取单个栏目。</td>
-                                    <td><code>{% set currentChannel = channel slug='news' %}</code></td>
+                                    <td><code>{% set currentChannel = channel(slug='news')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">children</td>
                                     <td>取直属子栏目。</td>
-                                    <td><code>{% set childChannels = children channel_id=current.channel.id limit=8 %}</code></td>
+                                    <td><code>{% set childChannels = children(channel_id=current.channel.id, limit=8)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">parent</td>
                                     <td>取当前栏目的上级栏目。</td>
-                                    <td><code>{% set parentChannel = parent channel_id=current.channel.id %}</code></td>
+                                    <td><code>{% set parentChannel = parent(channel_id=current.channel.id)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">siblings</td>
                                     <td>取同级栏目。</td>
-                                    <td><code>{% set siblingChannels = siblings channel_id=current.channel.id limit=6 %}</code></td>
+                                    <td><code>{% set siblingChannels = siblings(channel_id=current.channel.id, limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">breadcrumb</td>
                                     <td>取面包屑路径。</td>
-                                    <td><code>{% set trail = breadcrumb channel_id=current.channel.id %}</code></td>
+                                    <td><code>{% set trail = breadcrumb(channel_id=current.channel.id)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">linkTo</td>
                                     <td>统一生成栏目、文章、单页和首页地址。</td>
-                                    <td><code>{{ linkTo type='channel' slug=current.channel.slug }}</code></td>
+                                    <td><code>{{ linkTo(type='channel', slug=current.channel.slug)}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">linkTo home / channel / article / page</td>
                                     <td>支持首页、栏目、文章、单页四种链接类型，也可配合 <code>id</code>、<code>channel_id</code>、<code>slug</code>、<code>default</code> 使用。</td>
-                                    <td><code>{{ linkTo type='home' }}</code></td>
+                                    <td><code>{{ linkTo(type='home')}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channels parent_id / status / type / slug</td>
                                     <td>按父级、状态、类型或别名筛选栏目。</td>
-                                    <td><code>{% set pageChannels = channels type='page' status=1 limit=6 %}</code></td>
+                                    <td><code>{% set pageChannels = channels(type='page', status=1, limit=6)%}</code></td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">channels is_nav=true</td>
+                                    <td class="mono">channels(is_nav=true)</td>
                                     <td>取导航栏目。</td>
-                                    <td><code>{% set navChannels = channels is_nav=true limit=8 %}</code></td>
+                                    <td><code>{% set navChannels = channels(is_nav=true, limit=8)%}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels(is_nav=true, type='list')</td>
+                                    <td>导航里只调用“栏目型”节点（列表栏目）。</td>
+                                    <td><code>{% set navListChannels = channels(is_nav=true, type='list', status=1, limit=8)%}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels(is_nav=true, type='page')</td>
+                                    <td>导航里只调用“单页型”节点。</td>
+                                    <td><code>{% set navPageChannels = channels(is_nav=true, type='page', status=1, limit=8)%}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">栏目页全部内容（all=1）</td>
+                                    <td>在栏目页 URL 增加 <code>all=1</code> 后，列表查询会按当前站点全量文章分页，不再限制为当前栏目，可配合 <code>current.page.show_all</code> 做样式高亮。</td>
+                                    <td><code>&lt;a href="/cat/{{ current.channel.slug }}?site={{ site.site_key }}&amp;all=1"&gt;全部内容&lt;/a&gt;</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channels include_ids</td>
                                     <td>只返回指定栏目 ID。</td>
-                                    <td><code>{% set pickedChannels = channels include_ids='2,3,4' limit=3 %}</code></td>
+                                    <td><code>{% set pickedChannels = channels(include_ids='2,3,4', limit=3)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channels exclude_ids</td>
                                     <td>排除某些栏目 ID。</td>
-                                    <td><code>{% set list = channels exclude_ids='6,7' %}</code></td>
+                                    <td><code>{% set list = channels(exclude_ids='6,7')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channels keyword</td>
                                     <td>按栏目名称搜索。</td>
-                                    <td><code>{% set searchedChannels = channels keyword='公告' limit=6 %}</code></td>
+                                    <td><code>{% set searchedChannels = channels(keyword='公告', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channels fields</td>
                                     <td>只返回指定字段，系统会保留 <code>id</code>。</td>
-                                    <td><code>{% set liteChannels = channels fields='name,url' limit=5 %}</code></td>
+                                    <td><code>{% set liteChannels = channels(fields='name,url', limit=5)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channels random</td>
                                     <td>随机返回栏目顺序。</td>
-                                    <td><code>{% set randomChannels = channels random=true limit=4 %}</code></td>
+                                    <td><code>{% set randomChannels = channels(random=true, limit=4)%}</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -983,7 +1082,7 @@
                         <h2>内容参数</h2>
                         <span class="section-kicker">列表页最常用</span>
                     </div>
-                    <p>内容查询是模板里最常用的一组能力，适合列表页、首页资讯区、固定推荐和随机推荐。</p>
+                    <p>内容查询是模板里最常用的一组能力，适合列表页、首页资讯区、固定推荐和随机推荐。需要分页时请优先使用 <code>contentPage</code>，它会返回 <code>items</code> 和 <code>pagination</code> 两段数据。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -998,96 +1097,107 @@
                                 <tr>
                                     <td class="mono">content</td>
                                     <td>按内容 ID 取单条内容。</td>
-                                    <td><code>{% set notice = content id=12 %}</code></td>
+                                    <td><code>{% set notice = content(id=12)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contentList type / status</td>
                                     <td>按内容类型和状态筛选，默认文章会取已发布内容。</td>
-                                    <td><code>{% set pages = contentList type='page' status='published' limit=6 %}</code></td>
+                                    <td><code>{% set pages = contentList(type='page', status='published', limit=6)%}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contentPage page / per_page / page_name / window</td>
+                                    <td>分页查询。返回 <code>result.items</code> 和 <code>result.pagination</code>。<code>page_name</code> 默认 <code>page</code>，<code>window</code> 控制分页条左右页码数量。</td>
+                                    <td><code>{% set result = contentPage(channel='news', per_page=10, page=2, page_name='page', window=2)%}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">contentPage keyword</td>
+                                    <td>服务端关键词搜索（标题 + 摘要）并支持分页，推荐用于列表页搜索。</td>
+                                    <td><code>{% set result = contentPage(type='article', keyword=current.page.keyword, per_page=5, page_name='page', window=2)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">linkTo</td>
                                     <td>内容地址统一用 <code>linkTo</code> 生成。</td>
-                                    <td><code>{{ linkTo type='article' id=12 }}</code></td>
+                                    <td><code>{{ linkTo(type='article', id=12)}}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contentList channel</td>
                                     <td>按栏目别名取列表。</td>
-                                    <td><code>{% set articles = contentList channel='news' limit=6 %}</code></td>
+                                    <td><code>{% set articles = contentList(channel='news', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contentList channel_id</td>
                                     <td>按栏目 ID 取列表。</td>
-                                    <td><code>{% set articles = contentList channel_id=current.channel.id limit=6 %}</code></td>
+                                    <td><code>{% set articles = contentList(channel_id=current.channel.id, limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contentList channel_slug</td>
                                     <td>按栏目别名筛选内容。</td>
-                                    <td><code>{% set articles = contentList channel_slug='news' limit=6 %}</code></td>
+                                    <td><code>{% set articles = contentList(channel_slug='news', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">offset</td>
                                     <td>跳过前几条内容。</td>
-                                    <td><code>{% set secondGroup = contentList channel='news' limit=4 offset=4 %}</code></td>
+                                    <td><code>{% set secondGroup = contentList(channel='news', limit=4, offset=4)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">with_cover</td>
                                     <td>只取带封面图的内容，和 <code>has_image</code> 作用一致。</td>
-                                    <td><code>{% set coverArticles = contentList channel='news' with_cover=true limit=4 %}</code></td>
+                                    <td><code>{% set coverArticles = contentList(channel='news', with_cover=true, limit=4)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">has_image</td>
                                     <td>只取有封面图的内容。</td>
-                                    <td><code>{% set imageArticles = contentList channel='news' has_image=true limit=4 %}</code></td>
+                                    <td><code>{% set imageArticles = contentList(channel='news', has_image=true, limit=4)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">keyword</td>
                                     <td>按标题和摘要模糊搜索。</td>
-                                    <td><code>{% set filteredArticles = contentList keyword='公告' limit=6 %}</code></td>
+                                    <td><code>{% set filteredArticles = contentList(keyword='公告', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">published_after / published_before</td>
                                     <td>按发布时间范围筛选。</td>
-                                    <td><code>{% set list = contentList published_after='2026-04-01 00:00:00' published_before='2026-04-30 23:59:59' %}</code></td>
+                                    <td><code>{% set list = contentList(published_after='2026-04-01 00:00:00', published_before='2026-04-30 23:59:59')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">order_by / order_dir</td>
                                     <td>自定义排序字段和方向。</td>
-                                    <td><code>{% set list = contentList order_by='published_at' order_dir='desc' limit=6 %}</code></td>
+                                    <td><code>{% set list = contentList(order_by='published_at', order_dir='desc', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">order</td>
                                     <td>使用预设排序，例如 <code>published_at_desc</code>、<code>updated_at_desc</code>、<code>id_desc</code>。</td>
-                                    <td><code>{% set list = contentList order='updated_at_desc' limit=6 %}</code></td>
+                                    <td><code>{% set list = contentList(order='updated_at_desc', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">include_ids / exclude_ids</td>
                                     <td>定向包含或排除内容。</td>
-                                    <td><code>{% set focusArticles = contentList include_ids='12,15,18' limit=3 %}</code></td>
+                                    <td><code>{% set focusArticles = contentList(include_ids='12,15,18', limit=3)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">author / source</td>
                                     <td>按作者、来源筛选。</td>
-                                    <td><code>{% set officeArticles = contentList author='教务处' source='官网' limit=4 %}</code></td>
+                                    <td><code>{% set officeArticles = contentList(author='教务处', source='官网', limit=4)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">is_top / is_recommend</td>
                                     <td>按置顶或推荐标记筛选。</td>
-                                    <td><code>{% set topArticles = contentList channel='news' is_top=true limit=5 %}</code></td>
+                                    <td><code>{% set topArticles = contentList(channel='news', is_top=true, limit=5)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">random</td>
                                     <td>随机返回内容。</td>
-                                    <td><code>{% set randomArticles = contentList channel='news' random=true limit=3 %}</code></td>
+                                    <td><code>{% set randomArticles = contentList(channel='news', random=true, limit=3)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">fields</td>
                                     <td>只返回指定字段，系统会保留 <code>id</code>。</td>
-                                    <td><code>{% set liteArticles = contentList fields='title,url,published_at' limit=4 %}</code></td>
+                                    <td><code>{% set liteArticles = contentList(fields='title,url,published_at', limit=4)%}</code></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+                    <p class="muted">搜索交互建议：列表页应在用户手动确认后（回车或点击搜索按钮）再提交 <code>keyword</code>，并由 <code>contentPage</code> 返回全量命中结果与分页；不建议仅用前端脚本筛当前页已渲染内容。</p>
                 </section>
 
                 <section class="section" id="promos">
@@ -1110,52 +1220,52 @@
                                 <tr>
                                     <td class="mono">promo</td>
                                     <td>取单条图宣，可直接写 <code>code</code>。</td>
-                                    <td><code>{% set banner = promo code='home_banner' %}</code></td>
+                                    <td><code>{% set banner = promo(code='home_banner')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">promos</td>
                                     <td>取多条图宣。</td>
-                                    <td><code>{% set banners = promos code='home_banner' limit=5 %}</code></td>
+                                    <td><code>{% set banners = promos(code='home_banner', limit=5)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">promo / promos 直接写 code</td>
                                     <td>图宣位编码是最常用的入口，也可以直接把编码作为首个值传入。</td>
-                                    <td><code>{% set banner = promo 'home_banner' %}</code></td>
+                                    <td><code>{% set banner = promo(code='home_banner') %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">code</td>
                                     <td>图宣位编码，最常用。</td>
-                                    <td><code>{% set banners = promos code='home_banner' %}</code></td>
+                                    <td><code>{% set banners = promos(code='home_banner')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">display_mode</td>
                                     <td>按展示模式筛选。</td>
-                                    <td><code>{% set floats = promos display_mode='floating' limit=2 %}</code></td>
+                                    <td><code>{% set floats = promos(display_mode='floating', limit=2)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">page_scope</td>
                                     <td>按页面作用域筛选。</td>
-                                    <td><code>{% set list = promos page_scope='home' %}</code></td>
+                                    <td><code>{% set list = promos(page_scope='home')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channel_id / channel_slug</td>
                                     <td>按栏目范围筛选。</td>
-                                    <td><code>{% set list = promos channel_slug=current.channel.slug %}</code></td>
+                                    <td><code>{% set list = promos(channel_slug=current.channel.slug)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">template_name</td>
                                     <td>按模板名筛选。</td>
-                                    <td><code>{% set list = promos template_name=current.page.template_name %}</code></td>
+                                    <td><code>{% set list = promos(template_name=current.page.template_name)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">random</td>
                                     <td>随机返回图宣顺序。</td>
-                                    <td><code>{% set randomPromos = promos code='home_banner' random=true limit=2 %}</code></td>
+                                    <td><code>{% set randomPromos = promos(code='home_banner', random=true, limit=2)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">fields</td>
                                     <td>只返回指定字段，系统会保留 <code>id</code>。</td>
-                                    <td><code>{% set litePromos = promos code='home_banner' fields='title,image_url,link_url' limit=3 %}</code></td>
+                                    <td><code>{% set litePromos = promos(code='home_banner', fields='title,image_url,link_url', limit=3)%}</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1168,6 +1278,7 @@
                         <span class="section-kicker">对已取到的数据做加工</span>
                     </div>
                     <p>这组工具用来处理已经拿到的数据，最常用于标题、摘要、作者、日期和说明文字。</p>
+                    <p>本节写法规则：单次使用建议直接写在字段上（管道写法）；需要多处复用时再先用 <code>{% set ... %}</code> 存变量。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -1182,36 +1293,40 @@
                                 <tr>
                                     <td class="mono">plainText</td>
                                     <td>去掉 HTML 标签，保留纯文本。</td>
-                                    <td><code>{% set plainSummary = plainText value=item.summary %}</code></td>
+                                    <td><code>{% set plainSummary = item.summary | plainText() %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">truncate</td>
                                     <td>按字符数截断文本。</td>
-                                    <td><code>{% set shortTitle = truncate value=item.title length=28 %}</code></td>
+                                    <td><code>{% set shortTitle = item.title | truncate(28) %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">valueOr</td>
                                     <td>值为空时输出默认值。</td>
-                                    <td><code>{{ valueOr value=item.author default='本站编辑' }}</code></td>
+                                    <td><code>{{ item.author | default('本站编辑') }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">formatDate</td>
                                     <td>格式化日期或日期时间。</td>
-                                    <td><code>{{ formatDate value=item.published_at format='m-d' default='--' }}</code></td>
+                                    <td><code>{{ item.published_at | formatDate('m-d', '--') }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">timeAgo</td>
                                     <td>输出相对时间。</td>
-                                    <td><code>{{ timeAgo value=item.published_at default='--' }}</code></td>
+                                    <td><code>{{ item.published_at | timeAgo('--') }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">textToHtml</td>
                                     <td>把换行转成 <code>&lt;br&gt;</code>。</td>
-                                    <td><code>{{ textToHtml value=item.summary }}</code></td>
+                                    <td><code>{{ item.summary | textToHtml() }}</code></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+                    <ul class="rules-list">
+                        <li><strong>管道写法推荐：</strong>可以直接写在字段上（例如 <code>{{ item.title | plainText() | truncate(28) }}</code>），最直观。</li>
+                        <li><strong>需要复用再用 set：</strong>当同一结果要多处使用时，先 <code>{% set ... %}</code> 再输出更清晰。</li>
+                    </ul>
                 </section>
 
                 <section class="section" id="detail-helpers">
@@ -1234,32 +1349,32 @@
                                 <tr>
                                     <td class="mono">nav</td>
                                     <td>快速返回导航栏目列表，本质上等同于导航栏目快捷调用。每一项默认包含 <code>id</code>、<code>name</code>、<code>slug</code>、<code>url</code>、<code>target</code>、<code>is_active</code> 等字段。</td>
-                                    <td><code>{% set navItems = nav limit=8 %}</code></td>
+                                    <td><code>{% set navItems = nav(limit=8)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">navItem.is_active</td>
                                     <td>导航项是否应该高亮。系统会自动处理“当前栏目”和“当前栏目的祖先栏目”两种情况，适合头部导航直接使用。</td>
-                                    <td><code>{% if navItem.is_active %}&lt;a class="is-active"&gt;...&lt;/a&gt;{% endif %}</code></td>
+                                    <td><code>{% if item.is_active %}&lt;a class="is-active"&gt;...&lt;/a&gt;{% endif %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">stats</td>
                                     <td>返回站点统计数据，包含 <code>channels</code>、<code>articles</code>、<code>pages</code>、<code>status</code>。</td>
-                                    <td><code>{% set siteStats = stats %}</code></td>
+                                    <td><code>{% set siteStats = stats() %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">previous / next</td>
                                     <td>取当前内容的上一篇和下一篇，通常传 <code>article</code>、<code>page</code> 或 <code>current.content</code>。</td>
-                                    <td><code>{% set previousItem = previous current.content %}</code></td>
+                                    <td><code>{% set previousItem = previous(current.content) %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">related</td>
                                     <td>取当前内容的相关文章，通常传 <code>article</code>、<code>page</code> 或 <code>current.content</code>。</td>
-                                    <td><code>{% set relatedItems = related current.content limit=4 %}</code></td>
+                                    <td><code>{% set relatedItems = related(current.content, limit=4)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">first</td>
                                     <td>从列表里取第一条。</td>
-                                    <td><code>{% set firstRelated = first relatedItems %}</code></td>
+                                    <td><code>{% set firstRelated = first(relatedItems) %}</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1286,7 +1401,7 @@
                                 <tr>
                                     <td class="mono">guestbookStats</td>
                                     <td>返回留言板模块状态和公开统计，适合先判断模块是否可用。</td>
-                                    <td><code>{% set guestbook = guestbookStats %}</code></td>
+                                    <td><code>{% set guestbook = guestbookStats() %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">guestbookStats.enabled</td>
@@ -1311,27 +1426,27 @@
                                 <tr>
                                     <td class="mono">guestbookMessages</td>
                                     <td>返回公开留言列表。姓名会自动按留言板设置决定是否脱敏。</td>
-                                    <td><code>{% set messages = guestbookMessages limit=6 %}</code></td>
+                                    <td><code>{% set messages = guestbookMessages(limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">limit / offset</td>
                                     <td>控制留言条数和起始位置。</td>
-                                    <td><code>{% set messages = guestbookMessages limit=6 offset=6 %}</code></td>
+                                    <td><code>{% set messages = guestbookMessages(limit=6, offset=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">status</td>
                                     <td>按状态筛选，可选 <code>pending</code> 或 <code>replied</code>。如果站点设置为“回复后才显示”，未回复数据不会被公开返回。</td>
-                                    <td><code>{% set repliedMessages = guestbookMessages status='replied' limit=4 %}</code></td>
+                                    <td><code>{% set repliedMessages = guestbookMessages(status='replied', limit=4)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">order</td>
                                     <td>排序支持 <code>created_at_desc</code>、<code>created_at_asc</code>、<code>replied_at_desc</code>、<code>replied_at_asc</code>。</td>
-                                    <td><code>{% set messages = guestbookMessages order='replied_at_desc' limit=4 %}</code></td>
+                                    <td><code>{% set messages = guestbookMessages(order='replied_at_desc', limit=4)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">fields</td>
                                     <td>只返回指定字段，系统会保留 <code>id</code>。</td>
-                                    <td><code>{% set liteMessages = guestbookMessages fields='display_no,name,summary,detail_url' limit=5 %}</code></td>
+                                    <td><code>{% set liteMessages = guestbookMessages(fields='display_no,name,summary,detail_url', limit=5)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">返回字段</td>
@@ -1343,10 +1458,10 @@
                     </div>
 
                     <div class="code">
-                        <pre>{% set guestbook = guestbookStats %}
+                        <pre>{% set guestbook = guestbookStats() %}
 
 {% if guestbook.enabled %}
-    {% set messages = guestbookMessages limit=4 order='created_at_desc' %}
+    {% set messages = guestbookMessages(limit=4, order='created_at_desc')%}
     {% for item in messages %}
         &lt;article class="feedback-card"&gt;
             &lt;h3&gt;{{ item.display_no }} {{ item.name }}&lt;/h3&gt;
@@ -1427,7 +1542,7 @@
                     </div>
 
                     <div class="code">
-<pre>&lt;!-- 联系页表单常用写法（简化） --&gt;
+<pre>&lt;!-- 联系页表单示例（简化版）：用于演示提交地址、验证码地址和 CSRF 参数应如何同时配置 --&gt;
 &lt;form id="contact-form"
       action="/guestbook"
       method="post"
@@ -1453,62 +1568,93 @@
                     </div>
                     <p>下面这些范例按“从简单到完整”的顺序整理。每段代码都可以直接复制，再把栏目别名、图宣位编码、数量和样式类名替换成自己的版本。</p>
 
-                    <div class="code">
-                        <pre>{% set articles = contentList channel='news' limit=6 %}
-{% for item in articles %}
-    &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
-{% endfor %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例 1：最基础的文章列表</strong>
-                        <span>用了 <code>channel='news'</code> 和 <code>limit=6</code> 两个参数，从 <code>news</code> 栏目里取最新 6 篇文章，然后循环输出标题和链接。适合首页资讯区、列表入口和侧栏文章列表。</span>
-                    </div>
-
-                    <div class="code">
-                        <pre>{% set topArticles = contentList channel='news' is_top=true has_image=true order_by='published_at' order_dir='desc' limit=4 %}
-{% for item in topArticles %}
-    {% set plainSummary = plainText value=item.summary %}
-    {% set shortSummary = truncate value=plainSummary length=60 %}
-    &lt;article class="news-card"&gt;
-        &lt;img src="{{ item.cover_image }}" alt="{{ item.title }}"&gt;
-        &lt;h3&gt;&lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;&lt;/h3&gt;
-        &lt;p&gt;{{ shortSummary }}&lt;/p&gt;
-        &lt;time&gt;{{ formatDate value=item.published_at format='Y-m-d' default='--' }}&lt;/time&gt;
-    &lt;/article&gt;
-{% endfor %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例 2：带筛选和格式化的推荐文章卡片</strong>
-                        <span>用了 <code>is_top</code>、<code>has_image</code>、<code>order_by</code>、<code>order_dir</code> 和 <code>limit</code>。效果是只取有封面图的置顶文章，并按发布时间倒序显示。后面又配合 <code>plainText</code>、<code>truncate</code> 和 <code>formatDate</code> 做摘要清洗、截断和日期格式化，适合首页头条卡片区。</span>
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 1：最基础的文章列表</strong>
+                            <span>适合首页资讯区、列表入口和侧栏文章列表。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set articles = contentList(channel='news', limit=6)%} <span class="code-comment">{# 先从 news 栏目取出 6 篇文章，后续页面内容都基于这组数据生成 #}</span>
+{% for item in articles %} <span class="code-comment">{# 开始逐条处理文章：每次循环里，item 就是当前这一篇文章 #}</span>
+    &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">{# 把文章标题输出成可点击链接，用户点击后会进入文章详情页 #}</span>
+{% endfor %} <span class="code-comment">{# 循环结束：上面的链接结构会按文章数量重复渲染 #}</span></pre>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="code">
-                        <pre>{% set focusIds = '12,15,18' %}
-{% set focusArticles = contentList include_ids=focusIds fields='title,url,published_at' order_by='id' order_dir='asc' %}
-{% set moreArticles = contentList channel='news' exclude_ids=focusIds limit=6 %}
-
-{% for item in focusArticles %}
-    &lt;a class="focus-link" href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
-{% endfor %}
-
-{% for item in moreArticles %}
-    &lt;a class="more-link" href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
-{% endfor %}</pre>
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 2：带筛选和格式化的推荐文章卡片</strong>
+                            <span>适合首页头条卡片区，含筛选、摘要清洗、截断和日期格式化。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set topArticles = contentList(channel='news', is_top=true, has_image=true, order_by='published_at', order_dir='desc', limit=4)%} <span class="code-comment">{# 只取“置顶且有封面图”的 4 篇文章，并按发布时间从新到旧排序 #}</span>
+{% for item in topArticles %} <span class="code-comment">{# 逐条渲染推荐文章卡片，item 代表当前这篇推荐文章 #}</span>
+    {% set plainSummary = item.summary | plainText() %} <span class="code-comment">{# 先把摘要里的 HTML 标签去掉，避免页面直接显示富文本代码 #}</span>
+    {% set shortSummary = plainSummary | truncate(60) %} <span class="code-comment">{# 把纯文本摘要限制在 60 字内，防止卡片高度被长文本撑开 #}</span>
+    &lt;article class="news-card"&gt; <span class="code-comment">&lt;!-- 每篇推荐文章外层容器，便于统一排版和样式控制 --&gt;</span>
+        &lt;img src="{{ item.cover_image }}" alt="{{ item.title }}"&gt; <span class="code-comment">&lt;!-- 文章封面图；alt 使用标题，方便无图或读屏场景理解内容 --&gt;</span>
+        &lt;h3&gt;&lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;&lt;/h3&gt; <span class="code-comment">&lt;!-- 标题点击后进入详情页，是用户最主要的阅读入口 --&gt;</span>
+        &lt;p&gt;{{ shortSummary }}&lt;/p&gt; <span class="code-comment">&lt;!-- 输出处理后的短摘要，帮助用户快速判断是否继续阅读 --&gt;</span>
+        &lt;time&gt;{{ item.published_at | formatDate('Y-m-d', '--') }}&lt;/time&gt; <span class="code-comment">&lt;!-- 输出发布时间，时间为空时用 -- 兜底，避免界面留空 --&gt;</span>
+    &lt;/article&gt; <span class="code-comment">&lt;!-- 当前文章卡片渲染完成 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 推荐文章循环结束，页面上会得到最多 4 张推荐卡片 #}</span></pre>
+                            </div>
+                        </div>
                     </div>
-                    <div class="tip">
-                        <strong>范例 3：固定推荐和普通列表拆开展示</strong>
-                        <span>第一组用了 <code>include_ids</code> 固定指定文章，并通过 <code>fields</code> 只返回需要字段；第二组用了 <code>exclude_ids</code> 把这些文章排除掉，再补一组普通列表。适合首页“重点推荐 + 更多资讯”的双区块布局。</span>
+
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 3：字段直写管道（推荐主写法）</strong>
+                            <span>适合“学习成本最低”的模板开发方式：直接在字段后接管道，不先 set 临时变量。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set list = contentList(channel='news', limit=6)%} <span class="code-comment">{# 先获取列表数据，后续直接在字段上做管道处理 #}</span>
+{% for item in list %} <span class="code-comment">{# 逐条渲染时，标题、摘要、时间都直接在字段上加工 #}</span>
+    &lt;h3&gt;&lt;a href="{{ item.url }}"&gt;{{ item.title | plainText() | truncate(28) }}&lt;/a&gt;&lt;/h3&gt; <span class="code-comment">&lt;!-- 标题：先去标签再截断，避免长标题撑开布局 --&gt;</span>
+    &lt;p&gt;{{ item.summary | plainText() | default(item.content_html | plainText()) | truncate(70) }}&lt;/p&gt; <span class="code-comment">&lt;!-- 摘要为空时回退正文纯文本，再统一截断 --&gt;</span>
+    &lt;time&gt;{{ item.published_at | formatDate('Y-m-d', '--') }}&lt;/time&gt; <span class="code-comment">&lt;!-- 时间为空时用 -- 兜底，保证界面稳定 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 推荐：只在需要复用同一结果时再用 set 存变量 #}</span></pre>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="code">
-                        <pre>{% set pageItems = contentList type='page' status='published' order='updated_at_desc' limit=6 %}
-{% for item in pageItems %}
-    &lt;a href="{{ linkTo type='page' id=item.id default='#' }}"&gt;{{ item.title }}&lt;/a&gt;
-{% endfor %}</pre>
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 4：固定推荐和普通列表拆开展示</strong>
+                            <span>第一组用了 <code>include_ids</code> 固定指定文章，并通过 <code>fields</code> 只返回需要字段；第二组用了 <code>exclude_ids</code> 把这些文章排除掉，再补一组普通列表。适合首页“重点推荐 + 更多资讯”的双区块布局。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set focusIds = '12,15,18' %} <span class="code-comment">{# 先定义要“固定展示”的文章 ID，确保运营指定的内容一定出现 #}</span>
+{% set focusArticles = contentList(include_ids=focusIds, fields='title,url,published_at', order_by='id', order_dir='asc')%} <span class="code-comment">{# 第一组数据：只读取这些指定 ID 的文章，并只返回当前区块需要的字段 #}</span>
+{% set moreArticles = contentList(channel='news', exclude_ids=focusIds, limit=6)%} <span class="code-comment">{# 第二组数据：从普通栏目里补充内容，同时排除已在固定区出现的文章 #}</span>
+{% for item in focusArticles %} <span class="code-comment">{# 循环输出固定推荐区，保证重点内容优先曝光 #}</span>
+    &lt;a class="focus-link" href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 固定推荐文章链接，通常用于头部或重点区域 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 固定推荐区输出完成 #}</span>
+{% for item in moreArticles %} <span class="code-comment">{# 循环输出普通补充列表，让页面内容更完整 #}</span>
+    &lt;a class="more-link" href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 普通文章链接，作为推荐区之外的延伸阅读 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 普通补充列表输出完成 #}</span></pre>
+                            </div>
+                        </div>
                     </div>
-                    <div class="tip">
-                        <strong>范例 4：单页列表和统一链接输出</strong>
-                        <span>这段调用用了 <code>type='page'</code>、<code>status='published'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来取最近更新的单页。输出链接时再配合 <code>linkTo type='page' id=item.id default='#'</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
+
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 5：单页列表和统一链接输出</strong>
+                            <span>这段调用用了 <code>type='page'</code>、<code>status='published'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来取最近更新的单页。输出链接时再配合 <code>linkTo(type='page', id=item.id, default='#')</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set pageItems = contentList(type='page', status='published', order='updated_at_desc', limit=6)%} <span class="code-comment">{# 读取已发布的单页面内容，并按最近更新时间排序，方便展示“最新更新” #}</span>
+{% for item in pageItems %} <span class="code-comment">{# 逐条处理单页面数据，item 就是当前这一个单页 #}</span>
+    &lt;a href="{{ linkTo(type='page', id=item.id, default='#')}}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 用 linkTo 统一生成单页地址，避免手写链接造成跳转错误 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 单页列表循环结束，以上链接会根据单页数量重复输出 #}</span></pre>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="tip">
@@ -1516,93 +1662,222 @@
                         <span>后台现在支持两层模板绑定。栏目上的模板是默认模板，用来决定这一类内容通常走哪一个详情模板；内容编辑页里的模板选择是单篇覆盖，用来让某一篇文章或某一个单页面单独改用别的模板。最终前台渲染时，会优先使用内容自己绑定的模板，没有时再回退到栏目模板。</span>
                     </div>
 
-                    <div class="code">
-                        <pre>{% set banners = promos code='home_banner' limit=5 %}
-{% for item in banners %}
-    &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt;
-        &lt;img src="{{ item.image_url }}" alt="{{ item.title }}"&gt;
-    &lt;/a&gt;
-{% endfor %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例 5：基础轮播图调用</strong>
-                        <span>用了 <code>promos</code>、<code>code='home_banner'</code> 和 <code>limit=5</code>。作用是读取图宣位编码为 <code>home_banner</code> 的前 5 张图，并输出图片、跳转地址和打开方式。适合首页轮播、横幅区和头部视觉位。</span>
-                    </div>
-
-                    <div class="code">
-                        <pre>{% set banner = promo 'home_banner' %}
-{% if banner %}
-    &lt;a href="{{ banner.link_url }}" target="{{ banner.link_target }}"&gt;
-        &lt;img src="{{ banner.image_url }}" alt="{{ banner.title }}"&gt;
-    &lt;/a&gt;
-{% endif %}
-
-{% set scopedPromos = promos page_scope='home' template_name=current.page.template_name random=true limit=2 %}
-{% for item in scopedPromos %}
-    &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt;{{ item.title }}&lt;/a&gt;
-{% endfor %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例 6：单条图宣和模板范围图宣</strong>
-                        <span>第一段直接用 <code>promo 'home_banner'</code> 取一条图宣，适合页面主视觉。第二段用了 <code>page_scope</code>、<code>template_name</code>、<code>random</code> 和 <code>limit</code>，会根据当前页面模板取一组更贴近当前场景的图宣，适合模板专属广告位或活动位。</span>
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 6：基础轮播图调用</strong>
+                            <span>用了 <code>promos</code>、<code>code='home_banner'</code> 和 <code>limit=5</code>。作用是读取图宣位编码为 <code>home_banner</code> 的前 5 张图，并输出图片、跳转地址和打开方式。适合首页轮播、横幅区和头部视觉位。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set banners = promos(code='home_banner', limit=5)%} <span class="code-comment">{# 从图宣位 home_banner 读取最多 5 条素材，通常用于首页轮播 #}</span>
+{% for item in banners %} <span class="code-comment">{# 逐条渲染轮播项，item 代表当前这张轮播图的数据 #}</span>
+    &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt; <span class="code-comment">&lt;!-- 轮播图外层可点击区域：点击后按配置跳转到目标地址 --&gt;</span>
+        &lt;img src="{{ item.image_url }}" alt="{{ item.title }}"&gt; <span class="code-comment">&lt;!-- 轮播图片本体：image_url 是图片地址，title 作为无障碍说明文字 --&gt;</span>
+    &lt;/a&gt; <span class="code-comment">&lt;!-- 当前轮播项链接闭合，防止后续元素被错误包裹 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 轮播项循环结束，页面上会得到最多 5 个可轮播素材 #}</span></pre>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="code">
-                        <pre>{% set previousItem = previous article %}
-{% set nextItem = next article %}
-{% set relatedItems = related article limit=4 %}
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 7：单条图宣和模板范围图宣</strong>
+                            <span>第一段直接用 <code>promo(code='home_banner')</code> 取一条图宣，适合页面主视觉。第二段用了 <code>page_scope</code>、<code>template_name</code>、<code>random</code> 和 <code>limit</code>，会根据当前页面模板取一组更贴近当前场景的图宣，适合模板专属广告位或活动位。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set banner = promo(code='home_banner') %} <span class="code-comment">{# 读取单条主视觉图宣，适合页面顶部“只展示 1 条”的场景 #}</span>
+{% if banner %} <span class="code-comment">{# 只有拿到有效数据才输出，避免空数据时页面出现空白图片或坏链接 #}</span>
+    &lt;a href="{{ banner.link_url }}" target="{{ banner.link_target }}"&gt; <span class="code-comment">&lt;!-- 单条图宣点击区域：用于跳转活动页、专题页或外部地址 --&gt;</span>
+        &lt;img src="{{ banner.image_url }}" alt="{{ banner.title }}"&gt; <span class="code-comment">&lt;!-- 单条图宣图片：显示视觉素材，alt 提供辅助说明 --&gt;</span>
+    &lt;/a&gt; <span class="code-comment">&lt;!-- 单条图宣渲染结束 --&gt;</span>
+{% endif %} <span class="code-comment">{# 条件判断结束：无数据时整段不会输出任何 HTML #}</span>
+{% set scopedPromos = promos(page_scope='home', template_name=current.page.template_name, random=true, limit=2)%} <span class="code-comment">{# 再按“页面范围 + 当前模板名”取 2 条更贴合当前页面的图宣素材 #}</span>
+{% for item in scopedPromos %} <span class="code-comment">{# 逐条渲染模板范围内的图宣，作为补充推荐位 #}</span>
+    &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 文本形式的图宣入口，适合侧栏或轻量推荐区 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 模板范围图宣循环结束 #}</span></pre>
+                            </div>
+                        </div>
+                    </div>
 
-{% if previousItem %}
-    &lt;a href="{{ previousItem.url }}"&gt;上一篇：{{ previousItem.title }}&lt;/a&gt;
-{% endif %}
-{% if nextItem %}
-    &lt;a href="{{ nextItem.url }}"&gt;下一篇：{{ nextItem.title }}&lt;/a&gt;
-{% endif %}
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 8：详情页上一篇、下一篇和相关文章</strong>
+                            <span>用了 <code>previous(current.content)</code>、<code>next(current.content)</code> 和 <code>related(current.content, limit=4)</code>。它会基于当前详情页内容，自动取出上一篇、下一篇和 4 条相关文章，适合文章详情页底部的延伸阅读区。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set previousItem = previous(current.content) %} <span class="code-comment">{# 基于当前正在阅读的内容，获取时间或排序上更早的一篇文章 #}</span>
+{% set nextItem = next(current.content) %} <span class="code-comment">{# 基于当前内容，获取下一篇文章，方便用户连续阅读 #}</span>
+{% set relatedItems = related(current.content, limit=4)%} <span class="code-comment">{# 获取与当前内容相关的 4 篇文章，用于“你可能还想看”区域 #}</span>
+{% if previousItem %} <span class="code-comment">{# 只有确实存在上一篇时才显示链接，避免出现无效入口 #}</span>
+    &lt;a href="{{ previousItem.url }}"&gt;上一篇：{{ previousItem.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 上一篇文章跳转链接，帮助用户回看前一条内容 --&gt;</span>
+{% endif %} <span class="code-comment">{# 上一篇条件块结束 #}</span>
+{% if nextItem %} <span class="code-comment">{# 只有存在下一篇时才显示链接，保证交互始终有效 #}</span>
+    &lt;a href="{{ nextItem.url }}"&gt;下一篇：{{ nextItem.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 下一篇文章跳转链接，引导用户继续阅读 --&gt;</span>
+{% endif %} <span class="code-comment">{# 下一篇条件块结束 #}</span>
+{% for item in relatedItems %} <span class="code-comment">{# 遍历相关文章列表，把每篇相关内容都渲染成入口链接 #}</span>
+    &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 单条相关文章链接，点击后进入对应文章详情页 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 相关文章循环结束 #}</span></pre>
+                            </div>
+                        </div>
+                    </div>
 
-{% for item in relatedItems %}
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 9：从列表里取第一条做头图</strong>
+                            <span>这段调用用了 <code>with_cover=true</code> 先筛出带封面的文章，再用 <code>first</code> 从结果里取第一条，适合首页头图、焦点新闻大卡片这类“首条单独展示”的结构。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set coverArticles = contentList(channel='news', with_cover=true, limit=5)%} <span class="code-comment">{# 先取 5 篇带封面图的文章，确保后续头图位一定有图可显示 #}</span>
+{% set firstArticle = first(coverArticles) %} <span class="code-comment">{# 从结果里拿第 1 篇，作为页面最醒目的主头图内容 #}</span>
+{% if firstArticle %} <span class="code-comment">{# 只有拿到首条文章时才渲染头图区，避免无数据时报错或空框 #}</span>
+    &lt;article class="hero-article"&gt; <span class="code-comment">&lt;!-- 头图卡片外层容器，用于控制整块大图+标题的布局 --&gt;</span>
+        &lt;img src="{{ firstArticle.cover_image }}" alt="{{ firstArticle.title }}"&gt; <span class="code-comment">&lt;!-- 头图图片本体，来源于首篇文章封面图字段 --&gt;</span>
+        &lt;h3&gt;&lt;a href="{{ firstArticle.url }}"&gt;{{ firstArticle.title }}&lt;/a&gt;&lt;/h3&gt; <span class="code-comment">&lt;!-- 头图标题和链接，点击可进入该文章详情页 --&gt;</span>
+    &lt;/article&gt; <span class="code-comment">&lt;!-- 头图卡片渲染完成 --&gt;</span>
+{% endif %} <span class="code-comment">{# 头图条件块结束 #}</span></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 10：导航栏和面包屑</strong>
+                            <span>第一段推荐直接用 <code>nav(limit=8)</code>，每个导航项会附带 <code>is_active</code> 和 <code>target</code>，适合头部导航高亮。第二段用了 <code>breadcrumb(channel_id=current.channel.id)</code> 生成当前栏目路径。适合页面头部导航和栏目页面包屑。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set navItems = nav(limit=8)%} <span class="code-comment">{# 读取最多 8 个头部导航项，作为页面主导航菜单的数据来源 #}</span>
+{% for item in navItems %} <span class="code-comment">{# 逐条输出导航项，item 里包含名称、地址、是否高亮、打开方式等信息 #}</span>
+    &lt;a{% if item.is_active %} class="is-active"{% endif %} href="{{ item.url }}"{% if item.target == '_blank' %} target="_blank" rel="noopener noreferrer"{% endif %}&gt;{{ item.name }}&lt;/a&gt; <span class="code-comment">&lt;!-- 导航链接：当前页自动加高亮；若配置新窗口则附带安全属性后再打开 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 主导航循环结束 #}</span>
+{% set breadcrumbs = breadcrumb(channel_id=current.channel.id)%} <span class="code-comment">{# 按当前栏目生成面包屑路径，用于告诉用户“当前位置” #}</span>
+{% for item in breadcrumbs %} <span class="code-comment">{# 遍历面包屑路径节点，通常从首页到当前栏目逐级展示 #}</span>
+    &lt;a href="{{ item.url }}"&gt;{{ item.name }}&lt;/a&gt; <span class="code-comment">&lt;!-- 单个面包屑节点链接，支持快速返回上级页面 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 面包屑循环结束 #}</span></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 11：列表页搜索 + 分页（服务端）</strong>
+                            <span>关键词走 <code>current.page.keyword</code>，查询交给 <code>contentPage</code>，分页用 <code>pagination.pages</code> 输出。适合“全量搜索并分页”的标准列表页。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set pageData = contentPage(type='article', per_page=5, page_name='page', window=2, keyword=current.page.keyword)%} <span class="code-comment">{# 在服务端执行“搜索 + 分页”：每页 5 条，并按 page 参数切换页码 #}</span>
+{% set list = pageData.items %} <span class="code-comment">{# 从返回结果中取出“当前页文章列表”部分，供下面循环渲染 #}</span>
+{% set pager = pageData.pagination %} <span class="code-comment">{# 从返回结果中取出分页信息（总页数、当前页、每个页码链接等） #}</span>
+{% for item in list %} <span class="code-comment">{# 逐条输出当前页文章，item 就是当前这一篇 #}</span>
+    &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 文章标题入口，用户点击后进入对应详情页 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 当前页文章列表渲染结束 #}</span>
+{% for p in pager.pages %} <span class="code-comment">{# 循环输出每个页码按钮，支持用户在结果页之间切换 #}</span>
+    &lt;a href="{{ p.url }}"{% if p.is_current %} class="active"{% endif %}&gt;{{ p.label }}&lt;/a&gt; <span class="code-comment">&lt;!-- 单个分页按钮：当前页会附加 active 样式用于高亮提示 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 分页按钮渲染结束 #}</span></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 12：统一配置项控制分页参数</strong>
+                            <span>用 <code>config()</code> 读取模板配置项，统一控制每页条数和分页窗口，方便后期全站统一调整。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set perPage = config('theme.list.per_page', 5) %} <span class="code-comment">{# 从统一配置读取每页条数；未配置时默认 5 #}</span>
+{% set pagerWindow = config('theme.list.window', 2) %} <span class="code-comment">{# 从统一配置读取分页窗口；未配置时默认 2 #}</span>
+{% set pageData = contentPage(type='article', per_page=perPage, page_name='page', window=pagerWindow, keyword=current.page.keyword) %} <span class="code-comment">{# 把配置项直接用于服务端分页查询 #}</span>
+{% for item in pageData.items %} <span class="code-comment">{# 正常渲染当前页内容 #}</span>
     &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
 {% endfor %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例 7：详情页上一篇、下一篇和相关文章</strong>
-                        <span>用了 <code>previous</code>、<code>next</code> 和 <code>related limit=4</code>。它会基于当前详情页内容，自动取出上一篇、下一篇和 4 条相关文章，适合文章详情页底部的延伸阅读区。</span>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="code">
-                        <pre>{% set coverArticles = contentList channel='news' with_cover=true limit=5 %}
-{% set firstArticle = first coverArticles %}
-
-{% if firstArticle %}
-    &lt;article class="hero-article"&gt;
-        &lt;img src="{{ firstArticle.cover_image }}" alt="{{ firstArticle.title }}"&gt;
-        &lt;h3&gt;&lt;a href="{{ firstArticle.url }}"&gt;{{ firstArticle.title }}&lt;/a&gt;&lt;/h3&gt;
-    &lt;/article&gt;
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 13：统一配置项（静态文案 + 开关）</strong>
+                            <span>除了分页参数，<code>config()</code> 也适合管理模板静态项，例如区块标题、副标题和开关状态。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set sectionTitle = config('theme.home.hot_title', '精华内容') %} <span class="code-comment">{# 统一读取区块标题：后台可改，模板不用改代码 #}</span>
+{% set sectionIntro = config('theme.home.hot_intro', '精选高价值内容') %} <span class="code-comment">{# 统一读取副标题：未配置时使用默认文案 #}</span>
+{% set showHot = config('theme.home.hot_enabled', true) %} <span class="code-comment">{# 统一读取显示开关：便于按站点快速启停模块 #}</span>
+{% if showHot %} <span class="code-comment">{# 只有开关为 true 时才渲染这整个区块 #}</span>
+    &lt;section class="hot-block"&gt;
+        &lt;h2&gt;{{ sectionTitle }}&lt;/h2&gt;
+        &lt;p&gt;{{ sectionIntro }}&lt;/p&gt;
+    &lt;/section&gt;
 {% endif %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例 8：从列表里取第一条做头图</strong>
-                        <span>这段调用用了 <code>with_cover=true</code> 先筛出带封面的文章，再用 <code>first</code> 从结果里取第一条，适合首页头图、焦点新闻大卡片这类“首条单独展示”的结构。</span>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="code">
-                        <pre>{% set navItems = nav limit=8 %}
-{% for item in navItems %}
-    &lt;a{% if item.is_active %} class="is-active"{% endif %} href="{{ item.url }}"{% if item.target == '_blank' %} target="_blank" rel="noopener noreferrer"{% endif %}&gt;{{ item.name }}&lt;/a&gt;
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 14：query 链式写法（组合函数）</strong>
+                            <span>当你更偏好“从左到右”的可读性时，推荐用 query 链式写法，逻辑更直观，适合复杂筛选。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set pageData = query('article') | channel('news') | top(true) | keyword(current.page.keyword) | perPage(5) | pageName('page') | window(2) | paginate() %} <span class="code-comment">{# 链式组合：栏目 + 置顶 + 关键词 + 分页参数，一行表达完整查询意图 #}</span>
+{% for item in pageData.items %} <span class="code-comment">{# 渲染当前页文章列表 #}</span>
+    &lt;a href="{{ item.url }}"&gt;{{ item.title | plainText() | truncate(28) }}&lt;/a&gt;
 {% endfor %}
-
-{% set breadcrumbs = breadcrumb channel_id=current.channel.id %}
-{% for item in breadcrumbs %}
-    &lt;a href="{{ item.url }}"&gt;{{ item.name }}&lt;/a&gt;
+{% for p in pageData.pagination.pages %} <span class="code-comment">{# 渲染页码导航 #}</span>
+    &lt;a href="{{ p.url }}"{% if p.is_current %} class="active"{% endif %}&gt;{{ p.label }}&lt;/a&gt;
 {% endfor %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例 9：导航栏和面包屑</strong>
-                        <span>第一段推荐直接用 <code>nav limit=8</code>，每个导航项会附带 <code>is_active</code> 和 <code>target</code>，适合头部导航高亮。第二段用了 <code>breadcrumb channel_id=current.channel.id</code> 生成当前栏目路径。适合页面头部导航和栏目页面包屑。</span>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="tip">
-                        <strong>使用建议</strong>
-                        <span>优先先定页面结构，再选对应的栏目、内容或图宣调用。模板里只做展示与字段组合，业务逻辑和权限控制放在后台处理。</span>
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 15：栏目页“全部内容”入口</strong>
+                            <span>栏目页加 <code>all=1</code> 后，列表不再限制当前栏目；可用 <code>current.page.show_all</code> 做“全部内容”按钮高亮。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>&lt;a href="/cat/{{ current.channel.slug }}?site={{ site.site_key }}&amp;all=1" class="sidebar-link{% if current.page.show_all %} active{% endif %}"&gt;全部内容&lt;/a&gt; <span class="code-comment">&lt;!-- “全部内容”入口：点击后带上 all=1 参数，列表范围从当前栏目切换为全站文章；当前状态自动高亮 --&gt;</span>
+{% set pageData = contentPage(type='article', per_page=5, page_name='page', window=2, keyword=current.page.keyword)%} <span class="code-comment">{# 当 URL 包含 all=1 时，后端会按“全站文章”返回分页结果，而不是只返回当前栏目 #}</span></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="example-card">
+                        <div class="example-head">
+                            <strong>范例 16：导航按类型拆分</strong>
+                            <span>通过 <code>type='list'</code> / <code>type='page'</code> 把导航拆成“栏目导航”和“单页导航”，减少模板内复杂判断。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>{% set navListChannels = channels(is_nav=true, type='list', status=1, limit=8)%} <span class="code-comment">{# 先取“栏目型”导航节点：这类节点通常对应新闻、公告、通知等栏目页 #}</span>
+{% set navPageChannels = channels(is_nav=true, type='page', status=1, limit=8)%} <span class="code-comment">{# 再取“单页型”导航节点：这类节点通常对应关于我们、联系我们等单页 #}</span>
+{% for item in navListChannels %} <span class="code-comment">{# 先渲染栏目导航区，便于把资讯类入口集中展示 #}</span>
+    &lt;a href="{{ item.url }}"&gt;{{ item.name }}&lt;/a&gt; <span class="code-comment">&lt;!-- 栏目导航链接，点击后进入对应栏目列表页 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 栏目导航输出完成 #}</span>
+{% for item in navPageChannels %} <span class="code-comment">{# 再渲染单页导航区，便于把说明类页面单独展示 #}</span>
+    &lt;a href="{{ item.url }}"&gt;{{ item.name }}&lt;/a&gt; <span class="code-comment">&lt;!-- 单页导航链接，点击后进入对应单页内容 --&gt;</span>
+{% endfor %} <span class="code-comment">{# 单页导航输出完成 #}</span></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tip" id="pitfalls">
+                        <strong>新开发人员常见坑位（建议先看）</strong>
+                        <ul class="rules-list">
+                            <li><strong>搜索范围错误：</strong>搜索必须走 <code>current.page.keyword</code> + 服务端分页，不要只在当前页前端筛选。</li>
+                            <li><strong>摘要为空：</strong>摘要为空时要回退 <code>item.content_html | plainText()</code>，再做 <code>truncate()</code>，避免出现空描述。</li>
+                            <li><strong>职责混用：</strong>模板只做展示和字段组合，权限判断、业务逻辑、复杂条件放后台处理。</li>
+                            <li><strong>导航高亮遗漏：</strong>涉及“全部内容”时要配合 <code>current.page.show_all</code> 处理高亮状态。</li>
+                            <li><strong>链接安全细节：</strong><code>target="_blank"</code> 的外链请同时加 <code>rel="noopener noreferrer"</code>。</li>
+                            <li><strong>列表稳定性：</strong>时间、摘要、图片等字段建议做默认值或条件判断，避免空字段导致页面断层。</li>
+                        </ul>
                     </div>
                 </section>
 

@@ -1,5 +1,5 @@
     </main>
-    {% set floatingPromos = promos code="global.floating" display_mode="floating" limit="2" %}
+    {% set floatingPromos = promos(code='global.floating', display_mode='floating', limit=2) %}
 
     {% if floatingPromos %}
         {% for promoItem in floatingPromos %}

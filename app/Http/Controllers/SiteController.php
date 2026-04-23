@@ -10,6 +10,7 @@ use App\Support\ThemeTemplateException;
 use App\Support\ThemeTemplateLocator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -121,6 +122,8 @@ class SiteController extends Controller
         $listTemplate = $channel->list_template ?: 'list';
         $tags->withContext('channel', (int) $channel->id, $listTemplate);
         $navItems = $tags->nav()->values();
+        $showAll = in_array(strtolower(trim((string) $request->query('all', '0'))), ['1', 'true', 'yes'], true);
+        $pageTitle = $showAll ? '全部内容' : (string) $channel->name;
 
         $items = DB::table('contents')
             ->where('site_id', $site->id)
@@ -147,8 +150,8 @@ class SiteController extends Controller
             'tags' => $tags,
             'navItems' => $navItems,
             'activeChannelSlug' => $channel->slug,
-            'page' => $this->pageMeta($site, $settings, $channel->name.' - '.$site->name),
-            'meta' => $this->metaPayload($site, $channel->name.' - '.$site->name),
+            'page' => $this->pageMeta($site, $settings, $pageTitle.' - '.$site->name),
+            'meta' => $this->metaPayload($site, $pageTitle.' - '.$site->name),
             'channel' => $this->channelPayload($channel),
             'items' => $items,
         ]);
@@ -856,7 +859,7 @@ class SiteController extends Controller
             'title_italic' => (bool) ($article->title_italic ?? false),
             'is_recommend' => (bool) ($article->is_recommend ?? false),
             'summary' => $article->summary,
-            'content_html' => EmbeddedContentRenderer::render($article->content ?: ''),
+            'content_html' => new HtmlString(EmbeddedContentRenderer::render($article->content ?: '')),
             'channel_id' => $article->channel_id !== null ? (int) $article->channel_id : null,
             'published_at' => $article->published_at,
             'author' => $article->author ?: '本站编辑',
@@ -877,7 +880,7 @@ class SiteController extends Controller
             'title_bold' => (bool) ($page->title_bold ?? false),
             'title_italic' => (bool) ($page->title_italic ?? false),
             'summary' => $page->summary,
-            'content_html' => EmbeddedContentRenderer::render($page->content ?: ''),
+            'content_html' => new HtmlString(EmbeddedContentRenderer::render($page->content ?: '')),
             'channel_id' => $page->channel_id !== null ? (int) $page->channel_id : null,
             'published_at' => $page->published_at ?? null,
             'channel_name' => $channel->name ?? '单页面',
