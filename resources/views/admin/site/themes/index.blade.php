@@ -19,7 +19,7 @@
                 <span class="theme-risk-notice-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 16.5h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
                 </span>
-                <span class="theme-risk-notice-text">模版由当前站点独立管理；启用后前台会直接按当前模版渲染。当前站点共 {{ $siteTemplates->count() }} 个模板，最多可创建 {{ (int) ($currentSite->template_limit ?? 1) }} 个。</span>
+                <span class="theme-risk-notice-text">本模版支持个性化定制，建议由专业UI设计师操作，不当修改可能破坏页面布局。</span>
             </div>
         </div>
         <div class="topbar-right">
