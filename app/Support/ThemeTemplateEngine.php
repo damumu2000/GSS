@@ -62,6 +62,10 @@ class ThemeTemplateEngine
      */
     protected array $templateStack = [];
 
+    protected ?string $activeSource = null;
+
+    protected int $activeOffset = 0;
+
     public function __construct(
         protected string $siteKey,
         protected string $themeCode,
@@ -111,6 +115,12 @@ class ThemeTemplateEngine
             $source = $this->loadTemplate($template);
 
             return $this->renderString($source, $context, $validateOnly);
+        } catch (ThemeTemplateException $exception) {
+            if (! $exception->hasLocation()) {
+                $exception->withLocation($template);
+            }
+
+            throw $exception;
         } finally {
             array_pop($this->templateStack);
         }
@@ -118,134 +128,152 @@ class ThemeTemplateEngine
 
     protected function renderString(string $source, array $context, bool $validateOnly = false): string
     {
-        $this->assertSafeSource($source);
+        $previousSource = $this->activeSource;
+        $previousOffset = $this->activeOffset;
+        $this->activeSource = $source;
+        $this->activeOffset = 0;
 
-        $output = '';
-        $offset = 0;
-        $length = strlen($source);
+        try {
+            $this->assertSafeSource($source);
 
-        while ($offset < $length) {
-            $next = $this->nextToken($source, $offset);
+            $output = '';
+            $offset = 0;
+            $length = strlen($source);
 
-            if ($next === null) {
-                $output .= substr($source, $offset);
-                break;
-            }
+            while ($offset < $length) {
+                $this->activeOffset = $offset;
+                $next = $this->nextToken($source, $offset);
 
-            [$type, $position] = $next;
-
-            if ($position > $offset) {
-                $output .= substr($source, $offset, $position - $offset);
-            }
-
-            if ($type === 'raw') {
-                $end = strpos($source, '}}}', $position);
-                if ($end === false) {
-                    throw ThemeTemplateException::syntax('缺少 }}}');
+                if ($next === null) {
+                    $output .= substr($source, $offset);
+                    break;
                 }
-                $expression = trim(substr($source, $position + 3, $end - $position - 3));
-                if ($validateOnly) {
-                    $this->validateExpression($expression, $context);
-                } else {
-                    $output .= $this->stringify($this->resolveDirective($expression, $context), false);
+
+                [$type, $position] = $next;
+                $this->activeOffset = $position;
+
+                if ($position > $offset) {
+                    $output .= substr($source, $offset, $position - $offset);
                 }
-                $offset = $end + 3;
-                continue;
-            }
 
-            if ($type === 'echo') {
-                $end = strpos($source, '}}', $position);
-                if ($end === false) {
-                    throw ThemeTemplateException::syntax('缺少 }}');
-                }
-                $expression = trim(substr($source, $position + 2, $end - $position - 2));
-                if ($validateOnly) {
-                    $this->validateExpression($expression, $context);
-                } else {
-                    $output .= $this->stringify($this->resolveDirective($expression, $context), true);
-                }
-                $offset = $end + 2;
-                continue;
-            }
-
-            $end = strpos($source, '%}', $position);
-            if ($end === false) {
-                throw ThemeTemplateException::syntax('缺少 %}');
-            }
-            $statement = trim(substr($source, $position + 2, $end - $position - 2));
-
-            if (str_starts_with($statement, 'include ')) {
-                $templateName = $this->normalizeTemplateName(trim(substr($statement, 8), " \t\n\r\0\x0B\"'"));
-                $rendered = $this->renderTemplate($templateName, $context, $validateOnly);
-                if (! $validateOnly) {
-                    $output .= $rendered;
-                }
-                $offset = $end + 2;
-                continue;
-            }
-
-            if (str_starts_with($statement, 'set ')) {
-                if ($validateOnly) {
-                    $this->validateSetStatement(substr($statement, 4), $context);
-                } else {
-                    $this->applySetStatement(substr($statement, 4), $context);
-                }
-                $offset = $end + 2;
-                continue;
-            }
-
-            if (str_starts_with($statement, 'if ')) {
-                [$trueBranch, $falseBranch, $blockEnd] = $this->extractIfBranches($source, $end + 2);
-                $condition = trim(substr($statement, 3));
-                if ($validateOnly) {
-                    $this->renderString($trueBranch, $context, true);
-                    $this->renderString($falseBranch, $context, true);
-                } else {
-                    $output .= $this->renderString(
-                        $this->evaluateCondition($condition, $context) ? $trueBranch : $falseBranch,
-                        $context
-                    );
-                }
-                $offset = $blockEnd;
-                continue;
-            }
-
-            if (str_starts_with($statement, 'for ')) {
-                [$itemName, $iterableExpression] = $this->parseForStatement(substr($statement, 4));
-                [$body, $blockEnd] = $this->extractBlock($source, $end + 2, 'for', 'endfor');
-                if ($validateOnly) {
-                    $this->renderString($body, array_merge($context, [
-                        $itemName => [],
-                        'loop' => ['index' => 0, 'iteration' => 1, 'first' => true, 'last' => true],
-                    ]), true);
-                } else {
-                    $iterable = $this->normalizeIterable($this->resolveValue($iterableExpression, $context));
-
-                    foreach ($iterable as $index => $item) {
-                        $childContext = $context;
-                        $childContext[$itemName] = $item;
-                        $childContext['loop'] = [
-                            'index' => $index,
-                            'iteration' => $index + 1,
-                            'first' => $index === 0,
-                            'last' => $index === array_key_last($iterable),
-                        ];
-                        $output .= $this->renderString($body, $childContext);
+                if ($type === 'raw') {
+                    $end = strpos($source, '}}}', $position);
+                    if ($end === false) {
+                        throw ThemeTemplateException::syntax('缺少 }}}');
                     }
+                    $expression = trim(substr($source, $position + 3, $end - $position - 3));
+                    if ($validateOnly) {
+                        $this->validateExpression($expression, $context);
+                    } else {
+                        $output .= $this->stringify($this->resolveDirective($expression, $context), false);
+                    }
+                    $offset = $end + 3;
+                    continue;
                 }
 
-                $offset = $blockEnd;
-                continue;
+                if ($type === 'echo') {
+                    $end = strpos($source, '}}', $position);
+                    if ($end === false) {
+                        throw ThemeTemplateException::syntax('缺少 }}');
+                    }
+                    $expression = trim(substr($source, $position + 2, $end - $position - 2));
+                    if ($validateOnly) {
+                        $this->validateExpression($expression, $context);
+                    } else {
+                        $output .= $this->stringify($this->resolveDirective($expression, $context), true);
+                    }
+                    $offset = $end + 2;
+                    continue;
+                }
+
+                $end = strpos($source, '%}', $position);
+                if ($end === false) {
+                    throw ThemeTemplateException::syntax('缺少 %}');
+                }
+                $statement = trim(substr($source, $position + 2, $end - $position - 2));
+
+                if (str_starts_with($statement, 'include ')) {
+                    $templateName = $this->normalizeTemplateName(trim(substr($statement, 8), " \t\n\r\0\x0B\"'"));
+                    $rendered = $this->renderTemplate($templateName, $context, $validateOnly);
+                    if (! $validateOnly) {
+                        $output .= $rendered;
+                    }
+                    $offset = $end + 2;
+                    continue;
+                }
+
+                if (str_starts_with($statement, 'set ')) {
+                    if ($validateOnly) {
+                        $this->validateSetStatement(substr($statement, 4), $context);
+                    } else {
+                        $this->applySetStatement(substr($statement, 4), $context);
+                    }
+                    $offset = $end + 2;
+                    continue;
+                }
+
+                if (str_starts_with($statement, 'if ')) {
+                    [$trueBranch, $falseBranch, $blockEnd] = $this->extractIfBranches($source, $end + 2);
+                    $condition = trim(substr($statement, 3));
+                    if ($validateOnly) {
+                        $this->renderString($trueBranch, $context, true);
+                        $this->renderString($falseBranch, $context, true);
+                    } else {
+                        $output .= $this->renderString(
+                            $this->evaluateCondition($condition, $context) ? $trueBranch : $falseBranch,
+                            $context
+                        );
+                    }
+                    $offset = $blockEnd;
+                    continue;
+                }
+
+                if (str_starts_with($statement, 'for ')) {
+                    [$itemName, $iterableExpression] = $this->parseForStatement(substr($statement, 4));
+                    [$body, $blockEnd] = $this->extractBlock($source, $end + 2, 'for', 'endfor');
+                    if ($validateOnly) {
+                        $this->renderString($body, array_merge($context, [
+                            $itemName => [],
+                            'loop' => ['index' => 0, 'iteration' => 1, 'first' => true, 'last' => true],
+                        ]), true);
+                    } else {
+                        $iterable = $this->normalizeIterable($this->resolveValue($iterableExpression, $context));
+
+                        foreach ($iterable as $index => $item) {
+                            $childContext = $context;
+                            $childContext[$itemName] = $item;
+                            $childContext['loop'] = [
+                                'index' => $index,
+                                'iteration' => $index + 1,
+                                'first' => $index === 0,
+                                'last' => $index === array_key_last($iterable),
+                            ];
+                            $output .= $this->renderString($body, $childContext);
+                        }
+                    }
+
+                    $offset = $blockEnd;
+                    continue;
+                }
+
+                if (in_array($statement, ['else', 'endif', 'endfor'], true)) {
+                    throw ThemeTemplateException::syntax('块标签未正确闭合');
+                }
+
+                throw ThemeTemplateException::unsupported($statement);
             }
 
-            if (in_array($statement, ['else', 'endif', 'endfor'], true)) {
-                throw ThemeTemplateException::syntax('块标签未正确闭合');
+            return $output;
+        } catch (ThemeTemplateException $exception) {
+            if (! $exception->hasLocation()) {
+                $exception->withLocation($this->currentTemplateName(), $this->lineFromOffset($source, $this->activeOffset));
             }
 
-            throw ThemeTemplateException::unsupported($statement);
+            throw $exception;
+        } finally {
+            $this->activeSource = $previousSource;
+            $this->activeOffset = $previousOffset;
         }
-
-        return $output;
     }
 
     protected function nextToken(string $source, int $offset): ?array
@@ -716,25 +744,39 @@ class ThemeTemplateEngine
 
     protected function assertSafeSource(string $source): void
     {
-        if (str_contains($source, '<?')) {
-            throw ThemeTemplateException::syntax('模板源码中不允许包含 PHP 代码标签');
+        $this->assertPatternNotExists($source, '/<\?/', '模板源码中不允许包含 PHP 代码标签');
+        $this->assertPatternNotExists($source, '/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', '模板源码中不允许使用内联 script');
+        $this->assertPatternNotExists($source, '/<style\b[^>]*>/i', '模板源码中不允许使用内联 style');
+        $this->assertPatternNotExists($source, '/\sstyle\s*=/i', '模板源码中不允许使用内联 style 属性');
+        $this->assertPatternNotExists($source, '/\son[a-z]+\s*=/i', '模板源码中不允许使用内联事件属性');
+    }
+
+    protected function assertPatternNotExists(string $source, string $pattern, string $message): void
+    {
+        if (preg_match($pattern, $source, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return;
         }
 
-        if (preg_match('/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', $source) === 1) {
-            throw ThemeTemplateException::syntax('模板源码中不允许使用内联 script');
+        $offset = (int) ($match[0][1] ?? 0);
+        throw ThemeTemplateException::syntax($message, $this->currentTemplateName(), $this->lineFromOffset($source, $offset));
+    }
+
+    protected function currentTemplateName(): ?string
+    {
+        $name = end($this->templateStack);
+
+        if ($name === false) {
+            return null;
         }
 
-        if (preg_match('/<style\b[^>]*>/i', $source) === 1) {
-            throw ThemeTemplateException::syntax('模板源码中不允许使用内联 style');
-        }
+        return (string) $name;
+    }
 
-        if (preg_match('/\sstyle\s*=/i', $source) === 1) {
-            throw ThemeTemplateException::syntax('模板源码中不允许使用内联 style 属性');
-        }
+    protected function lineFromOffset(string $source, int $offset): int
+    {
+        $offset = max(0, min($offset, strlen($source)));
 
-        if (preg_match('/\son[a-z]+\s*=/i', $source) === 1) {
-            throw ThemeTemplateException::syntax('模板源码中不允许使用内联事件属性');
-        }
+        return substr_count(substr($source, 0, $offset), "\n") + 1;
     }
 
     /**

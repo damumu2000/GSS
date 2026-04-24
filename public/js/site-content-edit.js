@@ -1787,7 +1787,7 @@ function bindSmartPasteImport(editor) {
 function showArticleTypesettingToast() {
     showStyledEditorToast({
         title: '排版已优化完成',
-        text: '正文已统一为 14px，段落、列表和表格也一起整理好了。',
+        text: '正文已统一为 15px，段落、列表和表格也一起整理好了。',
     });
 }
 

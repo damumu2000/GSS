@@ -857,6 +857,7 @@ class SiteController extends Controller
             'title_color' => $article->title_color ?? '',
             'title_bold' => (bool) ($article->title_bold ?? false),
             'title_italic' => (bool) ($article->title_italic ?? false),
+            'is_top' => (bool) ($article->is_top ?? false),
             'is_recommend' => (bool) ($article->is_recommend ?? false),
             'summary' => $article->summary,
             'content_html' => new HtmlString(EmbeddedContentRenderer::render($article->content ?: '')),

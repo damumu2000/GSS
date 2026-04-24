@@ -1392,6 +1392,7 @@ class ThemeTags
             'title_color' => $content->title_color ?? '',
             'title_bold' => (bool) ($content->title_bold ?? false),
             'title_italic' => (bool) ($content->title_italic ?? false),
+            'is_top' => (bool) ($content->is_top ?? false),
             'is_recommend' => (bool) ($content->is_recommend ?? false),
             'summary' => $content->summary,
             'content_html' => new HtmlString(EmbeddedContentRenderer::render($content->content ?? '')),

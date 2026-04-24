@@ -1387,32 +1387,41 @@ class ThemeController extends Controller
 
     protected function validateEditorSource(object $currentSite, string $themeCode, string $template, string $source): void
     {
-        if (str_contains($source, '<?')) {
-            throw new InvalidArgumentException('模板源码中不允许包含 PHP 代码标签。');
+        $lineFromOffset = static function (int $offset) use ($source): int {
+            $offset = max(0, min($offset, strlen($source)));
+
+            return substr_count(substr($source, 0, $offset), "\n") + 1;
+        };
+        $throwLineError = static function (string $message, int $offset) use ($lineFromOffset): void {
+            throw new InvalidArgumentException($message.'（第 '.$lineFromOffset($offset).' 行）');
+        };
+
+        if (preg_match('/<\?/', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
+            $throwLineError('模板源码中不允许包含 PHP 代码标签。', (int) ($match[0][1] ?? 0));
         }
 
         if (ThemeTemplateLocator::editorExtension($template) !== 'tpl') {
             return;
         }
 
-        if (preg_match('/(?:https?:)?\/\/[^\s"\')<>]*\/site-media\/|\/site-media\//i', $source) === 1) {
-            throw new InvalidArgumentException('模板源码中不再支持站点资源，请改用当前主题的模板资源。');
+        if (preg_match('/(?:https?:)?\/\/[^\s"\')<>]*\/site-media\/|\/site-media\//i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
+            $throwLineError('模板源码中不再支持站点资源，请改用当前主题的模板资源。', (int) ($match[0][1] ?? 0));
         }
 
-        if (preg_match('/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', $source) === 1) {
-            throw new InvalidArgumentException('模板源码中不允许使用内联 script，请改用主题脚本文件并通过 themeScript 引入。');
+        if (preg_match('/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
+            $throwLineError('模板源码中不允许使用内联 script，请改用主题脚本文件并通过 themeScript 引入。', (int) ($match[0][1] ?? 0));
         }
 
-        if (preg_match('/<style\b[^>]*>/i', $source) === 1) {
-            throw new InvalidArgumentException('模板源码中不允许使用内联 style，请改用主题样式文件并通过 themeStyle 引入。');
+        if (preg_match('/<style\b[^>]*>/i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
+            $throwLineError('模板源码中不允许使用内联 style，请改用主题样式文件并通过 themeStyle 引入。', (int) ($match[0][1] ?? 0));
         }
 
-        if (preg_match('/\sstyle\s*=/i', $source) === 1) {
-            throw new InvalidArgumentException('模板源码中不允许使用内联 style 属性，请改用样式类名和主题样式文件。');
+        if (preg_match('/\sstyle\s*=/i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
+            $throwLineError('模板源码中不允许使用内联 style 属性，请改用样式类名和主题样式文件。', (int) ($match[0][1] ?? 0));
         }
 
-        if (preg_match('/\son[a-z]+\s*=/i', $source) === 1) {
-            throw new InvalidArgumentException('模板源码中不允许使用内联事件属性，请改用主题脚本文件绑定交互。');
+        if (preg_match('/\son[a-z]+\s*=/i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
+            $throwLineError('模板源码中不允许使用内联事件属性，请改用主题脚本文件绑定交互。', (int) ($match[0][1] ?? 0));
         }
 
         $tags = new ThemeTags($currentSite, collect(), collect());
