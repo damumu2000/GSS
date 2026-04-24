@@ -9,6 +9,7 @@ use App\Support\SiteStorageUsage;
 use App\Support\ThemeTags;
 use App\Support\ThemeTemplateEngine;
 use App\Support\ThemeTemplateLocator;
+use App\Support\ThemeTemplateScaffold;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -1531,15 +1532,7 @@ class ThemeController extends Controller
     protected function ensureInitialSiteTemplateFiles(string $siteKey, string $templateKey): void
     {
         $root = SitePath::siteTemplateRoot($siteKey, $templateKey);
-        File::ensureDirectoryExists($root);
-
-        $homeTemplate = $root.DIRECTORY_SEPARATOR.'home.tpl';
-
-        if (File::exists($homeTemplate)) {
-            return;
-        }
-
-        File::put($homeTemplate, '站点模板还未启用，请先在后台模板管理中启用可访问模板。');
+        ThemeTemplateScaffold::copyDefaultFiles($root);
     }
 
     /**

@@ -20,7 +20,7 @@ class ThemeTemplateLocator
 
     public static function defaultRoot(string $themeCode): string
     {
-        return storage_path("app/theme_templates/{$themeCode}");
+        return storage_path('app/theme_templates');
     }
 
     public static function overrideRoot(int|object|string $site, string $themeCode): string

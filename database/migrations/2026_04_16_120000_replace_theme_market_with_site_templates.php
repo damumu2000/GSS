@@ -136,13 +136,18 @@ return new class extends Migration
     protected function ensureInitialSiteTemplate(string $siteKey, string $templateKey): void
     {
         $root = SitePath::themeOverrideRoot($siteKey, $templateKey);
-        $legacyRoot = storage_path('app/theme_templates/site');
+        $sourceRoot = storage_path('app/theme_templates');
 
         File::ensureDirectoryExists($root);
 
-        if (File::isDirectory($legacyRoot)) {
-            foreach (File::allFiles($legacyRoot) as $file) {
-                $relativePath = ltrim(str_replace($legacyRoot, '', $file->getPathname()), DIRECTORY_SEPARATOR);
+        if (File::isDirectory($sourceRoot)) {
+            foreach (File::allFiles($sourceRoot) as $file) {
+                $relativePath = ltrim(str_replace($sourceRoot, '', $file->getPathname()), DIRECTORY_SEPARATOR);
+
+                if ($this->shouldSkipDefaultTemplateFile($relativePath)) {
+                    continue;
+                }
+
                 $targetPath = $root.DIRECTORY_SEPARATOR.$relativePath;
 
                 if (File::exists($targetPath)) {
@@ -153,13 +158,18 @@ return new class extends Migration
                 File::copy($file->getPathname(), $targetPath);
             }
         }
+    }
 
-        $homeTemplate = $root.DIRECTORY_SEPARATOR.'home.tpl';
+    protected function shouldSkipDefaultTemplateFile(string $relativePath): bool
+    {
+        $segments = preg_split('#[\\\\/]#', $relativePath) ?: [];
 
-        if (File::exists($homeTemplate)) {
-            return;
+        foreach ($segments as $segment) {
+            if ($segment !== '' && str_starts_with($segment, '.')) {
+                return true;
+            }
         }
 
-        File::put($homeTemplate, '站点模板还未启用，请先在后台模板管理中启用可访问模板。');
+        return false;
     }
 };

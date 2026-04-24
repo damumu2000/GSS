@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\AttachmentUsageTracker;
 use App\Support\Modules\ModuleManager;
 use App\Support\Site as SitePath;
+use App\Support\ThemeTemplateScaffold;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -1044,8 +1045,7 @@ class PlatformSiteController extends Controller
         ]);
 
         $templateRoot = SitePath::siteTemplateRoot($siteKey, 'default');
-        File::ensureDirectoryExists($templateRoot);
-        File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', '站点模板还未启用，请先在后台模板管理中启用可访问模板。');
+        ThemeTemplateScaffold::copyDefaultFiles($templateRoot);
 
         return (int) $templateId;
     }

@@ -3,9 +3,9 @@
 namespace Database\Seeders;
 
 use App\Support\Site as SitePath;
+use App\Support\ThemeTemplateScaffold;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 
 class CmsBootstrapSeeder extends Seeder
 {
@@ -210,12 +210,7 @@ class CmsBootstrapSeeder extends Seeder
             ]);
 
         $templateRoot = SitePath::siteTemplateRoot('site', 'default');
-        $legacyTemplateRoot = storage_path('app/theme_templates/site');
-        $this->syncDefaultTemplateScaffold($templateRoot, $legacyTemplateRoot);
-
-        if (! File::exists($templateRoot.DIRECTORY_SEPARATOR.'home.tpl')) {
-            File::put($templateRoot.DIRECTORY_SEPARATOR.'home.tpl', '站点模板还未启用，请先在后台模板管理中启用可访问模板。');
-        }
+        ThemeTemplateScaffold::copyDefaultFiles($templateRoot);
 
         DB::table('site_domains')->updateOrInsert(
             ['domain' => 'site.local'],
@@ -315,24 +310,4 @@ class CmsBootstrapSeeder extends Seeder
         }
     }
 
-    protected function syncDefaultTemplateScaffold(string $templateRoot, string $legacyTemplateRoot): void
-    {
-        File::ensureDirectoryExists($templateRoot);
-
-        if (! File::isDirectory($legacyTemplateRoot)) {
-            return;
-        }
-
-        foreach (File::allFiles($legacyTemplateRoot) as $file) {
-            $relativePath = ltrim(str_replace($legacyTemplateRoot, '', $file->getPathname()), DIRECTORY_SEPARATOR);
-            $targetPath = $templateRoot.DIRECTORY_SEPARATOR.$relativePath;
-
-            if (File::exists($targetPath)) {
-                continue;
-            }
-
-            File::ensureDirectoryExists(dirname($targetPath));
-            File::copy($file->getPathname(), $targetPath);
-        }
-    }
 }
