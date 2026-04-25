@@ -267,6 +267,16 @@
             color: #6b7280;
         }
 
+        .site-status-badge.is-expired-warning {
+            background: #fffbeb;
+            color: #b45309;
+        }
+
+        .site-status-badge.is-expired-danger {
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
         .site-status-wrap {
             display: grid;
             gap: 6px;

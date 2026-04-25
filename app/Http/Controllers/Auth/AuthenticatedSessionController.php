@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Site;
 use App\Support\DatabaseHealth;
+use App\Support\SiteBackendAccess;
 use App\Support\SystemSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,7 @@ class AuthenticatedSessionController extends Controller
 
     public function __construct(
         protected SystemSettings $systemSettings,
+        protected SiteBackendAccess $siteBackendAccess,
     ) {
     }
 
@@ -225,6 +227,17 @@ class AuthenticatedSessionController extends Controller
                 ]);
             }
 
+            $loginSiteAccess = $this->siteBackendAccess->status($loginSite);
+            if (! $loginSiteAccess['allowed']) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                $this->throwLoginValidationException($request, [
+                    'username' => $loginSiteAccess['message'],
+                ]);
+            }
+
             $currentSiteId = (int) $request->session()->get('current_site_id', 0);
             $loginSiteId = (int) ($loginSite->id ?? 0);
 
@@ -271,7 +284,7 @@ class AuthenticatedSessionController extends Controller
 
         if ($user) {
             $userId = (int) $user->id;
-            $isPlatformAdmin = in_array('platform.admin', $this->platformPermissionCodes($userId), true);
+            $isPlatformAdmin = $this->isPlatformAdmin($userId);
             $currentSiteId = (int) $request->session()->get('current_site_id', 0);
 
             $this->logOperation(
@@ -347,7 +360,6 @@ class AuthenticatedSessionController extends Controller
                 ->join('sites', 'sites.id', '=', 'site_domains.site_id')
                 ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
                 ->where('site_domains.status', 1)
-                ->where('sites.status', 1)
                 ->first([
                     'sites.id',
                     'sites.name',
@@ -357,6 +369,8 @@ class AuthenticatedSessionController extends Controller
                     'sites.seo_title',
                     'sites.seo_keywords',
                     'sites.seo_description',
+                    'sites.status',
+                    'sites.expires_at',
                 ]);
 
             if ($site) {
@@ -372,9 +386,8 @@ class AuthenticatedSessionController extends Controller
 
         if ($siteKey !== '') {
             $site = Site::query()
-                ->select(['id', 'name', 'site_key', 'logo', 'favicon', 'seo_title', 'seo_keywords', 'seo_description'])
+                ->select(['id', 'name', 'site_key', 'logo', 'favicon', 'seo_title', 'seo_keywords', 'seo_description', 'status', 'expires_at'])
                 ->where('site_key', $siteKey)
-                ->where('status', 1)
                 ->first();
 
             if ($site) {
@@ -383,7 +396,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         return Site::query()
-            ->select(['id', 'name', 'site_key', 'logo', 'favicon', 'seo_title', 'seo_keywords', 'seo_description'])
+            ->select(['id', 'name', 'site_key', 'logo', 'favicon', 'seo_title', 'seo_keywords', 'seo_description', 'status', 'expires_at'])
             ->where('status', 1)
             ->orderBy('id')
             ->first();

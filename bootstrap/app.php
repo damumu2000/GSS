@@ -28,12 +28,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.access' => \App\Http\Middleware\EnsureAdminAccess::class,
             'platform.only' => \App\Http\Middleware\EnsurePlatformOnly::class,
             'html.minify' => \App\Http\Middleware\MinifyHtmlResponse::class,
+            'site.not_expired' => \App\Http\Middleware\EnsureSiteNotExpired::class,
             'site.security' => \App\Http\Middleware\SiteSecurityGuard::class,
             'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
             'module.admin.active' => \App\Http\Middleware\EnsureSiteModuleAdminActive::class,
         ]);
 
         $middleware->appendToGroup('web', [
+            \App\Http\Middleware\EnsureSiteNotExpired::class,
             \App\Http\Middleware\SiteSecurityGuard::class,
             \App\Http\Middleware\SecurityHeaders::class,
         ]);

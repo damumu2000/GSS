@@ -12,6 +12,7 @@
         'approved' => '已通过',
         'rejected' => '已驳回',
     ];
+    $siteExpiration = app(\App\Support\SiteExpiration::class)->status($currentSite);
     $serviceNow = now('Asia/Shanghai');
     $serviceOpenedAt = $currentSite?->opened_at ? \Illuminate\Support\Carbon::parse($currentSite->opened_at, 'Asia/Shanghai') : null;
     $serviceExpiresAt = $currentSite?->expires_at ? \Illuminate\Support\Carbon::parse($currentSite->expires_at, 'Asia/Shanghai')->endOfDay() : null;
@@ -45,7 +46,8 @@
     $serviceExpired = $serviceExpireTotalHours !== null && $serviceExpireTotalHours < 0;
     $serviceExpireLabel = $serviceExpiresAt ? $serviceExpiresAt->format('Y-m-d') : '长期有效';
     $serviceExpireNoteLines = match (true) {
-        $serviceExpired => ['服务已到期', '请尽快联系处理续期。'],
+        $siteExpiration['admin_blocked'] => ['你所属的站点已经过期多日，已限制后台功能。', ''],
+        $siteExpiration['frontend_blocked'] => [$siteExpiration['dashboard_title'], $siteExpiration['dashboard_note']],
         $serviceExpireCritical => ['距离到期仅剩 ' . $serviceExpireRemainingText . '，请联系客服续期。', ''],
         $serviceExpireSoon => ['距离到期仅剩 ' . $serviceExpireRemainingText . '，请联系客服续期。', ''],
         $serviceExpireDays !== null && $serviceOpenedAt => ['网站已经稳定运行了' . $serviceStableRunText . '。', ''],
@@ -125,7 +127,7 @@
             <h2 class="page-header-title">站点工作台</h2>
             <div class="page-header-desc">{{ $headerDateLine }} {{ $headerGreetingLine }}</div>
         </div>
-        <aside class="dashboard-expire-card @if ($serviceExpireCritical || $serviceExpired) is-danger @elseif ($serviceExpireSoon) is-warning @endif">
+        <aside class="dashboard-expire-card @if ($siteExpiration['admin_blocked'] || $serviceExpireCritical) is-danger @elseif ($siteExpiration['frontend_blocked'] || $serviceExpireSoon) is-warning @endif">
             <div class="dashboard-expire-note">
                 <div>
                     <span class="dashboard-expire-note-icon" aria-hidden="true">
@@ -353,7 +355,7 @@
                 <div class="insight-board-card-head">
                     <h3 class="insight-board-card-title">官闪闪公告栏</h3>
                     @if ($showPlatformNoticeLink)
-                        <a class="insight-board-card-tag" href="{{ route('site.channel', ['slug' => 'platform-notices', 'site' => $platformNoticeSiteKey]) }}" target="_blank">更多</a>
+                        <a class="insight-board-card-tag" href="{{ route('site.channel', ['slug' => 'platform-notices']) }}" target="_blank">更多</a>
                     @endif
                 </div>
                 <div class="notice-list">

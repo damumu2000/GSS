@@ -59,7 +59,8 @@
                     <p>请输入您的账号信息以访问管理平台</p>
                     </div>
 
-                    <form method="POST" action="{{ route('login.store') }}" novalidate data-login-form>
+                    @php($loginFormSiteKey = in_array(request()->getHost(), ['127.0.0.1', 'localhost'], true) ? request()->query('site') : null)
+                    <form method="POST" action="{{ route('login.store', $loginFormSiteKey ? ['site' => $loginFormSiteKey] : []) }}" novalidate data-login-form>
                         @csrf
 
                         <div class="field">

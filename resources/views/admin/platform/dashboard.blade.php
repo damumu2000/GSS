@@ -294,7 +294,7 @@
                 <div class="insight-board-card-head">
                     <h3 class="insight-board-card-title">官闪闪公告栏</h3>
                     @if ($showPlatformNoticeLink)
-                        <a class="insight-board-card-tag" href="{{ route('site.channel', ['slug' => 'platform-notices', 'site' => $platformNoticeSiteKey]) }}" target="_blank">更多</a>
+                        <a class="insight-board-card-tag" href="{{ route('site.channel', ['slug' => 'platform-notices']) }}" target="_blank">更多</a>
                     @endif
                 </div>
                 <div class="notice-list">

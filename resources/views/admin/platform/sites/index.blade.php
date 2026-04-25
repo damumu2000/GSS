@@ -76,9 +76,17 @@
                     $openedAt = $managedSite->opened_at ? \Illuminate\Support\Carbon::parse($managedSite->opened_at)->format('Y-m-d') : '未设置';
                     $expiresAt = $managedSite->expires_at ? \Illuminate\Support\Carbon::parse($managedSite->expires_at)->format('Y-m-d') : '长期有效';
                     $moduleNames = trim((string) ($managedSite->module_names ?? ''));
+                    $expiration = app(\App\Support\SiteExpiration::class)->status($managedSite);
                     $expiresSoonLabel = null;
+                    $statusBadgeClass = $managedSite->status ? '' : 'is-offline';
+                    $statusLabel = $managedSite->status ? '开启中' : '已关闭';
+                    $statusHint = null;
 
-                    if ($managedSite->expires_at) {
+                    if ($expiration['is_expired']) {
+                        $statusBadgeClass = $expiration['admin_blocked'] ? 'is-expired-danger' : 'is-expired-warning';
+                        $statusLabel = $expiration['label'];
+                        $statusHint = $expiration['hint'];
+                    } elseif ($managedSite->expires_at) {
                         $expiresDiffDays = now()->diffInDays(\Illuminate\Support\Carbon::parse($managedSite->expires_at), false);
 
                         if ($expiresDiffDays >= 0 && $expiresDiffDays < 30) {
@@ -110,9 +118,9 @@
                     </div>
                     <div class="site-modules-text {{ $moduleNames === '' ? 'site-muted' : '' }}">{{ $moduleNames !== '' ? $moduleNames : '未绑定模块' }}</div>
                     <div class="site-status-wrap">
-                        <span class="site-status-badge {{ $managedSite->status ? '' : 'is-offline' }}">{{ $managedSite->status ? '开启中' : '已关闭' }}</span>
-                        @if ($expiresSoonLabel)
-                            <span class="site-status-hint">{{ $expiresSoonLabel }}</span>
+                        <span class="site-status-badge {{ $statusBadgeClass }}">{{ $statusLabel }}</span>
+                        @if ($statusHint || $expiresSoonLabel)
+                            <span class="site-status-hint">{{ $statusHint ?: $expiresSoonLabel }}</span>
                         @endif
                     </div>
                     <div class="site-actions">

@@ -866,9 +866,25 @@
         }
 
         .site-context-switcher-option-name {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
             font-size: 13px;
             font-weight: 700;
             line-height: 1.4;
+        }
+
+        .site-context-switcher-status {
+            display: inline-flex;
+            align-items: center;
+            min-height: 18px;
+            padding: 0 7px;
+            border-radius: 999px;
+            background: #fef2f2;
+            color: #dc2626;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
         }
 
         .site-context-switcher-option-meta {

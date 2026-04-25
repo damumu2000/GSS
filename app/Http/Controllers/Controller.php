@@ -85,7 +85,7 @@ abstract class Controller
             ->where('site_user_roles.user_id', $userId)
             ->distinct()
             ->orderBy('name')
-            ->get(['sites.id', 'sites.name', 'sites.site_key', 'sites.status']);
+            ->get(['sites.id', 'sites.name', 'sites.site_key', 'sites.status', 'sites.expires_at']);
     }
 
     /**
@@ -155,7 +155,7 @@ abstract class Controller
             return DB::table('sites')
                 ->orderByRaw('CASE WHEN id = 1 THEN 0 ELSE 1 END')
                 ->orderBy('name')
-                ->get(['id', 'name', 'site_key', 'status']);
+                ->get(['id', 'name', 'site_key', 'status', 'expires_at']);
         }
 
         return $this->boundSites($userId);

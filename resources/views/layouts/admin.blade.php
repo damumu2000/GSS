@@ -175,6 +175,14 @@
                                 </div>
                                 <div class="site-context-switcher-list" role="listbox" data-site-context-list>
                                     @foreach ($sites as $siteOption)
+                                        @php
+                                            $siteOptionStatusLabel = null;
+                                            if ((int) ($siteOption->status ?? 1) !== 1) {
+                                                $siteOptionStatusLabel = '停用';
+                                            } elseif (! empty($siteOption->expires_at) && \Illuminate\Support\Carbon::parse($siteOption->expires_at, 'Asia/Shanghai')->endOfDay()->lt(now('Asia/Shanghai'))) {
+                                                $siteOptionStatusLabel = '已过期';
+                                            }
+                                        @endphp
                                         <button
                                             class="site-context-switcher-option @if ((int) $siteOption->id === (int) ($currentSite->id ?? 0)) is-active @endif"
                                             type="button"
@@ -185,7 +193,12 @@
                                             role="option"
                                             aria-selected="{{ (int) $siteOption->id === (int) ($currentSite->id ?? 0) ? 'true' : 'false' }}"
                                         >
-                                            <span class="site-context-switcher-option-name">{{ $siteOption->name }}</span>
+                                            <span class="site-context-switcher-option-name">
+                                                <span>{{ $siteOption->name }}</span>
+                                                @if ($siteOptionStatusLabel)
+                                                    <span class="site-context-switcher-status">{{ $siteOptionStatusLabel }}</span>
+                                                @endif
+                                            </span>
                                             <span class="site-context-switcher-option-meta">{{ '站点标识：' . $siteOption->site_key }}</span>
                                         </button>
                                     @endforeach

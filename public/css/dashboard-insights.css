@@ -994,7 +994,7 @@
         .insight-board-card.is-trend-card {
             grid-column: 1;
             grid-row: 1;
-            min-height: 312px;
+            min-height: 352px;
         }
 
         .insight-board-card.is-article-rank-card {
@@ -1060,7 +1060,7 @@
             grid-template-columns: repeat(7, minmax(0, 1fr));
             gap: 8px;
             align-items: end;
-            min-height: 176px;
+            min-height: 216px;
         }
 
         .insight-trend-item {
@@ -1083,7 +1083,7 @@
             width: 72%;
             max-width: 58px;
             min-height: 16px;
-            height: calc(var(--insight-bar-height) * 1px);
+            height: calc(var(--insight-bar-height) * 1.28px);
             border-radius: 999px;
             background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, white 18%) 0%, color-mix(in srgb, var(--primary) 34%, white 66%) 100%);
             box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 18%, transparent);
