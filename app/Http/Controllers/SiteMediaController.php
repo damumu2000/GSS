@@ -20,9 +20,7 @@ class SiteMediaController extends Controller
         abort_unless(File::isFile($absolutePath), 404);
 
         $response = response()->file($absolutePath, [
-            'Cache-Control' => 'public, no-cache, must-revalidate, max-age=0',
-            'Pragma' => 'no-cache',
-            'Expires' => '0',
+            'Cache-Control' => 'public, max-age=2592000',
         ]);
 
         $response->setEtag(sha1($absolutePath.'|'.File::lastModified($absolutePath).'|'.File::size($absolutePath)));

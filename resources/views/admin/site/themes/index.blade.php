@@ -191,7 +191,7 @@
                 </label>
                 <label class="field-group">
                     <span class="field-label">模版标识</span>
-                    <input class="field @error('template_key') is-error @enderror" type="text" name="template_key" value="{{ old('template_key') }}" maxlength="50" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="如 gov-portal" autocomplete="off" spellcheck="false">
+                    <input class="field @error('template_key') is-error @enderror" type="text" name="template_key" value="{{ old('template_key') }}" minlength="3" maxlength="50" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="如 gov-portal" autocomplete="off" spellcheck="false">
                     @error('template_key')
                         <span class="form-error">{{ $message }}</span>
                     @enderror

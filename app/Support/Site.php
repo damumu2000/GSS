@@ -69,6 +69,31 @@ class Site
         return url('/'.$normalized);
     }
 
+    public static function versionedMediaUrl(?string $url): string
+    {
+        $url = trim((string) $url);
+
+        if ($url === '') {
+            return '';
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! is_string($path) || preg_match('#^/site-media/([^/]+)/(.+)$#', $path, $matches) !== 1) {
+            return $url;
+        }
+
+        $absolutePath = static::mediaAbsolutePath($matches[1], $matches[2]);
+
+        if (! is_file($absolutePath)) {
+            return $url;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url.$separator.'v='.filemtime($absolutePath);
+    }
+
     public static function mediaAbsolutePath(int|object|string $site, string $suffix = ''): string
     {
         return storage_path('app/'.static::mediaRelative($site, $suffix));

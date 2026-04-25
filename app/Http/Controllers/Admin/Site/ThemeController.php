@@ -140,6 +140,7 @@ class ThemeController extends Controller
             'template_key' => [
                 'required',
                 'string',
+                'min:3',
                 'max:50',
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
                 Rule::unique('site_templates', 'template_key')->where(fn ($query) => $query->where('site_id', $currentSite->id)),
@@ -147,6 +148,7 @@ class ThemeController extends Controller
         ], [
             'name.regex' => '模版名称不能包含首尾空格或 HTML 标签。',
             'name.unique' => '当前站点已存在同名模版，请更换模版名称。',
+            'template_key.min' => '模版标识至少需要 3 个字符。',
             'template_key.regex' => '模版标识只能使用小写字母、数字和中划线。',
             'template_key.unique' => '当前站点已存在相同模版标识，请更换后再试。',
         ], [

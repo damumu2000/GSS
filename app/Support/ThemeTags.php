@@ -2,9 +2,9 @@
 
 namespace App\Support;
 
-use App\Support\ThemeDsl\ThemeDslSpec;
 use App\Modules\Guestbook\Support\GuestbookModule;
 use App\Modules\Guestbook\Support\GuestbookSettings;
+use App\Support\ThemeDsl\ThemeDslSpec;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -63,8 +63,8 @@ class ThemeTags
         $map = [
             'id' => $this->site->id ?? null,
             'name' => $this->site->name ?? '',
-            'logo' => $this->site->logo ?? '',
-            'favicon' => $this->site->favicon ?? '',
+            'logo' => Site::versionedMediaUrl($this->site->logo ?? ''),
+            'favicon' => Site::versionedMediaUrl($this->site->favicon ?? ''),
             'contact_phone' => $this->site->contact_phone ?? '',
             'contact_email' => $this->site->contact_email ?? '',
             'address' => $this->site->address ?? '',
