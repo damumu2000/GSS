@@ -827,8 +827,10 @@ class ContentController extends Controller
             'author' => ['nullable', 'string', 'max:100'],
             'source' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'max:20'],
-            'published_at' => ['nullable', 'date'],
-        ], [], [
+            'published_at' => ['nullable', 'date_format:Y-m-d\TH:i'],
+        ], [
+            'published_at.date_format' => '发布时间格式不正确，请使用 4 位年份日期时间。',
+        ], [
             'channel_id' => '所属栏目',
             'channel_ids' => '所属栏目',
             'channel_ids.*' => '所属栏目',

@@ -268,14 +268,14 @@
                                 <div class="site-form-grid status-monitor-fields">
                                     <label class="field-group">
                                         <span class="field-label">开通时间</span>
-                                        <input class="field @error('opened_at') is-error @enderror" type="date" name="opened_at" value="{{ $openedAtValue }}" @error('opened_at') aria-invalid="true" @enderror>
+                                        <input class="field @error('opened_at') is-error @enderror" type="date" name="opened_at" value="{{ $openedAtValue }}" min="1000-01-01" max="9999-12-31" @error('opened_at') aria-invalid="true" @enderror>
                                         @error('opened_at')
                                             <span class="form-error">{{ $message }}</span>
                                         @enderror
                                     </label>
                                     <label class="field-group">
                                         <span class="field-label">到期时间</span>
-                                        <input class="field @error('expires_at') is-error @enderror" type="date" name="expires_at" value="{{ $expiresAtValue }}" @error('expires_at') aria-invalid="true" @enderror>
+                                        <input class="field @error('expires_at') is-error @enderror" type="date" name="expires_at" value="{{ $expiresAtValue }}" min="1000-01-01" max="9999-12-31" @error('expires_at') aria-invalid="true" @enderror>
                                         @error('expires_at')
                                             <span class="form-error">{{ $message }}</span>
                                         @enderror

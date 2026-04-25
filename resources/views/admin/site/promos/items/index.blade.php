@@ -157,11 +157,11 @@
                             </div>
                             <div>
                                 <label for="drawer_start_at">开始时间</label>
-                                <input id="drawer_start_at" class="field" type="datetime-local" name="start_at">
+                                <input id="drawer_start_at" class="field" type="datetime-local" name="start_at" min="1000-01-01T00:00" max="9999-12-31T23:59">
                             </div>
                             <div>
                                 <label for="drawer_end_at">结束时间</label>
-                                <input id="drawer_end_at" class="field" type="datetime-local" name="end_at">
+                                <input id="drawer_end_at" class="field" type="datetime-local" name="end_at" min="1000-01-01T00:00" max="9999-12-31T23:59">
                             </div>
                         </div>
 

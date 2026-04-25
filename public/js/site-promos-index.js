@@ -26,11 +26,13 @@
     const callCodeBlock = callModal?.querySelector('[data-promo-call-code-block]');
     const callExampleLabel = callModal?.querySelector('[data-promo-call-example-label]');
     const callExampleBlock = callModal?.querySelector('[data-promo-call-example-block]');
+    const callCssBlock = callModal?.querySelector('[data-promo-call-css-block]');
+    const callJsBlock = callModal?.querySelector('[data-promo-call-js-block]');
     const callNote = callModal?.querySelector('[data-promo-call-note]');
     const callParams = callModal?.querySelector('[data-promo-call-params]');
 
     const openCallModal = (button) => {
-        if (!callModal || !callTitle || !callDesc || !callCodeLabel || !callCodeBlock || !callExampleLabel || !callExampleBlock || !callNote || !callParams) {
+        if (!callModal || !callTitle || !callDesc || !callCodeLabel || !callCodeBlock || !callExampleLabel || !callExampleBlock || !callCssBlock || !callJsBlock || !callNote || !callParams) {
             return;
         }
 
@@ -45,15 +47,16 @@
             ? `{% set ${assignName} = promo(code='${code}') %}`
             : `{% set ${assignName} = promos(code='${code}', display_mode='${mode}', limit=${limit}) %}`;
         const promoSnippetStylesheet = '<link rel="stylesheet" href="/css/promo-snippets.css">';
-        const floatingSnippet = `{% for item in ${assignName} %}\n  <div\n    class="promo-floating promo-floating--@{{ item.display.position }} promo-floating--@{{ item.display.animation }}{% if item.display.show_on == 'pc' %} promo-floating--pc-only{% elseif item.display.show_on == 'mobile' %} promo-floating--mobile-only{% endif %}"\n    data-floating-width="@{{ item.display.width }}"\n    data-floating-z="@{{ item.display.z_index }}"\n    data-floating-key="@{{ item.display.close_storage_key }}"\n    data-floating-expire="@{{ item.display.close_expire_hours }}"\n  >\n    <a class="promo-floating-link" href="@{{ item.link_url ?: '#' }}" target="@{{ item.link_target ?: '_self' }}">\n      <img src="@{{ item.image_url }}" alt="@{{ item.image_alt ?: item.title }}">\n    </a>\n\n    {% if item.display.closable %}\n      <button\n        class="promo-floating-close"\n        type="button"\n        aria-label="关闭漂浮图"\n        data-floating-close\n      >×</button>\n    {% endif %}\n  </div>\n{% endfor %}\n\n${promoSnippetStylesheet}\n\n<scr` + `ipt>\n  document.querySelectorAll('.promo-floating').forEach((floating) => {\n    const storageKey = floating.dataset.floatingKey || '';\n    const rawExpireAt = storageKey ? window.localStorage.getItem(storageKey) : '';\n    const expireAt = Number(rawExpireAt || '0');\n\n    if (expireAt > Date.now()) {\n      floating.remove();\n      return;\n    }\n\n    if (storageKey && rawExpireAt && expireAt <= Date.now()) {\n      window.localStorage.removeItem(storageKey);\n    }\n  });\n\n  document.querySelectorAll('[data-floating-close]').forEach((button) => {\n    button.addEventListener('click', () => {\n      const floating = button.closest('.promo-floating');\n      if (!floating) {\n        return;\n      }\n\n      const storageKey = floating.dataset.floatingKey || '';\n      const expireHours = Number(floating.dataset.floatingExpire || '24') || 24;\n\n      if (storageKey) {\n        const expireAt = Date.now() + expireHours * 60 * 60 * 1000;\n        window.localStorage.setItem(storageKey, String(expireAt));\n      }\n\n      floating.remove();\n    });\n  });\n</scr` + `ipt>`;
-        const carouselSnippet = `<div class="promo-carousel" data-promo-carousel>\n  <div class="promo-carousel-track" data-promo-carousel-track>\n    {% for item in ${assignName} %}\n      <a class="promo-carousel-slide" href="@{{ item.link_url ?: '#' }}" target="@{{ item.link_target ?: '_self' }}">\n        <img src="@{{ item.image_url }}" alt="@{{ item.image_alt ?: item.title }}">\n        {% if item.title or item.subtitle %}\n          <span class="promo-carousel-copy">\n            {% if item.title %}<strong>@{{ item.title }}</strong>{% endif %}\n            {% if item.subtitle %}<em>@{{ item.subtitle }}</em>{% endif %}\n          </span>\n        {% endif %}\n      </a>\n    {% endfor %}\n  </div>\n\n  {% if ${assignName}|length > 1 %}\n    <button class="promo-carousel-arrow is-prev" type="button" data-promo-carousel-prev aria-label="上一张">‹</button>\n    <button class="promo-carousel-arrow is-next" type="button" data-promo-carousel-next aria-label="下一张">›</button>\n\n    <div class="promo-carousel-dots">\n      {% for item in ${assignName} %}\n        <button class="promo-carousel-dot{% if loop.first %} is-active{% endif %}" type="button" data-promo-carousel-dot="@{{ loop.index0 }}" aria-label="切换到第 @{{ loop.index }} 张"></button>\n      {% endfor %}\n    </div>\n  {% endif %}\n</div>\n\n${promoSnippetStylesheet}\n\n<scr` + `ipt>\n  document.querySelectorAll('[data-promo-carousel]').forEach((carousel) => {\n    const track = carousel.querySelector('[data-promo-carousel-track]');\n    const slides = Array.from(carousel.querySelectorAll('.promo-carousel-slide'));\n    const dots = Array.from(carousel.querySelectorAll('[data-promo-carousel-dot]'));\n    const prev = carousel.querySelector('[data-promo-carousel-prev]');\n    const next = carousel.querySelector('[data-promo-carousel-next]');\n\n    if (!track || dots.length <= 1 || slides.length <= 1) {\n      return;\n    }\n\n    let activeIndex = 0;\n    let timerId = 0;\n\n    const sync = () => {\n      slides[activeIndex]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });\n      dots.forEach((dot, index) => {\n        dot.classList.toggle('is-active', index === activeIndex);\n      });\n    };\n\n    const goTo = (index) => {\n      activeIndex = (index + dots.length) % dots.length;\n      sync();\n    };\n\n    const restart = () => {\n      if (timerId) {\n        window.clearInterval(timerId);\n      }\n\n      timerId = window.setInterval(() => {\n        goTo(activeIndex + 1);\n      }, 5000);\n    };\n\n    prev?.addEventListener('click', () => {\n      goTo(activeIndex - 1);\n      restart();\n    });\n\n    next?.addEventListener('click', () => {\n      goTo(activeIndex + 1);\n      restart();\n    });\n\n    dots.forEach((dot, index) => {\n      dot.addEventListener('click', () => {\n        goTo(index);\n        restart();\n      });\n    });\n\n    sync();\n    restart();\n  });\n</scr` + `ipt>`;
+        const promoSnippetScript = '<script src="/js/promo-snippets.js" defer></scr' + 'ipt>';
+        const floatingSnippet = `{% for item in ${assignName} %}\n  <div\n    class="promo-floating promo-floating--{{ item.display.position }} promo-floating--{{ item.display.animation }}{% if item.display.show_on == 'pc' %} promo-floating--pc-only{% else %}{% if item.display.show_on == 'mobile' %} promo-floating--mobile-only{% endif %}{% endif %}"\n    data-floating-offset-x="{{ item.display.offset_x_token }}"\n    data-floating-offset-y="{{ item.display.offset_y_token }}"\n    data-floating-width="{{ item.display.width_token }}"\n    data-floating-height="{% if item.display.height_token %}{{ item.display.height_token }}{% endif %}"\n    data-floating-z="{{ item.display.z_index_token }}"\n    data-floating-key="{% if item.display.remember_close %}{{ item.display.close_storage_key }}{% endif %}"\n    data-floating-expire="{{ item.display.close_expire_hours }}"\n  >\n    <a class="promo-floating-link" href="{{ valueOr(value=item.link_url, default='#') }}" target="{{ valueOr(value=item.link_target, default='_self') }}"{% if item.link_target == '_blank' %} rel="noopener"{% endif %}>\n      <img src="{{ item.image_url }}" alt="{{ valueOr(value=item.image_alt, default=item.title) }}">\n    </a>\n\n    {% if item.display.closable %}\n      <button\n        class="promo-floating-close"\n        type="button"\n        aria-label="关闭漂浮图"\n        data-floating-close\n      >×</button>\n    {% endif %}\n  </div>\n{% endfor %}\n\n${promoSnippetStylesheet}\n${promoSnippetScript}`;
+        const carouselSnippet = `<div class="promo-carousel" data-promo-carousel>\n  <div class="promo-carousel-track" data-promo-carousel-track>\n    {% for item in ${assignName} %}\n      <a class="promo-carousel-slide" href="{{ valueOr(value=item.link_url, default='#') }}" target="{{ valueOr(value=item.link_target, default='_self') }}"{% if item.link_target == '_blank' %} rel="noopener"{% endif %}>\n        <img src="{{ item.image_url }}" alt="{{ valueOr(value=item.image_alt, default=item.title) }}">\n        <span class="promo-carousel-copy">\n          {% if item.title %}<strong>{{ item.title }}</strong>{% endif %}\n          {% if item.subtitle %}<em>{{ item.subtitle }}</em>{% endif %}\n        </span>\n      </a>\n    {% endfor %}\n  </div>\n\n  <button class="promo-carousel-arrow is-prev" type="button" data-promo-carousel-prev aria-label="上一张">‹</button>\n  <button class="promo-carousel-arrow is-next" type="button" data-promo-carousel-next aria-label="下一张">›</button>\n\n  <div class="promo-carousel-dots">\n    {% for item in ${assignName} %}\n      <button class="promo-carousel-dot{% if loop.first %} is-active{% endif %}" type="button" data-promo-carousel-dot="{{ loop.index }}" aria-label="切换到第 {{ loop.iteration }} 张"></button>\n    {% endfor %}\n  </div>\n</div>\n\n${promoSnippetStylesheet}\n${promoSnippetScript}`;
         const exampleSnippet = mode === 'single'
-            ? `{% if ${assignName} %}\n  <a href="@{{ ${assignName}.link_url ?: '#' }}" target="@{{ ${assignName}.link_target ?: '_self' }}">\n    <img src="@{{ ${assignName}.image_url }}" alt="@{{ ${assignName}.image_alt ?: ${assignName}.title }}">\n  </a>\n{% endif %}`
+            ? `{% if ${assignName} %}\n  <a href="{{ valueOr(value=${assignName}.link_url, default='#') }}" target="{{ valueOr(value=${assignName}.link_target, default='_self') }}"{% if ${assignName}.link_target == '_blank' %} rel="noopener"{% endif %}>\n    <img src="{{ ${assignName}.image_url }}" alt="{{ valueOr(value=${assignName}.image_alt, default=${assignName}.title) }}">\n  </a>\n{% endif %}`
             : mode === 'carousel'
                 ? carouselSnippet
                 : mode === 'floating'
                     ? floatingSnippet
-                    : `{% for item in ${assignName} %}\n  <a href="@{{ item.link_url ?: '#' }}" target="@{{ item.link_target ?: '_self' }}">\n    <img src="@{{ item.image_url }}" alt="@{{ item.image_alt ?: item.title }}">\n  </a>\n{% endfor %}`;
+                    : `{% for item in ${assignName} %}\n  <a href="{{ valueOr(value=item.link_url, default='#') }}" target="{{ valueOr(value=item.link_target, default='_self') }}"{% if item.link_target == '_blank' %} rel="noopener"{% endif %}>\n    <img src="{{ item.image_url }}" alt="{{ valueOr(value=item.image_alt, default=item.title) }}">\n  </a>\n{% endfor %}`;
 
         callTitle.textContent = mode === 'single'
             ? '单图调用方法'
@@ -67,6 +70,24 @@
         callCodeBlock.textContent = callSnippet;
         callExampleLabel.textContent = '代入模板示例';
         callExampleBlock.textContent = exampleSnippet;
+        callCssBlock.textContent = '正在读取 /css/promo-snippets.css ...';
+        fetch('/css/promo-snippets.css', { cache: 'no-store' })
+            .then((response) => (response.ok ? response.text() : Promise.reject()))
+            .then((cssText) => {
+                callCssBlock.textContent = cssText.trim();
+            })
+            .catch(() => {
+                callCssBlock.textContent = '无法读取 /css/promo-snippets.css，请确认该文件已发布到 public/css 目录。';
+            });
+        callJsBlock.textContent = '正在读取 /js/promo-snippets.js ...';
+        fetch('/js/promo-snippets.js', { cache: 'no-store' })
+            .then((response) => (response.ok ? response.text() : Promise.reject()))
+            .then((jsText) => {
+                callJsBlock.textContent = jsText.trim();
+            })
+            .catch(() => {
+                callJsBlock.textContent = '无法读取 /js/promo-snippets.js，请确认该文件已发布到 public/js 目录。';
+            });
         callNote.textContent = mode === 'single'
             ? '单图位推荐用 promo 调用，返回单条图宣数据。所属栏目和模板名称如果已配置，前台会自动按当前页面上下文优先匹配。'
             : mode === 'carousel'
@@ -112,11 +133,11 @@
             ? [
                 ['item.display.position', '漂浮位置。比如右下、左中、右上，前台用它决定挂件贴在哪个角或哪一侧。'],
                 ['item.display.animation', '动画效果。比如轻浮动、呼吸、摇摆，前台可以直接按这个值切换动画样式。'],
-                ['item.display.offset_x', '横向偏移。控制离左边或右边多远。'],
-                ['item.display.offset_y', '纵向偏移。控制离上边或下边多远。'],
-                ['item.display.width', '漂浮图宽度。前台通常直接拿来控制挂件宽度。'],
-                ['item.display.height', '漂浮图高度。没填时一般按图片原比例显示。'],
-                ['item.display.z_index', '层级。数字越大越靠上，避免被页面别的元素挡住。'],
+                ['item.display.offset_x_token', '横向偏移档位。调用示例用 data 属性交给外部 CSS 生效，避免写内嵌样式。'],
+                ['item.display.offset_y_token', '纵向偏移。控制离上边或下边多远。'],
+                ['item.display.width_token', '漂浮图宽度档位。外部 CSS 会按这个值匹配对应宽度。'],
+                ['item.display.height_token', '漂浮图高度档位。没填时一般按图片原比例显示。'],
+                ['item.display.z_index_token', '层级档位。外部 CSS 会按这个值控制前后层级。'],
                 ['item.display.show_on', '显示端。可区分全端、仅电脑端、仅手机端。'],
                 ['item.display.closable', '是否允许关闭。前台可根据它决定要不要显示关闭按钮。'],
                 ['item.display.remember_close', '是否记住关闭状态。打开后，用户关掉一次，下次访问可以继续隐藏。'],

@@ -1,21 +1,73 @@
 .promo-floating {
     position: fixed;
+    z-index: var(--promo-floating-z, 120);
+    width: var(--promo-floating-width, 180px);
+    --promo-floating-base-transform: translateY(0);
+    transform: var(--promo-floating-base-transform);
 }
 
-.promo-floating--left-top { left: 24px; top: 24px; }
-.promo-floating--left-center { left: 24px; top: 50%; transform: translateY(-50%); }
-.promo-floating--left-bottom { left: 24px; bottom: 24px; }
-.promo-floating--right-top { right: 24px; top: 24px; }
-.promo-floating--right-center { right: 24px; top: 50%; transform: translateY(-50%); }
-.promo-floating--right-bottom { right: 24px; bottom: 24px; }
+.promo-floating--left-top { left: var(--promo-floating-offset-x, 24px); top: var(--promo-floating-offset-y, 24px); }
+.promo-floating--left-center { left: var(--promo-floating-offset-x, 24px); top: 50%; --promo-floating-base-transform: translateY(-50%); }
+.promo-floating--left-bottom { left: var(--promo-floating-offset-x, 24px); bottom: var(--promo-floating-offset-y, 24px); }
+.promo-floating--right-top { right: var(--promo-floating-offset-x, 24px); top: var(--promo-floating-offset-y, 24px); }
+.promo-floating--right-center { right: var(--promo-floating-offset-x, 24px); top: 50%; --promo-floating-base-transform: translateY(-50%); }
+.promo-floating--right-bottom { right: var(--promo-floating-offset-x, 24px); bottom: var(--promo-floating-offset-y, 24px); }
 
-.promo-floating--pc-only {
-    display: block;
-}
+.promo-floating[data-floating-offset-x="0"] { --promo-floating-offset-x: 0; }
+.promo-floating[data-floating-offset-x="8"] { --promo-floating-offset-x: 8px; }
+.promo-floating[data-floating-offset-x="12"] { --promo-floating-offset-x: 12px; }
+.promo-floating[data-floating-offset-x="16"] { --promo-floating-offset-x: 16px; }
+.promo-floating[data-floating-offset-x="20"] { --promo-floating-offset-x: 20px; }
+.promo-floating[data-floating-offset-x="24"] { --promo-floating-offset-x: 24px; }
+.promo-floating[data-floating-offset-x="28"] { --promo-floating-offset-x: 28px; }
+.promo-floating[data-floating-offset-x="32"] { --promo-floating-offset-x: 32px; }
+.promo-floating[data-floating-offset-x="40"] { --promo-floating-offset-x: 40px; }
+.promo-floating[data-floating-offset-x="48"] { --promo-floating-offset-x: 48px; }
+.promo-floating[data-floating-offset-x="56"] { --promo-floating-offset-x: 56px; }
+.promo-floating[data-floating-offset-x="64"] { --promo-floating-offset-x: 64px; }
 
-.promo-floating--mobile-only {
-    display: none;
-}
+.promo-floating[data-floating-offset-y="0"] { --promo-floating-offset-y: 0; }
+.promo-floating[data-floating-offset-y="8"] { --promo-floating-offset-y: 8px; }
+.promo-floating[data-floating-offset-y="12"] { --promo-floating-offset-y: 12px; }
+.promo-floating[data-floating-offset-y="16"] { --promo-floating-offset-y: 16px; }
+.promo-floating[data-floating-offset-y="20"] { --promo-floating-offset-y: 20px; }
+.promo-floating[data-floating-offset-y="24"] { --promo-floating-offset-y: 24px; }
+.promo-floating[data-floating-offset-y="28"] { --promo-floating-offset-y: 28px; }
+.promo-floating[data-floating-offset-y="32"] { --promo-floating-offset-y: 32px; }
+.promo-floating[data-floating-offset-y="40"] { --promo-floating-offset-y: 40px; }
+.promo-floating[data-floating-offset-y="48"] { --promo-floating-offset-y: 48px; }
+.promo-floating[data-floating-offset-y="56"] { --promo-floating-offset-y: 56px; }
+.promo-floating[data-floating-offset-y="64"] { --promo-floating-offset-y: 64px; }
+
+.promo-floating[data-floating-width="120"] { --promo-floating-width: 120px; }
+.promo-floating[data-floating-width="160"] { --promo-floating-width: 160px; }
+.promo-floating[data-floating-width="180"] { --promo-floating-width: 180px; }
+.promo-floating[data-floating-width="200"] { --promo-floating-width: 200px; }
+.promo-floating[data-floating-width="240"] { --promo-floating-width: 240px; }
+.promo-floating[data-floating-width="280"] { --promo-floating-width: 280px; }
+.promo-floating[data-floating-width="320"] { --promo-floating-width: 320px; }
+.promo-floating[data-floating-width="360"] { --promo-floating-width: 360px; }
+.promo-floating[data-floating-width="420"] { --promo-floating-width: 420px; }
+
+.promo-floating[data-floating-height="120"] { --promo-floating-height: 120px; }
+.promo-floating[data-floating-height="160"] { --promo-floating-height: 160px; }
+.promo-floating[data-floating-height="180"] { --promo-floating-height: 180px; }
+.promo-floating[data-floating-height="200"] { --promo-floating-height: 200px; }
+.promo-floating[data-floating-height="240"] { --promo-floating-height: 240px; }
+.promo-floating[data-floating-height="280"] { --promo-floating-height: 280px; }
+.promo-floating[data-floating-height="320"] { --promo-floating-height: 320px; }
+.promo-floating[data-floating-height="360"] { --promo-floating-height: 360px; }
+.promo-floating[data-floating-height="420"] { --promo-floating-height: 420px; }
+
+.promo-floating[data-floating-z="100"] { --promo-floating-z: 100; }
+.promo-floating[data-floating-z="120"] { --promo-floating-z: 120; }
+.promo-floating[data-floating-z="160"] { --promo-floating-z: 160; }
+.promo-floating[data-floating-z="200"] { --promo-floating-z: 200; }
+.promo-floating[data-floating-z="240"] { --promo-floating-z: 240; }
+.promo-floating[data-floating-z="300"] { --promo-floating-z: 300; }
+
+.promo-floating--pc-only { display: block; }
+.promo-floating--mobile-only { display: none; }
 
 .promo-floating-link,
 .promo-floating-link img {
@@ -24,21 +76,11 @@
 }
 
 .promo-floating-link img {
-    height: auto;
+    height: var(--promo-floating-height, auto);
+    object-fit: contain;
     border-radius: 16px;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
 }
-
-.promo-floating[data-floating-width="160"] { width: 160px; }
-.promo-floating[data-floating-width="180"] { width: 180px; }
-.promo-floating[data-floating-width="200"] { width: 200px; }
-.promo-floating[data-floating-width="240"] { width: 240px; }
-.promo-floating[data-floating-width="280"] { width: 280px; }
-
-.promo-floating[data-floating-z="100"] { z-index: 100; }
-.promo-floating[data-floating-z="120"] { z-index: 120; }
-.promo-floating[data-floating-z="160"] { z-index: 160; }
-.promo-floating[data-floating-z="200"] { z-index: 200; }
 
 .promo-floating-close {
     position: absolute;
@@ -53,41 +95,28 @@
     cursor: pointer;
 }
 
-.promo-floating--float {
-    animation: promo-floating-float 3s ease-in-out infinite;
-}
-
-.promo-floating--pulse {
-    animation: promo-floating-pulse 2.2s ease-in-out infinite;
-}
-
-.promo-floating--sway {
-    animation: promo-floating-sway 3.2s ease-in-out infinite;
-}
+.promo-floating--float { animation: promo-floating-float 3s ease-in-out infinite; }
+.promo-floating--pulse { animation: promo-floating-pulse 2.2s ease-in-out infinite; }
+.promo-floating--sway { animation: promo-floating-sway 3.2s ease-in-out infinite; }
 
 @keyframes promo-floating-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
+    0%, 100% { transform: var(--promo-floating-base-transform) translateY(0); }
+    50% { transform: var(--promo-floating-base-transform) translateY(-8px); }
 }
 
 @keyframes promo-floating-pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.03); }
+    0%, 100% { transform: var(--promo-floating-base-transform) scale(1); }
+    50% { transform: var(--promo-floating-base-transform) scale(1.03); }
 }
 
 @keyframes promo-floating-sway {
-    0%, 100% { transform: rotate(0deg); }
-    50% { transform: rotate(2deg); }
+    0%, 100% { transform: var(--promo-floating-base-transform) rotate(0deg); }
+    50% { transform: var(--promo-floating-base-transform) rotate(2deg); }
 }
 
 @media (max-width: 768px) {
-    .promo-floating--pc-only {
-        display: none;
-    }
-
-    .promo-floating--mobile-only {
-        display: block;
-    }
+    .promo-floating--pc-only { display: none; }
+    .promo-floating--mobile-only { display: block; }
 }
 
 .promo-carousel {
@@ -105,9 +134,7 @@
     -ms-overflow-style: none;
 }
 
-.promo-carousel-track::-webkit-scrollbar {
-    display: none;
-}
+.promo-carousel-track::-webkit-scrollbar { display: none; }
 
 .promo-carousel-slide {
     position: relative;
@@ -161,13 +188,8 @@
     transform: translateY(-50%);
 }
 
-.promo-carousel-arrow.is-prev {
-    left: 16px;
-}
-
-.promo-carousel-arrow.is-next {
-    right: 16px;
-}
+.promo-carousel-arrow.is-prev { left: 16px; }
+.promo-carousel-arrow.is-next { right: 16px; }
 
 .promo-carousel-dots {
     position: absolute;

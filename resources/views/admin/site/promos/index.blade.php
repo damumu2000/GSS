@@ -204,6 +204,14 @@
                         <pre class="promo-call-code" data-promo-call-example-block></pre>
                     </div>
                     <div class="promo-call-card">
+                        <div class="promo-call-card-label">样式文件：/css/promo-snippets.css</div>
+                        <pre class="promo-call-code" data-promo-call-css-block></pre>
+                    </div>
+                    <div class="promo-call-card">
+                        <div class="promo-call-card-label">脚本文件：/js/promo-snippets.js</div>
+                        <pre class="promo-call-code" data-promo-call-js-block></pre>
+                    </div>
+                    <div class="promo-call-card">
                         <div class="promo-call-card-label">使用说明</div>
                         <div class="promo-call-card-value" data-promo-call-note></div>
                         <div data-promo-call-params></div>

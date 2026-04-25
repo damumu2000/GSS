@@ -557,8 +557,8 @@ class PromoItemController extends Controller
             'link_url' => ['nullable', 'string', 'max:2048'],
             'link_target' => ['required', Rule::in(['_self', '_blank'])],
             'status' => ['required', Rule::in(['0', '1', 0, 1])],
-            'start_at' => ['nullable', 'date'],
-            'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
+            'start_at' => ['nullable', 'date_format:Y-m-d\TH:i'],
+            'end_at' => ['nullable', 'date_format:Y-m-d\TH:i', 'after_or_equal:start_at'],
             'floating_position' => ['nullable', 'string', 'max:40'],
             'floating_offset_x' => ['nullable', 'integer', 'min:-2000', 'max:2000'],
             'floating_offset_y' => ['nullable', 'integer', 'min:-2000', 'max:2000'],
@@ -570,7 +570,10 @@ class PromoItemController extends Controller
             'floating_closable' => ['nullable', Rule::in(['0', '1'])],
             'floating_remember_close' => ['nullable', Rule::in(['0', '1'])],
             'floating_close_expire_hours' => ['nullable', 'integer', 'min:1', 'max:720'],
-        ], [], [
+        ], [
+            'start_at.date_format' => '开始时间格式不正确，请使用 4 位年份日期时间。',
+            'end_at.date_format' => '结束时间格式不正确，请使用 4 位年份日期时间。',
+        ], [
             'attachment_id' => '图宣图片',
             'title' => '标题',
             'subtitle' => '副标题',

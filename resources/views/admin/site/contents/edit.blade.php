@@ -450,7 +450,7 @@
                                         <label class="content-main-label" for="published_at">时间</label>
                                         <div class="content-title-meta-field time-field">
                                             <div class="content-datetime-field">
-                                                <input class="field content-datetime-input" id="published_at" type="datetime-local" name="published_at" value="{{ $publishedAtValue }}">
+                                                <input class="field content-datetime-input" id="published_at" type="datetime-local" name="published_at" value="{{ $publishedAtValue }}" min="1000-01-01T00:00" max="9999-12-31T23:59">
                                                 <button class="content-datetime-trigger" type="button" data-datetime-trigger aria-label="选择时间">选择</button>
                                             </div>
                                         </div>
