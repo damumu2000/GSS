@@ -169,6 +169,9 @@ class ContentController extends Controller
         ];
 
         $publisherName = trim((string) ($request->user()->name ?? '')) ?: trim((string) ($request->user()->username ?? '')) ?: '未记录';
+        $fallbackListUrl = route($type === 'page' ? 'admin.pages.index' : 'admin.articles.index');
+        $returnTo = (string) $request->query('return_to', old('return_to', ''));
+        $safeReturnTo = $this->isSafeContentReturnUrl($returnTo, $fallbackListUrl) ? $returnTo : '';
 
         return view('admin.site.contents.edit', [
             'sites' => $this->adminSites(),
@@ -193,6 +196,8 @@ class ContentController extends Controller
             'lockedSelectedChannels' => collect(),
             'reviewHistory' => collect(),
             'isCreate' => true,
+            'returnTo' => $safeReturnTo,
+            'backToListUrl' => $safeReturnTo !== '' ? $safeReturnTo : $fallbackListUrl,
         ]);
     }
 
@@ -272,6 +277,10 @@ class ContentController extends Controller
             $latestReviewRecord = $reviewHistory->first();
         }
 
+        $fallbackListUrl = route($type === 'page' ? 'admin.pages.index' : 'admin.articles.index');
+        $returnTo = (string) $request->query('return_to', old('return_to', ''));
+        $safeReturnTo = $this->isSafeContentReturnUrl($returnTo, $fallbackListUrl) ? $returnTo : '';
+
         return view('admin.site.contents.edit', [
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
@@ -293,6 +302,8 @@ class ContentController extends Controller
             'rejectCount' => $rejectCount,
             'reviewHistory' => $reviewHistory,
             'isCreate' => false,
+            'returnTo' => $safeReturnTo,
+            'backToListUrl' => $safeReturnTo !== '' ? $safeReturnTo : $fallbackListUrl,
         ]);
     }
 

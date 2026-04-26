@@ -437,10 +437,10 @@ class WechatOfficialController extends Controller
             ],
             [
                 'thumb_media_id' => ['nullable', 'string', 'max:120'],
-                'content_source_url' => ['nullable', 'url', 'max:1000'],
+                'content_source_url' => ['nullable', 'url:http,https', 'max:1000'],
             ],
             [
-                'content_source_url.url' => '原文链接必须为完整有效的 URL。',
+                'content_source_url.url' => '原文链接必须为完整有效的 http 或 https URL。',
             ]
         )->validate();
 

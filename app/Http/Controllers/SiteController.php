@@ -12,6 +12,7 @@ use App\Support\ThemeTemplateLocator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -78,6 +79,7 @@ class SiteController extends Controller
 
         if ($channel->type === 'link') {
             abort_unless(! empty($channel->link_url), 404);
+            abort_unless($this->isSafeFrontendExternalUrl((string) $channel->link_url), 404);
 
             return redirect()->away($channel->link_url);
         }
@@ -950,5 +952,20 @@ class SiteController extends Controller
                 ->where('id', $contentId)
                 ->increment('view_count');
         }
+    }
+
+    protected function isSafeFrontendExternalUrl(string $url): bool
+    {
+        $url = trim($url);
+
+        if ($url === '' || Str::startsWith($url, '//')) {
+            return false;
+        }
+
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        return in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true);
     }
 }

@@ -17,10 +17,6 @@
         $initialSaveActionLabel = ($type === 'article')
             ? ($initialEditorStatus === 'draft' ? '保存草稿' : $initialPublishActionLabel)
             : ($isCreate ? '创建' . $typeLabel : '保存修改');
-        $returnTo = (string) request()->query('return_to', old('return_to', ''));
-        $backToListUrl = ($returnTo !== '' && str_starts_with($returnTo, url('/')))
-            ? $returnTo
-            : ($type === 'page' ? route('admin.pages.index') : route('admin.articles.index'));
         $previewUrl = ! $isCreate
             ? ($type === 'page'
                 ? route('admin.content-preview.page', ['content' => $content->id])
