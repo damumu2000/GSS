@@ -503,7 +503,7 @@ class GuestbookController extends Controller
     {
         $normalized = Str::lower(trim($href));
 
-        return str_starts_with($normalized, '/')
+        return (str_starts_with($normalized, '/') && ! str_starts_with($normalized, '//'))
             || str_starts_with($normalized, '#')
             || str_starts_with($normalized, 'http://')
             || str_starts_with($normalized, 'https://')

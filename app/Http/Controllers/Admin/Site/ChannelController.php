@@ -579,7 +579,7 @@ class ChannelController extends Controller
                     $fail('当前栏目类型不支持详情模板。');
                 },
             ],
-            'link_url' => ['nullable', 'url', 'max:500', 'required_if:type,link'],
+            'link_url' => ['nullable', 'url:http,https', 'max:500', 'required_if:type,link'],
             'link_target' => ['nullable', 'string', 'in:_self,_blank'],
         ], [
             'name.min' => '栏目名称不能少于2个字符。',

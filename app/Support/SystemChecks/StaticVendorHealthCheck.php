@@ -36,7 +36,7 @@ class StaticVendorHealthCheck
 
             return [
                 'key' => 'static-vendors',
-                'title' => '框架版本和JS资源库检查',
+                'title' => '静态资源与安全检查',
                 'status' => 'warning',
                 'summary' => '检查 Laravel 框架版本与本地第三方 JS 资源库的存在性、校验和及版本更新。',
                 'items' => $items,
@@ -51,7 +51,7 @@ class StaticVendorHealthCheck
 
         return [
             'key' => 'static-vendors',
-            'title' => '框架版本和JS资源库检查',
+            'title' => '静态资源与安全检查',
             'status' => $this->overallStatus($items),
             'summary' => '检查 Laravel 框架版本与本地第三方 JS 资源库的存在性、校验和及版本更新。',
             'items' => $items,

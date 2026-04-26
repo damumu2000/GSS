@@ -3160,7 +3160,7 @@ class AdminAccessTest extends TestCase
         );
     }
 
-    public function test_site_media_response_uses_revalidation_cache_headers(): void
+    public function test_site_media_response_uses_public_cache_headers(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -3175,15 +3175,12 @@ class AdminAccessTest extends TestCase
         imagedestroy($image);
 
         $response = $this->get('/site-media/site/attachments/2026/04/cache-header.jpg')
-            ->assertOk()
-            ->assertHeader('Pragma', 'no-cache')
-            ->assertHeader('Expires', '0');
+            ->assertOk();
 
         $cacheControl = (string) $response->headers->get('Cache-Control', '');
         $this->assertStringContainsString('public', $cacheControl);
-        $this->assertStringContainsString('no-cache', $cacheControl);
-        $this->assertStringContainsString('must-revalidate', $cacheControl);
-        $this->assertStringContainsString('max-age=0', $cacheControl);
+        $this->assertStringContainsString('max-age=2592000', $cacheControl);
+        $this->assertFalse($response->headers->has('Pragma'));
     }
 
     public function test_platform_admin_can_open_site_dashboard(): void

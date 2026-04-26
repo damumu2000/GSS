@@ -402,10 +402,29 @@ class ArticleReviewController extends Controller
         $fallback = route('admin.article-reviews.index', $fallbackQuery);
         $returnUrl = (string) $request->input('return_url', '');
 
-        if ($returnUrl !== '' && (Str::startsWith($returnUrl, '/') || Str::startsWith($returnUrl, url('/')))) {
+        if ($returnUrl !== '' && $this->isSafeReviewReturnUrl($returnUrl, $fallback)) {
             return redirect()->to($returnUrl)->with('status', $message);
         }
 
         return redirect()->to($fallback)->with('status', $message);
+    }
+
+    protected function isSafeReviewReturnUrl(string $returnUrl, string $fallback): bool
+    {
+        if (Str::startsWith($returnUrl, '//')) {
+            return false;
+        }
+
+        $fallbackPath = parse_url($fallback, PHP_URL_PATH) ?: '';
+        $returnPath = parse_url($returnUrl, PHP_URL_PATH) ?: '';
+
+        if ($returnPath === ''
+            || ($returnPath !== $fallbackPath && ! Str::startsWith($returnPath, $fallbackPath.'/'))) {
+            return false;
+        }
+
+        $returnHost = parse_url($returnUrl, PHP_URL_HOST);
+
+        return $returnHost === null || $returnHost === parse_url($fallback, PHP_URL_HOST);
     }
 }

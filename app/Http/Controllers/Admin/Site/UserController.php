@@ -175,6 +175,10 @@ class UserController extends Controller
         $currentSite = $this->currentSite($request);
         $user = User::query()->find($userId);
         abort_unless($user, 404);
+        $isSelfEditing = (int) $request->user()->id === (int) $user->id;
+        $canManageGlobalAccountFields = $isSelfEditing
+            || $this->isPlatformAdmin((int) $request->user()->id)
+            || ! $this->hasOtherSiteBindings((int) $currentSite->id, (int) $user->id);
 
         if (! $this->canEditOwnProfile($request, $currentSite->id, (int) $user->id)) {
             $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
@@ -239,9 +243,10 @@ class UserController extends Controller
             'contentManageRoleIds' => $contentManageRoleIds,
             'avatarAttachmentWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id)
                 || $this->canManageSiteUsers((int) $request->user()->id, (int) $currentSite->id),
-            'isSelfEditing' => (int) $request->user()->id === (int) $user->id,
-            'canManageRoleSelection' => (int) $request->user()->id !== (int) $user->id,
-            'canManageStatusSelection' => (int) $request->user()->id !== (int) $user->id,
+            'isSelfEditing' => $isSelfEditing,
+            'canManageGlobalAccountFields' => $canManageGlobalAccountFields,
+            'canManageRoleSelection' => ! $isSelfEditing,
+            'canManageStatusSelection' => ! $isSelfEditing && $canManageGlobalAccountFields,
         ]);
     }
 
@@ -308,8 +313,12 @@ class UserController extends Controller
         abort_unless($exists, 404);
         abort_if($this->isPlatformIdentity($user->id), 404);
 
-        $canManageRoleSelection = (int) $request->user()->id !== (int) $user->id;
-        $canManageStatusSelection = (int) $request->user()->id !== (int) $user->id;
+        $isSelfEditing = (int) $request->user()->id === (int) $user->id;
+        $canManageGlobalAccountFields = $isSelfEditing
+            || $this->isPlatformAdmin((int) $request->user()->id)
+            || ! $this->hasOtherSiteBindings((int) $currentSite->id, (int) $user->id);
+        $canManageRoleSelection = ! $isSelfEditing;
+        $canManageStatusSelection = ! $isSelfEditing && $canManageGlobalAccountFields;
         $validated = $this->validateUser(
             $request,
             $currentSite->id,
@@ -319,28 +328,31 @@ class UserController extends Controller
             $canManageStatusSelection,
         );
 
-        DB::transaction(function () use ($validated, $currentSite, $user, $canManageRoleSelection, $canManageStatusSelection): void {
-            $payload = [
-                'name' => $validated['name'],
-                'email' => $validated['email'] ?? null,
-                'mobile' => $validated['mobile'] ?? null,
-                'avatar' => $validated['avatar'] ?? null,
-                'remark' => $validated['remark'] ?? null,
-            ];
+        DB::transaction(function () use ($validated, $currentSite, $user, $canManageRoleSelection, $canManageStatusSelection, $canManageGlobalAccountFields, $isSelfEditing): void {
+            if ($canManageGlobalAccountFields) {
+                $payload = [
+                    'name' => $validated['name'],
+                    'email' => $validated['email'] ?? null,
+                    'mobile' => $validated['mobile'] ?? null,
+                    'avatar' => $validated['avatar'] ?? null,
+                    'remark' => $validated['remark'] ?? null,
+                ];
 
-            if ($canManageRoleSelection) {
-                $payload['username'] = $validated['username'];
+                if (! $isSelfEditing) {
+                    $payload['username'] = $validated['username'];
+                }
+
+                if ($canManageStatusSelection) {
+                    $payload['status'] = (int) ($validated['status'] ?? 1);
+                }
+
+                if (! empty($validated['password'])) {
+                    $payload['password'] = $validated['password'];
+                }
+
+                $user->update($payload);
             }
 
-            if ($canManageStatusSelection) {
-                $payload['status'] = (int) ($validated['status'] ?? 1);
-            }
-
-            if (! empty($validated['password'])) {
-                $payload['password'] = $validated['password'];
-            }
-
-            $user->update($payload);
             if ($canManageRoleSelection) {
                 $this->syncSiteRoles($currentSite->id, $user->id, $validated['role_id'] ?? null);
             }
@@ -379,7 +391,7 @@ class UserController extends Controller
         return redirect()->route('admin.site-users.edit', [
             'user' => $user->id,
             'site_id' => $currentSite->id,
-        ])->with('status', '站点账号已更新。');
+        ])->with('status', $canManageGlobalAccountFields ? '站点账号已更新。' : '当前站点的操作权限已更新。');
     }
 
     public function destroy(Request $request, string $userId): RedirectResponse
@@ -398,23 +410,24 @@ class UserController extends Controller
         abort_unless($exists, 404);
         abort_if($this->isPlatformIdentity($user->id), 404);
 
-        DB::transaction(function () use ($user): void {
-            $siteIds = DB::table('site_user_roles')
-                ->where('user_id', $user->id)
-                ->pluck('site_id')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->all();
+        $hasOtherSiteBindings = $this->hasOtherSiteBindings((int) $currentSite->id, (int) $user->id);
 
-            foreach ($siteIds as $siteId) {
-                (new UserAttachmentRelationSync())->clearForUser($siteId, $user->id);
-            }
+        DB::transaction(function () use ($user, $currentSite, $hasOtherSiteBindings): void {
+            (new UserAttachmentRelationSync())->clearForUser((int) $currentSite->id, $user->id);
 
-            DB::table('site_user_roles')
+            DB::table('site_user_channels')
+                ->where('site_id', $currentSite->id)
                 ->where('user_id', $user->id)
                 ->delete();
 
-            User::query()->whereKey($user->id)->delete();
+            DB::table('site_user_roles')
+                ->where('site_id', $currentSite->id)
+                ->where('user_id', $user->id)
+                ->delete();
+
+            if (! $hasOtherSiteBindings) {
+                User::query()->whereKey($user->id)->delete();
+            }
         });
 
         $this->logOperation(
@@ -429,7 +442,16 @@ class UserController extends Controller
             $request,
         );
 
-        return redirect()->route('admin.site-users.index')->with('status', '操作员账号已删除。');
+        return redirect()->route('admin.site-users.index')
+            ->with('status', $hasOtherSiteBindings ? '已解除该操作员在当前站点的权限。' : '操作员账号已删除。');
+    }
+
+    protected function hasOtherSiteBindings(int $currentSiteId, int $userId): bool
+    {
+        return DB::table('site_user_roles')
+            ->where('user_id', $userId)
+            ->where('site_id', '!=', $currentSiteId)
+            ->exists();
     }
 
     protected function validateUser(

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\EmbeddedContentRenderer;
 use App\Support\Site as SitePath;
+use App\Support\SiteBackendAccess;
 use App\Support\ThemeTags;
 use App\Support\ThemeTemplateEngine;
 use App\Support\ThemeTemplateException;
@@ -523,10 +524,13 @@ class SiteController extends Controller
                 ->all();
         }
 
+        $siteBackendAccess = app(SiteBackendAccess::class);
+
         return $this->boundSites($userId)
+            ->filter(fn (object $site): bool => in_array($permissionCode, $this->sitePermissionCodes($userId, (int) $site->id), true)
+                && $siteBackendAccess->status($site)['allowed'])
             ->pluck('id')
             ->map(fn ($siteId) => (int) $siteId)
-            ->filter(fn (int $siteId): bool => in_array($permissionCode, $this->sitePermissionCodes($userId, $siteId), true))
             ->values()
             ->all();
     }

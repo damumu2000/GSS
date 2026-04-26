@@ -464,6 +464,11 @@ class AttachmentController extends Controller
 
         $attachment = $this->findAttachmentForSite($currentSite->id, $attachmentId);
         abort_unless($attachment, 404);
+        abort_if(
+            ! $this->canManageAllAttachments($request->user()->id, $currentSite->id)
+                && (int) ($attachment->uploaded_by ?? 0) !== (int) $request->user()->id,
+            404,
+        );
 
         $originalExtension = strtolower((string) ($attachment->extension ?? ''));
         abort_if($originalExtension === '', 404);
@@ -842,7 +847,7 @@ class AttachmentController extends Controller
 
         abort_unless($attachment, 404);
         abort_if(
-            ! $this->canViewAllAttachments($request->user()->id, $currentSite->id)
+            ! $this->canManageAllAttachments($request->user()->id, $currentSite->id)
                 && (int) ($attachment->uploaded_by ?? 0) !== (int) $request->user()->id,
             404,
         );
@@ -905,7 +910,7 @@ class AttachmentController extends Controller
             ->where('site_id', $currentSite->id)
             ->whereIn('id', $validated['ids'])
             ->when(
-                ! $this->canViewAllAttachments($request->user()->id, $currentSite->id),
+                ! $this->canManageAllAttachments($request->user()->id, $currentSite->id),
                 fn ($query) => $query->where('uploaded_by', $request->user()->id),
             )
             ->get(['id', 'disk', 'path']);
@@ -1086,16 +1091,34 @@ class AttachmentController extends Controller
         $fallback = route('admin.attachments.index');
         $returnUrl = (string) $request->input('return_url', '');
 
-        if ($returnUrl !== '') {
-            $attachmentIndexPath = parse_url($fallback, PHP_URL_PATH) ?: '';
-            $returnPath = parse_url($returnUrl, PHP_URL_PATH) ?: '';
-
-            if ($returnPath !== '' && Str::startsWith($returnPath, $attachmentIndexPath)) {
-                return redirect()->to($returnUrl)->with('status', $status);
-            }
+        if ($returnUrl !== '' && $this->isSafeAttachmentReturnUrl($returnUrl, $fallback)) {
+            return redirect()->to($returnUrl)->with('status', $status);
         }
 
         return redirect()->route('admin.attachments.index')->with('status', $status);
+    }
+
+    protected function isSafeAttachmentReturnUrl(string $returnUrl, string $fallback): bool
+    {
+        $returnUrl = trim($returnUrl);
+
+        if ($returnUrl === '' || Str::startsWith($returnUrl, '//')) {
+            return false;
+        }
+
+        $fallbackHost = parse_url($fallback, PHP_URL_HOST);
+        $returnHost = parse_url($returnUrl, PHP_URL_HOST);
+
+        if ($returnHost !== null && $returnHost !== $fallbackHost) {
+            return false;
+        }
+
+        $attachmentIndexPath = parse_url($fallback, PHP_URL_PATH) ?: '';
+        $returnPath = parse_url($returnUrl, PHP_URL_PATH) ?: '';
+
+        return $attachmentIndexPath !== ''
+            && $returnPath !== ''
+            && ($returnPath === $attachmentIndexPath || Str::startsWith($returnPath, $attachmentIndexPath.'/'));
     }
 
     protected function formatAttachmentSize(int $bytes): string

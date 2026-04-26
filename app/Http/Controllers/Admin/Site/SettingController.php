@@ -242,7 +242,7 @@ class SettingController extends Controller
 
     protected function isValidAssetPath(string $path): bool
     {
-        return str_starts_with($path, '/')
+        return (str_starts_with($path, '/') && ! str_starts_with($path, '//'))
             || str_starts_with($path, 'http://')
             || str_starts_with($path, 'https://');
     }

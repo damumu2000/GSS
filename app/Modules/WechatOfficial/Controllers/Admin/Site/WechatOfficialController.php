@@ -419,6 +419,17 @@ class WechatOfficialController extends Controller
                 ->withErrors(['article_sync' => '公众号文章推送当前不可用，请先在公众号配置中完善基础参数。']);
         }
 
+        abort_unless(
+            DB::table('contents')
+                ->where('site_id', $siteId)
+                ->where('id', $content)
+                ->where('type', 'article')
+                ->where('status', 'published')
+                ->whereNull('deleted_at')
+                ->exists(),
+            404
+        );
+
         $validated = Validator::make(
             [
                 'thumb_media_id' => trim((string) $request->input('thumb_media_id')),
@@ -749,14 +760,14 @@ class WechatOfficialController extends Controller
                 'sort' => ['nullable', 'integer', 'min:0', 'max:999'],
                 'type' => ['required', Rule::in(array_keys(WechatOfficialMenuService::TYPES))],
                 'key' => ['nullable', 'string', 'max:120'],
-                'url' => ['nullable', 'url', 'max:1000'],
+                'url' => ['nullable', 'url:http,https', 'max:1000'],
                 'media_id' => ['nullable', 'string', 'max:120'],
             ],
             [
                 'name.required' => '请填写菜单名称。',
                 'level.required' => '请选择菜单层级。',
                 'type.required' => '请选择菜单类型。',
-                'url.url' => '访问链接必须为完整有效的 URL。',
+                'url.url' => '访问链接必须为完整有效的 http 或 https URL。',
             ]
         )->after(function ($validator) use ($request, $ignoreMenuId): void {
             $type = (string) $request->input('type', '');

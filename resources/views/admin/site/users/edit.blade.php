@@ -14,6 +14,7 @@
         ->values();
     $displayName = trim((string) old('name', $user->name)) ?: '未设置姓名';
     $displayUsername = trim((string) old('username', $user->username)) ?: '未设置账号';
+    $globalFieldsReadonly = ! $canManageGlobalAccountFields;
     $avatarSeed = trim((string) old('name', $user->name)) ?: trim((string) old('username', $user->username)) ?: '账';
     $avatarInitial = function_exists('mb_substr') ? mb_substr($avatarSeed, 0, 1) : substr($avatarSeed, 0, 1);
 @endphp
@@ -111,7 +112,7 @@
                                                 <span>后台操作员账号</span>
                                                 <code data-status-display-username data-empty-username="未设置账号">{{ $displayUsername }}</code>
                                             </div>
-                                            <div class="site-user-status-avatar-note" data-avatar-note>点击头像，从资源库选择或上传。</div>
+                                            <div class="site-user-status-avatar-note" data-avatar-note>{{ $canManageGlobalAccountFields ? '点击头像，从资源库选择或上传。' : '该账号还绑定了其他站点，基础资料由平台统一维护。' }}</div>
                                         </div>
 
                                         <div class="site-user-status-side">
@@ -169,9 +170,9 @@
                                 <div class="site-user-form-grid">
                                     <label class="field-group">
                                         <span class="field-label">用户名</span>
-                                        <input class="field {{ $isSelfEditing ? 'is-readonly' : '' }} @error('username') is-error @enderror" id="username" type="text" name="username" value="{{ old('username', $user->username) }}" maxlength="32" @if($isSelfEditing) readonly aria-readonly="true" @endif @error('username') aria-invalid="true" @enderror>
+                                        <input class="field {{ ($isSelfEditing || $globalFieldsReadonly) ? 'is-readonly' : '' }} @error('username') is-error @enderror" id="username" type="text" name="username" value="{{ old('username', $user->username) }}" maxlength="32" @if($isSelfEditing || $globalFieldsReadonly) readonly aria-readonly="true" @endif @error('username') aria-invalid="true" @enderror>
                                         <span class="field-meta">
-                                            <span class="field-note">{{ $isSelfEditing ? '当前登录账号不能修改自己的用户名。' : '作为后台登录账号使用，建议保持简洁稳定。' }}</span>
+                                            <span class="field-note">{{ $globalFieldsReadonly ? '该账号还绑定了其他站点，登录账号由平台统一维护。' : ($isSelfEditing ? '当前登录账号不能修改自己的用户名。' : '作为后台登录账号使用，建议保持简洁稳定。') }}</span>
                                             @error('username')
                                                 <span class="form-error">{{ $message }}</span>
                                             @enderror
@@ -180,7 +181,7 @@
 
                                     <label class="field-group">
                                         <span class="field-label">姓名</span>
-                                        <input class="field @error('name') is-error @enderror" id="name" type="text" name="name" value="{{ old('name', $user->name) }}" maxlength="50" @error('name') aria-invalid="true" @enderror>
+                                        <input class="field {{ $globalFieldsReadonly ? 'is-readonly' : '' }} @error('name') is-error @enderror" id="name" type="text" name="name" value="{{ old('name', $user->name) }}" maxlength="50" @if($globalFieldsReadonly) readonly aria-readonly="true" @endif @error('name') aria-invalid="true" @enderror>
                                         <span class="field-meta">
                                             <span class="field-note">在列表和审计日志中显示的管理员名称。</span>
                                             @error('name')
@@ -193,7 +194,7 @@
                                 <div class="site-user-form-grid">
                                     <label class="field-group">
                                         <span class="field-label">邮箱</span>
-                                        <input class="field @error('email') is-error @enderror" id="email" type="text" name="email" value="{{ old('email', $user->email) }}" maxlength="255" @error('email') aria-invalid="true" @enderror>
+                                        <input class="field {{ $globalFieldsReadonly ? 'is-readonly' : '' }} @error('email') is-error @enderror" id="email" type="text" name="email" value="{{ old('email', $user->email) }}" maxlength="255" @if($globalFieldsReadonly) readonly aria-readonly="true" @endif @error('email') aria-invalid="true" @enderror>
                                         <span class="field-meta">
                                             <span class="field-note">用于接收通知或找回信息，可留空。</span>
                                             @error('email')
@@ -204,7 +205,7 @@
 
                                     <label class="field-group">
                                         <span class="field-label">手机号</span>
-                                        <input class="field @error('mobile') is-error @enderror" id="mobile" type="text" name="mobile" value="{{ old('mobile', $user->mobile) }}" @error('mobile') aria-invalid="true" @enderror>
+                                        <input class="field {{ $globalFieldsReadonly ? 'is-readonly' : '' }} @error('mobile') is-error @enderror" id="mobile" type="text" name="mobile" value="{{ old('mobile', $user->mobile) }}" @if($globalFieldsReadonly) readonly aria-readonly="true" @endif @error('mobile') aria-invalid="true" @enderror>
                                         <span class="field-meta">
                                             <span class="field-note">用于展示联系方式或后续短信提醒，可留空。</span>
                                             @error('mobile')
@@ -244,6 +245,7 @@
                         </section>
                         @endif
 
+                        @if ($canManageGlobalAccountFields)
                         <section class="site-user-module">
                             <div class="site-user-module-header">
                                 <span class="site-user-module-accent"></span>
@@ -262,8 +264,9 @@
                                 </label>
                             </div>
                         </section>
+                        @endif
 
-                        @if (! $isSelfEditing)
+                        @if (! $isSelfEditing && $canManageGlobalAccountFields)
                         <section class="site-user-module">
                             <div class="site-user-module-header">
                                 <span class="site-user-module-accent"></span>
@@ -360,7 +363,7 @@
                                 <div class="site-user-danger-title">删除操作员</div>
                             </div>
                             <div class="site-user-danger-body">
-                                <div class="site-user-danger-note">删除后，该操作员账号及其站点绑定关系都会被清除，且操作不可恢复。请确认当前账号不再需要继续保留。</div>
+                                <div class="site-user-danger-note">{{ $globalFieldsReadonly ? '删除后，仅解除该操作员在当前站点的权限，不影响其在其他站点的账号。' : '删除后，该操作员账号及其站点绑定关系都会被清除，且操作不可恢复。请确认当前账号不再需要继续保留。' }}</div>
                                 <div class="site-user-danger-actions">
                                     <button
                                         class="site-user-danger-button js-site-user-delete"

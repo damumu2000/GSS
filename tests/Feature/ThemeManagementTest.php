@@ -31,7 +31,7 @@ class ThemeManagementTest extends TestCase
         ]);
 
         $templateRoot = SitePath::siteTemplateRoot($site->site_key, $templateKey);
-        $legacyTemplateRoot = storage_path('app/theme_templates/site');
+        $legacyTemplateRoot = storage_path('app/theme_templates');
 
         File::ensureDirectoryExists(dirname($templateRoot));
 
@@ -114,7 +114,7 @@ class ThemeManagementTest extends TestCase
             ->assertRedirect(route('admin.themes.index'));
     }
 
-    public function test_theme_editor_lists_tpl_css_and_js_files_from_active_template(): void
+    public function test_theme_editor_lists_template_directory_files_from_active_template(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -124,8 +124,8 @@ class ThemeManagementTest extends TestCase
             ->withSession(['current_site_id' => $site->id])
             ->get(route('admin.themes.editor'))
             ->assertOk()
-            ->assertSee('theme.css')
-            ->assertSee('home.css')
+            ->assertSee('list.css')
+            ->assertSee('list.js')
             ->assertSee('foot.tpl');
     }
 
@@ -255,7 +255,7 @@ class ThemeManagementTest extends TestCase
 
         $response = $this->get(route('site.theme-asset', [
             'theme' => $themeCode,
-            'path' => 'theme.css',
+            'path' => 'list.css',
             'site' => $site->site_key,
         ]));
 

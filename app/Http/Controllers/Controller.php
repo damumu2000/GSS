@@ -502,6 +502,16 @@ abstract class Controller
     }
 
     /**
+     * Determine whether the user can modify or delete attachments uploaded by others.
+     */
+    protected function canManageAllAttachments(int $userId, int $siteId): bool
+    {
+        return $this->isPlatformAdmin($userId)
+            || $this->hasSiteRoleCode($userId, $siteId, 'site_admin')
+            || in_array('attachment.manage', $this->sitePermissionCodes($userId, $siteId), true);
+    }
+
+    /**
      * Determine whether the user can access the attachment workspace.
      */
     protected function canAccessAttachmentWorkspace(int $userId, int $siteId): bool

@@ -951,7 +951,7 @@ class PlatformSiteController extends Controller
     {
         $normalized = Str::lower(trim($href));
 
-        return str_starts_with($normalized, '/')
+        return (str_starts_with($normalized, '/') && ! str_starts_with($normalized, '//'))
             || str_starts_with($normalized, '#')
             || str_starts_with($normalized, 'http://')
             || str_starts_with($normalized, 'https://')
@@ -1077,7 +1077,7 @@ class PlatformSiteController extends Controller
 
     protected function isValidAssetPath(string $path): bool
     {
-        return str_starts_with($path, '/')
+        return (str_starts_with($path, '/') && ! str_starts_with($path, '//'))
             || str_starts_with($path, 'http://')
             || str_starts_with($path, 'https://');
     }

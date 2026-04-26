@@ -508,12 +508,13 @@ class ContentController extends Controller
             $request,
         );
 
+        $returnTo = (string) $request->input('return_to', '');
+        $fallbackUrl = route($type === 'page' ? 'admin.pages.index' : 'admin.articles.index');
+
         return redirect()
             ->route($type === 'page' ? 'admin.pages.edit' : 'admin.articles.edit', array_filter([
                 'content' => (int) $contentId,
-                'return_to' => ($returnTo = (string) $request->input('return_to', '')) !== '' && str_starts_with($returnTo, url('/'))
-                    ? $returnTo
-                    : null,
+                'return_to' => $this->isSafeContentReturnUrl($returnTo, $fallbackUrl) ? $returnTo : null,
             ], static fn ($value): bool => $value !== null))
             ->with('status', $type === 'page' ? '单页面已更新。' : '文章已更新。');
     }
@@ -564,7 +565,7 @@ class ContentController extends Controller
         $returnTo = (string) $request->input('return_to', '');
         $fallbackUrl = route($fallbackRoute);
 
-        if ($returnTo !== '' && str_starts_with($returnTo, url('/'))) {
+        if ($this->isSafeContentReturnUrl($returnTo, $fallbackUrl)) {
             return redirect($returnTo)
                 ->with('status', $type === 'page' ? '单页面已删除。' : '文章已删除。');
         }
@@ -688,11 +689,39 @@ class ContentController extends Controller
         $fallbackUrl = route($type === 'page' ? 'admin.pages.index' : 'admin.articles.index');
         $returnTo = (string) ($validated['return_to'] ?? '');
 
-        if ($returnTo !== '' && str_starts_with($returnTo, url('/'))) {
+        if ($this->isSafeContentReturnUrl($returnTo, $fallbackUrl)) {
             return redirect($returnTo)->with('status', $message);
         }
 
         return redirect($fallbackUrl)->with('status', $message);
+    }
+
+    protected function isSafeContentReturnUrl(string $returnUrl, string $fallback): bool
+    {
+        $returnUrl = trim($returnUrl);
+
+        if ($returnUrl === '' || Str::startsWith($returnUrl, '//')) {
+            return false;
+        }
+
+        $fallbackHost = parse_url($fallback, PHP_URL_HOST);
+        $returnHost = parse_url($returnUrl, PHP_URL_HOST);
+
+        if ($returnHost !== null && $returnHost !== $fallbackHost) {
+            return false;
+        }
+
+        $returnPath = parse_url($returnUrl, PHP_URL_PATH) ?: '';
+        $allowedPaths = [
+            parse_url(route('admin.articles.index'), PHP_URL_PATH) ?: '',
+            parse_url(route('admin.pages.index'), PHP_URL_PATH) ?: '',
+        ];
+
+        return $returnPath !== ''
+            && collect($allowedPaths)->contains(
+                fn (string $path): bool => $path !== ''
+                    && ($returnPath === $path || Str::startsWith($returnPath, $path.'/'))
+            );
     }
 
     /**
@@ -827,9 +856,38 @@ class ContentController extends Controller
             'author' => ['nullable', 'string', 'max:100'],
             'source' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'max:20'],
-            'published_at' => ['nullable', 'date_format:Y-m-d\TH:i'],
+            'published_at' => [
+                'nullable',
+                'string',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $value = trim((string) $value);
+
+                    if ($value === '') {
+                        return;
+                    }
+
+                    if (! preg_match('/^\d{4}-\d{2}-\d{2}(?:T|\s)\d{2}:\d{2}(?::\d{2})?$/', $value)) {
+                        $fail('发布时间格式不正确，请使用 4 位年份日期时间。');
+                        return;
+                    }
+
+                    $formats = str_contains($value, 'T')
+                        ? ['Y-m-d\TH:i', 'Y-m-d\TH:i:s']
+                        : ['Y-m-d H:i', 'Y-m-d H:i:s'];
+
+                    foreach ($formats as $format) {
+                        $date = \DateTimeImmutable::createFromFormat('!'.$format, $value);
+                        $errors = \DateTimeImmutable::getLastErrors();
+
+                        if ($date !== false && ($errors === false || (($errors['warning_count'] ?? 0) === 0 && ($errors['error_count'] ?? 0) === 0))) {
+                            return;
+                        }
+                    }
+
+                    $fail('发布时间格式不正确，请使用 4 位年份日期时间。');
+                },
+            ],
         ], [
-            'published_at.date_format' => '发布时间格式不正确，请使用 4 位年份日期时间。',
         ], [
             'channel_id' => '所属栏目',
             'channel_ids' => '所属栏目',

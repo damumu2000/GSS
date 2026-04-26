@@ -595,7 +595,9 @@ class PromoItemController extends Controller
                     if (! preg_match('#^/(?!/).*$#', $linkUrl)) {
                         $validator->errors()->add('link_url', '跳转地址格式不正确，仅支持站内相对路径或完整网址。');
                     }
-                } elseif (! filter_var($linkUrl, FILTER_VALIDATE_URL)) {
+                } elseif (! in_array(strtolower((string) parse_url($linkUrl, PHP_URL_SCHEME)), ['http', 'https'], true)
+                    || ! filter_var($linkUrl, FILTER_VALIDATE_URL)
+                ) {
                     $validator->errors()->add('link_url', '跳转地址格式不正确，仅支持站内相对路径或完整网址。');
                 }
             }
