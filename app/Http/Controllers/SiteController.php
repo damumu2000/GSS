@@ -28,6 +28,9 @@ class SiteController extends Controller
         if (! $site) {
             return $this->renderDomainUnboundPage($request);
         }
+        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
+            return $disabled;
+        }
         $this->recordSiteVisit((int) $site->id, 'home');
 
         $settings = $this->siteSettings($site->id);
@@ -59,6 +62,9 @@ class SiteController extends Controller
         $site = $this->resolvedSite($request);
         if (! $site) {
             return $this->renderDomainUnboundPage($request);
+        }
+        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
+            return $disabled;
         }
         $this->recordSiteVisit((int) $site->id, 'channel');
         $settings = $this->siteSettings($site->id);
@@ -169,6 +175,9 @@ class SiteController extends Controller
         if (! $site) {
             return $this->renderDomainUnboundPage($request);
         }
+        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
+            return $disabled;
+        }
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
         if ($themeCode === null) {
@@ -248,6 +257,9 @@ class SiteController extends Controller
         $site = $this->resolvedSite($request);
         if (! $site) {
             return $this->renderDomainUnboundPage($request);
+        }
+        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
+            return $disabled;
         }
         $this->recordSiteVisit((int) $site->id, 'page');
         $settings = $this->siteSettings($site->id);
@@ -587,6 +599,22 @@ class SiteController extends Controller
         return response()->view('site.domain-unbound', [
             'host' => mb_strtolower(trim((string) $request->getHost())),
         ]);
+    }
+
+    protected function renderWhenFrontendDisabled(object $site): ?Response
+    {
+        $enabled = DB::table('site_settings')
+            ->where('site_id', (int) $site->id)
+            ->where('setting_key', 'site.frontend_enabled')
+            ->value('setting_value');
+
+        if ($enabled === null || $enabled === '1') {
+            return null;
+        }
+
+        return response()->view('site.site-closed', [
+            'site' => $site,
+        ], 503);
     }
 
     protected function siteSettings(int $siteId)

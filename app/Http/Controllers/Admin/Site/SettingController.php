@@ -64,6 +64,7 @@ class SettingController extends Controller
             'article_requires_review' => ['nullable', 'boolean'],
             'article_share_enabled' => ['nullable', 'boolean'],
             'attachment_share_enabled' => ['nullable', 'boolean'],
+            'site_frontend_enabled' => ['nullable', 'boolean'],
         ], [
             'name.required' => '请填写站点名称。',
             'contact_phone.regex' => '联系电话格式不正确，请输入有效的电话或手机号。',
@@ -134,6 +135,17 @@ class SettingController extends Controller
             ['site_id' => $currentSite->id, 'setting_key' => 'attachment.share_enabled'],
             [
                 'setting_value' => $request->boolean('attachment_share_enabled') ? '1' : '0',
+                'autoload' => 1,
+                'updated_by' => $request->user()->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $currentSite->id, 'setting_key' => 'site.frontend_enabled'],
+            [
+                'setting_value' => $request->boolean('site_frontend_enabled') ? '1' : '0',
                 'autoload' => 1,
                 'updated_by' => $request->user()->id,
                 'created_at' => now(),

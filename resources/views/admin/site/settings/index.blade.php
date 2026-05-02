@@ -69,8 +69,10 @@
                                                     <span class="setting-toggle-track" aria-hidden="true"></span>
                                                 </div>
                                                 <div class="setting-toggle-copy" aria-hidden="true">
-                                                    <span class="setting-toggle-text">文章审核功能</span>
-                                                    <span class="setting-toggle-state" data-toggle-state-for="article_requires_review">{{ old('article_requires_review', ($settings['content.article_requires_review'] ?? '0') === '1') ? '已开启' : '未开启' }}</span>
+                                                    <div class="setting-toggle-head">
+                                                        <span class="setting-toggle-text">文章审核功能</span>
+                                                        <span class="setting-toggle-state" data-toggle-state-for="article_requires_review">{{ old('article_requires_review', ($settings['content.article_requires_review'] ?? '0') === '1') ? '已开启' : '未开启' }}</span>
+                                                    </div>
                                                     <span class="setting-toggle-desc">开启文章审核后，发布的文章必须通过审核前台才能正常显示</span>
                                                 </div>
                                             </div>
@@ -85,8 +87,10 @@
                                                     <span class="setting-toggle-track" aria-hidden="true"></span>
                                                 </div>
                                                 <div class="setting-toggle-copy" aria-hidden="true">
-                                                    <span class="setting-toggle-text">文章共享</span>
-                                                    <span class="setting-toggle-state" data-toggle-state-for="article_share_enabled">{{ old('article_share_enabled', ($settings['content.article_share_enabled'] ?? '0') === '1') ? '已开启' : '未开启' }}</span>
+                                                    <div class="setting-toggle-head">
+                                                        <span class="setting-toggle-text">文章共享</span>
+                                                        <span class="setting-toggle-state" data-toggle-state-for="article_share_enabled">{{ old('article_share_enabled', ($settings['content.article_share_enabled'] ?? '0') === '1') ? '已开启' : '未开启' }}</span>
+                                                    </div>
                                                     <span class="setting-toggle-desc">开启后，操作员可查看其权限栏目下的全部文章；关闭后，仅可查看其权限栏目下自己发布的文章。</span>
                                                 </div>
                                             </div>
@@ -101,12 +105,32 @@
                                                     <span class="setting-toggle-track" aria-hidden="true"></span>
                                                 </div>
                                                 <div class="setting-toggle-copy" aria-hidden="true">
-                                                    <span class="setting-toggle-text">附件共享</span>
-                                                    <span class="setting-toggle-state" data-toggle-state-for="attachment_share_enabled">{{ old('attachment_share_enabled', ($settings['attachment.share_enabled'] ?? '0') === '1') ? '已开启' : '未开启' }}</span>
+                                                    <div class="setting-toggle-head">
+                                                        <span class="setting-toggle-text">附件共享</span>
+                                                        <span class="setting-toggle-state" data-toggle-state-for="attachment_share_enabled">{{ old('attachment_share_enabled', ($settings['attachment.share_enabled'] ?? '0') === '1') ? '已开启' : '未开启' }}</span>
+                                                    </div>
                                                     <span class="setting-toggle-desc">关闭后，普通操作员只能查看和使用自己上传的附件；站点管理员和具备附件管理权限的角色不受影响。</span>
                                                 </div>
                                             </div>
                                             @error('attachment_share_enabled')
+                                                <span class="form-error">{{ $message }}</span>
+                                            @enderror
+
+                                            <div class="setting-toggle-row">
+                                                <input type="hidden" name="site_frontend_enabled" value="0">
+                                                <div class="setting-toggle-control">
+                                                    <input class="setting-toggle-input" id="site_frontend_enabled" type="checkbox" name="site_frontend_enabled" value="1" @checked(old('site_frontend_enabled', ($settings['site.frontend_enabled'] ?? '1') === '1'))>
+                                                    <span class="setting-toggle-track" aria-hidden="true"></span>
+                                                </div>
+                                                <div class="setting-toggle-copy" aria-hidden="true">
+                                                    <div class="setting-toggle-head">
+                                                        <span class="setting-toggle-text">站点开关</span>
+                                                        <span class="setting-toggle-state" data-toggle-state-for="site_frontend_enabled">{{ old('site_frontend_enabled', ($settings['site.frontend_enabled'] ?? '1') === '1') ? '已开启' : '未开启' }}</span>
+                                                    </div>
+                                                    <span class="setting-toggle-desc">关闭后前台无法访问，同时提示“站点已关闭”，请谨慎操作。</span>
+                                                </div>
+                                            </div>
+                                            @error('site_frontend_enabled')
                                                 <span class="form-error">{{ $message }}</span>
                                             @enderror
                                         </div>

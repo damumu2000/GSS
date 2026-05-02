@@ -202,7 +202,15 @@
 
 .setting-toggle-copy {
     display: grid;
-    gap: 2px;
+    gap: 6px;
+}
+
+.setting-toggle-head {
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
 }
 
 .setting-toggle-text {
@@ -239,15 +247,14 @@
 .setting-toggle-state {
     display: inline-flex;
     align-items: center;
-    min-height: 24px;
+    min-height: 22px;
     padding: 0 10px;
     border-radius: 999px;
     background: #f5f7fb;
     color: #667085;
     font-size: 12px;
     font-weight: 700;
-    width: fit-content;
-    margin-bottom: 6px;
+    flex-shrink: 0;
 }
 
 @media (max-width: 1024px) {

@@ -7,6 +7,7 @@ use App\Modules\Payroll\Support\PayrollModule;
 use App\Modules\Payroll\Support\PayrollSettings;
 use App\Modules\Payroll\Support\PayrollWechatAuth;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -490,6 +491,9 @@ class PayrollController extends SiteController
     {
         $site = $this->resolvedPayrollSite($request);
         abort_unless($site, 404);
+        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
+            throw new HttpResponseException($disabled);
+        }
 
         $settings = $this->payrollSettings->forSite((int) $site->id);
         $module = $this->payrollModule->activeForSite((int) $site->id);

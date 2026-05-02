@@ -5,6 +5,7 @@ namespace App\Modules\Guestbook\Controllers\Frontend;
 use App\Http\Controllers\SiteController;
 use App\Modules\Guestbook\Support\GuestbookModule;
 use App\Modules\Guestbook\Support\GuestbookSettings;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -253,6 +254,9 @@ class GuestbookController extends SiteController
     {
         $site = $this->resolvedGuestbookSite($request);
         abort_unless($site, 404);
+        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
+            throw new HttpResponseException($disabled);
+        }
 
         $settings = $this->guestbookSettings->forSite((int) $site->id);
         $module = $this->guestbookModule->activeForSite((int) $site->id);

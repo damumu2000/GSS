@@ -509,7 +509,7 @@
             <div class="hero-guides">
                 <div class="hero-guide">
                     <strong>先确认模板结构</strong>
-                    <span>当前推荐结构是 <code>head → 页面自己的 CSS → top → 内容 → 页面自己的 JS → foot</code>，资源直接写在模板里，不再依赖额外配置文件。</span>
+                    <span>当前推荐结构是 <code>head → 页面自己的 CSS → top → 内容 → 页面自己的 JS → foot</code>，资源直接写在模板里。</span>
                 </div>
                 <div class="hero-guide">
                     <strong>再按“栏目 / 内容 / 图宣”选标签</strong>
@@ -672,7 +672,7 @@
                     </div>
 
                     <ul class="rules-list">
-                        <li><strong>资源写法已经简化：</strong>现在直接在模板里写 <code>themeStyle</code> / <code>themeScript</code> / <code>themeAsset</code>，不再依赖 <code>theme.json</code> 或额外的自动注入配置。</li>
+                        <li><strong>资源写法：</strong>直接在模板里写 <code>themeStyle</code> / <code>themeScript</code> / <code>themeAsset</code>。</li>
                         <li><strong>资源必须属于当前主题：</strong><code>path</code> 指向的文件必须真实存在于当前主题里，否则模板保存校验会报错。</li>
                         <li><strong>站点资源不能再直接引用：</strong>模板里不允许再写 <code>/site-media/...</code> 或旧的资源库地址；模板专用图片、字体、JSON 请放在当前主题的 <code>assets/</code> 目录。</li>
                     </ul>
@@ -1301,8 +1301,8 @@
                                     <td><code>{% set shortTitle = item.title | truncate(28) %}</code></td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">valueOr</td>
-                                    <td>值为空时输出默认值。</td>
+                                    <td class="mono">default（valueOr）</td>
+                                    <td>值为空时输出默认值；模板里推荐用 <code>default(...)</code> 作为管道写法。</td>
                                     <td><code>{{ item.author | default('本站编辑') }}</code></td>
                                 </tr>
                                 <tr>

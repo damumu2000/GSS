@@ -32,7 +32,7 @@
                         <div class="site-module-meta">
                             <span class="site-module-code">{{ $module->code }}</span>
                             <div class="site-module-state">
-                                @if ((int) ($module->status ?? 0) !== 1)
+                                @if ((int) ($module->module_status ?? 0) !== 1)
                                     <span class="site-module-badge is-paused">平台已禁用，当前绑定保留</span>
                                 @endif
                                 @if ((int) $module->is_trial === 1)

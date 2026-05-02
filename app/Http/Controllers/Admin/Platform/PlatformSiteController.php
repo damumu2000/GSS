@@ -206,6 +206,7 @@ class PlatformSiteController extends Controller
                 'modules.id',
                 'modules.name',
                 'modules.code',
+                'modules.status as module_status',
                 'site_module_bindings.is_trial',
                 'site_module_bindings.is_paused',
                 'site_module_bindings.created_at',
