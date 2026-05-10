@@ -34,10 +34,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'module.admin.active' => \App\Http\Middleware\EnsureSiteModuleAdminActive::class,
         ]);
 
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
         $middleware->appendToGroup('web', [
             \App\Http\Middleware\EnsureSiteNotExpired::class,
             \App\Http\Middleware\SiteSecurityGuard::class,
-            \App\Http\Middleware\SecurityHeaders::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
