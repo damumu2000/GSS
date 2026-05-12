@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Support\PlatformSystemStatus;
 use App\Support\SiteStorageUsage;
 use App\Support\SiteSecurity;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -14,6 +16,7 @@ class DashboardController extends Controller
 {
     public function __construct(
         protected SiteSecurity $siteSecurity,
+        protected PlatformSystemStatus $platformSystemStatus,
     ) {
     }
 
@@ -28,22 +31,6 @@ class DashboardController extends Controller
 
         $sites = $this->adminSites($request->user()->id);
         $currentSite = $this->currentSite($request);
-        $recentContents = DB::table('contents')
-            ->join('sites', 'sites.id', '=', 'contents.site_id')
-            ->where('contents.type', 'article')
-            ->whereNull('contents.deleted_at')
-            ->orderByDesc('contents.updated_at')
-            ->orderByDesc('contents.id')
-            ->limit(3)
-            ->get([
-                'contents.id',
-                'contents.title',
-                'contents.status',
-                'contents.updated_at',
-                'sites.name as site_name',
-                'sites.site_key',
-            ]);
-
         $platformNotices = $this->platformNoticeItems(3);
         $platformNoticeSiteKey = $this->platformSiteKey();
         $insights = $this->globalInsights();
@@ -51,12 +38,21 @@ class DashboardController extends Controller
         return view('admin.platform.dashboard', [
             'sites' => $sites,
             'currentSite' => $currentSite,
-            'recentContents' => $recentContents,
+            'systemStatusUrl' => route('admin.platform.dashboard.system-status'),
             'platformNotices' => $platformNotices,
             'platformNoticeSiteKey' => $platformNoticeSiteKey,
             'showPlatformNoticeLink' => $platformNoticeSiteKey !== '',
             'insights' => $insights,
         ]);
+    }
+
+    public function systemStatus(Request $request): JsonResponse
+    {
+        if (! $this->isPlatformAdmin($request->user()->id)) {
+            abort(403);
+        }
+
+        return response()->json($this->platformSystemStatus->dashboardSummary());
     }
 
     private function globalInsights(): array

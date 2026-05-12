@@ -1024,7 +1024,7 @@ class AdminAccessTest extends TestCase
             'content' => '这里是前台提交的留言内容，希望尽快收到回复。',
         ])->assertRedirect(route('site.guestbook.index', ['site' => 'site']));
 
-        Bus::assertDispatchedAfterResponse(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId): bool {
+        Bus::assertDispatched(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId): bool {
             return $job->siteId === $siteId
                 && $job->trigger === 'submitted';
         });
@@ -1488,7 +1488,7 @@ class AdminAccessTest extends TestCase
             ])
             ->assertRedirect(route('admin.guestbook.show', $messageId));
 
-        Bus::assertDispatchedAfterResponse(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId, $messageId): bool {
+        Bus::assertDispatched(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId, $messageId): bool {
             return $job->siteId === $siteId
                 && $job->messageId === $messageId
                 && $job->trigger === 'replied';
@@ -1548,6 +1548,68 @@ class AdminAccessTest extends TestCase
         Mail::assertSent(\App\Mail\GuestbookMessageNotificationMail::class, function ($mail): bool {
             return $mail->hasTo('school@example.com');
         });
+    }
+
+    public function test_guestbook_list_delete_requires_delete_permission_and_removes_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        $messageId = (int) DB::table('module_guestbook_messages')->insertGetId([
+            'site_id' => $siteId,
+            'display_no' => 31,
+            'name' => '删除测试',
+            'phone' => '13800138031',
+            'content' => '这是一条待删除的留言。',
+            'status' => 'pending',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $viewer = $this->createCustomSiteOperator('guestbook-delete-viewer', $siteId, ['guestbook.view']);
+        $deleter = $this->createCustomSiteOperator('guestbook-delete-operator', $siteId, ['guestbook.view', 'guestbook.delete']);
+
+        $this->actingAs($viewer)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.guestbook.index'))
+            ->assertOk()
+            ->assertDontSee('>删除<', false);
+
+        $this->actingAs($viewer)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.guestbook.destroy', $messageId))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('module_guestbook_messages', [
+            'id' => $messageId,
+            'site_id' => $siteId,
+        ]);
+
+        $this->actingAs($deleter)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.guestbook.index'))
+            ->assertOk()
+            ->assertSee('>删除<', false);
+
+        $this->actingAs($deleter)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.guestbook.destroy', $messageId))
+            ->assertRedirect(route('admin.guestbook.index'));
+
+        $this->assertDatabaseMissing('module_guestbook_messages', [
+            'id' => $messageId,
+            'site_id' => $siteId,
+        ]);
     }
 
     public function test_guestbook_settings_reject_external_notice_image(): void
@@ -2779,6 +2841,61 @@ class AdminAccessTest extends TestCase
         Mail::assertSent(\App\Mail\PlatformTestMail::class, function ($mail): bool {
             return $mail->hasTo('receiver@example.com');
         });
+    }
+
+    public function test_platform_settings_mail_tab_displays_queue_worker_diagnostics(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        \App\Support\PlatformMailSettings::recordQueueWorkerHeartbeat();
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('admin.platform.settings.index', ['tab' => 'mail']))
+            ->assertOk()
+            ->assertSee('队列执行状态')
+            ->assertSee('当前队列连接：')
+            ->assertSee('worker 状态：');
+    }
+
+    public function test_platform_dashboard_displays_system_status_board(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        \Illuminate\Support\Facades\Cache::forget('system-checks:laravel:latest');
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('系统状态')
+            ->assertSee('加载中')
+            ->assertDontSee('近期文章');
+    }
+
+    public function test_platform_dashboard_system_status_endpoint_returns_json_payload(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        Http::fake([
+            'https://repo.packagist.org/p2/laravel/framework.json' => Http::response([
+                'packages' => [
+                    'laravel/framework' => [
+                        ['version' => 'v13.8.0'],
+                    ],
+                ],
+            ]),
+        ]);
+
+        \Illuminate\Support\Facades\Cache::forget('system-checks:laravel:latest');
+
+        $this->actingAs($this->superAdmin())
+            ->getJson(route('admin.platform.dashboard.system-status'))
+            ->assertOk()
+            ->assertJsonStructure([
+                'checked_at',
+                'items' => [
+                    '*' => ['title', 'state', 'status_class', 'meta', 'detail', 'action_url'],
+                ],
+            ]);
     }
 
     public function test_platform_admin_mail_service_test_message_is_rate_limited(): void

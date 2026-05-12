@@ -1,4 +1,11 @@
 (() => {
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
     const noticeModal = document.getElementById('platform-notice-modal');
     const noticeModalTitle = document.getElementById('platform-notice-modal-title');
     const noticeModalDate = document.getElementById('platform-notice-modal-date');
@@ -139,5 +146,84 @@
 
             window.location.href = url;
         });
+    });
+
+    document.querySelectorAll('[data-system-status-panel]').forEach((panel) => {
+        const statusUrl = panel.getAttribute('data-status-url') || '';
+        const checkedAtNode = panel.querySelector('[data-system-status-checked-at]');
+        const loadingNode = panel.querySelector('[data-system-status-loading]');
+        const listNode = panel.querySelector('[data-system-status-list]');
+        const emptyNode = panel.querySelector('[data-system-status-empty]');
+        const errorNode = panel.querySelector('[data-system-status-error]');
+
+        if (! statusUrl || ! checkedAtNode || ! loadingNode || ! listNode || ! emptyNode || ! errorNode) {
+            return;
+        }
+
+        const setState = (state) => {
+            loadingNode.hidden = state !== 'loading';
+            listNode.hidden = state !== 'ready';
+            emptyNode.hidden = state !== 'empty';
+            errorNode.hidden = state !== 'error';
+        };
+
+        const renderItems = (items) => {
+            listNode.innerHTML = items.map((item) => {
+                const title = escapeHtml(item.title || '');
+                const meta = escapeHtml(item.meta || '');
+                const state = escapeHtml(item.state || '');
+                const statusClass = escapeHtml(item.status_class || 'draft');
+                const actionUrl = typeof item.action_url === 'string' ? item.action_url : '';
+                const titleMarkup = actionUrl
+                    ? `<a class="recent-feed-title" href="${escapeHtml(actionUrl)}">${title}</a>`
+                    : `<div class="recent-feed-title">${title}</div>`;
+
+                return `
+                    <article class="recent-feed-item system-status-item">
+                        <div class="recent-feed-main">
+                            ${titleMarkup}
+                            <div class="system-status-meta">${meta}</div>
+                        </div>
+                        <span class="status-badge recent-feed-status ${statusClass}">${state}</span>
+                    </article>
+                `;
+            }).join('');
+        };
+
+        setState('loading');
+
+        fetch(statusUrl, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            credentials: 'same-origin',
+        })
+            .then((response) => {
+                if (! response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                return response.json();
+            })
+            .then((payload) => {
+                checkedAtNode.textContent = payload.checked_at
+                    ? `最近检查：${payload.checked_at}`
+                    : '系统状态已加载';
+
+                const items = Array.isArray(payload.items) ? payload.items : [];
+
+                if (items.length === 0) {
+                    setState('empty');
+                    return;
+                }
+
+                renderItems(items);
+                setState('ready');
+            })
+            .catch(() => {
+                checkedAtNode.textContent = '系统状态加载失败';
+                setState('error');
+            });
     });
 })();

@@ -69,6 +69,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
 
         Route::prefix('platform')->name('platform.')->middleware('platform.only')->group(function (): void {
             Route::get('/dashboard', PlatformDashboardController::class)->name('dashboard');
+            Route::get('/dashboard/system-status', [PlatformDashboardController::class, 'systemStatus'])->name('dashboard.system-status');
             Route::get('/logs', [PlatformOperationLogController::class, 'index'])->name('logs.index');
             Route::get('/sites', [PlatformSiteController::class, 'index'])->name('sites.index');
             Route::get('/sites/create', [PlatformSiteController::class, 'create'])->name('sites.create');

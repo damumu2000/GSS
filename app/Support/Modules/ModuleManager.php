@@ -440,6 +440,7 @@ class ModuleManager
         $action = match (strrchr($permissionCode, '.') ?: '') {
             '.view' => '查看',
             '.manage' => '管理',
+            '.delete' => '删除',
             '.reply' => '回复',
             '.setting' => '配置',
             '.export' => '导出',

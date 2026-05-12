@@ -13,6 +13,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SendGuestbookMessageNotificationJob implements ShouldQueue
 {
@@ -78,6 +79,12 @@ class SendGuestbookMessageNotificationJob implements ShouldQueue
                 ],
             );
         } catch (PlatformMailException $exception) {
+            $platformMailSettings->rememberFailure('guestbook_notification', $exception->getMessage(), [
+                'site_id' => $this->siteId,
+                'message_id' => $this->messageId,
+                'trigger' => $this->trigger,
+                'recipient' => $recipient,
+            ]);
             Log::warning('guestbook_notification_send_failed', [
                 'site_id' => $this->siteId,
                 'message_id' => $this->messageId,
@@ -96,5 +103,20 @@ class SendGuestbookMessageNotificationJob implements ShouldQueue
         }
 
         return strtolower(trim((string) ($site->contact_email ?? '')));
+    }
+
+    public function failed(Throwable $exception): void
+    {
+        app(PlatformMailSettings::class)->rememberFailure('guestbook_notification_job', $exception->getMessage(), [
+            'site_id' => $this->siteId,
+            'message_id' => $this->messageId,
+            'trigger' => $this->trigger,
+        ]);
+        Log::error('guestbook_notification_job_failed', [
+            'site_id' => $this->siteId,
+            'message_id' => $this->messageId,
+            'trigger' => $this->trigger,
+            'error' => $exception->getMessage(),
+        ]);
     }
 }

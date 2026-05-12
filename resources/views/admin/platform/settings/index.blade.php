@@ -468,6 +468,49 @@
                 </div>
 
                 <div class="settings-field is-full">
+                    <div class="settings-status-card">
+                        <div class="settings-status-title">队列执行状态</div>
+                        <div class="settings-status-body">
+                            当前队列连接：{{ $mailDiagnostics['queue_connection'] }}
+                            <br>
+                            @if (! $mailDiagnostics['requires_worker'])
+                                worker 状态：当前模式不需要独立 worker
+                            @elseif ($mailDiagnostics['worker_active'])
+                                worker 状态：运行中
+                            @else
+                                worker 状态：未检测到活跃 worker
+                            @endif
+                            <br>
+                            待执行任务：{{ $mailDiagnostics['pending_jobs'] ?? '—' }}　
+                            失败任务：{{ $mailDiagnostics['failed_jobs'] ?? '—' }}
+                            @if ($mailDiagnostics['last_seen_at'] !== '')
+                                <br>
+                                最近心跳：{{ $mailDiagnostics['last_seen_at'] }}
+                            @endif
+                            <br>
+                            {{ $mailDiagnostics['message'] }}
+                            @if ($mailDiagnostics['suggestion'] !== '')
+                                <br>
+                                建议：{{ $mailDiagnostics['suggestion'] }}
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                @if (is_array($mailLastFailure ?? null))
+                    <div class="settings-field is-full">
+                        <div class="settings-status-card">
+                            <div class="settings-status-title">最近失败摘要</div>
+                            <div class="settings-status-body">
+                                {{ (string) ($mailLastFailure['occurred_at'] ?? '') }} · {{ (string) ($mailLastFailure['type'] ?? '') }}
+                                <br>
+                                {{ (string) ($mailLastFailure['message'] ?? '') }}
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <div class="settings-field is-full">
                     <div class="settings-test-card">
                         <div class="settings-test-head">
                             <div>

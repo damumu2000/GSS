@@ -76,6 +76,7 @@ class GuestbookController extends Controller
             'readStatus' => $readStatus,
             'replyStatus' => $replyStatus,
             'canManageSettings' => in_array('guestbook.setting', $this->sitePermissionCodes((int) $request->user()->id, (int) $currentSite->id), true),
+            'canDeleteMessage' => in_array('guestbook.delete', $this->sitePermissionCodes((int) $request->user()->id, (int) $currentSite->id), true),
         ]);
     }
 
@@ -186,6 +187,45 @@ class GuestbookController extends Controller
         return redirect()
             ->route('admin.guestbook.show', $message->id)
             ->with('status', '留言已更新。');
+    }
+
+    public function destroy(Request $request, string $messageId): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, (int) $currentSite->id, 'guestbook.delete');
+        $this->resolveModuleOrAbort((int) $currentSite->id);
+
+        $message = $this->findMessageOrAbort((int) $currentSite->id, $messageId);
+
+        DB::table('module_guestbook_messages')
+            ->where('site_id', $currentSite->id)
+            ->where('id', $message->id)
+            ->delete();
+
+        $this->logOperation(
+            'site',
+            'guestbook',
+            'delete',
+            $currentSite->id,
+            $request->user()->id,
+            'guestbook_message',
+            $message->id,
+            [
+                'display_no' => $message->display_no,
+                'name' => $message->name,
+                'phone' => $message->phone,
+            ],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.guestbook.index', array_filter([
+                'keyword' => trim((string) $request->input('keyword', '')),
+                'read_status' => trim((string) $request->input('read_status', '')),
+                'reply_status' => trim((string) $request->input('reply_status', '')),
+                'page' => (int) $request->input('page', 1) > 1 ? (int) $request->input('page', 1) : null,
+            ], static fn ($value): bool => $value !== null && $value !== ''))
+            ->with('status', '留言已删除。');
     }
 
     public function settings(Request $request): View
@@ -327,7 +367,7 @@ class GuestbookController extends Controller
             return;
         }
 
-        SendGuestbookMessageNotificationJob::dispatchAfterResponse($siteId, $messageId, 'replied');
+        SendGuestbookMessageNotificationJob::dispatch($siteId, $messageId, 'replied');
     }
 
     protected function findMessageOrAbort(int $siteId, string $messageId): object

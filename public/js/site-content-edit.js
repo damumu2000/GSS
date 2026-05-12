@@ -1062,6 +1062,18 @@ function resetArticleClassSet(node, classNames) {
 
 function splitMixedMediaParagraphs(root) {
     const mediaSelector = 'img, table, iframe, video, figure, .bilibili-video-embed';
+    const hasMeaningfulParagraphContent = (node) => {
+        if (!node) {
+            return false;
+        }
+
+        const text = (node.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        if (text !== '') {
+            return true;
+        }
+
+        return Array.from(node.children || []).some((child) => child.matches?.('br') === false);
+    };
 
     root.querySelectorAll('p').forEach((node) => {
         const mediaNodes = Array.from(node.querySelectorAll(':scope > img, :scope > table, :scope > iframe, :scope > video, :scope > figure, :scope > .bilibili-video-embed'));
@@ -1071,12 +1083,31 @@ function splitMixedMediaParagraphs(root) {
             return;
         }
 
-        mediaNodes.forEach((mediaNode) => {
-            const wrapper = document.createElement('p');
-            wrapper.appendChild(mediaNode.cloneNode(true));
-            node.parentNode?.insertBefore(wrapper, node.nextSibling);
-            mediaNode.remove();
+        const paragraphDocument = node.ownerDocument || document;
+        const fragment = paragraphDocument.createDocumentFragment();
+        let currentParagraph = paragraphDocument.createElement('p');
+
+        Array.from(node.childNodes).forEach((child) => {
+            if (child.nodeType === Node.ELEMENT_NODE && child.matches?.(mediaSelector)) {
+                if (hasMeaningfulParagraphContent(currentParagraph)) {
+                    fragment.appendChild(currentParagraph);
+                }
+
+                const mediaParagraph = paragraphDocument.createElement('p');
+                mediaParagraph.appendChild(child.cloneNode(true));
+                fragment.appendChild(mediaParagraph);
+                currentParagraph = paragraphDocument.createElement('p');
+                return;
+            }
+
+            currentParagraph.appendChild(child.cloneNode(true));
         });
+
+        if (hasMeaningfulParagraphContent(currentParagraph)) {
+            fragment.appendChild(currentParagraph);
+        }
+
+        node.replaceWith(fragment);
     });
 
     root.querySelectorAll('p').forEach((node) => {
@@ -1794,13 +1825,6 @@ function showArticleTypesettingToast() {
 function clearEditorFormatting(editor) {
     const body = editor?.getBody?.();
     const embeds = body ? Array.from(body.querySelectorAll('.bilibili-video-embed[data-bilibili-video="1"]')) : [];
-
-    if (embeds.length === 0) {
-        editor.execCommand('RemoveFormat');
-        editor.save();
-        return;
-    }
-
     const placeholders = embeds.map((node, index) => {
         const token = `__CMS_BILIBILI_EMBED_${Date.now()}_${index}__`;
         const textNode = editor.getDoc().createTextNode(token);
@@ -1819,6 +1843,19 @@ function clearEditorFormatting(editor) {
     const documentFragment = parser.parseFromString(`<div data-clear-format-root>${restoredHtml}</div>`, 'text/html');
     const root = documentFragment.body.querySelector('[data-clear-format-root]');
 
+    const hasMeaningfulParagraphContent = (element) => {
+        if (!element || element.tagName?.toLowerCase() !== 'p') {
+            return false;
+        }
+
+        const text = (element.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        if (text !== '') {
+            return true;
+        }
+
+        return Array.from(element.children || []).some((child) => child.matches?.('br') === false);
+    };
+
     const isEmptyParagraph = (element) => {
         if (!element || element.tagName?.toLowerCase() !== 'p') {
             return false;
@@ -1829,6 +1866,55 @@ function clearEditorFormatting(editor) {
             .replace(/<br\s*\/?>/gi, ' ')
             .replace(/\s+/g, '') === '';
     };
+
+    root?.querySelectorAll('p').forEach((node) => {
+        const lineBreaks = Array.from(node.childNodes).filter((child) => child.nodeType === Node.ELEMENT_NODE && child.nodeName.toLowerCase() === 'br');
+        if (lineBreaks.length === 0) {
+            return;
+        }
+
+        const paragraphDocument = node.ownerDocument || document;
+        const fragment = paragraphDocument.createDocumentFragment();
+        let currentParagraph = paragraphDocument.createElement('p');
+
+        Array.from(node.childNodes).forEach((child) => {
+            if (child.nodeType === Node.ELEMENT_NODE && child.nodeName.toLowerCase() === 'br') {
+                if (hasMeaningfulParagraphContent(currentParagraph)) {
+                    fragment.appendChild(currentParagraph);
+                }
+                currentParagraph = paragraphDocument.createElement('p');
+                return;
+            }
+
+            currentParagraph.appendChild(child.cloneNode(true));
+        });
+
+        if (hasMeaningfulParagraphContent(currentParagraph)) {
+            fragment.appendChild(currentParagraph);
+        }
+
+        if (fragment.childNodes.length === 0) {
+            node.remove();
+            return;
+        }
+
+        node.replaceWith(fragment);
+    });
+
+    splitMixedMediaParagraphs(root);
+
+    root?.querySelectorAll('p').forEach((node) => {
+        const text = (node.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        if (looksLikeArticleFooterMeta(text) || looksLikeArticleFooterDate(text)) {
+            stripParagraphLeadingWhitespace(node);
+        }
+    });
+
+    root?.querySelectorAll('p').forEach((node) => {
+        if (isEmptyParagraph(node)) {
+            node.remove();
+        }
+    });
 
     root?.querySelectorAll('.bilibili-video-embed[data-bilibili-video="1"]').forEach((node) => {
         while (isEmptyParagraph(node.previousElementSibling)) {
@@ -1957,7 +2043,7 @@ tinymce.init({
         });
         editor.on('change input undo redo', () => editor.save());
     },
-    toolbar: 'undo redo wordImportCn fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent table visualblocks quoteCn linkCn codeSampleCn codeCn clearCn schoolVideoEmbed schoolEmojiPicker smartArticleFormat schoolResourceLibrary schoolFullscreen',
+    toolbar: 'undo redo wordImportCn fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent table visualblocks quoteCn linkCn codeSampleCn codeCn clearCn smartArticleFormat schoolEmojiPicker schoolVideoEmbed schoolResourceLibrary schoolFullscreen',
     images_upload_handler: (blobInfo, progress) => new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', imageUploadUrl);

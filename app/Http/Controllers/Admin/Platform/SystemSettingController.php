@@ -30,6 +30,8 @@ class SystemSettingController extends Controller
         return view('admin.platform.settings.index', [
             'currentSite' => $currentSite,
             'settings' => $this->systemSettings->formDefaults(),
+            'mailDiagnostics' => $this->platformMailSettings->diagnostics(),
+            'mailLastFailure' => $this->platformMailSettings->lastFailure(),
             'activeTab' => $activeTab,
         ]);
     }
@@ -293,6 +295,9 @@ class SystemSettingController extends Controller
         try {
             $driver = $this->platformMailSettings->sendTestMail($validated['mail_test_to']);
         } catch (\Throwable $exception) {
+            $this->platformMailSettings->rememberFailure('platform_test', $exception->getMessage(), [
+                'to' => $validated['mail_test_to'],
+            ]);
             return redirect()
                 ->route('admin.platform.settings.index', ['tab' => 'mail'])
                 ->withErrors([

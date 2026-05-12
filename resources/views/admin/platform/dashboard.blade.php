@@ -192,35 +192,23 @@
 
             <article class="insight-board-card is-recent-card">
                 <div class="panel-heading">
-                    <h3 class="insight-board-card-title">近期文章</h3>
+                    <h3 class="insight-board-card-title">系统状态</h3>
                     <div class="panel-heading-actions">
-                        <a class="button dashboard-create-button dashboard-action-button" href="{{ route('admin.articles.create') }}">新建文章</a>
-                        <a class="button dashboard-create-button dashboard-action-button" href="{{ route('admin.articles.index', ['status' => 'draft']) }}">草稿箱</a>
+                        <a class="button dashboard-create-button dashboard-action-button" href="{{ route('admin.platform.settings.index', ['tab' => 'mail']) }}">邮件服务</a>
+                        <a class="button dashboard-create-button dashboard-action-button" href="{{ route('admin.platform.system-checks.index') }}">系统检查</a>
                     </div>
                 </div>
-                @if ($recentContents->isNotEmpty())
-                    <div class="recent-feed">
-                        @foreach ($recentContents as $content)
-                            @php
-                                $recentContentTitle = trim(((string) ($content->site_name ?? '未分站点')) . ' · ' . (string) $content->title);
-                                $recentContentLink = route('site.article', ['id' => $content->id, 'site' => $content->site_key]);
-                            @endphp
-                            <article class="recent-feed-item is-clickable" data-recent-feed-url="{{ $recentContentLink }}" data-recent-feed-target="_blank">
-                                <div class="recent-feed-main" data-tooltip="{{ $recentContentTitle }}">
-                                    <a class="recent-feed-title" href="{{ $recentContentLink }}" target="_blank" rel="noopener">
-                                        {{ $recentContentTitle }}
-                                    </a>
-                                </div>
-                                <span class="status-badge recent-feed-status {{ $content->status }}">{{ $statusLabels[$content->status] ?? $content->status }}</span>
-                                <div class="recent-feed-time">
-                                    {{ $content->updated_at ? \Illuminate\Support\Carbon::parse($content->updated_at)->format('m-d') : '--' }}
-                                </div>
-                            </article>
-                        @endforeach
-                    </div>
-                @else
-                    <div class="recent-feed-empty">全系统暂无内容记录。</div>
-                @endif
+                <div
+                    class="system-status-panel"
+                    data-system-status-panel
+                    data-status-url="{{ $systemStatusUrl }}"
+                >
+                    <div class="insight-board-card-subtitle" data-system-status-checked-at>加载中</div>
+                    <div class="recent-feed-empty" data-system-status-loading>正在加载系统状态...</div>
+                    <div class="recent-feed system-status-feed" data-system-status-list hidden></div>
+                    <div class="recent-feed-empty" data-system-status-empty hidden>当前没有可展示的系统状态。</div>
+                    <div class="recent-feed-empty" data-system-status-error hidden>系统状态加载失败，请稍后刷新重试。</div>
+                </div>
             </article>
 
             <article class="insight-board-card is-assets-card">

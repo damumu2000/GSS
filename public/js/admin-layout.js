@@ -747,6 +747,33 @@
                 acceptButton.disabled = false;
             }
         });
+
+        document.addEventListener('submit', (event) => {
+            const form = event.target instanceof HTMLFormElement ? event.target : null;
+
+            if (!form || !form.hasAttribute('data-confirm-submit')) {
+                return;
+            }
+
+            if (form.dataset.confirmAccepted === '1') {
+                delete form.dataset.confirmAccepted;
+                return;
+            }
+
+            const message = form.getAttribute('data-confirm-text') || '确认继续执行当前操作吗？';
+
+            event.preventDefault();
+
+            window.showConfirmDialog({
+                title: '确认执行操作？',
+                text: message,
+                confirmText: '继续',
+                onConfirm: () => {
+                    form.dataset.confirmAccepted = '1';
+                    form.requestSubmit();
+                },
+            });
+        });
     })();
 
     const resetLoadingButtons = () => {

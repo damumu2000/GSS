@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Support\PlatformMailSettings;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 
@@ -21,6 +23,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if ($this->runningInQueueWorkerConsole()) {
+            PlatformMailSettings::recordQueueWorkerHeartbeat();
+        }
+
+        Queue::looping(static function (): void {
+            PlatformMailSettings::recordQueueWorkerHeartbeat();
+        });
+
         $modulesRoot = app_path('Modules');
 
         if (! File::isDirectory($modulesRoot)) {
@@ -41,5 +51,22 @@ class AppServiceProvider extends ServiceProvider
                 $this->loadMigrationsFrom($migrationPath);
             }
         }
+    }
+
+    protected function runningInQueueWorkerConsole(): bool
+    {
+        if (! app()->runningInConsole()) {
+            return false;
+        }
+
+        $argv = $_SERVER['argv'] ?? [];
+        if (! is_array($argv) || $argv === []) {
+            return false;
+        }
+
+        $commandLine = implode(' ', array_map(static fn ($value): string => (string) $value, $argv));
+
+        return str_contains($commandLine, 'queue:work')
+            || str_contains($commandLine, 'queue:listen');
     }
 }

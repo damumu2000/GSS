@@ -370,7 +370,7 @@ class GuestbookController extends SiteController
             return;
         }
 
-        SendGuestbookMessageNotificationJob::dispatchAfterResponse($siteId, $messageId, $trigger);
+        SendGuestbookMessageNotificationJob::dispatch($siteId, $messageId, $trigger);
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Platform;
 use App\Http\Controllers\Controller;
 use App\Support\SystemChecks\DatabaseHealthCheck;
 use App\Support\SystemChecks\DeployHealthCheck;
+use App\Support\SystemChecks\MailQueueHealthCheck;
 use App\Support\SystemChecks\RuntimeHealthCheck;
 use App\Support\SystemChecks\StaticVendorHealthCheck;
 use App\Support\SystemChecks\StaticVendorManager;
@@ -48,6 +49,7 @@ class SystemCheckController extends Controller
         protected DatabaseHealthCheck $databaseHealthCheck,
         protected RuntimeHealthCheck $runtimeHealthCheck,
         protected DeployHealthCheck $deployHealthCheck,
+        protected MailQueueHealthCheck $mailQueueHealthCheck,
         protected StaticVendorHealthCheck $staticVendorHealthCheck,
         protected StaticVendorManager $staticVendorManager,
     ) {
@@ -60,6 +62,7 @@ class SystemCheckController extends Controller
 
         $groups = [
             $this->staticVendorHealthCheck->inspect(),
+            $this->mailQueueHealthCheck->inspect(),
             $this->databaseHealthCheck->inspect(),
             $this->runtimeHealthCheck->inspect(),
             $this->deployHealthCheck->inspect(),

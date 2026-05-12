@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Http;
 
 class StaticVendorHealthCheck
 {
-    protected const LARAVEL_LATEST_CACHE_KEY = 'system-checks:laravel:latest';
+    public const LARAVEL_LATEST_CACHE_KEY = 'system-checks:laravel:latest';
+    public const LARAVEL_LATEST_CACHE_SECONDS = 43200;
 
     public function __construct(
         protected StaticVendorManager $manager,
@@ -130,7 +131,7 @@ class StaticVendorHealthCheck
     {
         $currentVersion = $this->packageVersion('laravel/framework');
         try {
-            $latestVersion = $this->latestLaravelVersion();
+            $latestVersion = $this->latestLaravelVersionCached();
         } catch (\Throwable) {
             $latestVersion = null;
         }
@@ -181,9 +182,9 @@ class StaticVendorHealthCheck
         ];
     }
 
-    protected function latestLaravelVersion(): ?string
+    public function latestLaravelVersionCached(): ?string
     {
-        return Cache::remember(self::LARAVEL_LATEST_CACHE_KEY, 1800, function (): ?string {
+        return Cache::remember(self::LARAVEL_LATEST_CACHE_KEY, self::LARAVEL_LATEST_CACHE_SECONDS, function (): ?string {
             try {
                 $response = Http::acceptJson()
                     ->connectTimeout(3)

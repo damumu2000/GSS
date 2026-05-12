@@ -7,14 +7,23 @@ use App\Support\Mail\PlatformMailUnavailableException;
 use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Contracts\Mail\Mailable;
 use Illuminate\Mail\MailManager;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class PlatformMailSettings
 {
+    protected const QUEUE_WORKER_HEARTBEAT_CACHE_KEY = 'platform-mail:queue-worker:heartbeat';
+
+    protected const QUEUE_WORKER_HEARTBEAT_TTL_SECONDS = 600;
+
+    protected const LAST_FAILURE_CACHE_KEY = 'platform-mail:last-failure';
+
     public function __construct(
         protected SystemSettings $settings,
         protected MailFactory $mail,
@@ -146,6 +155,100 @@ class PlatformMailSettings
         $this->guardRateLimit($normalizedTo, $context);
 
         $this->mail->mailer($this->driver())->to($normalizedTo)->send($mailable);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function diagnostics(): array
+    {
+        $queueConnection = strtolower(trim((string) config('queue.default', 'sync')));
+        $requiresWorker = ! in_array($queueConnection, ['sync', 'null'], true);
+        $jobsTableExists = Schema::hasTable('jobs');
+        $failedJobsTableExists = Schema::hasTable('failed_jobs');
+        $pendingJobs = $queueConnection === 'database' && $jobsTableExists
+            ? (int) DB::table('jobs')->count()
+            : null;
+        $failedJobs = $failedJobsTableExists
+            ? (int) DB::table('failed_jobs')->count()
+            : null;
+
+        $heartbeat = Cache::get(self::QUEUE_WORKER_HEARTBEAT_CACHE_KEY);
+        $lastSeenTimestamp = is_array($heartbeat) ? (int) ($heartbeat['timestamp'] ?? 0) : 0;
+        $lastSeenAt = $lastSeenTimestamp > 0 ? date('Y-m-d H:i:s', $lastSeenTimestamp) : '';
+        $workerActive = $requiresWorker && $lastSeenTimestamp > 0 && (time() - $lastSeenTimestamp) <= self::QUEUE_WORKER_HEARTBEAT_TTL_SECONDS;
+
+        [$status, $message, $suggestion] = match (true) {
+            ! $requiresWorker => [
+                'ok',
+                '当前队列模式不依赖独立 worker，邮件任务会直接在请求内执行。',
+                '',
+            ],
+            $queueConnection === 'database' && ! $jobsTableExists => [
+                'error',
+                '当前队列连接为 database，但未检测到 jobs 表，异步任务无法入队。',
+                '请先执行数据库迁移，确保 jobs / failed_jobs 表存在。',
+            ],
+            $workerActive => [
+                'ok',
+                '已检测到活跃 queue worker，异步邮件任务会自动消费执行。',
+                '',
+            ],
+            $pendingJobs !== null && $pendingJobs > 0 => [
+                'error',
+                '检测到待执行队列任务，但当前未检测到活跃 queue worker。',
+                '请先启动 queue worker，否则邮件通知只会堆积在 jobs 表中。',
+            ],
+            default => [
+                'warning',
+                '当前未检测到最近可用的 queue worker 心跳。',
+                '如果你刚启动了 worker，请先重启 worker 让新心跳逻辑生效，再刷新当前页面。',
+            ],
+        };
+
+        return [
+            'queue_connection' => $queueConnection,
+            'requires_worker' => $requiresWorker,
+            'worker_active' => $workerActive,
+            'last_seen_at' => $lastSeenAt,
+            'pending_jobs' => $pendingJobs,
+            'failed_jobs' => $failedJobs,
+            'status' => $status,
+            'message' => $message,
+            'suggestion' => $suggestion,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function lastFailure(): ?array
+    {
+        $failure = Cache::get(self::LAST_FAILURE_CACHE_KEY);
+
+        return is_array($failure) ? $failure : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function rememberFailure(string $type, string $message, array $context = []): void
+    {
+        Cache::forever(self::LAST_FAILURE_CACHE_KEY, [
+            'type' => $type,
+            'message' => $message,
+            'context' => $context,
+            'occurred_at' => now('Asia/Shanghai')->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public static function recordQueueWorkerHeartbeat(): void
+    {
+        Cache::put(self::QUEUE_WORKER_HEARTBEAT_CACHE_KEY, [
+            'timestamp' => time(),
+            'pid' => getmypid(),
+            'connection' => (string) config('queue.default', 'sync'),
+        ], now()->addSeconds(self::QUEUE_WORKER_HEARTBEAT_TTL_SECONDS * 2));
     }
 
     public function host(): string

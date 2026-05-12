@@ -99,7 +99,19 @@
                         <div class="guestbook-item-summary">{{ $message['summary'] }}</div>
                         <div class="guestbook-item-actions">
                             <div class="guestbook-action-hint">{{ $message['reply_content'] !== '' ? '已回复，可进入详情继续调整留言内容和回复内容。' : '尚未回复，可进入详情页办理。' }}</div>
-                            <a class="button secondary" href="{{ route('admin.guestbook.show', $message['id']) }}">查看 / 回复</a>
+                            <div class="action-row">
+                                @if ($canDeleteMessage)
+                                    <form method="post" action="{{ route('admin.guestbook.destroy', $message['id']) }}" data-confirm-submit data-confirm-text="确认删除这条留言吗？删除后不可恢复。">
+                                        @csrf
+                                        <input type="hidden" name="keyword" value="{{ $keyword }}">
+                                        <input type="hidden" name="read_status" value="{{ $readStatus }}">
+                                        <input type="hidden" name="reply_status" value="{{ $replyStatus }}">
+                                        <input type="hidden" name="page" value="{{ $messages->currentPage() }}">
+                                        <button class="button secondary" type="submit">删除</button>
+                                    </form>
+                                @endif
+                                <a class="button secondary" href="{{ route('admin.guestbook.show', $message['id']) }}">查看 / 回复</a>
+                            </div>
                         </div>
                     </article>
                 @endforeach

@@ -21,4 +21,5 @@ Route::middleware(['auth', 'admin.access', 'module.admin.active:guestbook'])
         Route::post('/settings', [AdminGuestbookController::class, 'updateSettings'])->name('admin.guestbook.settings.update');
         Route::get('/messages/{message}', [AdminGuestbookController::class, 'show'])->name('admin.guestbook.show');
         Route::post('/messages/{message}', [AdminGuestbookController::class, 'update'])->name('admin.guestbook.update');
+        Route::post('/messages/{message}/delete', [AdminGuestbookController::class, 'destroy'])->name('admin.guestbook.destroy');
     });

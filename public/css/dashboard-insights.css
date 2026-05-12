@@ -366,6 +366,28 @@
             text-align: center;
         }
 
+        .system-status-feed {
+            margin-top: 8px;
+        }
+
+        .system-status-item {
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .system-status-meta {
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .system-status-detail {
+            color: #8c8c8c;
+            font-size: 13px;
+            line-height: 1.75;
+        }
+
         .status-badge {
             display: inline-flex;
             align-items: center;
