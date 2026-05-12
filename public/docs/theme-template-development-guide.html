@@ -994,7 +994,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">children</td>
-                                    <td>取直属子栏目。</td>
+                                    <td>取直属子栏目。若在 <code>{% for root in rootChannels %}</code> 循环里使用，<code>root.id</code> 就是“当前循环到的一级栏目 ID”。</td>
                                     <td><code>{% set childChannels = children(channel_id=current.channel.id, limit=8)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1309,6 +1309,11 @@
                                     <td class="mono">formatDate</td>
                                     <td>格式化日期或日期时间。</td>
                                     <td><code>{{ item.published_at | formatDate('m-d', '--') }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">当前年份</td>
+                                    <td>直接输出当前年份，常用于页脚版权年份。</td>
+                                    <td><code>{{ 'now' | formatDate('Y') }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">timeAgo</td>

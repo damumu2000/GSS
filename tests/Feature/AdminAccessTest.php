@@ -137,28 +137,36 @@ class AdminAccessTest extends TestCase
     public function test_login_page_uses_hsts_when_request_is_forwarded_as_https(): void
     {
         $this->seed(DatabaseSeeder::class);
+        putenv('SECURITY_HEADERS_HSTS_APP=true');
+        $_ENV['SECURITY_HEADERS_HSTS_APP'] = 'true';
+        $_SERVER['SECURITY_HEADERS_HSTS_APP'] = 'true';
 
-        $defaultSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        try {
+            $defaultSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
 
-        DB::table('site_domains')->updateOrInsert(
-            ['site_id' => $defaultSiteId, 'domain' => 'www.guanshanshan.cn'],
-            [
-                'is_primary' => 0,
-                'status' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        );
+            DB::table('site_domains')->updateOrInsert(
+                ['site_id' => $defaultSiteId, 'domain' => 'www.guanshanshan.cn'],
+                [
+                    'is_primary' => 0,
+                    'status' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
 
-        $this->withServerVariables([
-            'REMOTE_ADDR' => '127.0.0.1',
-            'HTTP_X_FORWARDED_FOR' => '203.0.113.10',
-            'HTTP_X_FORWARDED_HOST' => 'www.guanshanshan.cn',
-            'HTTP_X_FORWARDED_PROTO' => 'https',
-            'HTTP_X_FORWARDED_PORT' => '443',
-        ])->get('/login')
-            ->assertOk()
-            ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            $this->withServerVariables([
+                'REMOTE_ADDR' => '127.0.0.1',
+                'HTTP_X_FORWARDED_FOR' => '203.0.113.10',
+                'HTTP_X_FORWARDED_HOST' => 'www.guanshanshan.cn',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+                'HTTP_X_FORWARDED_PORT' => '443',
+            ])->get('/login')
+                ->assertOk()
+                ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        } finally {
+            putenv('SECURITY_HEADERS_HSTS_APP');
+            unset($_ENV['SECURITY_HEADERS_HSTS_APP'], $_SERVER['SECURITY_HEADERS_HSTS_APP']);
+        }
     }
 
     public function test_platform_admin_can_open_platform_dashboard_and_logs(): void
