@@ -6,11 +6,13 @@ use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -989,6 +991,45 @@ class AdminAccessTest extends TestCase
         ]);
     }
 
+    public function test_guestbook_frontend_submission_dispatches_notification_job_when_enabled(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        Bus::fake();
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        foreach ([
+            'module.guestbook.captcha_enabled' => '0',
+            'module.guestbook.email_notify_enabled' => '1',
+            'module.guestbook.email_notify_on' => 'submitted',
+            'module.guestbook.email_notify_to' => 'guestbook@example.com',
+        ] as $key => $value) {
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'updated_by' => 1, 'created_at' => now(), 'updated_at' => now()],
+            );
+        }
+
+        $this->post(route('site.guestbook.store', ['site' => 'site']), [
+            'name' => '张老师',
+            'phone' => '13800138000',
+            'content' => '这里是前台提交的留言内容，希望尽快收到回复。',
+        ])->assertRedirect(route('site.guestbook.index', ['site' => 'site']));
+
+        Bus::assertDispatchedAfterResponse(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId): bool {
+            return $job->siteId === $siteId
+                && $job->trigger === 'submitted';
+        });
+    }
+
     public function test_guestbook_frontend_failed_submissions_are_rate_limited(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -1359,12 +1400,27 @@ class AdminAccessTest extends TestCase
                 'show_name' => '1',
                 'show_after_reply' => '1',
                 'captcha_enabled' => '1',
+                'email_notify_enabled' => '1',
+                'email_notify_to' => 'guestbook@example.com',
+                'email_notify_on' => 'replied',
             ])
             ->assertRedirect(route('admin.guestbook.settings'));
 
         $this->assertSame('校长留言板', DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', 'module.guestbook.name')
+            ->value('setting_value'));
+        $this->assertSame('1', DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'module.guestbook.email_notify_enabled')
+            ->value('setting_value'));
+        $this->assertSame('guestbook@example.com', DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'module.guestbook.email_notify_to')
+            ->value('setting_value'));
+        $this->assertSame('replied', DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'module.guestbook.email_notify_on')
             ->value('setting_value'));
 
         $this->actingAs($siteAdmin)
@@ -1382,6 +1438,116 @@ class AdminAccessTest extends TestCase
             'status' => 'replied',
             'replied_by' => $siteAdmin->id,
         ]);
+    }
+
+    public function test_guestbook_admin_reply_dispatches_notification_job_when_configured(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        Bus::fake();
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        foreach ([
+            'module.guestbook.email_notify_enabled' => '1',
+            'module.guestbook.email_notify_on' => 'replied',
+            'module.guestbook.email_notify_to' => 'guestbook@example.com',
+        ] as $key => $value) {
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'updated_by' => 1, 'created_at' => now(), 'updated_at' => now()],
+            );
+        }
+
+        $messageId = DB::table('module_guestbook_messages')->insertGetId([
+            'site_id' => $siteId,
+            'display_no' => 11,
+            'name' => '李老师',
+            'phone' => '13800138002',
+            'content' => '请问本周是否开放校内参观？',
+            'status' => 'pending',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $siteAdmin = $this->createSiteOperator('guestbook-reply-mail-admin', true, 'site_admin');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.guestbook.update', $messageId), [
+                'content' => '请问本周是否开放校内参观？',
+                'reply_content' => '您好，本周五下午开放参观，请提前预约。',
+            ])
+            ->assertRedirect(route('admin.guestbook.show', $messageId));
+
+        Bus::assertDispatchedAfterResponse(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId, $messageId): bool {
+            return $job->siteId === $siteId
+                && $job->messageId === $messageId
+                && $job->trigger === 'replied';
+        });
+    }
+
+    public function test_guestbook_notification_job_sends_mail_using_site_contact_email_fallback(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        Mail::fake();
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        DB::table('sites')->where('id', $siteId)->update([
+            'contact_email' => 'school@example.com',
+            'updated_at' => now(),
+        ]);
+
+        foreach ([
+            'mail.enabled' => '1',
+            'mail.driver' => 'log',
+            'mail.from_address' => 'no-reply@example.com',
+            'mail.from_name' => '站点通知',
+            'mail.rate_limit_enabled' => '0',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+            );
+        }
+
+        foreach ([
+            'module.guestbook.email_notify_enabled' => '1',
+            'module.guestbook.email_notify_on' => 'submitted',
+            'module.guestbook.email_notify_to' => '',
+        ] as $key => $value) {
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'updated_by' => 1, 'created_at' => now(), 'updated_at' => now()],
+            );
+        }
+
+        $messageId = DB::table('module_guestbook_messages')->insertGetId([
+            'site_id' => $siteId,
+            'display_no' => 21,
+            'name' => '王老师',
+            'phone' => '13800138021',
+            'content' => '这里是一条需要发送通知的留言内容。',
+            'status' => 'pending',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $job = new \App\Jobs\SendGuestbookMessageNotificationJob($siteId, $messageId, 'submitted');
+        $job->handle(app(\App\Support\PlatformMailSettings::class), app(\App\Modules\Guestbook\Support\GuestbookSettings::class));
+
+        Mail::assertSent(\App\Mail\GuestbookMessageNotificationMail::class, function ($mail): bool {
+            return $mail->hasTo('school@example.com');
+        });
     }
 
     public function test_guestbook_settings_reject_external_notice_image(): void
@@ -2515,6 +2681,149 @@ class AdminAccessTest extends TestCase
             ])
             ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'upload']))
             ->assertSessionHasErrors(['attachment_allowed_extensions']);
+    }
+
+    public function test_platform_admin_can_save_mail_service_settings_with_encrypted_password(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.settings.update'), [
+                'system_name' => '站群后台',
+                'system_version' => '2.1.0',
+                'current_tab' => 'mail',
+                'attachment_allowed_extensions' => 'jpg,jpeg,png,webp,pdf,zip',
+                'attachment_max_size_mb' => 18,
+                'attachment_image_max_size_mb' => 6,
+                'attachment_image_max_width' => 3200,
+                'attachment_image_max_height' => 2400,
+                'attachment_image_auto_resize' => '1',
+                'attachment_image_auto_compress' => '1',
+                'attachment_image_quality' => 76,
+                'admin_enabled' => '1',
+                'admin_disabled_message' => '后台暂时关闭，请联系管理员。',
+                'mail_enabled' => '1',
+                'mail_driver' => 'smtp',
+                'mail_host' => 'smtp.example.com',
+                'mail_port' => '465',
+                'mail_username' => 'mailer@example.com',
+                'mail_password' => 'secret-pass',
+                'mail_encryption' => 'ssl',
+                'mail_from_address' => 'no-reply@example.com',
+                'mail_from_name' => '站点通知',
+                'mail_reply_to_address' => 'reply@example.com',
+                'mail_timeout_seconds' => '12',
+                'mail_rate_limit_enabled' => '1',
+                'mail_rate_limit_window_seconds' => '90',
+                'mail_rate_limit_global_max' => '30',
+                'mail_rate_limit_site_max' => '12',
+                'mail_rate_limit_scene_max' => '6',
+                'mail_rate_limit_recipient_window_seconds' => '900',
+                'mail_rate_limit_recipient_max' => '4',
+            ])
+            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'mail']))
+            ->assertSessionHas('status', '系统设置已更新。');
+
+        $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'mail.enabled')->value('setting_value'));
+        $this->assertSame('smtp', DB::table('system_settings')->where('setting_key', 'mail.driver')->value('setting_value'));
+        $this->assertSame('smtp.example.com', DB::table('system_settings')->where('setting_key', 'mail.host')->value('setting_value'));
+        $this->assertSame('465', DB::table('system_settings')->where('setting_key', 'mail.port')->value('setting_value'));
+        $this->assertSame('mailer@example.com', DB::table('system_settings')->where('setting_key', 'mail.username')->value('setting_value'));
+        $this->assertSame('no-reply@example.com', DB::table('system_settings')->where('setting_key', 'mail.from_address')->value('setting_value'));
+        $this->assertSame('站点通知', DB::table('system_settings')->where('setting_key', 'mail.from_name')->value('setting_value'));
+        $this->assertSame('reply@example.com', DB::table('system_settings')->where('setting_key', 'mail.reply_to_address')->value('setting_value'));
+        $this->assertSame('12', DB::table('system_settings')->where('setting_key', 'mail.timeout_seconds')->value('setting_value'));
+        $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'mail.rate_limit_enabled')->value('setting_value'));
+        $this->assertSame('90', DB::table('system_settings')->where('setting_key', 'mail.rate_limit_window_seconds')->value('setting_value'));
+        $this->assertSame('30', DB::table('system_settings')->where('setting_key', 'mail.rate_limit_global_max')->value('setting_value'));
+        $this->assertSame('12', DB::table('system_settings')->where('setting_key', 'mail.rate_limit_site_max')->value('setting_value'));
+        $this->assertSame('6', DB::table('system_settings')->where('setting_key', 'mail.rate_limit_scene_max')->value('setting_value'));
+        $this->assertSame('900', DB::table('system_settings')->where('setting_key', 'mail.rate_limit_recipient_window_seconds')->value('setting_value'));
+        $this->assertSame('4', DB::table('system_settings')->where('setting_key', 'mail.rate_limit_recipient_max')->value('setting_value'));
+
+        $encryptedPassword = (string) DB::table('system_settings')->where('setting_key', 'mail.password_encrypted')->value('setting_value');
+        $this->assertNotSame('', $encryptedPassword);
+        $this->assertStringStartsWith('enc:', $encryptedPassword);
+        $this->assertStringNotContainsString('secret-pass', $encryptedPassword);
+    }
+
+    public function test_platform_admin_can_send_mail_service_test_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        Mail::fake();
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'mail.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'mail.driver'],
+            ['setting_value' => 'log', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'mail.from_address'],
+            ['setting_value' => 'no-reply@example.com', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'mail.from_name'],
+            ['setting_value' => '站点通知', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.settings.mail-test'), [
+                'mail_test_to' => 'receiver@example.com',
+            ])
+            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'mail']))
+            ->assertSessionHas('status', '测试邮件已写入日志通道，当前未执行真实投递。');
+
+        Mail::assertSent(\App\Mail\PlatformTestMail::class, function ($mail): bool {
+            return $mail->hasTo('receiver@example.com');
+        });
+    }
+
+    public function test_platform_admin_mail_service_test_message_is_rate_limited(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        Mail::fake();
+
+        foreach ([
+            'mail.enabled' => '1',
+            'mail.driver' => 'log',
+            'mail.from_address' => 'no-reply@example.com',
+            'mail.from_name' => '站点通知',
+            'mail.rate_limit_enabled' => '1',
+            'mail.rate_limit_window_seconds' => '60',
+            'mail.rate_limit_global_max' => '1',
+            'mail.rate_limit_site_max' => '1',
+            'mail.rate_limit_scene_max' => '1',
+            'mail.rate_limit_recipient_window_seconds' => '600',
+            'mail.rate_limit_recipient_max' => '1',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+            );
+        }
+
+        RateLimiter::clear('platform-mail:global');
+        RateLimiter::clear('platform-mail:scene:platform_test');
+        RateLimiter::clear('platform-mail:recipient:'.sha1('limited@example.com'));
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.settings.mail-test'), [
+                'mail_test_to' => 'limited@example.com',
+            ])
+            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'mail']))
+            ->assertSessionHas('status', '测试邮件已写入日志通道，当前未执行真实投递。');
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.settings.mail-test'), [
+                'mail_test_to' => 'limited@example.com',
+            ])
+            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'mail']))
+            ->assertSessionHasErrors(['mail_test_to']);
+
+        Mail::assertSent(\App\Mail\PlatformTestMail::class, 1);
     }
 
     public function test_admin_disabled_blocks_site_operator_but_allows_super_admin(): void

@@ -1,5 +1,5 @@
 (() => {
-    const allowedTabs = ['basic', 'upload', 'security', 'access'];
+    const allowedTabs = ['basic', 'upload', 'security', 'mail', 'access'];
     const currentTabInput = document.getElementById('current_tab');
     const form = document.getElementById('system-settings-form');
 
@@ -18,6 +18,8 @@
             'security_block_path_traversal_enabled',
             'security_block_bad_upload_enabled',
             'security_rate_limit_enabled',
+            'mail_enabled',
+            'mail_rate_limit_enabled',
         ];
 
         if (input && label) {
@@ -183,6 +185,8 @@
         'security_block_path_traversal_enabled',
         'security_block_bad_upload_enabled',
         'security_rate_limit_enabled',
+        'mail_enabled',
+        'mail_rate_limit_enabled',
     ].forEach((id) => {
         document.getElementById(id)?.addEventListener('change', syncSwitch);
     });

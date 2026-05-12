@@ -3,6 +3,7 @@
 namespace App\Modules\Guestbook\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendGuestbookMessageNotificationJob;
 use App\Modules\Guestbook\Support\GuestbookAttachmentRelationSync;
 use App\Modules\Guestbook\Support\GuestbookModule;
 use App\Modules\Guestbook\Support\GuestbookSettings;
@@ -135,6 +136,7 @@ class GuestbookController extends Controller
         $content = trim((string) ($validated['content'] ?? ''));
         $replyContent = trim((string) ($validated['reply_content'] ?? ''));
         $isReplied = $replyContent !== '';
+        $wasReplied = (string) $message->status === 'replied';
         $currentContent = (string) $message->content;
         $canManageMessage = in_array('guestbook.manage', $this->sitePermissionCodes((int) $request->user()->id, (int) $currentSite->id), true);
         if ($content !== $currentContent && ! $canManageMessage) {
@@ -179,6 +181,8 @@ class GuestbookController extends Controller
             $request,
         );
 
+        $this->dispatchNotificationIfNeeded((int) $currentSite->id, (int) $message->id, $settings, $wasReplied, $isReplied);
+
         return redirect()
             ->route('admin.guestbook.show', $message->id)
             ->with('status', '留言已更新。');
@@ -207,6 +211,9 @@ class GuestbookController extends Controller
                 'show_name' => old('show_name', $settings['show_name']) ? '1' : '0',
                 'show_after_reply' => old('show_after_reply', $settings['show_after_reply']) ? '1' : '0',
                 'captcha_enabled' => old('captcha_enabled', $settings['captcha_enabled']) ? '1' : '0',
+                'email_notify_enabled' => old('email_notify_enabled', $settings['email_notify_enabled']) ? '1' : '0',
+                'email_notify_to' => old('email_notify_to', $settings['email_notify_to']),
+                'email_notify_on' => old('email_notify_on', $settings['email_notify_on']),
             ],
         ]);
     }
@@ -232,6 +239,9 @@ class GuestbookController extends Controller
             'show_name' => ['nullable', 'boolean'],
             'show_after_reply' => ['nullable', 'boolean'],
             'captcha_enabled' => ['nullable', 'boolean'],
+            'email_notify_enabled' => ['nullable', 'boolean'],
+            'email_notify_to' => ['nullable', 'email:filter', 'max:100'],
+            'email_notify_on' => ['required', 'string', Rule::in(['submitted', 'replied'])],
         ], [
             'name.required' => '请填写留言板名称。',
             'notice.required' => '请填写发布须知。',
@@ -239,6 +249,9 @@ class GuestbookController extends Controller
             'notice_image.max' => '发布须知背景图地址长度不能超过 255 个字符。',
             'theme.required' => '请选择留言板模板。',
             'theme.in' => '留言板模板选项无效，请重新选择。',
+            'email_notify_to.email' => '通知收件邮箱格式不正确，请重新填写。',
+            'email_notify_on.required' => '请选择邮件通知时机。',
+            'email_notify_on.in' => '邮件通知时机无效，请重新选择。',
         ]);
 
         $validator->after(function ($validator) use ($request, $currentSite): void {
@@ -266,6 +279,9 @@ class GuestbookController extends Controller
             'show_name' => $request->boolean('show_name'),
             'show_after_reply' => $request->boolean('show_after_reply'),
             'captcha_enabled' => $request->boolean('captcha_enabled'),
+            'email_notify_enabled' => $request->boolean('email_notify_enabled'),
+            'email_notify_to' => $validated['email_notify_to'] ?? '',
+            'email_notify_on' => $validated['email_notify_on'],
         ], (int) $request->user()->id);
         (new GuestbookAttachmentRelationSync())->syncForSite((int) $currentSite->id);
 
@@ -295,6 +311,23 @@ class GuestbookController extends Controller
         abort_unless(is_array($module), 404);
 
         return $module;
+    }
+
+    protected function dispatchNotificationIfNeeded(int $siteId, int $messageId, array $settings, bool $wasReplied, bool $isReplied): void
+    {
+        if (! ($settings['email_notify_enabled'] ?? false)) {
+            return;
+        }
+
+        if (($settings['email_notify_on'] ?? 'submitted') !== 'replied') {
+            return;
+        }
+
+        if ($wasReplied || ! $isReplied) {
+            return;
+        }
+
+        SendGuestbookMessageNotificationJob::dispatchAfterResponse($siteId, $messageId, 'replied');
     }
 
     protected function findMessageOrAbort(int $siteId, string $messageId): object

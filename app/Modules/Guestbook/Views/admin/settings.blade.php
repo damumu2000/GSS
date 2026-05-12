@@ -95,6 +95,49 @@
             </section>
 
             <section class="guestbook-settings-panel">
+                <h2 class="guestbook-settings-title">邮件通知</h2>
+                <div class="guestbook-settings-desc">留言成功后或后台首次回复后，可按设置给指定邮箱发送通知。未填写收件邮箱时，自动回退当前站点联系邮箱。</div>
+
+                <div class="guestbook-settings-grid">
+                    <div class="guestbook-settings-toggle-group">
+                        <div class="guestbook-settings-toggle-grid">
+                            <label class="guestbook-settings-toggle-row">
+                                <span class="guestbook-settings-toggle-control">
+                                    <input class="guestbook-settings-toggle-input" type="checkbox" name="email_notify_enabled" value="1" @checked(old('email_notify_enabled', $settings['email_notify_enabled']) === '1')>
+                                    <span class="guestbook-settings-toggle-track"></span>
+                                </span>
+                                <span class="guestbook-settings-toggle-copy">
+                                    <span class="guestbook-settings-toggle-text">启用邮件通知</span>
+                                    <span class="guestbook-settings-toggle-desc">启用后会调用平台邮件服务，并统一受平台邮件限流保护。</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <label class="guestbook-settings-field">
+                        <span class="guestbook-settings-label">通知收件邮箱</span>
+                        <input class="field" type="email" name="email_notify_to" value="{{ old('email_notify_to', $settings['email_notify_to']) }}" placeholder="为空则使用站点联系邮箱">
+                        <span class="guestbook-settings-note">建议填写专用值班邮箱；留空时自动使用站点设置中的联系邮箱。</span>
+                        @error('email_notify_to')<div class="guestbook-settings-error">{{ $message }}</div>@enderror
+                    </label>
+
+                    <label class="guestbook-settings-field">
+                        <span class="guestbook-settings-label">通知时机</span>
+                        <div class="site-select" data-site-select>
+                            <select class="field site-select-native" name="email_notify_on">
+                                <option value="submitted" @selected(old('email_notify_on', $settings['email_notify_on']) === 'submitted')>提交成功后通知</option>
+                                <option value="replied" @selected(old('email_notify_on', $settings['email_notify_on']) === 'replied')>首次回复后通知</option>
+                            </select>
+                            <button class="site-select-trigger" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">{{ old('email_notify_on', $settings['email_notify_on']) === 'replied' ? '首次回复后通知' : '提交成功后通知' }}</button>
+                            <div class="site-select-panel" data-select-panel role="listbox"></div>
+                        </div>
+                        <span class="guestbook-settings-note">提交成功后通知适合第一时间处理；首次回复后通知适合只关注已办理结果。</span>
+                        @error('email_notify_on')<div class="guestbook-settings-error">{{ $message }}</div>@enderror
+                    </label>
+                </div>
+            </section>
+
+            <section class="guestbook-settings-panel">
                 <div class="guestbook-settings-grid">
                     <div class="guestbook-theme-selector">
                         <span class="guestbook-settings-label">模板选择</span>

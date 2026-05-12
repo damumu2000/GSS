@@ -216,6 +216,105 @@ class SystemSettings
         return max(7, $this->int('security.stats_retention_days', 180));
     }
 
+    public function mailEnabled(): bool
+    {
+        return $this->bool('mail.enabled', false);
+    }
+
+    public function mailDriver(): string
+    {
+        $driver = strtolower(trim($this->string('mail.driver', 'log')));
+
+        return in_array($driver, ['smtp', 'log'], true) ? $driver : 'log';
+    }
+
+    public function mailHost(): string
+    {
+        return trim($this->string('mail.host', ''));
+    }
+
+    public function mailPort(): int
+    {
+        return max(1, min(65535, $this->int('mail.port', 465)));
+    }
+
+    public function mailUsername(): string
+    {
+        return trim($this->string('mail.username', ''));
+    }
+
+    public function mailPasswordEncrypted(): string
+    {
+        return trim($this->string('mail.password_encrypted', ''));
+    }
+
+    public function mailPasswordConfigured(): bool
+    {
+        return $this->mailPasswordEncrypted() !== '';
+    }
+
+    public function mailEncryption(): string
+    {
+        $encryption = strtolower(trim($this->string('mail.encryption', 'ssl')));
+
+        return in_array($encryption, ['', 'ssl', 'tls'], true) ? $encryption : 'ssl';
+    }
+
+    public function mailFromAddress(): string
+    {
+        return trim($this->string('mail.from_address', ''));
+    }
+
+    public function mailFromName(): string
+    {
+        return trim($this->string('mail.from_name', (string) config('app.name')));
+    }
+
+    public function mailReplyToAddress(): string
+    {
+        return trim($this->string('mail.reply_to_address', ''));
+    }
+
+    public function mailTimeoutSeconds(): int
+    {
+        return max(1, min(60, $this->int('mail.timeout_seconds', 10)));
+    }
+
+    public function mailRateLimitEnabled(): bool
+    {
+        return $this->bool('mail.rate_limit_enabled', true);
+    }
+
+    public function mailRateLimitWindowSeconds(): int
+    {
+        return max(10, min(3600, $this->int('mail.rate_limit_window_seconds', 60)));
+    }
+
+    public function mailRateLimitGlobalMax(): int
+    {
+        return max(1, min(10000, $this->int('mail.rate_limit_global_max', 20)));
+    }
+
+    public function mailRateLimitSiteMax(): int
+    {
+        return max(1, min(10000, $this->int('mail.rate_limit_site_max', 10)));
+    }
+
+    public function mailRateLimitSceneMax(): int
+    {
+        return max(1, min(10000, $this->int('mail.rate_limit_scene_max', 5)));
+    }
+
+    public function mailRateLimitRecipientWindowSeconds(): int
+    {
+        return max(60, min(86400, $this->int('mail.rate_limit_recipient_window_seconds', 600)));
+    }
+
+    public function mailRateLimitRecipientMax(): int
+    {
+        return max(1, min(10000, $this->int('mail.rate_limit_recipient_max', 5)));
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -248,6 +347,24 @@ class SystemSettings
             'security_rate_limit_sensitive_max_requests' => $this->securityRateLimitSensitiveMaxRequests(),
             'security_event_retention_limit' => $this->securityEventRetentionLimit(),
             'security_stats_retention_days' => $this->securityStatsRetentionDays(),
+            'mail_enabled' => $this->mailEnabled(),
+            'mail_driver' => $this->mailDriver(),
+            'mail_host' => $this->mailHost(),
+            'mail_port' => $this->mailPort(),
+            'mail_username' => $this->mailUsername(),
+            'mail_password_configured' => $this->mailPasswordConfigured(),
+            'mail_encryption' => $this->mailEncryption(),
+            'mail_from_address' => $this->mailFromAddress(),
+            'mail_from_name' => $this->mailFromName(),
+            'mail_reply_to_address' => $this->mailReplyToAddress(),
+            'mail_timeout_seconds' => $this->mailTimeoutSeconds(),
+            'mail_rate_limit_enabled' => $this->mailRateLimitEnabled(),
+            'mail_rate_limit_window_seconds' => $this->mailRateLimitWindowSeconds(),
+            'mail_rate_limit_global_max' => $this->mailRateLimitGlobalMax(),
+            'mail_rate_limit_site_max' => $this->mailRateLimitSiteMax(),
+            'mail_rate_limit_scene_max' => $this->mailRateLimitSceneMax(),
+            'mail_rate_limit_recipient_window_seconds' => $this->mailRateLimitRecipientWindowSeconds(),
+            'mail_rate_limit_recipient_max' => $this->mailRateLimitRecipientMax(),
         ];
     }
 }

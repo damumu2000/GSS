@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Support\PlatformMailSettings;
 use App\Support\SystemSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -16,6 +17,7 @@ class SystemSettingController extends Controller
 {
     public function __construct(
         protected SystemSettings $systemSettings,
+        protected PlatformMailSettings $platformMailSettings,
     ) {
     }
 
@@ -65,12 +67,32 @@ class SystemSettingController extends Controller
             'admin_favicon_file' => ['nullable', 'file', 'mimes:ico,png', 'max:1024'],
             'admin_logo_clear' => ['nullable', 'boolean'],
             'admin_favicon_clear' => ['nullable', 'boolean'],
+            'mail_enabled' => ['nullable', 'boolean'],
+            'mail_driver' => ['nullable', 'string', 'in:smtp,log'],
+            'mail_host' => ['nullable', 'string', 'max:255'],
+            'mail_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'mail_username' => ['nullable', 'string', 'max:255'],
+            'mail_password' => ['nullable', 'string', 'max:255'],
+            'mail_encryption' => ['nullable', 'string', 'in:,ssl,tls'],
+            'mail_from_address' => ['nullable', 'email:filter', 'max:100'],
+            'mail_from_name' => ['nullable', 'string', 'max:100'],
+            'mail_reply_to_address' => ['nullable', 'email:filter', 'max:100'],
+            'mail_timeout_seconds' => ['nullable', 'integer', 'min:1', 'max:60'],
+            'mail_rate_limit_enabled' => ['nullable', 'boolean'],
+            'mail_rate_limit_window_seconds' => ['nullable', 'integer', 'min:10', 'max:3600'],
+            'mail_rate_limit_global_max' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'mail_rate_limit_site_max' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'mail_rate_limit_scene_max' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'mail_rate_limit_recipient_window_seconds' => ['nullable', 'integer', 'min:60', 'max:86400'],
+            'mail_rate_limit_recipient_max' => ['nullable', 'integer', 'min:1', 'max:10000'],
         ], [
             'system_name.required' => '请填写系统名称。',
             'system_version.required' => '请填写系统版本号。',
             'attachment_allowed_extensions.required' => '请填写资源库允许上传的文件类型。',
             'admin_logo_file.image' => '后台 Logo 请上传图片文件。',
             'admin_favicon_file.mimes' => '后台 ICO 仅支持 ICO 或 PNG 文件。',
+            'mail_from_address.email' => '发件邮箱格式不正确，请重新填写。',
+            'mail_reply_to_address.email' => '回复邮箱格式不正确，请重新填写。',
         ]);
 
         $validator->after(function ($validator) use ($request): void {
@@ -98,6 +120,54 @@ class SystemSettingController extends Controller
             if ($sensitiveMaxRequests > $maxRequests) {
                 $validator->errors()->add('security_rate_limit_sensitive_max_requests', '敏感页面阈值不能高于普通页面阈值。');
             }
+
+            $mailDriver = strtolower(trim((string) $request->input('mail_driver', 'log')));
+            $mailEnabled = $request->boolean('mail_enabled');
+            $mailPassword = trim((string) $request->input('mail_password', ''));
+            $mailUsername = trim((string) $request->input('mail_username', ''));
+            $hasStoredPassword = $this->systemSettings->mailPasswordConfigured();
+
+            if ($mailEnabled && $mailDriver === 'smtp') {
+                if (trim((string) $request->input('mail_host', '')) === '') {
+                    $validator->errors()->add('mail_host', 'SMTP 主机不能为空。');
+                }
+
+                if ((int) $request->input('mail_port', 0) <= 0) {
+                    $validator->errors()->add('mail_port', 'SMTP 端口不能为空。');
+                }
+
+                if (trim((string) $request->input('mail_from_address', '')) === '') {
+                    $validator->errors()->add('mail_from_address', '请填写发件邮箱。');
+                }
+
+                if (trim((string) $request->input('mail_from_name', '')) === '') {
+                    $validator->errors()->add('mail_from_name', '请填写发件名称。');
+                }
+            }
+
+            if ($mailPassword !== '' && $mailUsername === '') {
+                $validator->errors()->add('mail_username', '填写 SMTP 密码时必须同时填写 SMTP 用户名。');
+            }
+
+            if ($mailUsername !== '' && $mailPassword === '' && ! $hasStoredPassword) {
+                $validator->errors()->add('mail_password', '填写 SMTP 用户名后必须设置 SMTP 密码。');
+            }
+
+            if ($mailUsername === '' && $hasStoredPassword) {
+                $validator->errors()->add('mail_username', '已设置 SMTP 密码时必须保留 SMTP 用户名。');
+            }
+
+            $mailGlobalMax = (int) $request->input('mail_rate_limit_global_max', $this->systemSettings->mailRateLimitGlobalMax());
+            $mailSiteMax = (int) $request->input('mail_rate_limit_site_max', $this->systemSettings->mailRateLimitSiteMax());
+            $mailSceneMax = (int) $request->input('mail_rate_limit_scene_max', $this->systemSettings->mailRateLimitSceneMax());
+
+            if ($mailSiteMax > $mailGlobalMax) {
+                $validator->errors()->add('mail_rate_limit_site_max', '单站点发送上限不能高于平台总发送上限。');
+            }
+
+            if ($mailSceneMax > $mailSiteMax) {
+                $validator->errors()->add('mail_rate_limit_scene_max', '单场景发送上限不能高于单站点发送上限。');
+            }
         });
 
         $validated = $validator->validate();
@@ -108,6 +178,11 @@ class SystemSettingController extends Controller
         $systemVersion = $this->sanitizeSingleLine((string) $validated['system_version'], 50);
         $normalizedExtensions = $this->normalizeExtensions((string) $validated['attachment_allowed_extensions']);
         $disabledMessage = $this->sanitizeTextarea((string) ($validated['admin_disabled_message'] ?? ''), 255);
+        $mailPassword = trim((string) ($validated['mail_password'] ?? ''));
+        $storedEncryptedPassword = $this->systemSettings->mailPasswordEncrypted();
+        $mailPasswordEncrypted = $mailPassword !== ''
+            ? $this->platformMailSettings->encryptPassword($mailPassword)
+            : $storedEncryptedPassword;
 
         $settings = [
             'system.name' => $systemName,
@@ -134,6 +209,24 @@ class SystemSettingController extends Controller
             'security.rate_limit_sensitive_max_requests' => (string) ($validated['security_rate_limit_sensitive_max_requests'] ?? $this->systemSettings->securityRateLimitSensitiveMaxRequests()),
             'security.event_retention_limit' => (string) ($validated['security_event_retention_limit'] ?? $this->systemSettings->securityEventRetentionLimit()),
             'security.stats_retention_days' => (string) ($validated['security_stats_retention_days'] ?? $this->systemSettings->securityStatsRetentionDays()),
+            'mail.enabled' => $request->boolean('mail_enabled') ? '1' : '0',
+            'mail.driver' => strtolower(trim((string) ($validated['mail_driver'] ?? 'log'))),
+            'mail.host' => $this->sanitizeSingleLine((string) ($validated['mail_host'] ?? ''), 255),
+            'mail.port' => (string) ($validated['mail_port'] ?? $this->systemSettings->mailPort()),
+            'mail.username' => $this->sanitizeSingleLine((string) ($validated['mail_username'] ?? ''), 255),
+            'mail.password_encrypted' => $mailPasswordEncrypted,
+            'mail.encryption' => strtolower(trim((string) ($validated['mail_encryption'] ?? 'ssl'))),
+            'mail.from_address' => $this->sanitizeSingleLine((string) ($validated['mail_from_address'] ?? ''), 100),
+            'mail.from_name' => $this->sanitizeSingleLine((string) ($validated['mail_from_name'] ?? ''), 100),
+            'mail.reply_to_address' => $this->sanitizeSingleLine((string) ($validated['mail_reply_to_address'] ?? ''), 100),
+            'mail.timeout_seconds' => (string) ($validated['mail_timeout_seconds'] ?? $this->systemSettings->mailTimeoutSeconds()),
+            'mail.rate_limit_enabled' => $request->boolean('mail_rate_limit_enabled') ? '1' : '0',
+            'mail.rate_limit_window_seconds' => (string) ($validated['mail_rate_limit_window_seconds'] ?? $this->systemSettings->mailRateLimitWindowSeconds()),
+            'mail.rate_limit_global_max' => (string) ($validated['mail_rate_limit_global_max'] ?? $this->systemSettings->mailRateLimitGlobalMax()),
+            'mail.rate_limit_site_max' => (string) ($validated['mail_rate_limit_site_max'] ?? $this->systemSettings->mailRateLimitSiteMax()),
+            'mail.rate_limit_scene_max' => (string) ($validated['mail_rate_limit_scene_max'] ?? $this->systemSettings->mailRateLimitSceneMax()),
+            'mail.rate_limit_recipient_window_seconds' => (string) ($validated['mail_rate_limit_recipient_window_seconds'] ?? $this->systemSettings->mailRateLimitRecipientWindowSeconds()),
+            'mail.rate_limit_recipient_max' => (string) ($validated['mail_rate_limit_recipient_max'] ?? $this->systemSettings->mailRateLimitRecipientMax()),
         ];
 
         if ($request->boolean('admin_logo_clear')) {
@@ -186,9 +279,54 @@ class SystemSettingController extends Controller
             ->with('status', '系统设置已更新。');
     }
 
+    public function sendTestMail(Request $request): RedirectResponse
+    {
+        $this->authorizePlatform($request, 'system.setting.manage');
+
+        $validated = Validator::make($request->all(), [
+            'mail_test_to' => ['required', 'email:filter', 'max:100'],
+        ], [
+            'mail_test_to.required' => '请填写测试收件邮箱。',
+            'mail_test_to.email' => '测试收件邮箱格式不正确，请重新填写。',
+        ])->validate();
+
+        try {
+            $driver = $this->platformMailSettings->sendTestMail($validated['mail_test_to']);
+        } catch (\Throwable $exception) {
+            return redirect()
+                ->route('admin.platform.settings.index', ['tab' => 'mail'])
+                ->withErrors([
+                    'mail_test_to' => $exception->getMessage(),
+                ]);
+        }
+
+        $this->logOperation(
+            'platform',
+            'system_setting',
+            'mail_test',
+            null,
+            (int) $request->user()->id,
+            'system_setting',
+            null,
+            [
+                'driver' => $driver,
+                'to' => $validated['mail_test_to'],
+            ],
+            $request,
+        );
+
+        $message = $driver === 'log'
+            ? '测试邮件已写入日志通道，当前未执行真实投递。'
+            : '测试邮件已发送，请检查收件箱。';
+
+        return redirect()
+            ->route('admin.platform.settings.index', ['tab' => 'mail'])
+            ->with('status', $message);
+    }
+
     protected function normalizeTab(string $tab): string
     {
-        return in_array($tab, ['basic', 'upload', 'security', 'access'], true) ? $tab : 'basic';
+        return in_array($tab, ['basic', 'upload', 'security', 'access', 'mail'], true) ? $tab : 'basic';
     }
 
     protected function storePublicBrandAsset(UploadedFile $file, string $prefix): string

@@ -87,6 +87,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/database/{table}', [PlatformDatabaseController::class, 'show'])->name('database.show');
             Route::get('/settings', [SystemSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [SystemSettingController::class, 'update'])->name('settings.update');
+            Route::post('/settings/mail-test', [SystemSettingController::class, 'sendTestMail'])->name('settings.mail-test');
             Route::get('/system-checks', [SystemCheckController::class, 'index'])->name('system-checks.index');
             Route::post('/system-checks/cache/clear-all', [SystemCheckController::class, 'clearAllCache'])->name('system-checks.cache.clear-all');
             Route::post('/system-checks/static-vendors/{asset}/upgrade', [SystemCheckController::class, 'upgradeStaticVendor'])->name('system-checks.static-vendors.upgrade');

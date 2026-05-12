@@ -20,6 +20,9 @@ class GuestbookSettings
             'show_name' => false,
             'show_after_reply' => true,
             'captcha_enabled' => true,
+            'email_notify_enabled' => false,
+            'email_notify_to' => '',
+            'email_notify_on' => 'submitted',
         ];
     }
 
@@ -149,6 +152,9 @@ class GuestbookSettings
                 'module.guestbook.show_name',
                 'module.guestbook.show_after_reply',
                 'module.guestbook.captcha_enabled',
+                'module.guestbook.email_notify_enabled',
+                'module.guestbook.email_notify_to',
+                'module.guestbook.email_notify_on',
             ])
             ->pluck('setting_value', 'setting_key');
 
@@ -168,6 +174,9 @@ class GuestbookSettings
             'show_name' => $this->booleanValue($settings->get('module.guestbook.show_name'), $defaults['show_name']),
             'show_after_reply' => $this->booleanValue($settings->get('module.guestbook.show_after_reply'), $defaults['show_after_reply']),
             'captcha_enabled' => $this->booleanValue($settings->get('module.guestbook.captcha_enabled'), $defaults['captcha_enabled']),
+            'email_notify_enabled' => $this->booleanValue($settings->get('module.guestbook.email_notify_enabled'), $defaults['email_notify_enabled']),
+            'email_notify_to' => $this->stringValue($settings->get('module.guestbook.email_notify_to'), $defaults['email_notify_to']),
+            'email_notify_on' => $this->normalizeNotifyOn((string) $settings->get('module.guestbook.email_notify_on', $defaults['email_notify_on'])),
         ];
     }
 
@@ -185,6 +194,9 @@ class GuestbookSettings
             'module.guestbook.show_name' => ! empty($values['show_name']) ? '1' : '0',
             'module.guestbook.show_after_reply' => ! empty($values['show_after_reply']) ? '1' : '0',
             'module.guestbook.captcha_enabled' => ! empty($values['captcha_enabled']) ? '1' : '0',
+            'module.guestbook.email_notify_enabled' => ! empty($values['email_notify_enabled']) ? '1' : '0',
+            'module.guestbook.email_notify_to' => $this->stringValue($values['email_notify_to'] ?? null, $this->defaults()['email_notify_to']),
+            'module.guestbook.email_notify_on' => $this->normalizeNotifyOn((string) ($values['email_notify_on'] ?? $this->defaults()['email_notify_on'])),
         ];
 
         foreach ($payloads as $key => $value) {
@@ -222,5 +234,12 @@ class GuestbookSettings
         $theme = trim($theme);
 
         return array_key_exists($theme, $this->themeOptions()) ? $theme : $this->defaults()['theme'];
+    }
+
+    protected function normalizeNotifyOn(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['submitted', 'replied'], true) ? $value : $this->defaults()['email_notify_on'];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Modules\Guestbook\Controllers\Frontend;
 
 use App\Http\Controllers\SiteController;
+use App\Jobs\SendGuestbookMessageNotificationJob;
 use App\Modules\Guestbook\Support\GuestbookModule;
 use App\Modules\Guestbook\Support\GuestbookSettings;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -142,12 +143,13 @@ class GuestbookController extends SiteController
 
         $validated = $validator->validated();
 
-        $displayNo = DB::transaction(function () use ($site, $validated, $request, $settings): int {
+        $messageId = 0;
+        $displayNo = DB::transaction(function () use ($site, $validated, $request, &$messageId): int {
             $displayNo = ((int) DB::table('module_guestbook_messages')
                 ->where('site_id', $site->id)
                 ->max('display_no')) + 1;
 
-            DB::table('module_guestbook_messages')->insert([
+            $messageId = (int) DB::table('module_guestbook_messages')->insertGetId([
                 'site_id' => $site->id,
                 'display_no' => $displayNo,
                 'name' => $validated['name'],
@@ -169,6 +171,7 @@ class GuestbookController extends SiteController
 
         $request->session()->forget('guestbook_captcha');
         RateLimiter::hit($rateLimitKey, 30);
+        $this->dispatchNotificationIfNeeded((int) $site->id, $messageId, $settings, 'submitted');
 
         return redirect()
             ->route('site.guestbook.index', $siteQuery)
@@ -351,6 +354,23 @@ class GuestbookController extends SiteController
         $sessionPart = (string) $request->session()->getId();
 
         return 'guestbook-captcha-verify:'.$siteId.':'.sha1((string) $request->ip().':'.$sessionPart);
+    }
+
+    protected function dispatchNotificationIfNeeded(int $siteId, int $messageId, array $settings, string $trigger): void
+    {
+        if ($messageId <= 0) {
+            return;
+        }
+
+        if (! ($settings['email_notify_enabled'] ?? false)) {
+            return;
+        }
+
+        if (($settings['email_notify_on'] ?? 'submitted') !== $trigger) {
+            return;
+        }
+
+        SendGuestbookMessageNotificationJob::dispatchAfterResponse($siteId, $messageId, $trigger);
     }
 
     /**
