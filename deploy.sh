@@ -74,4 +74,7 @@ if [[ ! -L "public/storage" ]]; then
   php artisan storage:link
 fi
 
+echo "[deploy] restarting queue workers..."
+php artisan queue:restart
+
 echo "[deploy] done."
