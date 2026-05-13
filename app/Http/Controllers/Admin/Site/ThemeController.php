@@ -469,7 +469,7 @@ class ThemeController extends Controller
     /**
      * Update the override template source for the active theme.
      */
-    public function updateEditor(Request $request): RedirectResponse
+    public function updateEditor(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
@@ -498,6 +498,15 @@ class ThemeController extends Controller
         try {
             $this->validateEditorSource($currentSite, $themeCode, $template, $validated['template_source']);
         } catch (\Throwable $exception) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'errors' => [
+                        'template_source' => [$exception->getMessage()],
+                    ],
+                ], 422);
+            }
+
             return back()
                 ->withInput()
                 ->withErrors(['template_source' => $exception->getMessage()]);
@@ -520,6 +529,14 @@ class ThemeController extends Controller
             ['code' => $themeCode, 'template' => $template],
             $request,
         );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => '模板源码已保存。',
+                'site_template_id' => $siteTemplateId,
+                'template' => $template,
+            ]);
+        }
 
         return redirect()
             ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId, 'template' => $template])

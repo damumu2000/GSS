@@ -32,6 +32,7 @@
     const editorForm = document.getElementById('theme-editor-form');
     const titleInput = document.getElementById('template_title');
     const editorBootstrap = document.getElementById('template_source_bootstrap');
+    const editorSubmitButtons = Array.from(document.querySelectorAll('button[form="theme-editor-form"][type="submit"]'));
     let initialTitle = titleInput ? titleInput.value : '';
     let initialSource = editor ? editor.value : '';
     let editorViewportFrame = null;
@@ -1089,10 +1090,136 @@
         }
     });
 
-    editorForm?.addEventListener('submit', (event) => {
+    const setEditorSavingState = (isSaving) => {
+        document.querySelectorAll('[form="theme-editor-form"]').forEach((button) => {
+            if (!(button instanceof HTMLButtonElement) || button.type !== 'submit') {
+                return;
+            }
+
+            if (isSaving) {
+                button.disabled = true;
+                button.textContent = button.dataset.loadingText || '保存中...';
+                return;
+            }
+
+            button.disabled = false;
+            button.textContent = button.dataset.themeEditorOriginalText || '保存模板源码';
+        });
+    };
+
+    const resetThemeEditorLoadingButtons = () => {
+        editorSubmitButtons.forEach((button) => {
+            if (!(button instanceof HTMLButtonElement)) {
+                return;
+            }
+            button.classList.remove('is-loading');
+            button.disabled = false;
+            delete button.dataset.loadingApplied;
+            if (button.dataset.originalHtml) {
+                button.innerHTML = button.dataset.originalHtml;
+            } else {
+                button.textContent = button.dataset.themeEditorOriginalText || '保存模板源码';
+            }
+        });
+    };
+
+    const clearEditorFieldErrors = () => {
+        titleInput?.classList.remove('is-error');
+        editor?.classList.remove('is-error');
+    };
+
+    const applyEditorFieldErrors = (errors) => {
+        const normalized = errors && typeof errors === 'object' ? errors : {};
+        const titleErrors = Array.isArray(normalized.template_title) ? normalized.template_title : [];
+        const sourceErrors = Array.isArray(normalized.template_source) ? normalized.template_source : [];
+
+        if (titleErrors.length > 0) {
+            titleInput?.classList.add('is-error');
+        }
+        if (sourceErrors.length > 0) {
+            editor?.classList.add('is-error');
+        }
+
+        const firstError = titleErrors[0] || sourceErrors[0] || '';
+        if (firstError && typeof window.showMessage === 'function') {
+            window.showMessage(firstError, 'error');
+        }
+    };
+
+    editorForm?.addEventListener('submit', async (event) => {
         if (!validateTemplateTitleLimit(titleInput)) {
             event.preventDefault();
             titleInput?.focus();
+            return;
+        }
+
+        event.preventDefault();
+        if (!editorForm || editorForm.dataset.submitting === '1') {
+            return;
+        }
+
+        resetThemeEditorLoadingButtons();
+
+        editorForm.dataset.submitting = '1';
+        clearEditorFieldErrors();
+        const selectionStart = editor?.selectionStart ?? 0;
+        const selectionEnd = editor?.selectionEnd ?? 0;
+        const scrollTop = editor?.scrollTop ?? 0;
+        const scrollLeft = editor?.scrollLeft ?? 0;
+        setEditorSavingState(true);
+
+        try {
+            const response = await fetch(editorForm.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(editorForm),
+                credentials: 'same-origin',
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 422) {
+                    applyEditorFieldErrors(payload.errors || {});
+                    if ((payload.errors?.template_title || []).length > 0) {
+                        titleInput?.focus();
+                    } else {
+                        editor?.focus();
+                    }
+                    return;
+                }
+
+                const message = typeof payload.message === 'string' && payload.message !== ''
+                    ? payload.message
+                    : '模板保存失败，请稍后重试。';
+                if (typeof window.showMessage === 'function') {
+                    window.showMessage(message, 'error');
+                }
+                return;
+            }
+
+            resetEditorDirtyBaseline();
+            if (editor) {
+                editor.focus();
+                editor.setSelectionRange(selectionStart, selectionEnd);
+                editor.scrollTop = scrollTop;
+                editor.scrollLeft = scrollLeft;
+                requestLineNumberRender();
+                syncEditorViewportState();
+            }
+
+            if (typeof window.showMessage === 'function') {
+                window.showMessage(payload.message || '模板源码已保存。', 'success');
+            }
+        } catch (error) {
+            if (typeof window.showMessage === 'function') {
+                window.showMessage('模板保存失败，请检查网络后重试。', 'error');
+            }
+        } finally {
+            setEditorSavingState(false);
+            editorForm.dataset.submitting = '0';
         }
     });
 
@@ -1198,3 +1325,12 @@
         });
     }
 })();
+    editorSubmitButtons.forEach((button) => {
+        if (!(button instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        if (!button.dataset.themeEditorOriginalText) {
+            button.dataset.themeEditorOriginalText = (button.textContent || '').trim() || '保存模板源码';
+        }
+    });
