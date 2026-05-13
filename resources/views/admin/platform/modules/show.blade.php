@@ -24,6 +24,64 @@
 
     <div class="module-shell">
         <section class="module-card">
+            @if ($module['code'] === 'guestbook' && $guestbookRiskSettings)
+                <div class="module-section">
+                    <h3 class="module-section-title">留言风控参数（平台级）</h3>
+                    <form method="post" action="{{ route('admin.platform.modules.guestbook-risk.update', $module['code']) }}" class="module-list">
+                        @csrf
+                        <div class="module-risk-grid">
+                            <div class="module-risk-row">
+                                <span class="module-risk-prefix">IP 在</span>
+                                <input class="field module-risk-input" type="number" name="limit_ip_window_seconds" min="10" max="3600" step="1" value="{{ $guestbookRiskSettings['limit_ip_window_seconds'] }}">
+                                <span class="module-risk-text">秒内提交次数超过</span>
+                                <input class="field module-risk-input" type="number" name="limit_ip_max_attempts" min="1" max="100" step="1" value="{{ $guestbookRiskSettings['limit_ip_max_attempts'] }}">
+                                <span class="module-risk-text">次，限制</span>
+                                <input class="field module-risk-input" type="number" name="limit_ip_block_seconds" min="10" max="86400" step="1" value="{{ $guestbookRiskSettings['limit_ip_block_seconds'] }}">
+                                <span class="module-risk-text">秒。</span>
+                            </div>
+                            @if ($errors->has('limit_ip_window_seconds') || $errors->has('limit_ip_max_attempts') || $errors->has('limit_ip_block_seconds'))
+                                <div class="module-risk-error muted" style="color:#dc2626">
+                                    {{ $errors->first('limit_ip_window_seconds') ?: ($errors->first('limit_ip_max_attempts') ?: $errors->first('limit_ip_block_seconds')) }}
+                                </div>
+                            @endif
+
+                            <div class="module-risk-row">
+                                <span class="module-risk-prefix">手机号在</span>
+                                <input class="field module-risk-input" type="number" name="limit_phone_window_seconds" min="60" max="86400" step="1" value="{{ $guestbookRiskSettings['limit_phone_window_seconds'] }}">
+                                <span class="module-risk-text">秒内提交次数超过</span>
+                                <input class="field module-risk-input" type="number" name="limit_phone_max_attempts" min="1" max="50" step="1" value="{{ $guestbookRiskSettings['limit_phone_max_attempts'] }}">
+                                <span class="module-risk-text">次，限制</span>
+                                <input class="field module-risk-input" type="number" name="limit_phone_block_seconds" min="10" max="86400" step="1" value="{{ $guestbookRiskSettings['limit_phone_block_seconds'] }}">
+                                <span class="module-risk-text">秒。</span>
+                            </div>
+                            @if ($errors->has('limit_phone_window_seconds') || $errors->has('limit_phone_max_attempts') || $errors->has('limit_phone_block_seconds'))
+                                <div class="module-risk-error muted" style="color:#dc2626">
+                                    {{ $errors->first('limit_phone_window_seconds') ?: ($errors->first('limit_phone_max_attempts') ?: $errors->first('limit_phone_block_seconds')) }}
+                                </div>
+                            @endif
+
+                            <div class="module-risk-row">
+                                <span class="module-risk-prefix">验证码在</span>
+                                <input class="field module-risk-input" type="number" name="limit_captcha_verify_window_seconds" min="10" max="3600" step="1" value="{{ $guestbookRiskSettings['limit_captcha_verify_window_seconds'] }}">
+                                <span class="module-risk-text">秒内校验次数超过</span>
+                                <input class="field module-risk-input" type="number" name="limit_captcha_verify_max_attempts" min="1" max="200" step="1" value="{{ $guestbookRiskSettings['limit_captcha_verify_max_attempts'] }}">
+                                <span class="module-risk-text">次，限制</span>
+                                <input class="field module-risk-input" type="number" name="limit_captcha_verify_block_seconds" min="10" max="86400" step="1" value="{{ $guestbookRiskSettings['limit_captcha_verify_block_seconds'] }}">
+                                <span class="module-risk-text">秒。</span>
+                            </div>
+                            @if ($errors->has('limit_captcha_verify_window_seconds') || $errors->has('limit_captcha_verify_max_attempts') || $errors->has('limit_captcha_verify_block_seconds'))
+                                <div class="module-risk-error muted" style="color:#dc2626">
+                                    {{ $errors->first('limit_captcha_verify_window_seconds') ?: ($errors->first('limit_captcha_verify_max_attempts') ?: $errors->first('limit_captcha_verify_block_seconds')) }}
+                                </div>
+                            @endif
+                        </div>
+                        <div class="module-list-item">
+                            <button class="button" type="submit">保存风控参数</button>
+                        </div>
+                    </form>
+                </div>
+            @endif
+
             <div class="module-section">
                 <h3 class="module-section-title">配置说明</h3>
                 <div class="module-list">

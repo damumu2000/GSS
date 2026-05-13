@@ -84,6 +84,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/modules', [PlatformModuleController::class, 'index'])->name('modules.index');
             Route::get('/modules/{module}', [PlatformModuleController::class, 'show'])->name('modules.show');
             Route::post('/modules/{module}/toggle', [PlatformModuleController::class, 'toggle'])->name('modules.toggle');
+            Route::post('/modules/{module}/guestbook-risk', [PlatformModuleController::class, 'updateGuestbookRisk'])->name('modules.guestbook-risk.update');
             Route::get('/database', [PlatformDatabaseController::class, 'index'])->name('database.index');
             Route::get('/database/{table}', [PlatformDatabaseController::class, 'show'])->name('database.show');
             Route::get('/settings', [SystemSettingController::class, 'index'])->name('settings.index');

@@ -263,16 +263,18 @@ class GuestbookController extends Controller
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, (int) $currentSite->id, 'guestbook.setting');
         $this->resolveModuleOrAbort((int) $currentSite->id);
-
+        $currentSettings = $this->guestbookSettings->forSite((int) $currentSite->id);
         $request->merge([
             'name' => $this->sanitizePlainText($request->input('name')),
             'notice' => $this->sanitizeRichText($request->input('notice')),
             'notice_image' => $this->sanitizePlainText($request->input('notice_image')),
+            'email_notify_to' => $this->sanitizePlainText($request->input('email_notify_to')),
+            'email_notify_on' => $request->input('email_notify_on', $currentSettings['email_notify_on']),
         ]);
 
         $validator = Validator::make($request->all(), [
             'enabled' => ['nullable', 'boolean'],
-            'name' => ['required', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:15'],
             'notice' => ['required', 'string', 'max:1000'],
             'notice_image' => ['nullable', 'string', 'max:255'],
             'theme' => ['required', 'string', Rule::in(array_keys($this->guestbookSettings->themeOptions()))],
@@ -280,21 +282,28 @@ class GuestbookController extends Controller
             'show_after_reply' => ['nullable', 'boolean'],
             'captcha_enabled' => ['nullable', 'boolean'],
             'email_notify_enabled' => ['nullable', 'boolean'],
-            'email_notify_to' => ['nullable', 'email:filter', 'max:100'],
+            'email_notify_to' => ['nullable', 'email:filter,rfc', 'max:100'],
             'email_notify_on' => ['required', 'string', Rule::in(['submitted', 'replied'])],
         ], [
             'name.required' => '请填写留言板名称。',
+            'name.max' => '留言板名称最多支持 15 个中文字符。',
             'notice.required' => '请填写发布须知。',
             'notice.max' => '发布须知不能超过 1000 字。',
             'notice_image.max' => '发布须知背景图地址长度不能超过 255 个字符。',
             'theme.required' => '请选择留言板模板。',
             'theme.in' => '留言板模板选项无效，请重新选择。',
             'email_notify_to.email' => '通知收件邮箱格式不正确，请重新填写。',
+            'email_notify_to.max' => '通知收件邮箱长度不能超过 100 个字符。',
             'email_notify_on.required' => '请选择邮件通知时机。',
             'email_notify_on.in' => '邮件通知时机无效，请重新选择。',
         ]);
 
         $validator->after(function ($validator) use ($request, $currentSite): void {
+            $name = trim((string) $request->input('name', ''));
+            if ($name !== '' && mb_strlen($name) > 15) {
+                $validator->errors()->add('name', '留言板名称最多支持 15 个中文字符。');
+            }
+
             $noticeImage = trim((string) $request->input('notice_image', ''));
             if ($noticeImage !== '' && ! $this->isValidNoticeImageForSite((int) $currentSite->id, (int) $request->user()->id, $noticeImage)) {
                 $validator->errors()->add('notice_image', '发布须知背景图地址格式不正确，请重新选择资源库图片。');

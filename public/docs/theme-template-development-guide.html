@@ -1463,11 +1463,11 @@
                     </div>
 
                     <div class="code">
-                        <pre>{% set guestbook = guestbookStats() %}
+                        <pre>{% set guestbook = guestbookStats() %} <span class="code-comment">{# 先判断留言板模块是否启用：关闭时不再查询列表，直接显示关闭提示 #}</span>
 
 {% if guestbook.enabled %}
-    {% set messages = guestbookMessages(limit=4, order='created_at_desc')%}
-    {% for item in messages %}
+    {% set messages = guestbookMessages(limit=4, order='created_at_desc')%} <span class="code-comment">{# 仅在启用后再查公开留言：会自动联动姓名脱敏与“回复后才显示”规则 #}</span>
+    {% for item in messages %} <span class="code-comment">{# 逐条渲染首页互动反馈内容 #}</span>
         &lt;article class="feedback-card"&gt;
             &lt;h3&gt;{{ item.display_no }} {{ item.name }}&lt;/h3&gt;
             &lt;p&gt;{{ item.summary }}&lt;/p&gt;
@@ -1479,17 +1479,13 @@
         &lt;/article&gt;
     {% endfor %}
 {% else %}
-    &lt;div class="feedback-empty"&gt;{{ guestbook.message }}&lt;/div&gt;
+    &lt;div class="feedback-empty"&gt;{{ guestbook.message }}&lt;/div&gt; <span class="code-comment">{# 模块关闭或未绑定时显示后端返回的统一提示 #}</span>
 {% endif %}</pre>
-                    </div>
-                    <div class="tip">
-                        <strong>范例：首页留言反馈区</strong>
-                        <span>先用 <code>guestbookStats</code> 判断留言板是否启用，再决定是否查询 <code>guestbookMessages</code>。这样可以同时兼顾模块关闭提示、姓名脱敏规则和“回复后才显示”的公开规则，适合首页互动反馈区。</span>
                     </div>
 
                     <div class="tip">
-                        <strong>补充：模板内“可提交留言”接入说明（以联系我们页面为例）</strong>
-                        <span>当前模板里除了展示留言列表，还支持把 <code>page-contact.tpl</code> 的表单接入留言模块提交接口。实际实现采用“前端交互校验 + 后端最终校验 + 验证码核验 + 限流”四层闭环，建议按下面的参数映射和安全要求执行。</span>
+                        <strong>模板内“可提交留言”接入说明</strong>
+                        <span>当前模板里除了展示留言列表，还支持把页面中的表单接入留言模块提交接口。模板页和留言板模块页共用同一套后端提交判断：默认可直接提交，命中风险后才要求填写验证码。</span>
                     </div>
 
                     <div class="table-wrap">
@@ -1510,32 +1506,37 @@
                                 <tr>
                                     <td class="mono">验证码图片</td>
                                     <td><code>GET /guestbook/captcha</code></td>
-                                    <td>验证码图片获取接口。</td>
+                                    <td>当后端要求验证码时再显示并调用。</td>
                                 </tr>
                                 <tr>
                                     <td class="mono">验证码即时核验</td>
                                     <td><code>POST /guestbook/captcha/verify</code></td>
-                                    <td>输入 4 位后即时核验。</td>
+                                    <td>验证码显示后，输入 4 位再即时核验。</td>
                                 </tr>
                                 <tr>
                                     <td class="mono">字段映射</td>
-                                    <td><code>name / phone / content / captcha</code></td>
-                                    <td><code>单位名称</code>、<code>电子邮箱</code> 作为选填并拼接到 <code>content</code>（方案 A）。</td>
+                                    <td><code>name / phone / content / website / captcha</code></td>
+                                    <td><code>website</code> 为隐藏蜜罐字段；<code>captcha</code> 仅在后端要求时提交；<code>单位名称</code>、<code>电子邮箱</code> 可继续拼接到 <code>content</code>。</td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">后端最终校验</td>
-                                    <td><code>name</code>、<code>phone</code>、<code>content</code>、<code>captcha</code></td>
-                                    <td>以后端校验为准；前端校验仅用于交互反馈，不作为安全边界。</td>
+                                    <td class="mono">前端接入方式</td>
+                                    <td><code>data-guestbook-*</code> + <code>/js/guestbook-form.js</code></td>
+                                    <td>模板只负责写字段和样式，不再自己写一套留言提交 JS。</td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">提交限流</td>
-                                    <td>30 秒 20 次，超限封禁 5 分钟</td>
-                                    <td>针对提交接口进行限流。</td>
+                                    <td class="mono">错误提示显示规则</td>
+                                    <td><code>setFieldState(..., 'error', message)</code></td>
+                                    <td>字段错误时必须进入 <code>error</code> 状态（会加 <code>is-error</code> 并取消 <code>hidden</code>），否则错误文案可能被默认样式隐藏，看起来像“提交没反应”。</td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">验证码核验限流</td>
-                                    <td>30 秒 10 次</td>
-                                    <td>针对核验接口进行限流，用于降低暴力试码风险。</td>
+                                    <td class="mono">后端统一判断</td>
+                                    <td><code>name</code>、<code>phone</code>、<code>content</code>、<code>website</code>、<code>captcha</code></td>
+                                    <td>模板页不要自己写一套独立防护规则，是否需要验证码、是否允许提交都以留言板模块后端返回为准。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">验证码触发方式</td>
+                                    <td>风险触发</td>
+                                    <td>首次不强制显示验证码；命中同 IP、多次同手机号或失败记录后，后端才要求验证码。</td>
                                 </tr>
                                 <tr>
                                     <td class="mono">CSRF</td>
@@ -1547,23 +1548,113 @@
                     </div>
 
                     <div class="code">
-<pre>&lt;!-- 联系页表单示例（简化版）：用于演示提交地址、验证码地址和 CSRF 参数应如何同时配置 --&gt;
-&lt;form id="contact-form"
+<pre>&lt;!-- 联系页表单示例：表单结构和文案可自定义，提交逻辑统一交给公共脚本接管 --&gt;
+&lt;form
       action="/guestbook"
       method="post"
+      data-guestbook-form
       data-captcha-url="/guestbook/captcha"
       data-captcha-verify-url="/guestbook/captcha/verify"
-      data-csrf-token="{{ csrfToken }}"&gt;
-    ...
-&lt;/form&gt;</pre>
+      data-csrf-token="{{ csrfToken }}"
+      novalidate&gt;
+    &lt;input type="text" name="website" hidden tabindex="-1" autocomplete="off" data-guestbook-honeypot&gt;
+
+    &lt;input type="text" name="name" placeholder="请输入你的称呼" data-guestbook-field="name"&gt;
+    &lt;div data-guestbook-error-for="name" hidden&gt;&lt;/div&gt;
+
+    &lt;input type="text" name="phone" placeholder="请输入手机号" data-guestbook-field="phone"&gt;
+    &lt;div data-guestbook-error-for="phone" hidden&gt;&lt;/div&gt;
+
+    &lt;!-- 此处可自行定制额外字段：填写的内容会与留言正文合并后，一并进入留言详情 --&gt;
+    &lt;input type="text" name="company" placeholder="选填" data-guestbook-extra="company" data-guestbook-extra-label="单位名称"&gt;
+    &lt;input type="text" name="email" placeholder="选填" data-guestbook-extra="email" data-guestbook-extra-label="电子邮箱"&gt;
+
+    &lt;textarea name="demand" placeholder="请输入留言内容" data-guestbook-field="content" data-guestbook-content-label="您的需求"&gt;&lt;/textarea&gt;
+    &lt;div data-guestbook-error-for="content" hidden&gt;&lt;/div&gt;
+
+    &lt;!-- 验证码区块默认隐藏，由留言板模块后端要求时再显示 --&gt;
+    &lt;div data-guestbook-captcha-block hidden&gt;
+        &lt;input type="text" name="captcha" maxlength="4" autocomplete="off" placeholder="请输入验证码" data-guestbook-field="captcha"&gt;
+        &lt;img src="/guestbook/captcha" alt="验证码" data-guestbook-captcha-image data-guestbook-captcha-trigger&gt;
+        &lt;div data-guestbook-error-for="captcha" hidden&gt;&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div data-guestbook-form-error hidden&gt;&lt;/div&gt;
+    &lt;button type="submit" data-guestbook-submit&gt;提交留言&lt;/button&gt;
+&lt;/form&gt;
+
+&lt;script src="/js/guestbook-form.js"&gt;&lt;/script&gt;</pre>
                     </div>
 
-                    <ul class="rules-list">
-                        <li><strong>前后端口径要一致：</strong>前端长度与格式校验应尽量按后端真实入参口径计算，避免“前端通过、提交失败”的体验问题。</li>
-                        <li><strong>验证码核验不要走 URL query：</strong>当前推荐使用 <code>POST</code> 请求体传参，减少验证码值进入访问日志的风险。</li>
-                        <li><strong>提交成功建议有明确反馈：</strong>可采用友好弹窗或醒目的页面提示，确保用户知道提交已生效。</li>
-                        <li><strong>上线前建议做最小验收：</strong>成功提交流程、字段级错误提示、验证码刷新与核验、限流提示、后台入库可见这五项至少全测一遍。</li>
-                    </ul>
+                    <div class="code">
+<pre>/* 留言表单推荐 CSS（可直接复制） */
+
+/* 留言表单基础容器：统一间距，避免字段挤在一起难读 */
+[data-guestbook-form] {
+    display: grid;
+    gap: 12px;
+}
+
+/* 输入框基础样式：默认中性色，聚焦时仅强调边框，不改布局 */
+[data-guestbook-form] input[type="text"],
+[data-guestbook-form] textarea {
+    width: 100%;
+    min-height: 42px;
+    padding: 10px 12px;
+    border: 1px solid #d4d7de;
+    border-radius: 10px;
+    outline: none;
+    font-size: 14px;
+    color: #1f2937;
+    background: #fff;
+}
+
+/* 聚焦态：只做轻量高亮，避免过重视觉干扰 */
+[data-guestbook-form] input[type="text"]:focus,
+[data-guestbook-form] textarea:focus {
+    border-color: #18b981;
+    box-shadow: 0 0 0 3px rgba(24, 185, 129, 0.12);
+}
+
+/* 关键规则：错误提示节点默认隐藏，只有脚本去掉 hidden 才显示 */
+[data-guestbook-error-for] {
+    display: none;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* 关键规则：脚本标记 is-error 后，错误文案显示为红色提示 */
+[data-guestbook-error-for].is-error {
+    display: block;
+    color: #dc2626;
+}
+
+/* 正确态可选：如需“输入正确”反馈，用低饱和绿色避免喧宾夺主 */
+[data-guestbook-error-for].is-valid {
+    display: block;
+    color: #059669;
+}
+
+/* 关键规则：字段错误时脚本会加 is-error，输入控件边框同步变红 */
+[data-guestbook-form] input[type="text"].is-error,
+[data-guestbook-form] textarea.is-error {
+    border-color: #dc2626;
+}
+
+/* 字段通过时脚本会加 is-valid，输入控件边框改为绿色 */
+[data-guestbook-form] input[type="text"].is-valid,
+[data-guestbook-form] textarea.is-valid {
+    border-color: #18b981;
+}
+
+/* 验证码区域默认由模板 hidden 控制；后端要求时脚本再显示 */
+[data-guestbook-captcha-block] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 120px;
+    gap: 10px;
+    align-items: center;
+}</pre>
+                    </div>
                 </section>
 
                 <section class="section" id="snippets">
@@ -1882,6 +1973,7 @@
                             <li><strong>导航高亮遗漏：</strong>涉及“全部内容”时要配合 <code>current.page.show_all</code> 处理高亮状态。</li>
                             <li><strong>链接安全细节：</strong><code>target="_blank"</code> 的外链请同时加 <code>rel="noopener noreferrer"</code>。</li>
                             <li><strong>列表稳定性：</strong>时间、摘要、图片等字段建议做默认值或条件判断，避免空字段导致页面断层。</li>
+                            <li><strong>留言错误提示缺失：</strong>表单脚本必须给错误字段设置 <code>is-error</code> 并显示对应 <code>data-guestbook-error-for</code> 节点，否则会出现“提交无反应”的错觉。</li>
                         </ul>
                     </div>
                 </section>

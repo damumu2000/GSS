@@ -94,6 +94,17 @@ textarea.field { min-height: 180px; padding: 12px 14px; resize: vertical; }
     line-height: 1.8;
     font-weight: 700;
 }
+.form-success {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(5, 150, 105, 0.08);
+    border: 1px solid rgba(5, 150, 105, 0.16);
+    color: #047857;
+    font-size: 13px;
+    line-height: 1.8;
+    font-weight: 700;
+}
 .theme-china-red {
     --primary: #b22222;
     --primary-deep: #7a1212;

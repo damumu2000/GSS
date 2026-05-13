@@ -25,6 +25,46 @@
         .module-section-title { margin: 0; color: #1f2937; font-size: 16px; line-height: 1.5; font-weight: 700; }
         .module-list { display: grid; gap: 10px; margin-top: 14px; }
         .module-list-item { color: #4b5563; font-size: 13px; line-height: 1.75; }
+        .module-risk-grid {
+            display: grid;
+            grid-template-columns: max-content 96px max-content 96px max-content 96px max-content;
+            column-gap: 10px;
+            row-gap: 8px;
+            align-items: center;
+        }
+        .module-risk-row {
+            display: contents;
+        }
+        .module-risk-error {
+            grid-column: 1 / -1;
+            margin-bottom: 6px;
+        }
+        .module-risk-grid .module-risk-prefix,
+        .module-risk-grid .module-risk-text {
+            align-items: center;
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .module-risk-prefix,
+        .module-risk-text {
+            display: inline-flex;
+            align-items: center;
+            min-height: 38px;
+            color: #4b5563;
+        }
+        .module-risk-prefix {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        .module-risk-row .field.module-risk-input {
+            width: 96px !important;
+            min-width: 96px !important;
+            max-width: 96px !important;
+            height: 38px;
+            text-align: center;
+            padding: 0 8px;
+        }
         .module-file-list { display: grid; gap: 8px; margin-top: 14px; min-width: 0; }
         .module-file-item {
             position: relative;
@@ -131,4 +171,24 @@
             }
 
             .module-shell { grid-template-columns: 1fr; }
+            .module-risk-grid {
+                display: flex;
+                flex-wrap: wrap;
+                font-size: 13px;
+                gap: 8px;
+            }
+            .module-risk-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                width: 100%;
+            }
+            .module-risk-error {
+                width: 100%;
+            }
+            .module-risk-row .field.module-risk-input {
+                width: 84px !important;
+                min-width: 84px !important;
+                max-width: 84px !important;
+            }
         }

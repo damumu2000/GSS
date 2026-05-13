@@ -1044,9 +1044,9 @@ class AdminAccessTest extends TestCase
             ['created_at' => now(), 'updated_at' => now()],
         );
 
-        $rateLimitKey = 'guestbook-submit:'.$siteId.':'.sha1('127.0.0.1');
-        for ($i = 0; $i < 20; $i++) {
-            RateLimiter::hit($rateLimitKey, 30);
+        $rateLimitKey = 'guestbook-submit-ip:'.$siteId.':'.sha1('127.0.0.1');
+        for ($i = 0; $i < 3; $i++) {
+            RateLimiter::hit($rateLimitKey, 60);
         }
 
         $this->from(route('site.guestbook.create', ['site' => 'site']))
@@ -1058,6 +1058,37 @@ class AdminAccessTest extends TestCase
             ])
             ->assertRedirect(route('site.guestbook.create', ['site' => 'site']))
             ->assertSessionHasErrors(['form']);
+    }
+
+    public function test_guestbook_frontend_requires_captcha_after_repeat_submission_risk(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.guestbook.captcha_enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'updated_by' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->post(route('site.guestbook.store', ['site' => 'site']), [
+            'name' => '张老师',
+            'phone' => '13800138000',
+            'content' => '第一条留言。',
+        ])->assertRedirect(route('site.guestbook.index', ['site' => 'site']));
+
+        $this->postJson(route('site.guestbook.store', ['site' => 'site']), [
+            'name' => '张老师',
+            'phone' => '13800138000',
+            'content' => '第二条留言。',
+        ])->assertStatus(422)->assertJsonValidationErrors(['captcha']);
     }
 
     public function test_guestbook_frontend_list_only_shows_public_messages(): void
@@ -1739,6 +1770,44 @@ class AdminAccessTest extends TestCase
             ->assertRedirect(route('admin.guestbook.settings'))
             ->assertSessionHasErrors([
                 'notice' => '发布须知中包含不可访问的资源链接，请重新从可用资源中选择。',
+            ]);
+    }
+
+    public function test_guestbook_settings_validate_name_length_and_notification_email(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        $siteAdmin = $this->createSiteOperator('guestbook-settings-guard-admin', true, 'site_admin');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->from(route('admin.guestbook.settings'))
+            ->post(route('admin.guestbook.settings.update'), [
+                'enabled' => '1',
+                'name' => '这是一个明显超出十五个中文字符限制的留言板名称',
+                'notice' => '请文明留言，内容需真实准确。',
+                'theme' => 'default',
+                'show_name' => '1',
+                'show_after_reply' => '1',
+                'captcha_enabled' => '1',
+                'email_notify_enabled' => '1',
+                'email_notify_to' => "bad@example.com\r\nBcc:test@example.com",
+                'email_notify_on' => 'submitted',
+            ])
+            ->assertRedirect(route('admin.guestbook.settings'))
+            ->assertSessionHasErrors([
+                'name' => '留言板名称最多支持 15 个中文字符。',
+                'email_notify_to' => '通知收件邮箱格式不正确，请重新填写。',
             ]);
     }
 

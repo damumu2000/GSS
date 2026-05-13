@@ -122,6 +122,9 @@ class AdminLayoutData
         $guestbookMenuName = $currentSite
             ? (string) (DB::table('site_settings')->where('site_id', $currentSite->id)->where('setting_key', 'module.guestbook.name')->value('setting_value') ?: '')
             : '';
+        $guestbookMenuLabel = $guestbookMenuName !== ''
+            ? mb_substr($guestbookMenuName, 0, 6)
+            : '';
         $recycleCount = ($currentSite && in_array('content.manage', $sitePermissionCodes, true))
             ? (int) DB::table('contents')->where('site_id', $currentSite->id)->whereNotNull('deleted_at')->count()
             : 0;
@@ -161,7 +164,7 @@ class AdminLayoutData
             [
                 'title' => '功能模块',
                 'items' => array_values(array_filter(
-                    $boundSiteModules->map(function (array $module) use ($guestbookMenuName, $guestbookPendingCount, $payrollEmployeePendingCount, $request): array {
+                    $boundSiteModules->map(function (array $module) use ($guestbookMenuLabel, $guestbookPendingCount, $payrollEmployeePendingCount, $request): array {
                         $entryRoute = is_string($module['site_entry_route'] ?? null) && ($module['site_entry_route'] ?? '') !== ''
                             ? (string) $module['site_entry_route']
                             : 'admin.site-modules.show';
@@ -182,7 +185,7 @@ class AdminLayoutData
                             || ($request->routeIs('admin.site-modules.show') && $request->route('module') === $module['code']);
 
                         return [
-                            'label' => $module['code'] === 'guestbook' && $guestbookMenuName !== '' ? $guestbookMenuName : $module['name'],
+                            'label' => $module['code'] === 'guestbook' && $guestbookMenuLabel !== '' ? $guestbookMenuLabel : $module['name'],
                             'route' => $entryRoute,
                             'route_params' => $routeParams,
                             'active' => $isActive,

@@ -17,7 +17,7 @@
 @endpush
 
 @section('content')
-    <form method="post" action="{{ route('admin.guestbook.settings.update') }}">
+    <form method="post" action="{{ route('admin.guestbook.settings.update') }}" novalidate>
         @csrf
 
         <header class="page-header">
@@ -39,7 +39,7 @@
                 <div class="guestbook-settings-grid">
                     <label class="guestbook-settings-field guestbook-settings-field--inline guestbook-settings-field--wide">
                         <span class="guestbook-settings-label">留言板名称</span>
-                        <input class="field" type="text" name="name" value="{{ old('name', $settings['name']) }}" placeholder="如 校长留言板">
+                        <input class="field" type="text" name="name" value="{{ old('name', $settings['name']) }}" maxlength="15" placeholder="如 校长留言板">
                         @error('name')<div class="guestbook-settings-error">{{ $message }}</div>@enderror
                     </label>
 
@@ -62,8 +62,8 @@
                                     <span class="guestbook-settings-toggle-track"></span>
                                 </span>
                                 <span class="guestbook-settings-toggle-copy">
-                                    <span class="guestbook-settings-toggle-text">前台启用验证码</span>
-                                    <span class="guestbook-settings-toggle-desc">开启后访客提交留言时需要输入图形验证码。</span>
+                                    <span class="guestbook-settings-toggle-text">前台启用验证码保护</span>
+                                    <span class="guestbook-settings-toggle-desc">开启后默认不强制显示验证码，命中风险时才要求填写图形验证码。</span>
                                 </span>
                             </label>
 
@@ -116,9 +116,8 @@
 
                     <label class="guestbook-settings-field">
                         <span class="guestbook-settings-label">通知收件邮箱</span>
-                        <input class="field" type="email" name="email_notify_to" value="{{ old('email_notify_to', $settings['email_notify_to']) }}" placeholder="为空则使用站点联系邮箱">
+                        <input class="field" type="text" name="email_notify_to" value="{{ old('email_notify_to', $settings['email_notify_to']) }}" inputmode="email" autocomplete="email" maxlength="100" placeholder="为空则使用站点联系邮箱">
                         <span class="guestbook-settings-note">建议填写专用值班邮箱；留空时自动使用站点设置中的联系邮箱。</span>
-                        @error('email_notify_to')<div class="guestbook-settings-error">{{ $message }}</div>@enderror
                     </label>
 
                     <label class="guestbook-settings-field">

@@ -315,6 +315,51 @@ class SystemSettings
         return max(1, min(10000, $this->int('mail.rate_limit_recipient_max', 5)));
     }
 
+    public function guestbookLimitIpWindowSeconds(): int
+    {
+        return max(10, min(3600, $this->int('guestbook.limit_ip_window_seconds', 60)));
+    }
+
+    public function guestbookLimitIpMaxAttempts(): int
+    {
+        return max(1, min(100, $this->int('guestbook.limit_ip_max_attempts', 3)));
+    }
+
+    public function guestbookLimitIpBlockSeconds(): int
+    {
+        return max(10, min(86400, $this->int('guestbook.limit_ip_block_seconds', 60)));
+    }
+
+    public function guestbookLimitPhoneWindowSeconds(): int
+    {
+        return max(60, min(86400, $this->int('guestbook.limit_phone_window_seconds', 600)));
+    }
+
+    public function guestbookLimitPhoneMaxAttempts(): int
+    {
+        return max(1, min(50, $this->int('guestbook.limit_phone_max_attempts', 2)));
+    }
+
+    public function guestbookLimitPhoneBlockSeconds(): int
+    {
+        return max(10, min(86400, $this->int('guestbook.limit_phone_block_seconds', 600)));
+    }
+
+    public function guestbookLimitCaptchaVerifyWindowSeconds(): int
+    {
+        return max(10, min(3600, $this->int('guestbook.limit_captcha_verify_window_seconds', 30)));
+    }
+
+    public function guestbookLimitCaptchaVerifyMaxAttempts(): int
+    {
+        return max(1, min(200, $this->int('guestbook.limit_captcha_verify_max_attempts', 10)));
+    }
+
+    public function guestbookLimitCaptchaVerifyBlockSeconds(): int
+    {
+        return max(10, min(86400, $this->int('guestbook.limit_captcha_verify_block_seconds', 30)));
+    }
+
     public function loginServiceAgreementContent(): string
     {
         return trim($this->string('login.service_agreement_content', "欢迎使用本系统。\n登录前请确认你已阅读并同意本平台服务协议，并承诺合法合规使用系统功能。\n如不同意服务协议内容，请不要继续登录。"));

@@ -242,4 +242,5 @@ class GuestbookSettings
 
         return in_array($value, ['submitted', 'replied'], true) ? $value : $this->defaults()['email_notify_on'];
     }
+
 }

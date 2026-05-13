@@ -6,6 +6,7 @@ use App\Http\Controllers\SiteController;
 use App\Jobs\SendGuestbookMessageNotificationJob;
 use App\Modules\Guestbook\Support\GuestbookModule;
 use App\Modules\Guestbook\Support\GuestbookSettings;
+use App\Support\SystemSettings;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,7 +22,8 @@ class GuestbookController extends SiteController
 {
     public function __construct(
         protected GuestbookModule $guestbookModule,
-        protected GuestbookSettings $guestbookSettings
+        protected GuestbookSettings $guestbookSettings,
+        protected SystemSettings $systemSettings
     ) {
     }
 
@@ -85,17 +87,21 @@ class GuestbookController extends SiteController
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         [$site, $settings, $siteQuery, $available] = $this->resolveGuestbookContext($request);
         if (! $available) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => '当前留言板暂未开放，请稍后再试。',
+                ], 422);
+            }
+
             return redirect()
                 ->route('site.guestbook.index', $siteQuery)
                 ->with('status', '当前留言板暂未开放，请稍后再试。');
         }
 
-        $rateLimitKey = $this->rateLimitKey($request, (int) $site->id);
-        $this->ensureSubmissionAllowed($request, (int) $site->id);
         $rawPhone = $this->sanitizePlainText($request->input('phone'));
 
         $request->merge([
@@ -103,13 +109,33 @@ class GuestbookController extends SiteController
             'phone' => $this->sanitizePhone($request->input('phone')),
             'content' => $this->sanitizePlainText($request->input('content')),
             'captcha' => $this->sanitizePlainText($request->input('captcha')),
+            'website' => $this->sanitizePlainText($request->input('website')),
         ]);
+
+        $siteId = (int) $site->id;
+        $phone = (string) $request->input('phone', '');
+
+        if ((string) $request->input('website', '') !== '') {
+            $this->rememberSubmissionFailure($request, $siteId);
+            $this->rememberSubmissionAttempt($request, $siteId, $phone);
+
+            throw ValidationException::withMessages([
+                'form' => '提交失败，请稍后再试。',
+            ]);
+        }
+
+        $this->ensureSubmissionAllowed($request, $siteId, $phone);
+        $captchaRequired = $this->shouldRequireCaptcha($request, $siteId, $phone, $settings);
+
+        if ($captchaRequired) {
+            $request->session()->flash('guestbook_captcha_required', true);
+        }
 
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'min:2', 'max:20', 'regex:/^[\p{Han}A-Za-z]+(?:[·•\s][\p{Han}A-Za-z]+)*$/u'],
             'phone' => ['required', 'string', 'regex:/^1[3-9]\d{9}$/'],
             'content' => ['required', 'string', 'max:1000'],
-            'captcha' => [$settings['captcha_enabled'] ? 'required' : 'nullable', 'string', 'size:4'],
+            'captcha' => [$captchaRequired ? 'required' : 'nullable', 'string', 'size:4'],
         ], [
             'name.required' => '请输入你的称呼。',
             'name.min' => '你的称呼格式错误，请重新输入。',
@@ -123,8 +149,8 @@ class GuestbookController extends SiteController
             'captcha.size' => '验证码格式错误，请输入 4 位验证码。',
         ]);
 
-        $validator->after(function ($validator) use ($request, $settings): void {
-            if (! $settings['captcha_enabled']) {
+        $validator->after(function ($validator) use ($request, $settings, $captchaRequired): void {
+            if (! $settings['captcha_enabled'] || ! $captchaRequired) {
                 return;
             }
 
@@ -137,7 +163,11 @@ class GuestbookController extends SiteController
         });
 
         if ($validator->fails()) {
-            RateLimiter::hit($rateLimitKey, 30);
+            if ($validator->errors()->has('captcha') || $validator->errors()->has('form')) {
+                $this->rememberSubmissionFailure($request, $siteId);
+            }
+
+            $this->rememberSubmissionAttempt($request, $siteId, $phone);
             throw new ValidationException($validator);
         }
 
@@ -170,8 +200,17 @@ class GuestbookController extends SiteController
         });
 
         $request->session()->forget('guestbook_captcha');
-        RateLimiter::hit($rateLimitKey, 30);
-        $this->dispatchNotificationIfNeeded((int) $site->id, $messageId, $settings, 'submitted');
+        $request->session()->forget('guestbook_captcha_required');
+        $this->rememberSubmissionAttempt($request, $siteId, $phone);
+        $this->rememberSuccessfulSubmission($request, $siteId, $phone);
+        $this->dispatchNotificationIfNeeded($siteId, $messageId, $settings, 'submitted');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => '留言已提交，编号为 '.$this->displayNo($displayNo).'。',
+                'display_no' => $this->displayNo($displayNo),
+            ]);
+        }
 
         return redirect()
             ->route('site.guestbook.index', $siteQuery)
@@ -224,14 +263,26 @@ class GuestbookController extends SiteController
         [$site, , , $available] = $this->resolveGuestbookContext($request);
         abort_unless($available, 404);
 
-        $limitKey = $this->captchaVerifyRateLimitKey((int) $site->id, $request);
-        if (RateLimiter::tooManyAttempts($limitKey, 10)) {
+        $verifyMaxAttempts = $this->systemSettings->guestbookLimitCaptchaVerifyMaxAttempts();
+        $verifyWindowSeconds = $this->systemSettings->guestbookLimitCaptchaVerifyWindowSeconds();
+        $verifyBlockSeconds = $this->systemSettings->guestbookLimitCaptchaVerifyBlockSeconds();
+        $blockKey = $this->captchaVerifyBlockKey((int) $site->id, $request);
+        if (RateLimiter::tooManyAttempts($blockKey, 1)) {
             return response()->json([
                 'valid' => false,
                 'message' => '验证码校验过于频繁，请稍后再试。',
             ], 429);
         }
-        RateLimiter::hit($limitKey, 30);
+
+        $limitKey = $this->captchaVerifyRateLimitKey((int) $site->id, $request);
+        if (RateLimiter::tooManyAttempts($limitKey, $verifyMaxAttempts)) {
+            RateLimiter::hit($blockKey, $verifyBlockSeconds);
+            return response()->json([
+                'valid' => false,
+                'message' => '验证码校验过于频繁，请稍后再试。',
+            ], 429);
+        }
+        RateLimiter::hit($limitKey, $verifyWindowSeconds);
 
         $submitted = strtoupper((string) ($this->sanitizePlainText($request->input('captcha')) ?? ''));
         if ($submitted === '' || strlen($submitted) !== 4) {
@@ -319,34 +370,112 @@ class GuestbookController extends SiteController
         ]);
     }
 
-    protected function ensureSubmissionAllowed(Request $request, int $siteId): void
+    protected function ensureSubmissionAllowed(Request $request, int $siteId, string $phone): void
     {
-        $lockKey = $this->rateLimitLockKey($request, $siteId);
-        if (RateLimiter::tooManyAttempts($lockKey, 1)) {
+        $ipMaxAttempts = $this->systemSettings->guestbookLimitIpMaxAttempts();
+        $phoneMaxAttempts = $this->systemSettings->guestbookLimitPhoneMaxAttempts();
+        $ipBlockSeconds = $this->systemSettings->guestbookLimitIpBlockSeconds();
+        $phoneBlockSeconds = $this->systemSettings->guestbookLimitPhoneBlockSeconds();
+        $ipBlockKey = $this->ipBlockRateLimitKey($request, $siteId);
+        if (RateLimiter::tooManyAttempts($ipBlockKey, 1)) {
             throw ValidationException::withMessages([
                 'form' => '提交过于频繁，请稍后再试。',
             ]);
         }
 
-        $key = $this->rateLimitKey($request, $siteId);
-        if (RateLimiter::tooManyAttempts($key, 20)) {
-            RateLimiter::hit($lockKey, 300);
-            RateLimiter::clear($key);
-
+        if (RateLimiter::tooManyAttempts($this->ipRateLimitKey($request, $siteId), $ipMaxAttempts)) {
+            RateLimiter::hit($ipBlockKey, $ipBlockSeconds);
             throw ValidationException::withMessages([
                 'form' => '提交过于频繁，请稍后再试。',
             ]);
         }
+
+        if ($phone !== '') {
+            $phoneBlockKey = $this->phoneBlockRateLimitKey($siteId, $phone);
+            if (RateLimiter::tooManyAttempts($phoneBlockKey, 1)) {
+                throw ValidationException::withMessages([
+                    'form' => '提交过于频繁，请稍后再试。',
+                ]);
+            }
+
+            if (RateLimiter::tooManyAttempts($this->phoneRateLimitKey($siteId, $phone), $phoneMaxAttempts)) {
+                RateLimiter::hit($phoneBlockKey, $phoneBlockSeconds);
+                throw ValidationException::withMessages([
+                    'form' => '提交过于频繁，请稍后再试。',
+                ]);
+            }
+        }
     }
 
-    protected function rateLimitKey(Request $request, int $siteId): string
+    protected function shouldRequireCaptcha(Request $request, int $siteId, string $phone, array $settings): bool
     {
-        return 'guestbook-submit:'.$siteId.':'.sha1((string) $request->ip());
+        if (! ($settings['captcha_enabled'] ?? false)) {
+            return false;
+        }
+
+        if (RateLimiter::attempts($this->captchaFailureKey($request, $siteId)) >= 1) {
+            return true;
+        }
+
+        if (RateLimiter::attempts($this->captchaTriggerIpKey($request, $siteId)) >= 2) {
+            return true;
+        }
+
+        return $phone !== '' && RateLimiter::attempts($this->captchaTriggerPhoneKey($siteId, $phone)) >= 1;
     }
 
-    protected function rateLimitLockKey(Request $request, int $siteId): string
+    protected function rememberSubmissionAttempt(Request $request, int $siteId, string $phone): void
     {
-        return 'guestbook-submit-lock:'.$siteId.':'.sha1((string) $request->ip());
+        $ipWindowSeconds = $this->systemSettings->guestbookLimitIpWindowSeconds();
+        $phoneWindowSeconds = $this->systemSettings->guestbookLimitPhoneWindowSeconds();
+
+        RateLimiter::hit($this->ipRateLimitKey($request, $siteId), $ipWindowSeconds);
+
+        if ($phone !== '') {
+            RateLimiter::hit($this->phoneRateLimitKey($siteId, $phone), $phoneWindowSeconds);
+        }
+    }
+
+    protected function rememberSuccessfulSubmission(Request $request, int $siteId, string $phone): void
+    {
+        RateLimiter::hit($this->captchaTriggerIpKey($request, $siteId), 600);
+        RateLimiter::clear($this->captchaFailureKey($request, $siteId));
+
+        if ($phone !== '') {
+            RateLimiter::hit($this->captchaTriggerPhoneKey($siteId, $phone), 1800);
+        }
+    }
+
+    protected function rememberSubmissionFailure(Request $request, int $siteId): void
+    {
+        RateLimiter::hit($this->captchaFailureKey($request, $siteId), 600);
+    }
+
+    protected function ipRateLimitKey(Request $request, int $siteId): string
+    {
+        return 'guestbook-submit-ip:'.$siteId.':'.sha1((string) $request->ip());
+    }
+
+    protected function phoneRateLimitKey(int $siteId, string $phone): string
+    {
+        return 'guestbook-submit-phone:'.$siteId.':'.sha1($phone);
+    }
+
+    protected function captchaTriggerIpKey(Request $request, int $siteId): string
+    {
+        return 'guestbook-submit-captcha-ip:'.$siteId.':'.sha1((string) $request->ip());
+    }
+
+    protected function captchaTriggerPhoneKey(int $siteId, string $phone): string
+    {
+        return 'guestbook-submit-captcha-phone:'.$siteId.':'.sha1($phone);
+    }
+
+    protected function captchaFailureKey(Request $request, int $siteId): string
+    {
+        $sessionPart = (string) $request->session()->getId();
+
+        return 'guestbook-submit-captcha-fail:'.$siteId.':'.sha1((string) $request->ip().':'.$sessionPart);
     }
 
     protected function captchaVerifyRateLimitKey(int $siteId, Request $request): string
@@ -354,6 +483,23 @@ class GuestbookController extends SiteController
         $sessionPart = (string) $request->session()->getId();
 
         return 'guestbook-captcha-verify:'.$siteId.':'.sha1((string) $request->ip().':'.$sessionPart);
+    }
+
+    protected function captchaVerifyBlockKey(int $siteId, Request $request): string
+    {
+        $sessionPart = (string) $request->session()->getId();
+
+        return 'guestbook-captcha-verify-block:'.$siteId.':'.sha1((string) $request->ip().':'.$sessionPart);
+    }
+
+    protected function ipBlockRateLimitKey(Request $request, int $siteId): string
+    {
+        return 'guestbook-submit-ip-block:'.$siteId.':'.sha1((string) $request->ip());
+    }
+
+    protected function phoneBlockRateLimitKey(int $siteId, string $phone): string
+    {
+        return 'guestbook-submit-phone-block:'.$siteId.':'.sha1($phone);
     }
 
     protected function dispatchNotificationIfNeeded(int $siteId, int $messageId, array $settings, string $trigger): void
