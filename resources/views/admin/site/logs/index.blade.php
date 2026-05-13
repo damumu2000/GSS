@@ -113,11 +113,33 @@
                 </thead>
                 <tbody>
                 @forelse ($logs as $log)
+                    @php
+                        $actionText = $actionMap[$log->action] ?? ('未定义动作（'.$log->action.'）');
+                        $payload = null;
+                        if (is_string($log->payload) && trim($log->payload) !== '') {
+                            $decoded = json_decode($log->payload, true);
+                            if (is_array($decoded)) {
+                                $payload = $decoded;
+                            }
+                        }
+                        $riskHints = [];
+                        if (is_array($payload)) {
+                            if (!empty($payload['ip']) && is_string($payload['ip'])) {
+                                $riskHints[] = 'IP：'.trim($payload['ip']);
+                            }
+                            if (!empty($payload['phone']) && is_string($payload['phone'])) {
+                                $riskHints[] = '手机号：'.trim($payload['phone']);
+                            }
+                        }
+                        $actionTooltip = $riskHints !== [] ? ($actionText.'｜'.implode('｜', $riskHints)) : $actionText;
+                    @endphp
                     <tr>
                         <td>{{ $log->created_at }}</td>
                         <td><span class="log-badge">{{ $log->scope === 'platform' ? '平台' : '站点' }}</span></td>
                         <td><span class="log-badge">{{ $log->module ? ($moduleMap[$log->module] ?? ('未定义模块（'.$log->module.'）')) : '-' }}</span></td>
-                        <td class="log-action">{{ $actionMap[$log->action] ?? ('未定义动作（'.$log->action.'）') }}</td>
+                        <td class="log-action-cell" data-tooltip="{{ $actionTooltip }}">
+                            <span class="log-action">{{ $actionText }}</span>
+                        </td>
                         <td>{{ $log->user_name ?: $log->username ?: '系统' }}</td>
                         <td>{{ $log->target_display ?? (($log->target_type ?: '-') . ($log->target_id ? '#'.$log->target_id : '')) }}</td>
                     </tr>

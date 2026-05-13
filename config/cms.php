@@ -116,6 +116,12 @@ return [
         'bulk_offline' => '批量下线',
         'switch_site_context' => '切换当前站点',
         'mail_test' => '发送测试邮件',
+        'submit_ip_block_active' => '留言提交触发 IP 封禁中',
+        'submit_ip_rate_limited' => '留言提交触发 IP 限流',
+        'submit_phone_block_active' => '留言提交触发手机号封禁中',
+        'submit_phone_rate_limited' => '留言提交触发手机号限流',
+        'captcha_verify_block_active' => '验证码校验触发封禁中',
+        'captcha_verify_rate_limited' => '验证码校验触发限流',
     ],
 
     'default_platform_role_permissions' => [

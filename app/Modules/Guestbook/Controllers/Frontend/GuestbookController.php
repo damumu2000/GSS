@@ -204,7 +204,7 @@ class GuestbookController extends SiteController
         $this->rememberSubmissionAttempt($request, $siteId, $phone);
         $this->rememberSuccessfulSubmission($request, $siteId, $phone);
         $this->dispatchNotificationIfNeeded($siteId, $messageId, $settings, 'submitted');
-        $successMessage = $validated['name'].'您好，您的信息已提供成功。';
+        $successMessage = $validated['name'].'您好，您的信息已提交成功。';
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -604,9 +604,14 @@ class GuestbookController extends SiteController
 
     protected function logGuestbookRiskEvent(Request $request, int $siteId, string $action, array $payload, string $phone = ''): void
     {
+        $ipAddress = trim((string) $request->ip());
+        if ($ipAddress !== '') {
+            $payload['ip'] = $ipAddress;
+        }
+
         $maskedPhone = $this->maskPhone($phone);
         if ($maskedPhone !== '') {
-            $payload['phone_masked'] = $maskedPhone;
+            $payload['phone'] = $maskedPhone;
         }
 
         $this->logOperation(

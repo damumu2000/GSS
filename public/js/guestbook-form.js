@@ -46,6 +46,7 @@ initGuestbookForms();
     var successClose = successModal ? successModal.querySelector('[data-guestbook-success-close]') : null;
     var successFeedback = form.querySelector('[data-guestbook-success-feedback]');
     var formError = form.querySelector('[data-guestbook-form-error]');
+    var successRedirectUrl = form.getAttribute('data-guestbook-success-redirect') || '';
     var previewHosts = ['127.0.0.1', 'localhost'];
     var currentHost = window.location.hostname || '';
     var currentSiteKey = new URLSearchParams(window.location.search).get('site') || '';
@@ -127,12 +128,16 @@ initGuestbookForms();
       return true;
     }
 
-    function closeSuccessModal() {
+    function closeSuccessModal(shouldRedirect) {
       if (!successModal) {
         return;
       }
       successModal.classList.add('hidden');
       toggleBodyScroll(false);
+
+      if (shouldRedirect && successRedirectUrl) {
+        window.location.href = successRedirectUrl;
+      }
     }
 
     function showSuccessMessage(message) {
@@ -567,16 +572,20 @@ initGuestbookForms();
     }
 
     if (successClose) {
-      successClose.addEventListener('click', closeSuccessModal);
+      successClose.addEventListener('click', function () {
+        closeSuccessModal(true);
+      });
     }
 
     if (successBackdrop) {
-      successBackdrop.addEventListener('click', closeSuccessModal);
+      successBackdrop.addEventListener('click', function () {
+        closeSuccessModal(false);
+      });
     }
 
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && successModal && !successModal.classList.contains('hidden')) {
-        closeSuccessModal();
+        closeSuccessModal(false);
       }
     });
 

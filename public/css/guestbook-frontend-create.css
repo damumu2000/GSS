@@ -105,6 +105,43 @@ textarea.field { min-height: 180px; padding: 12px 14px; resize: vertical; }
     line-height: 1.8;
     font-weight: 700;
 }
+.hidden { display: none !important; }
+.guestbook-success-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+}
+.guestbook-success-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.46);
+}
+.guestbook-success-dialog {
+    position: relative;
+    width: min(460px, calc(100% - 28px));
+    margin: min(16vh, 120px) auto 0;
+    padding: 24px 22px 20px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    box-shadow: 0 22px 40px rgba(15, 23, 42, 0.2);
+}
+.guestbook-success-dialog h2 {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.3;
+}
+.guestbook-success-dialog p {
+    margin: 12px 0 0;
+    color: #475467;
+    font-size: 15px;
+    line-height: 1.8;
+}
+.guestbook-success-actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+}
 .theme-china-red {
     --primary: #b22222;
     --primary-deep: #7a1212;

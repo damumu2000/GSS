@@ -284,7 +284,17 @@
             font-weight: 600;
         }
 
+        .log-action-cell {
+            overflow: visible !important;
+        }
+
         .log-action {
+            display: inline-block;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: bottom;
             color: #262626;
             font-weight: 600;
         }

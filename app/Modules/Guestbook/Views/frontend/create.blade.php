@@ -16,7 +16,7 @@
         <section class="card">
             <h1 class="title">提交留言</h1>
 
-            <form method="post" action="{{ route('site.guestbook.store', $siteQuery) }}" data-guestbook-form data-captcha-url="{{ $settings['captcha_enabled'] ? $captchaUrl : '' }}" data-captcha-verify-url="{{ $settings['captcha_enabled'] ? route('site.guestbook.captcha.verify', $siteQuery) : '' }}" data-csrf-token="{{ csrf_token() }}" novalidate>
+            <form method="post" action="{{ route('site.guestbook.store', $siteQuery) }}" data-guestbook-form data-guestbook-success-modal="guestbook-success-modal" data-guestbook-success-redirect="{{ route('site.guestbook.index', $siteQuery) }}" data-captcha-url="{{ $settings['captcha_enabled'] ? $captchaUrl : '' }}" data-captcha-verify-url="{{ $settings['captcha_enabled'] ? route('site.guestbook.captcha.verify', $siteQuery) : '' }}" data-csrf-token="{{ csrf_token() }}" novalidate>
                 @csrf
                 <input type="text" name="website" value="" hidden tabindex="-1" autocomplete="off" data-guestbook-honeypot>
                 <div class="grid">
@@ -67,6 +67,17 @@
                 </div>
             </form>
         </section>
+    </div>
+
+    <div id="guestbook-success-modal" class="guestbook-success-modal hidden">
+        <div class="guestbook-success-backdrop" data-guestbook-success-backdrop></div>
+        <div class="guestbook-success-dialog" role="dialog" aria-modal="true" aria-labelledby="guestbook-success-title">
+            <h2 id="guestbook-success-title">提交成功</h2>
+            <p data-guestbook-success-message>您的信息已提供成功。</p>
+            <div class="guestbook-success-actions">
+                <button type="button" class="button" data-guestbook-success-close>确定</button>
+            </div>
+        </div>
     </div>
 
     <script src="{{ asset('js/guestbook-form.js') }}?v=20260513-guestbook-fix3"></script>

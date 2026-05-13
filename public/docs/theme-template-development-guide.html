@@ -1521,7 +1521,7 @@
                                 <tr>
                                     <td class="mono">前端接入方式</td>
                                     <td><code>data-guestbook-*</code> + <code>/js/guestbook-form.js</code></td>
-                                    <td>模板只负责写字段和样式，不再自己写一套留言提交 JS。</td>
+                                    <td>表单里按规范加好 <code>data-guestbook-*</code> 标记，再引入 <code>/js/guestbook-form.js</code>，提交、校验和提示就会自动生效。</td>
                                 </tr>
                                 <tr>
                                     <td class="mono">错误提示显示规则</td>
