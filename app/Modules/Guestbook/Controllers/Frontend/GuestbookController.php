@@ -263,20 +263,31 @@ class GuestbookController extends SiteController
         [$site, , , $available] = $this->resolveGuestbookContext($request);
         abort_unless($available, 404);
 
+        $siteId = (int) $site->id;
         $verifyMaxAttempts = $this->systemSettings->guestbookLimitCaptchaVerifyMaxAttempts();
         $verifyWindowSeconds = $this->systemSettings->guestbookLimitCaptchaVerifyWindowSeconds();
         $verifyBlockSeconds = $this->systemSettings->guestbookLimitCaptchaVerifyBlockSeconds();
-        $blockKey = $this->captchaVerifyBlockKey((int) $site->id, $request);
+        $blockKey = $this->captchaVerifyBlockKey($siteId, $request);
         if (RateLimiter::tooManyAttempts($blockKey, 1)) {
+            $this->logGuestbookRiskEvent($request, $siteId, 'captcha_verify_block_active', [
+                'verify_window_seconds' => $verifyWindowSeconds,
+                'verify_max_attempts' => $verifyMaxAttempts,
+                'verify_block_seconds' => $verifyBlockSeconds,
+            ]);
             return response()->json([
                 'valid' => false,
                 'message' => '验证码校验过于频繁，请稍后再试。',
             ], 429);
         }
 
-        $limitKey = $this->captchaVerifyRateLimitKey((int) $site->id, $request);
+        $limitKey = $this->captchaVerifyRateLimitKey($siteId, $request);
         if (RateLimiter::tooManyAttempts($limitKey, $verifyMaxAttempts)) {
             RateLimiter::hit($blockKey, $verifyBlockSeconds);
+            $this->logGuestbookRiskEvent($request, $siteId, 'captcha_verify_rate_limited', [
+                'verify_window_seconds' => $verifyWindowSeconds,
+                'verify_max_attempts' => $verifyMaxAttempts,
+                'verify_block_seconds' => $verifyBlockSeconds,
+            ]);
             return response()->json([
                 'valid' => false,
                 'message' => '验证码校验过于频繁，请稍后再试。',
@@ -378,6 +389,11 @@ class GuestbookController extends SiteController
         $phoneBlockSeconds = $this->systemSettings->guestbookLimitPhoneBlockSeconds();
         $ipBlockKey = $this->ipBlockRateLimitKey($request, $siteId);
         if (RateLimiter::tooManyAttempts($ipBlockKey, 1)) {
+            $this->logGuestbookRiskEvent($request, $siteId, 'submit_ip_block_active', [
+                'ip_window_seconds' => $this->systemSettings->guestbookLimitIpWindowSeconds(),
+                'ip_max_attempts' => $ipMaxAttempts,
+                'ip_block_seconds' => $ipBlockSeconds,
+            ], $phone);
             throw ValidationException::withMessages([
                 'form' => '提交过于频繁，请稍后再试。',
             ]);
@@ -385,6 +401,11 @@ class GuestbookController extends SiteController
 
         if (RateLimiter::tooManyAttempts($this->ipRateLimitKey($request, $siteId), $ipMaxAttempts)) {
             RateLimiter::hit($ipBlockKey, $ipBlockSeconds);
+            $this->logGuestbookRiskEvent($request, $siteId, 'submit_ip_rate_limited', [
+                'ip_window_seconds' => $this->systemSettings->guestbookLimitIpWindowSeconds(),
+                'ip_max_attempts' => $ipMaxAttempts,
+                'ip_block_seconds' => $ipBlockSeconds,
+            ], $phone);
             throw ValidationException::withMessages([
                 'form' => '提交过于频繁，请稍后再试。',
             ]);
@@ -393,6 +414,11 @@ class GuestbookController extends SiteController
         if ($phone !== '') {
             $phoneBlockKey = $this->phoneBlockRateLimitKey($siteId, $phone);
             if (RateLimiter::tooManyAttempts($phoneBlockKey, 1)) {
+                $this->logGuestbookRiskEvent($request, $siteId, 'submit_phone_block_active', [
+                    'phone_window_seconds' => $this->systemSettings->guestbookLimitPhoneWindowSeconds(),
+                    'phone_max_attempts' => $phoneMaxAttempts,
+                    'phone_block_seconds' => $phoneBlockSeconds,
+                ], $phone);
                 throw ValidationException::withMessages([
                     'form' => '提交过于频繁，请稍后再试。',
                 ]);
@@ -400,6 +426,11 @@ class GuestbookController extends SiteController
 
             if (RateLimiter::tooManyAttempts($this->phoneRateLimitKey($siteId, $phone), $phoneMaxAttempts)) {
                 RateLimiter::hit($phoneBlockKey, $phoneBlockSeconds);
+                $this->logGuestbookRiskEvent($request, $siteId, 'submit_phone_rate_limited', [
+                    'phone_window_seconds' => $this->systemSettings->guestbookLimitPhoneWindowSeconds(),
+                    'phone_max_attempts' => $phoneMaxAttempts,
+                    'phone_block_seconds' => $phoneBlockSeconds,
+                ], $phone);
                 throw ValidationException::withMessages([
                     'form' => '提交过于频繁，请稍后再试。',
                 ]);
@@ -568,6 +599,36 @@ class GuestbookController extends SiteController
     protected function makeSummary(string $content): string
     {
         return Str::limit($content, 220, '...');
+    }
+
+    protected function logGuestbookRiskEvent(Request $request, int $siteId, string $action, array $payload, string $phone = ''): void
+    {
+        $maskedPhone = $this->maskPhone($phone);
+        if ($maskedPhone !== '') {
+            $payload['phone_masked'] = $maskedPhone;
+        }
+
+        $this->logOperation(
+            'site',
+            'guestbook',
+            $action,
+            $siteId,
+            null,
+            'guestbook_risk',
+            null,
+            $payload,
+            $request,
+        );
+    }
+
+    protected function maskPhone(string $phone): string
+    {
+        $phone = trim($phone);
+        if (! preg_match('/^\d{11}$/', $phone)) {
+            return '';
+        }
+
+        return substr($phone, 0, 3).'****'.substr($phone, -4);
     }
 
     protected function sanitizePlainText(mixed $value): ?string
