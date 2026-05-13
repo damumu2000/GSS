@@ -42,6 +42,16 @@
     let lastSelectionRange = { start: 0, end: 0 };
     let themeAssetsRequestId = 0;
 
+    editorSubmitButtons.forEach((button) => {
+        if (!(button instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        if (!button.dataset.themeEditorOriginalText) {
+            button.dataset.themeEditorOriginalText = (button.textContent || '').trim() || '保存模板源码';
+        }
+    });
+
     const validateTemplateTitleLimit = (input) => {
         if (!input) {
             return true;
@@ -1325,12 +1335,3 @@
         });
     }
 })();
-    editorSubmitButtons.forEach((button) => {
-        if (!(button instanceof HTMLButtonElement)) {
-            return;
-        }
-
-        if (!button.dataset.themeEditorOriginalText) {
-            button.dataset.themeEditorOriginalText = (button.textContent || '').trim() || '保存模板源码';
-        }
-    });
