@@ -204,17 +204,18 @@ class GuestbookController extends SiteController
         $this->rememberSubmissionAttempt($request, $siteId, $phone);
         $this->rememberSuccessfulSubmission($request, $siteId, $phone);
         $this->dispatchNotificationIfNeeded($siteId, $messageId, $settings, 'submitted');
+        $successMessage = $validated['name'].'您好，您的信息已提供成功。';
 
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => '留言已提交，编号为 '.$this->displayNo($displayNo).'。',
+                'message' => $successMessage,
                 'display_no' => $this->displayNo($displayNo),
             ]);
         }
 
         return redirect()
             ->route('site.guestbook.index', $siteQuery)
-            ->with('status', '留言已提交，编号为 '.$this->displayNo($displayNo).'。');
+            ->with('status', $successMessage);
     }
 
     public function captcha(Request $request): Response
