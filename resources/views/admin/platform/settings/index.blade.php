@@ -27,6 +27,7 @@
             <button class="settings-nav-button" type="button" data-settings-tab-trigger="upload" role="tab" aria-selected="false">资源库上传设置</button>
             <button class="settings-nav-button" type="button" data-settings-tab-trigger="security" role="tab" aria-selected="false">安护盾</button>
             <button class="settings-nav-button" type="button" data-settings-tab-trigger="mail" role="tab" aria-selected="false">邮件服务</button>
+            <button class="settings-nav-button" type="button" data-settings-tab-trigger="agreement" role="tab" aria-selected="false">登录协议</button>
             <button class="settings-nav-button" type="button" data-settings-tab-trigger="access" role="tab" aria-selected="false">后台开关</button>
         </div>
 
@@ -524,6 +525,19 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section class="settings-panel" id="agreement" data-settings-tab-panel="agreement" role="tabpanel">
+            <h3 class="settings-panel-title">登录协议</h3>
+            <div class="settings-panel-desc">维护登录页“服务协议”弹窗内容。第一版仅支持纯文本，按换行分段展示。</div>
+
+            <div class="settings-grid">
+                <label class="settings-field is-full">
+                    <span class="settings-label">服务协议内容</span>
+                    <textarea class="field" name="login_service_agreement_content" rows="14" maxlength="20000">{{ old('login_service_agreement_content', $settings['login_service_agreement_content']) }}</textarea>
+                    <span class="settings-note">登录页勾选项会强制要求用户先同意服务协议后再登录。</span>
+                </label>
             </div>
         </section>
 

@@ -238,6 +238,7 @@ return [
         'mail.rate_limit_scene_max' => 5,
         'mail.rate_limit_recipient_window_seconds' => 600,
         'mail.rate_limit_recipient_max' => 5,
+        'login.service_agreement_content' => "欢迎使用本系统。\n登录前请确认你已阅读并同意本平台服务协议，并承诺合法合规使用系统功能。\n如不同意服务协议内容，请不要继续登录。",
     ],
 
     'static_vendor_manifest_path' => public_path('vendor/vendor-assets.json'),

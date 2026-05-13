@@ -87,6 +87,7 @@ class SystemSettingController extends Controller
             'mail_rate_limit_scene_max' => ['nullable', 'integer', 'min:1', 'max:10000'],
             'mail_rate_limit_recipient_window_seconds' => ['nullable', 'integer', 'min:60', 'max:86400'],
             'mail_rate_limit_recipient_max' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'login_service_agreement_content' => ['nullable', 'string', 'max:20000'],
         ], [
             'system_name.required' => '请填写系统名称。',
             'system_version.required' => '请填写系统版本号。',
@@ -95,6 +96,7 @@ class SystemSettingController extends Controller
             'admin_favicon_file.mimes' => '后台 ICO 仅支持 ICO 或 PNG 文件。',
             'mail_from_address.email' => '发件邮箱格式不正确，请重新填写。',
             'mail_reply_to_address.email' => '回复邮箱格式不正确，请重新填写。',
+            'login_service_agreement_content.max' => '服务协议内容不能超过 20000 个字符。',
         ]);
 
         $validator->after(function ($validator) use ($request): void {
@@ -229,6 +231,7 @@ class SystemSettingController extends Controller
             'mail.rate_limit_scene_max' => (string) ($validated['mail_rate_limit_scene_max'] ?? $this->systemSettings->mailRateLimitSceneMax()),
             'mail.rate_limit_recipient_window_seconds' => (string) ($validated['mail_rate_limit_recipient_window_seconds'] ?? $this->systemSettings->mailRateLimitRecipientWindowSeconds()),
             'mail.rate_limit_recipient_max' => (string) ($validated['mail_rate_limit_recipient_max'] ?? $this->systemSettings->mailRateLimitRecipientMax()),
+            'login.service_agreement_content' => $this->sanitizeTextarea((string) ($validated['login_service_agreement_content'] ?? ''), 20000),
         ];
 
         if ($request->boolean('admin_logo_clear')) {
@@ -331,7 +334,7 @@ class SystemSettingController extends Controller
 
     protected function normalizeTab(string $tab): string
     {
-        return in_array($tab, ['basic', 'upload', 'security', 'access', 'mail'], true) ? $tab : 'basic';
+        return in_array($tab, ['basic', 'upload', 'security', 'access', 'mail', 'agreement'], true) ? $tab : 'basic';
     }
 
     protected function storePublicBrandAsset(UploadedFile $file, string $prefix): string

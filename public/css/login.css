@@ -426,6 +426,7 @@ body {
 
 .login-options {
     margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 .remember {
@@ -438,9 +439,46 @@ body {
 }
 
 .remember input {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
     width: 16px;
     height: 16px;
-    accent-color: var(--emerald-500);
+    flex: 0 0 auto;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.remember input:checked {
+    border-color: #94a3b8;
+    background: #ffffff;
+}
+
+.remember input:checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border-right: 2px solid #64748b;
+    border-bottom: 2px solid #64748b;
+    transform: rotate(45deg);
+}
+
+.remember input:focus-visible {
+    outline: 2px solid rgba(148, 163, 184, 0.32);
+    outline-offset: 2px;
+}
+
+.remember span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
 }
 
 .link {
@@ -652,32 +690,18 @@ body {
     box-shadow: 0 22px 40px rgba(15, 23, 42, 0.18);
 }
 
+.confirm-modal-dialog.is-service-agreement {
+    width: min(760px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    padding: 28px;
+}
+
 .confirm-modal-head {
     display: flex;
     align-items: center;
-    gap: 14px;
     margin-bottom: 14px;
-}
-
-.confirm-modal-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #fff7e6;
-    color: #faad14;
-}
-
-.confirm-modal-icon svg {
-    width: 22px;
-    height: 22px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.9;
-    stroke-linecap: round;
-    stroke-linejoin: round;
 }
 
 .confirm-modal-title {
@@ -691,6 +715,30 @@ body {
 .confirm-modal-copy {
     display: grid;
     gap: 12px;
+}
+
+.confirm-modal-dialog.is-service-agreement .confirm-modal-copy {
+    max-height: min(62vh, 560px);
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.confirm-modal-dialog.is-service-agreement .confirm-modal-copy::-webkit-scrollbar {
+    width: 8px;
+}
+
+.confirm-modal-dialog.is-service-agreement .confirm-modal-copy::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-radius: 999px;
+}
+
+.confirm-modal-dialog.is-service-agreement .confirm-modal-copy::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+.confirm-modal-dialog.is-service-agreement .confirm-modal-copy::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 .confirm-modal-note {
@@ -727,6 +775,7 @@ body {
 .confirm-modal-actions {
     display: flex;
     justify-content: flex-end;
+    gap: 12px;
     margin-top: 24px;
 }
 
@@ -741,6 +790,13 @@ body {
     font-weight: 600;
     cursor: pointer;
     box-shadow: 0 10px 22px rgba(16, 185, 129, 0.22);
+}
+
+.confirm-modal-button.secondary {
+    background: #ffffff;
+    color: var(--slate-600);
+    border: 1px solid #dbe2ea;
+    box-shadow: none;
 }
 
 @media (min-width: 1024px) {

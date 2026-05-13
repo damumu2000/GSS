@@ -7687,11 +7687,31 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors([
                 'username' => '账号已停用，如有疑问请联系站点管理员。',
+            ]);
+
+        $this->assertGuest();
+    }
+
+    public function test_login_requires_service_agreement_acceptance(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('service-agreement-login-user', true, 'editor');
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'username' => $operator->username,
+                'password' => 'ChangeMe123!',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors([
+                'service_agreement' => '请先勾选服务协议后再登录。',
             ]);
 
         $this->assertGuest();
@@ -7715,6 +7735,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('admin.site-dashboard'));
@@ -7752,6 +7773,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $platformAdmin->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('admin.dashboard'));
@@ -7787,6 +7809,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'))
@@ -7797,6 +7820,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'bad-password',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('login'))
@@ -7811,6 +7835,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('admin.site-dashboard'));
@@ -7828,6 +7853,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'bad-password',
+                'service_agreement' => '1',
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors([
@@ -7843,6 +7869,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors([
@@ -7869,6 +7896,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'bad-password',
+                'service_agreement' => '1',
             ])
             ->assertRedirect(route('login'));
 
@@ -7888,6 +7916,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -7899,6 +7928,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => 'WRNG',
             ])
             ->assertRedirect(route('login'))
@@ -7925,6 +7955,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -7934,6 +7965,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors([
@@ -7954,6 +7986,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -7964,6 +7997,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -7973,6 +8007,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('login'))
@@ -7999,6 +8034,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -8009,6 +8045,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -8018,6 +8055,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => 'WRNG',
             ])
             ->assertRedirect(route('login'))
@@ -8029,6 +8067,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('login'))
@@ -8050,6 +8089,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -8060,6 +8100,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -8076,6 +8117,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => 'WRNG',
             ])
             ->assertRedirect(route('login'))
@@ -8097,6 +8139,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -8106,6 +8149,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
                 'captcha' => 'WRNG',
             ])
             ->assertRedirect(route('login'))
@@ -8117,6 +8161,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $operator->username,
                 'password' => 'bad-password',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('login'))
@@ -8136,6 +8181,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $firstOperator->username,
                 'password' => 'bad-password',
+                'service_agreement' => '1',
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors([
@@ -8146,6 +8192,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $secondOperator->username,
                 'password' => 'bad-password',
+                'service_agreement' => '1',
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors([
@@ -8171,6 +8218,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $firstOperator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'));
         }
@@ -8180,6 +8228,7 @@ class AdminAccessTest extends TestCase
                 ->post(route('login.store'), [
                     'username' => $firstOperator->username,
                     'password' => 'bad-password',
+                'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -8189,6 +8238,7 @@ class AdminAccessTest extends TestCase
             ->post(route('login.store'), [
                 'username' => $secondOperator->username,
                 'password' => 'bad-password',
+                'service_agreement' => '1',
                 'captcha' => $this->loginCaptcha(),
             ])
             ->assertRedirect(route('login'))

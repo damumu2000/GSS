@@ -52,6 +52,16 @@
 
     const passwordHelpModal = document.getElementById('password-help-modal');
     const openPasswordHelp = document.querySelector('[data-open-password-help]');
+    const openWechatHelp = document.querySelector('[data-open-wechat-help]');
+    const openServiceAgreement = document.querySelector('[data-open-service-agreement]');
+    const serviceAgreementInput = document.querySelector('input[type="checkbox"][name="service_agreement"]');
+    const passwordHelpDialog = passwordHelpModal?.querySelector('.confirm-modal-dialog') || null;
+    const passwordHelpTitle = document.getElementById('password-help-title');
+    const passwordHelpCopy = document.getElementById('password-help-copy');
+    const passwordHelpActions = passwordHelpModal?.querySelector('.confirm-modal-actions') || null;
+    const passwordHelpDefaultNodes = passwordHelpCopy ? Array.from(passwordHelpCopy.querySelectorAll('[data-password-help-default]')).map((node) => node.cloneNode(true)) : [];
+    const passwordHelpDefaultActions = passwordHelpActions ? Array.from(passwordHelpActions.children).map((node) => node.cloneNode(true)) : [];
+    const serviceAgreementTemplate = document.getElementById('service-agreement-template');
     const captchaImage = document.getElementById('login-captcha-image');
     const captchaTrigger = document.getElementById('login-captcha-trigger');
     const captchaBase = body.dataset.loginCaptchaBase || '';
@@ -62,6 +72,7 @@
     const csrfToken = csrfTokenInput instanceof HTMLInputElement ? csrfTokenInput.value : '';
     let captchaValidationTimer = null;
     let captchaValidationRequestId = 0;
+    let currentPasswordHelpMode = 'password';
 
     function togglePasswordHelpModal(visible) {
         if (!passwordHelpModal) {
@@ -72,19 +83,184 @@
         passwordHelpModal.setAttribute('aria-hidden', visible ? 'false' : 'true');
     }
 
+    function resetPasswordHelpActions() {
+        if (!passwordHelpActions) {
+            return;
+        }
+
+        passwordHelpActions.replaceChildren(...passwordHelpDefaultActions.map((node) => node.cloneNode(true)));
+        passwordHelpActions.querySelectorAll('[data-close-password-help]').forEach((trigger) => {
+            trigger.addEventListener('click', () => handlePasswordHelpDismiss());
+        });
+    }
+
+    function restoreServiceAgreementAcceptance() {
+        if (serviceAgreementInput instanceof HTMLInputElement) {
+            serviceAgreementInput.checked = true;
+        }
+    }
+
+    function exitCurrentPage() {
+        window.open('', '_self');
+        window.close();
+
+        window.setTimeout(() => {
+            if (!window.closed) {
+                window.location.replace('about:blank');
+            }
+        }, 60);
+    }
+
+    function handlePasswordHelpDismiss() {
+        if (currentPasswordHelpMode === 'agreement_exit_confirm') {
+            restoreServiceAgreementAcceptance();
+        }
+
+        togglePasswordHelpModal(false);
+    }
+
+    function setPasswordHelpModalMode(mode) {
+        if (!(passwordHelpDialog instanceof HTMLElement)) {
+            return;
+        }
+
+        passwordHelpDialog.classList.toggle('is-service-agreement', mode === 'agreement');
+    }
+
+    function renderPasswordHelpModal(mode) {
+        if (!passwordHelpTitle || !passwordHelpCopy) {
+            return;
+        }
+
+        currentPasswordHelpMode = mode;
+        resetPasswordHelpActions();
+
+        if (mode === 'wechat') {
+            setPasswordHelpModalMode(mode);
+            passwordHelpTitle.textContent = '微信登录';
+            passwordHelpCopy.innerHTML = `
+                <p class="confirm-modal-note">
+                    <span class="confirm-modal-note-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 5v14"></path>
+                            <path d="M5 12h14"></path>
+                        </svg>
+                    </span>
+                    <span>微信登录开发中，将在近期上线。</span>
+                </p>
+            `;
+            return;
+        }
+
+        if (mode === 'agreement') {
+            setPasswordHelpModalMode(mode);
+            passwordHelpTitle.textContent = '服务协议';
+            if (serviceAgreementTemplate instanceof HTMLTemplateElement) {
+                passwordHelpCopy.replaceChildren(serviceAgreementTemplate.content.cloneNode(true));
+            } else {
+                passwordHelpCopy.innerHTML = `
+                    <p class="confirm-modal-note">
+                        <span>服务协议内容暂未配置。</span>
+                    </p>
+                `;
+            }
+            return;
+        }
+
+        if (mode === 'agreement_required') {
+            setPasswordHelpModalMode(mode);
+            passwordHelpTitle.textContent = '登录提示';
+            passwordHelpCopy.innerHTML = `
+                <p class="confirm-modal-note">
+                    <span class="confirm-modal-note-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 5v14"></path>
+                            <path d="M5 12h14"></path>
+                        </svg>
+                    </span>
+                    <span>请先勾选服务协议后再登录。</span>
+                </p>
+            `;
+            return;
+        }
+
+        if (mode === 'agreement_exit_confirm') {
+            setPasswordHelpModalMode(mode);
+            passwordHelpTitle.textContent = '退出确认';
+            passwordHelpCopy.innerHTML = `
+                <p class="confirm-modal-note">
+                    <span class="confirm-modal-note-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 5v14"></path>
+                            <path d="M5 12h14"></path>
+                        </svg>
+                    </span>
+                    <span>注意：不同意服务协议将无法正常使用本系统，点击确认后将自动关闭当前页面。</span>
+                </p>
+            `;
+
+            if (passwordHelpActions) {
+                passwordHelpActions.innerHTML = `
+                    <button class="confirm-modal-button secondary" type="button" data-service-agreement-exit>确认</button>
+                    <button class="confirm-modal-button" type="button" data-service-agreement-cancel>取消</button>
+                `;
+
+                passwordHelpActions.querySelector('[data-service-agreement-cancel]')?.addEventListener('click', () => {
+                    restoreServiceAgreementAcceptance();
+                    togglePasswordHelpModal(false);
+                });
+
+                passwordHelpActions.querySelector('[data-service-agreement-exit]')?.addEventListener('click', () => {
+                    togglePasswordHelpModal(false);
+                    exitCurrentPage();
+                });
+            }
+
+            return;
+        }
+
+        setPasswordHelpModalMode(mode);
+        passwordHelpTitle.textContent = '忘记密码了？';
+        passwordHelpCopy.replaceChildren(...passwordHelpDefaultNodes.map((node) => node.cloneNode(true)));
+    }
+
     openPasswordHelp?.addEventListener('click', (event) => {
         event.preventDefault();
+        renderPasswordHelpModal('password');
         togglePasswordHelpModal(true);
     });
 
+    openWechatHelp?.addEventListener('click', (event) => {
+        event.preventDefault();
+        renderPasswordHelpModal('wechat');
+        togglePasswordHelpModal(true);
+    });
+
+    openServiceAgreement?.addEventListener('click', (event) => {
+        event.preventDefault();
+        renderPasswordHelpModal('agreement');
+        togglePasswordHelpModal(true);
+    });
+
+    resetPasswordHelpActions();
+
     passwordHelpModal?.querySelectorAll('[data-close-password-help]').forEach((trigger) => {
-        trigger.addEventListener('click', () => togglePasswordHelpModal(false));
+        trigger.addEventListener('click', () => handlePasswordHelpDismiss());
     });
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
-            togglePasswordHelpModal(false);
+            handlePasswordHelpDismiss();
         }
+    });
+
+    serviceAgreementInput?.addEventListener('change', () => {
+        if (serviceAgreementInput.checked) {
+            return;
+        }
+
+        renderPasswordHelpModal('agreement_exit_confirm');
+        togglePasswordHelpModal(true);
     });
 
     document.querySelector('[data-login-form]')?.addEventListener('submit', (event) => {
@@ -111,6 +287,14 @@
             event.preventDefault();
             showToast('请输入密码后再登录。', 'error');
             passwordInput?.focus();
+            return;
+        }
+
+        if (serviceAgreementInput instanceof HTMLInputElement && !serviceAgreementInput.checked) {
+            event.preventDefault();
+            renderPasswordHelpModal('agreement_required');
+            togglePasswordHelpModal(true);
+            serviceAgreementInput.focus();
             return;
         }
 

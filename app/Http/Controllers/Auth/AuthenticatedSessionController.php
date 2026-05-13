@@ -64,6 +64,7 @@ class AuthenticatedSessionController extends Controller
                 : $this->systemSettings->adminDisabledMessage(),
             'loginSiteBrand' => $loginSiteBrand,
             'loginCaptchaRequired' => $this->loginCaptchaIsRequired($request),
+            'serviceAgreementContent' => $this->systemSettings->loginServiceAgreementContent(),
         ]);
     }
 
@@ -92,10 +93,14 @@ class AuthenticatedSessionController extends Controller
             'username' => ['required', 'string'],
             'password' => ['required', 'string'],
             'captcha' => ['nullable', 'string'],
-        ], [], [
+            'service_agreement' => ['accepted'],
+        ], [
+            'service_agreement.accepted' => '请先勾选服务协议后再登录。',
+        ], [
             'username' => '用户名',
             'password' => '密码',
             'captcha' => '验证码',
+            'service_agreement' => '服务协议',
         ]);
 
         $this->ensureLoginDeviceId($request);
@@ -681,7 +686,7 @@ SVG;
         $response = redirect()
             ->route('login')
             ->withErrors($errorBag)
-            ->withInput($request->only(['username', 'captcha', 'remember']));
+            ->withInput($request->only(['username', 'captcha', 'remember', 'service_agreement']));
 
         throw new ValidationException(
             validator()->make([], []),

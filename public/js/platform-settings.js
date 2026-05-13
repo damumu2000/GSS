@@ -1,5 +1,5 @@
 (() => {
-    const allowedTabs = ['basic', 'upload', 'security', 'mail', 'access'];
+    const allowedTabs = ['basic', 'upload', 'security', 'mail', 'agreement', 'access'];
     const currentTabInput = document.getElementById('current_tab');
     const form = document.getElementById('system-settings-form');
 

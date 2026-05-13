@@ -1,0 +1,73 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e5]:
+      - img "示例学校 logo" [ref=e9]
+      - generic:
+        - heading "更好用更安全" [level=1]
+        - generic: Better Experience · Better Security
+      - generic [ref=e10]: Version 1.0.0
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - heading "欢迎登录" [level=2] [ref=e15]
+          - paragraph [ref=e16]: 请输入您的账号信息以访问管理平台
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - generic [ref=e19]: 账号
+            - generic [ref=e20]:
+              - img
+              - textbox "账号" [active] [ref=e21]:
+                - /placeholder: 请输入您的账号
+          - generic [ref=e22]:
+            - generic [ref=e23]: 密码
+            - generic [ref=e24]:
+              - img
+              - textbox "密码" [ref=e25]:
+                - /placeholder: 请输入您的密码
+              - button "显示或隐藏密码" [ref=e26] [cursor=pointer]:
+                - img [ref=e27]
+          - generic [ref=e30]:
+            - generic [ref=e31] [cursor=pointer]:
+              - checkbox "记住我" [ref=e32]
+              - generic [ref=e33]: 记住我
+            - link "忘记密码？" [ref=e34] [cursor=pointer]:
+              - /url: "#"
+            - generic [ref=e35] [cursor=pointer]:
+              - checkbox "我已阅读并同意 服务协议" [checked] [ref=e36]
+              - generic [ref=e37]:
+                - text: 我已阅读并同意
+                - link "服务协议" [ref=e38]:
+                  - /url: "#"
+          - button "登录" [ref=e39] [cursor=pointer]
+          - generic [ref=e41]: 或使用以下方式登录
+          - button "微信登录" [ref=e43] [cursor=pointer]:
+            - img [ref=e44]
+            - generic [ref=e46]: 微信登录
+      - generic [ref=e47]:
+        - paragraph [ref=e48]:
+          - text: 还没有账号？
+          - link "申请入驻" [ref=e49] [cursor=pointer]:
+            - /url: https://www.guanshanshan.cn/cat/start
+        - generic [ref=e50]:
+          - link "隐私政策" [ref=e51] [cursor=pointer]:
+            - /url: https://www.guanshanshan.cn/cat/Privacy-Policy
+          - generic [ref=e52]: "|"
+          - link "帮助中心" [ref=e53] [cursor=pointer]:
+            - /url: https://www.guanshanshan.cn/cat/Contact-Help
+  - generic:
+    - dialog:
+      - generic:
+        - generic:
+          - img
+        - heading [level=3]: 忘记密码了？
+      - generic:
+        - paragraph:
+          - generic:
+            - img
+          - generic: 站点操作员忘记密码时，请联系你所在站点的管理员协助处理。
+        - paragraph:
+          - generic:
+            - img
+          - generic: 管理员忘记密码时，请联系所属客服或平台支持人员。为了保护账号安全，登录页不直接提供找回密码入口。
+      - generic:
+        - button: 我知道了
