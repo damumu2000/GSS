@@ -1134,16 +1134,16 @@
         },
         {
             "name": "laravel/framework",
-            "version": "v13.8.0",
+            "version": "v13.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/framework.git",
-                "reference": "e7db333a025a1e93ebca7744953069d7719f4bcf"
+                "reference": "a0c6ad03b380287015287d8d5a0fa2459e2332fd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/framework/zipball/e7db333a025a1e93ebca7744953069d7719f4bcf",
-                "reference": "e7db333a025a1e93ebca7744953069d7719f4bcf",
+                "url": "https://api.github.com/repos/laravel/framework/zipball/a0c6ad03b380287015287d8d5a0fa2459e2332fd",
+                "reference": "a0c6ad03b380287015287d8d5a0fa2459e2332fd",
                 "shasum": ""
             },
             "require": {
@@ -1247,7 +1247,7 @@
                 "aws/aws-sdk-php": "^3.322.9",
                 "ext-gmp": "*",
                 "fakerphp/faker": "^1.24",
-                "guzzlehttp/psr7": "^2.4",
+                "guzzlehttp/psr7": "^2.9",
                 "laravel/pint": "^1.18",
                 "league/flysystem-aws-s3-v3": "^3.25.1",
                 "league/flysystem-ftp": "^3.25.1",
@@ -1354,7 +1354,7 @@
                 "issues": "https://github.com/laravel/framework/issues",
                 "source": "https://github.com/laravel/framework"
             },
-            "time": "2026-05-05T21:01:14+00:00"
+            "time": "2026-05-13T15:38:40+00:00"
         },
         {
             "name": "laravel/prompts",
@@ -6192,16 +6192,16 @@
         },
         {
             "name": "tinymce/tinymce",
-            "version": "8.4.0",
+            "version": "8.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tinymce/tinymce-dist.git",
-                "reference": "268583cbd56a9ed30d38856deab8cfd48727b746"
+                "reference": "fcfc14e367d0aa6c72d018278776ef22dc2e8a8f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tinymce/tinymce-dist/zipball/268583cbd56a9ed30d38856deab8cfd48727b746",
-                "reference": "268583cbd56a9ed30d38856deab8cfd48727b746",
+                "url": "https://api.github.com/repos/tinymce/tinymce-dist/zipball/fcfc14e367d0aa6c72d018278776ef22dc2e8a8f",
+                "reference": "fcfc14e367d0aa6c72d018278776ef22dc2e8a8f",
                 "shasum": ""
             },
             "type": "component",
@@ -6245,9 +6245,9 @@
                 "wysiwyg"
             ],
             "support": {
-                "source": "https://github.com/tinymce/tinymce-dist/tree/8.4.0"
+                "source": "https://github.com/tinymce/tinymce-dist/tree/8.5.0"
             },
-            "time": "2026-03-31T06:07:53+00:00"
+            "time": "2026-04-29T05:18:45+00:00"
         },
         {
             "name": "vlucas/phpdotenv",
