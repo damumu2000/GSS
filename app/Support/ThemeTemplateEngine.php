@@ -753,8 +753,6 @@ class ThemeTemplateEngine
     {
         $this->assertPatternNotExists($source, '/<\?/', '模板源码中不允许包含 PHP 代码标签');
         $this->assertPatternNotExists($source, '/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', '模板源码中不允许使用内联 script');
-        $this->assertPatternNotExists($source, '/<style\b[^>]*>/i', '模板源码中不允许使用内联 style');
-        $this->assertPatternNotExists($source, '/\sstyle\s*=/i', '模板源码中不允许使用内联 style 属性');
         $this->assertPatternNotExists($source, '/\son[a-z]+\s*=/i', '模板源码中不允许使用内联事件属性');
     }
 

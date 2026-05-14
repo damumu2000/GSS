@@ -5,7 +5,7 @@
 
 @push('styles')
     @include('admin.site._custom_select_styles')
-    <link rel="stylesheet" href="{{ asset('css/site-content-edit.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/site-content-edit.css') }}?v={{ filemtime(public_path('css/site-content-edit.css')) }}">
 @endpush
 
 @section('content')
@@ -596,7 +596,7 @@
 
 @push('styles')
     @include('admin.site.attachments._attachment_library_styles')
-    <link rel="stylesheet" href="{{ asset('css/site-content-edit-emoji.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/site-content-edit-emoji.css') }}?v={{ filemtime(public_path('css/site-content-edit-emoji.css')) }}">
 @endpush
 
 @push('scripts')
@@ -606,5 +606,5 @@
 
 @push('scripts')
     <script src="/vendor/tinymce/tinymce.min.js"></script>
-    <script src="{{ asset('js/site-content-edit.js') }}"></script>
+    <script src="{{ asset('js/site-content-edit.js') }}?v={{ filemtime(public_path('js/site-content-edit.js')) }}"></script>
 @endpush

@@ -1301,8 +1301,6 @@ function normalizeArticleTypography(root) {
     root.querySelectorAll('figure').forEach((node) => node.classList.add('cms-article-figure'));
     root.querySelectorAll('figcaption').forEach((node) => node.classList.add('cms-article-figure-caption'));
 
-    root.querySelectorAll('span[style]').forEach((node) => node.removeAttribute('style'));
-
     normalizeArticleFooter(root);
     collapseMediaSpacing(root);
     normalizeLeadingParagraphIndent(root);
@@ -1947,6 +1945,9 @@ tinymce.init({
     entity_encoding: 'raw',
     convert_urls: false,
     relative_urls: false,
+    valid_styles: {
+        '*': 'color,background-color,text-align,font-size,font-family,line-height',
+    },
     images_upload_url: imageUploadUrl,
     automatic_uploads: true,
     images_reuse_filename: false,

@@ -82,7 +82,7 @@
             const payload = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(payload.message || '文章排序保存失败，请稍后重试。');
+                throw new Error(payload.message || '排序保存失败，请稍后重试。');
             }
 
             return payload;
@@ -108,9 +108,9 @@
 
                 try {
                     const payload = await saveReorder(orderedIds);
-                    window.showMessage?.(payload.message || '文章排序已保存。');
+                    window.showMessage?.(payload.message || '排序已保存。');
                 } catch (error) {
-                    window.showMessage?.(error.message || '文章排序保存失败，页面将刷新恢复。', 'error');
+                    window.showMessage?.(error.message || '排序保存失败，页面将刷新恢复。', 'error');
                     window.setTimeout(() => {
                         window.location.reload();
                     }, 500);

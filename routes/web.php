@@ -147,6 +147,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/pages/create', [ContentController::class, 'create'])->defaults('type', 'page')->name('pages.create');
             Route::post('/pages', [ContentController::class, 'store'])->defaults('type', 'page')->name('pages.store');
             Route::post('/pages/bulk', [ContentController::class, 'bulk'])->defaults('type', 'page')->name('pages.bulk');
+            Route::post('/pages/reorder', [ContentController::class, 'reorder'])->defaults('type', 'page')->name('pages.reorder');
             Route::get('/pages/{content}', [ContentController::class, 'edit'])->defaults('type', 'page')->name('pages.edit');
             Route::post('/pages/{content}', [ContentController::class, 'update'])->defaults('type', 'page')->name('pages.update');
             Route::post('/pages/{content}/delete', [ContentController::class, 'destroy'])->defaults('type', 'page')->name('pages.destroy');

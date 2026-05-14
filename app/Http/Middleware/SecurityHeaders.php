@@ -31,7 +31,7 @@ class SecurityHeaders
             "font-src 'self' data:",
             "media-src 'self' blob:",
             "manifest-src 'self'",
-            $isDebugExceptionPage ? "style-src 'self' 'unsafe-inline'" : "style-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
             $isDebugExceptionPage ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
             "connect-src 'self'",
             "frame-src 'self' https://player.bilibili.com",

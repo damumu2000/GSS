@@ -160,8 +160,20 @@ class ContentHtmlSanitizer
             $attributeName = Str::lower($attribute->nodeName);
             $attributeValue = trim((string) $attribute->nodeValue);
 
-            if (str_starts_with($attributeName, 'on') || $attributeName === 'style') {
+            if (str_starts_with($attributeName, 'on')) {
                 $node->removeAttribute($attribute->nodeName);
+                continue;
+            }
+
+            if ($attributeName === 'style') {
+                $styleValue = static::sanitizeStyleDeclaration($attributeValue, $tagName);
+
+                if ($styleValue === '') {
+                    $node->removeAttribute($attribute->nodeName);
+                } else {
+                    $node->setAttribute('style', $styleValue);
+                }
+
                 continue;
             }
 
@@ -242,6 +254,115 @@ class ContentHtmlSanitizer
         if ($tagName === 'div' && ! static::isAllowedEmbedNode($node)) {
             static::unwrapNode($node);
         }
+    }
+
+    protected static function sanitizeStyleDeclaration(string $style, string $tagName): string
+    {
+        if (! in_array($tagName, [
+            'p',
+            'span',
+            'div',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'blockquote',
+            'ul',
+            'ol',
+            'li',
+            'table',
+            'thead',
+            'tbody',
+            'tr',
+            'th',
+            'td',
+        ], true)) {
+            return '';
+        }
+
+        $allowed = [];
+        $declarations = preg_split('/\s*;\s*/u', trim($style)) ?: [];
+
+        foreach ($declarations as $declaration) {
+            if ($declaration === '' || ! str_contains($declaration, ':')) {
+                continue;
+            }
+
+            [$property, $value] = array_map('trim', explode(':', $declaration, 2));
+            $property = Str::lower($property);
+
+            if ($property === '' || $value === '') {
+                continue;
+            }
+
+            $sanitizedValue = match ($property) {
+                'text-align' => static::sanitizeTextAlignStyle($value),
+                'color', 'background-color' => static::sanitizeColorStyle($value),
+                'font-size' => static::sanitizeFontSizeStyle($value),
+                'font-family' => static::sanitizeFontFamilyStyle($value),
+                'line-height' => static::sanitizeLineHeightStyle($value),
+                default => '',
+            };
+
+            if ($sanitizedValue !== '') {
+                $allowed[] = $property.': '.$sanitizedValue;
+            }
+        }
+
+        return implode('; ', array_values(array_unique($allowed)));
+    }
+
+    protected static function sanitizeTextAlignStyle(string $value): string
+    {
+        $value = Str::lower(trim($value));
+
+        return in_array($value, ['left', 'center', 'right', 'justify'], true) ? $value : '';
+    }
+
+    protected static function sanitizeColorStyle(string $value): string
+    {
+        $value = trim($value);
+
+        if (preg_match('/^(?:#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6})$/', $value) === 1) {
+            return strtolower($value);
+        }
+
+        if (preg_match('/^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|0?\.\d+|1(?:\.0+)?))?\s*\)$/i', $value) === 1) {
+            return $value;
+        }
+
+        if (preg_match('/^[a-zA-Z]{3,20}$/', $value) === 1) {
+            return strtolower($value);
+        }
+
+        return '';
+    }
+
+    protected static function sanitizeFontSizeStyle(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/^\d{1,3}(?:\.\d{1,2})?(?:px|em|rem|%)$/i', $value) === 1 ? strtolower($value) : '';
+    }
+
+    protected static function sanitizeFontFamilyStyle(string $value): string
+    {
+        $value = trim($value);
+
+        if (str_contains(Str::lower($value), 'expression') || str_contains(Str::lower($value), 'url(')) {
+            return '';
+        }
+
+        return preg_match('/^[A-Za-z0-9\x{4e00}-\x{9fa5}\s,"\047,-]+$/u', $value) === 1 ? $value : '';
+    }
+
+    protected static function sanitizeLineHeightStyle(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/^\d{1,2}(?:\.\d{1,2})?(?:px|em|rem|%)?$/i', $value) === 1 ? strtolower($value) : '';
     }
 
     protected static function sanitizeClassList(string $classList, string $tagName): string

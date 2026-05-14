@@ -81,8 +81,8 @@
                     </tr>
                     </thead>
                     <tbody
-                        @if ($type === 'article')
-                            data-content-reorder-url="{{ route('admin.articles.reorder') }}"
+                        @if (in_array($type, ['article', 'page'], true))
+                            data-content-reorder-url="{{ $type === 'page' ? route('admin.pages.reorder') : route('admin.articles.reorder') }}"
                         @endif
                     >
                     @foreach ($contents as $content)
@@ -118,7 +118,7 @@
                             }
                         @endphp
                         <tr
-                            @if ($type === 'article')
+                            @if (in_array($type, ['article', 'page'], true))
                                 data-content-row
                                 data-content-id="{{ $content->id }}"
                             @endif
@@ -129,7 +129,7 @@
                             <td>
                                 <div class="content-title-wrap">
                                     <div class="content-title-row">
-                                        @if ($type === 'article')
+                                        @if (in_array($type, ['article', 'page'], true))
                                             <span class="content-drag-handle" aria-label="拖拽排序" data-tooltip="拖拽排序">
                                                 <svg viewBox="0 0 20 20" aria-hidden="true">
                                                     <circle cx="6" cy="5" r="1.4"></circle>

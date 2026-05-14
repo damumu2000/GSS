@@ -684,7 +684,7 @@
 
                     <div class="tip">
                         <strong>保存前最容易踩坑的地方</strong>
-                        <span>以下写法会在模板保存时被直接拦截：内联 <code>&lt;script&gt;</code>、内联 <code>&lt;style&gt;</code>、任何 <code>style=</code>、任何 <code>onclick</code> 这类内联事件属性。正确做法是：HTML 里只保留类名和结构，交互统一写进主题 JS，样式统一写进主题 CSS。</span>
+                        <span>以下写法会在模板保存时被直接拦截：内联 <code>&lt;script&gt;</code>、任何 <code>onclick</code> 这类内联事件属性。模板中可以直接写 <code>style</code> 属性或内联 <code>&lt;style&gt;</code>，但大块样式仍建议优先放到主题 CSS 文件中统一维护。</span>
                     </div>
                 </section>
 
