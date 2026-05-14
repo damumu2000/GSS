@@ -27,6 +27,7 @@
 /public/.htaccess
 /public/.user.ini
 /public/Favicon_x.ico
+/public/.well-known
 /bootstrap/cache/*.php
 /storage/logs/*.log
 /storage/framework/cache/*
@@ -44,6 +45,7 @@
 /phpunit.xml
 /work/*
 /vendor
+/.well-known
 /.htaccess
 Homestead.json
 Homestead.yaml
