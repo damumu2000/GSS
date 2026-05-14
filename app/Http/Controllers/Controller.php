@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Support\SiteFrontendUrl;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -805,7 +806,6 @@ abstract class Controller
                 'id',
                 'title',
                 'summary',
-                'content',
                 'published_at',
                 'title_color',
                 'title_bold',
@@ -815,10 +815,53 @@ abstract class Controller
             ])
             ->map(function (object $notice) use ($platformSite) {
                 $notice->frontend_url = SiteFrontendUrl::articleUrl($platformSite, (int) $notice->id);
-                $notice->content = $this->absolutizePlatformNoticeHtml((string) ($notice->content ?? ''), $platformSite);
 
                 return $notice;
             });
+    }
+
+    protected function platformNoticeDetail(int $noticeId): ?array
+    {
+        $noticeChannelId = $this->platformNoticeChannelId();
+
+        if (! $noticeChannelId) {
+            return null;
+        }
+
+        $platformSite = DB::table('sites')
+            ->where('id', $this->platformSiteId())
+            ->first(['id', 'site_key']);
+
+        if (! $platformSite) {
+            return null;
+        }
+
+        $notice = DB::table('contents')
+            ->where('site_id', $this->platformSiteId())
+            ->where('type', 'article')
+            ->where('status', 'published')
+            ->where('channel_id', $noticeChannelId)
+            ->where('id', $noticeId)
+            ->first([
+                'id',
+                'title',
+                'summary',
+                'content',
+                'published_at',
+            ]);
+
+        if (! $notice) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $notice->id,
+            'title' => (string) $notice->title,
+            'summary' => trim((string) ($notice->summary ?? '')),
+            'date' => $notice->published_at ? Carbon::parse((string) $notice->published_at)->format('Y-m-d') : '待发布',
+            'link' => SiteFrontendUrl::articleUrl($platformSite, (int) $notice->id),
+            'content_html' => $this->absolutizePlatformNoticeHtml((string) ($notice->content ?? ''), $platformSite),
+        ];
     }
 
     /**

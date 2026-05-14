@@ -12,6 +12,7 @@
     const noticeModalSummary = document.getElementById('platform-notice-modal-summary');
     const noticeModalContent = document.getElementById('platform-notice-modal-content');
     const noticeModalLink = document.getElementById('platform-notice-modal-link');
+    const noticeDetailCache = new Map();
     let previousBodyOverflow = '';
 
     const closeNoticeModal = () => {
@@ -54,18 +55,64 @@
         });
     };
 
-    document.querySelectorAll('[data-notice-trigger]').forEach((item) => {
-        item.addEventListener('click', () => {
-            const templateId = item.getAttribute('data-notice-content-id');
-            const contentTemplate = templateId ? document.getElementById(templateId) : null;
+    const fetchNoticeDetail = async (url) => {
+        const response = await fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            credentials: 'same-origin',
+        });
 
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        return response.json();
+    };
+
+    document.querySelectorAll('[data-notice-trigger]').forEach((item) => {
+        item.addEventListener('click', async () => {
+            const detailUrl = item.getAttribute('data-notice-detail-url') || '';
             openNoticeModal({
                 title: item.getAttribute('data-notice-title') || '官闪闪公告栏',
                 date: item.getAttribute('data-notice-date') || '--',
                 link: item.getAttribute('data-notice-link') || '#',
                 summary: item.getAttribute('data-notice-summary') || '',
-                contentHtml: contentTemplate ? contentTemplate.innerHTML.trim() : '',
+                contentHtml: '<p>内容加载中...</p>',
             });
+
+            if (!detailUrl) {
+                noticeModalContent.innerHTML = '<p>暂无公告内容。</p>';
+                return;
+            }
+
+            if (noticeDetailCache.has(detailUrl)) {
+                const payload = noticeDetailCache.get(detailUrl);
+                openNoticeModal({
+                    title: payload.title || item.getAttribute('data-notice-title') || '官闪闪公告栏',
+                    date: payload.date || item.getAttribute('data-notice-date') || '--',
+                    link: payload.link || item.getAttribute('data-notice-link') || '#',
+                    summary: payload.summary || item.getAttribute('data-notice-summary') || '',
+                    contentHtml: payload.content_html || '<p>暂无公告内容。</p>',
+                });
+                return;
+            }
+
+            try {
+                const payload = await fetchNoticeDetail(detailUrl);
+                noticeDetailCache.set(detailUrl, payload);
+
+                openNoticeModal({
+                    title: payload.title || item.getAttribute('data-notice-title') || '官闪闪公告栏',
+                    date: payload.date || item.getAttribute('data-notice-date') || '--',
+                    link: payload.link || item.getAttribute('data-notice-link') || '#',
+                    summary: payload.summary || item.getAttribute('data-notice-summary') || '',
+                    contentHtml: payload.content_html || '<p>暂无公告内容。</p>',
+                });
+            } catch (error) {
+                noticeModalContent.innerHTML = '<p>公告内容加载失败，请稍后重试。</p>';
+            }
         });
     });
 

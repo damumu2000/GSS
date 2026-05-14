@@ -306,7 +306,7 @@
                             data-notice-date="{{ $notice->published_at ? \Illuminate\Support\Carbon::parse($notice->published_at)->format('Y-m-d') : '待发布' }}"
                             data-notice-link="{{ $notice->frontend_url }}"
                             data-notice-summary="{{ trim((string) ($notice->summary ?? '')) }}"
-                            data-notice-content-id="platform-notice-content-{{ $notice->id }}"
+                            data-notice-detail-url="{{ route('admin.platform.dashboard.notices.show', ['notice' => $notice->id]) }}"
                         >
                             <div class="notice-item-top">
                                 @php
@@ -329,9 +329,6 @@
                                 </div>
                                 <div class="notice-item-date">{{ $notice->published_at ? \Illuminate\Support\Carbon::parse($notice->published_at)->format('Y-m-d') : '待发布' }}</div>
                             </div>
-                            <template id="platform-notice-content-{{ $notice->id }}">
-                                {!! (string) ($notice->content ?? '') !!}
-                            </template>
                         </article>
                     @empty
                         <article class="notice-item">

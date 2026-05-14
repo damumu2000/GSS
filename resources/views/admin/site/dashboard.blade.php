@@ -295,7 +295,7 @@
                         class="insight-ring-shell"
                         data-insight-ring
                         data-default-value="{{ number_format($insights['assets']['chart_total']) }}"
-                        data-default-label="全部资源"
+                        data-default-label="当前资源"
                         data-default-detail="{{ $insights['assets']['chart_total_size_label'] }}"
                     >
                         <div class="insight-ring-stage">
@@ -320,7 +320,7 @@
                             <div class="insight-ring-center">
                                 <div>
                                     <div class="insight-ring-value" data-insight-ring-value>{{ number_format($insights['assets']['chart_total']) }}</div>
-                                    <div class="insight-ring-label" data-insight-ring-label>全部资源</div>
+                                    <div class="insight-ring-label" data-insight-ring-label>当前资源</div>
                                     <div class="insight-ring-detail" data-insight-ring-detail>{{ $insights['assets']['chart_total_size_label'] }}</div>
                                 </div>
                             </div>
@@ -348,6 +348,18 @@
                                 </div>
                             @endforeach
                         </div>
+                        @if ($insights['assets']['has_legacy'])
+                            <div class="insight-legacy-card">
+                                <div class="insight-legacy-card-main">
+                                    <div class="insight-legacy-card-title">旧附件</div>
+                                    <div class="insight-legacy-card-note">历史迁移资源，独立统计，不参与当前资源结构占比</div>
+                                </div>
+                                <div class="insight-legacy-card-values">
+                                    <div class="insight-legacy-card-count">{{ number_format($insights['assets']['legacy']) }} 个文件</div>
+                                    <div class="insight-legacy-card-size">{{ $insights['assets']['legacy_size_label'] }}</div>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </article>
@@ -380,7 +392,7 @@
                             data-notice-date="{{ $notice->published_at ? \Illuminate\Support\Carbon::parse($notice->published_at)->format('Y-m-d') : '待发布' }}"
                             data-notice-link="{{ $notice->frontend_url }}"
                             data-notice-summary="{{ trim((string) ($notice->summary ?? '')) }}"
-                            data-notice-content-id="platform-notice-content-{{ $notice->id }}"
+                            data-notice-detail-url="{{ route('admin.site-dashboard.notices.show', ['notice' => $notice->id]) }}"
                         >
                             <div class="notice-item-top">
                                 @php
@@ -403,9 +415,6 @@
                                 </div>
                                 <div class="notice-item-date">{{ $notice->published_at ? \Illuminate\Support\Carbon::parse($notice->published_at)->format('Y-m-d') : '待发布' }}</div>
                             </div>
-                            <template id="platform-notice-content-{{ $notice->id }}">
-                                {!! (string) ($notice->content ?? '') !!}
-                            </template>
                         </article>
                     @empty
                         <article class="notice-item">

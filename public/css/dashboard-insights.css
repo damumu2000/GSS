@@ -1347,6 +1347,58 @@
             gap: 12px;
         }
 
+        .insight-legacy-card {
+            width: min(100%, 520px);
+            max-width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 18px;
+            border-radius: 16px;
+            border: 1px solid rgba(236, 72, 153, 0.2);
+            background: linear-gradient(135deg, rgba(253, 242, 248, 0.94), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .insight-legacy-card-main {
+            min-width: 0;
+        }
+
+        .insight-legacy-card-title {
+            color: #111827;
+            font-size: 16px;
+            line-height: 1.5;
+            font-weight: 800;
+        }
+
+        .insight-legacy-card-note {
+            margin-top: 4px;
+            color: #8b94a7;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .insight-legacy-card-values {
+            flex: 0 0 auto;
+            text-align: right;
+        }
+
+        .insight-legacy-card-count {
+            color: #475569;
+            font-size: 13px;
+            line-height: 1.6;
+            font-weight: 700;
+        }
+
+        .insight-legacy-card-size {
+            margin-top: 2px;
+            color: #db2777;
+            font-size: 18px;
+            line-height: 1.5;
+            font-weight: 900;
+        }
+
         .insight-resource-head {
             display: flex;
             align-items: flex-start;

@@ -265,6 +265,13 @@
     font-weight: 600;
 }
 
+.attachment-summary-total {
+    color: #16a34a;
+    font-size: 12px;
+    line-height: 1.4;
+    font-weight: 700;
+}
+
 .attachment-rule-hint {
     position: relative;
     display: inline-flex;

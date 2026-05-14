@@ -57,6 +57,21 @@ class DashboardController extends Controller
         return response()->json($this->platformSystemStatus->dashboardSummary());
     }
 
+    public function notice(Request $request, int $notice): JsonResponse
+    {
+        if (! $this->isPlatformAdmin($request->user()->id)) {
+            abort(403);
+        }
+
+        $payload = $this->platformNoticeDetail($notice);
+
+        if (! $payload) {
+            abort(404);
+        }
+
+        return response()->json($payload);
+    }
+
     private function globalInsights(): array
     {
         $today = now('Asia/Shanghai')->startOfDay();

@@ -65,6 +65,8 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
         Route::get('/dashboard', PlatformDashboardController::class)
             ->middleware('platform.only')
             ->name('dashboard');
+        Route::get('/site-dashboard/platform-notices/{notice}', [SiteDashboardController::class, 'notice'])
+            ->name('site-dashboard.notices.show');
         Route::get('/site-dashboard', fn () => redirect()->route('admin.site-dashboard'))->name('site-dashboard.legacy');
         Route::get('/logs', [PlatformOperationLogController::class, 'index'])
             ->middleware('platform.only')
@@ -73,6 +75,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
         Route::prefix('platform')->name('platform.')->middleware('platform.only')->group(function (): void {
             Route::get('/dashboard', PlatformDashboardController::class)->name('dashboard');
             Route::get('/dashboard/system-status', [PlatformDashboardController::class, 'systemStatus'])->name('dashboard.system-status');
+            Route::get('/dashboard/platform-notices/{notice}', [PlatformDashboardController::class, 'notice'])->name('dashboard.notices.show');
             Route::get('/logs', [PlatformOperationLogController::class, 'index'])->name('logs.index');
             Route::get('/sites', [PlatformSiteController::class, 'index'])->name('sites.index');
             Route::get('/sites/create', [PlatformSiteController::class, 'create'])->name('sites.create');

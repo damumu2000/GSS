@@ -95,6 +95,7 @@ class AttachmentController extends Controller
             'currentSite' => $currentSite,
             'attachments' => $attachments,
             'attachmentTotalSizeLabel' => $this->formatAttachmentSize((int) $attachmentTotalSize),
+            'attachmentOverallUsedSizeLabel' => SiteStorageUsage::formatBytes(SiteStorageUsage::totalBytes($currentSite)),
             'attachmentStorageLimitLabel' => $this->siteAttachmentStorageLimitLabel((int) $currentSite->id),
             'legacyAttachmentCount' => (int) $legacyUpStats['count'],
             'legacyAttachmentSizeLabel' => $this->formatAttachmentSize((int) $legacyUpStats['bytes']),
