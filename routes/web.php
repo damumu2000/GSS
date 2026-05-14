@@ -39,13 +39,6 @@ Route::get('/page/{id}', [SiteController::class, 'page'])->name('site.page');
 Route::get('/atts/{path}', [SiteMediaController::class, 'attachment'])
     ->where('path', '.*')
     ->name('site.attachments');
-Route::get('/up/{path}', [SiteController::class, 'legacyUpAsset'])
-    ->where('path', '.*')
-    ->name('site.legacy-up');
-foreach (['/Up/{path}', '/uP/{path}', '/UP/{path}'] as $legacyUpAlias) {
-    Route::get($legacyUpAlias, [SiteController::class, 'legacyUpAsset'])
-        ->where('path', '.*');
-}
 Route::get('/theme-assets/{theme}/{path}', [SiteController::class, 'themeAsset'])
     ->where('path', '.*')
     ->name('site.theme-asset');

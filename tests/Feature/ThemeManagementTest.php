@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Support\ThemeTags;
+use App\Support\ThemeTemplateEngine;
 use App\Models\User;
 use App\Support\Site as SitePath;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -253,14 +256,60 @@ class ThemeManagementTest extends TestCase
         $site = $this->demoSite();
         $themeCode = $this->activeTemplateKey($site);
 
-        $response = $this->get(route('site.theme-asset', [
-            'theme' => $themeCode,
-            'path' => 'list.css',
-            'site' => $site->site_key,
-        ]));
+        $response = $this->withServerVariables(['HTTP_HOST' => '127.0.0.1'])
+            ->get(route('site.theme-asset', [
+                'theme' => $themeCode,
+                'path' => 'list.css',
+                'site' => $site->site_key,
+            ]));
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'text/css; charset=utf-8');
+    }
+
+    public function test_theme_asset_route_serves_assets_by_bound_domain_without_site_query(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->activeTemplateKey($site);
+
+        DB::table('site_domains')->insert([
+            'site_id' => $site->id,
+            'domain' => 'site.test',
+            'status' => 1,
+            'is_primary' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->get('http://site.test'.route('site.theme-asset', [
+            'theme' => $themeCode,
+            'path' => 'list.css',
+        ], false));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'text/css; charset=utf-8');
+    }
+
+    public function test_theme_asset_directive_omits_site_query_on_bound_domain(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->activeTemplateKey($site);
+        $engine = new ThemeTemplateEngine($site->site_key, $themeCode, new ThemeTags($site, collect(), collect()));
+        $method = new \ReflectionMethod($engine, 'resolveThemeAssetDirective');
+        $method->setAccessible(true);
+
+        app()->instance('request', Request::create('http://127.0.0.1/theme-assets/'.$themeCode.'/list.css', 'GET'));
+        $localUrl = $method->invoke($engine, 'list.css');
+
+        app()->instance('request', Request::create('https://site.test/theme-assets/'.$themeCode.'/list.css', 'GET', [], [], [], ['HTTP_HOST' => 'site.test', 'HTTPS' => 'on']));
+        $domainUrl = $method->invoke($engine, 'list.css');
+
+        $this->assertStringContainsString('site='.$site->site_key, $localUrl);
+        $this->assertStringNotContainsString('site='.$site->site_key, $domainUrl);
     }
 
     public function test_site_can_upload_and_delete_template_assets(): void

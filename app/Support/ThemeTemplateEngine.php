@@ -381,12 +381,19 @@ class ThemeTemplateEngine
             throw ThemeTemplateException::syntax('当前主题资源不存在：'.$normalizedPath);
         }
 
-        return route('site.theme-asset', [
+        $parameters = [
             'theme' => $this->themeCode,
             'path' => $normalizedPath,
-            'site' => $this->siteKey,
             'v' => $version ?: null,
-        ]);
+        ];
+
+        $host = mb_strtolower(trim((string) request()->getHost()));
+
+        if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            $parameters['site'] = $this->siteKey;
+        }
+
+        return route('site.theme-asset', $parameters);
     }
 
     protected function resolveThemeStyleDirective(string $path, bool $validateOnly = false): HtmlString

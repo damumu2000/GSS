@@ -16,7 +16,6 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SiteController extends Controller
 {
@@ -308,33 +307,6 @@ class SiteController extends Controller
         ]);
     }
 
-    public function legacyUpAsset(Request $request, string $path): BinaryFileResponse|Response
-    {
-        $site = $this->resolvedSite($request);
-        if (! $site) {
-            return $this->renderDomainUnboundPage($request);
-        }
-        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
-            return $disabled;
-        }
-
-        $normalizedPath = $this->normalizeLegacyUpPath($path);
-        abort_unless($normalizedPath !== null, 404);
-
-        $absolutePath = $this->resolveLegacyUpAbsolutePath($site, $normalizedPath);
-        abort_unless($absolutePath !== null && File::isFile($absolutePath), 404);
-
-        $response = response()->file($absolutePath, [
-            'Cache-Control' => 'public, max-age=2592000',
-        ]);
-
-        $response->setEtag(sha1($absolutePath.'|'.File::lastModified($absolutePath).'|'.File::size($absolutePath)));
-        $response->setLastModified(\Illuminate\Support\Carbon::createFromTimestamp(File::lastModified($absolutePath)));
-        $response->isNotModified($request);
-
-        return $response;
-    }
-
     public function previewArticle(Request $request, string $content): Response
     {
         $accessibleSiteIds = $this->siteIdsWithPermission($request->user()->id, 'content.manage');
@@ -501,12 +473,7 @@ class SiteController extends Controller
     {
         abort_unless(preg_match('/^[A-Za-z0-9_-]+$/', $theme) === 1, 404);
 
-        $siteKey = trim((string) $request->query('site', ''));
-        abort_unless($siteKey !== '', 404);
-
-        $site = DB::table('sites')
-            ->where('site_key', $siteKey)
-            ->first(['id', 'site_key', 'active_site_template_id']);
+        $site = $this->resolveThemeAssetSite($request);
 
         abort_unless($site, 404);
         abort_unless($this->frontendThemeCode((int) $site->id) === $theme, 404);
@@ -551,70 +518,39 @@ class SiteController extends Controller
         };
     }
 
-    protected function normalizeLegacyUpPath(string $path): ?string
+    protected function resolveThemeAssetSite(Request $request): ?object
     {
-        $path = trim(str_replace('\\', '/', $path), '/');
+        $host = mb_strtolower(trim((string) $request->getHost()));
 
-        if ($path === '' || str_contains($path, '..') || str_starts_with($path, '.')) {
-            return null;
-        }
+        if ($host !== '') {
+            $site = DB::table('site_domains')
+                ->join('sites', 'sites.id', '=', 'site_domains.site_id')
+                ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
+                ->where('site_domains.status', 1)
+                ->where('sites.status', 1)
+                ->first(['sites.id', 'sites.site_key', 'sites.active_site_template_id']);
 
-        if (preg_match('#^[A-Za-z0-9/_\.-]+$#', $path) !== 1) {
-            return null;
-        }
-
-        return $path;
-    }
-
-    protected function resolveLegacyUpAbsolutePath(object $site, string $relativePath): ?string
-    {
-        $siteRoot = SitePath::root($site);
-        $baseDirectory = $this->resolveLegacyUpPathSegment($siteRoot, 'up');
-
-        if ($baseDirectory === null || ! File::isDirectory($baseDirectory)) {
-            return null;
-        }
-
-        $current = $baseDirectory;
-
-        foreach (explode('/', $relativePath) as $segment) {
-            $resolved = $this->resolveLegacyUpPathSegment($current, $segment);
-
-            if ($resolved === null) {
-                return null;
-            }
-
-            $current = $resolved;
-        }
-
-        return $current;
-    }
-
-    protected function resolveLegacyUpPathSegment(string $parent, string $segment): ?string
-    {
-        $exact = $parent.DIRECTORY_SEPARATOR.$segment;
-
-        if (file_exists($exact)) {
-            return $exact;
-        }
-
-        if (! File::isDirectory($parent)) {
-            return null;
-        }
-
-        foreach (File::files($parent) as $file) {
-            if (strcasecmp($file->getFilename(), $segment) === 0) {
-                return $file->getPathname();
+            if ($site) {
+                return $site;
             }
         }
 
-        foreach (File::directories($parent) as $directory) {
-            if (strcasecmp(basename($directory), $segment) === 0) {
-                return $directory;
-            }
+        if (! in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return null;
         }
 
-        return null;
+        $siteKey = trim((string) $request->query('site', ''));
+
+        if ($siteKey === '') {
+            return null;
+        }
+
+        $site = DB::table('sites')
+            ->where('site_key', $siteKey)
+            ->where('status', 1)
+            ->first(['id', 'site_key', 'active_site_template_id']);
+
+        return $site ?: null;
     }
 
     /**
