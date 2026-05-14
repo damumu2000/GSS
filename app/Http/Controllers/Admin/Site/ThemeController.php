@@ -1432,14 +1432,6 @@ class ThemeController extends Controller
             $throwLineError('模板源码中不允许使用内联 script，请改用主题脚本文件并通过 themeScript 引入。', (int) ($match[0][1] ?? 0));
         }
 
-        if (preg_match('/<style\b[^>]*>/i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
-            $throwLineError('模板源码中不允许使用内联 style，请改用主题样式文件并通过 themeStyle 引入。', (int) ($match[0][1] ?? 0));
-        }
-
-        if (preg_match('/\sstyle\s*=/i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
-            $throwLineError('模板源码中不允许使用内联 style 属性，请改用样式类名和主题样式文件。', (int) ($match[0][1] ?? 0));
-        }
-
         if (preg_match('/\son[a-z]+\s*=/i', $source, $match, PREG_OFFSET_CAPTURE) === 1) {
             $throwLineError('模板源码中不允许使用内联事件属性，请改用主题脚本文件绑定交互。', (int) ($match[0][1] ?? 0));
         }
