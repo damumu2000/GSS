@@ -33,6 +33,7 @@ class DashboardController extends Controller
         $currentSite = $this->currentSite($request);
         $platformNotices = $this->platformNoticeItems(3);
         $platformNoticeSiteKey = $this->platformSiteKey();
+        $platformNoticeChannelUrl = $this->platformNoticeChannelUrl();
         $insights = $this->globalInsights();
 
         return view('admin.platform.dashboard', [
@@ -41,6 +42,7 @@ class DashboardController extends Controller
             'systemStatusUrl' => route('admin.platform.dashboard.system-status'),
             'platformNotices' => $platformNotices,
             'platformNoticeSiteKey' => $platformNoticeSiteKey,
+            'platformNoticeChannelUrl' => $platformNoticeChannelUrl,
             'showPlatformNoticeLink' => $platformNoticeSiteKey !== '',
             'insights' => $insights,
         ]);

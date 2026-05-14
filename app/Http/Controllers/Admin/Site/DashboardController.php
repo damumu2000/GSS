@@ -49,6 +49,7 @@ class DashboardController extends Controller
         $platformNoticeChannelId = $this->ensurePlatformNoticeChannelId($request->user()->id);
         $platformNotices = $this->platformNoticeItems(3);
         $platformNoticeSiteKey = $this->platformSiteKey();
+        $platformNoticeChannelUrl = $this->platformNoticeChannelUrl();
         $securitySummary = $this->siteSecurity->dashboardSummary((int) $currentSite->id);
         $insights = $this->siteInsights((int) $currentSite->id, (int) $request->user()->id, $securitySummary);
 
@@ -73,6 +74,7 @@ class DashboardController extends Controller
             'platformNotices' => $platformNotices,
             'platformNoticeSiteKey' => $platformNoticeSiteKey,
             'platformNoticeChannelId' => $platformNoticeChannelId,
+            'platformNoticeChannelUrl' => $platformNoticeChannelUrl,
             'showPlatformNoticeLink' => $platformNoticeSiteKey !== '',
             'sitePermissionCodes' => $sitePermissionCodes,
             'quickLinks' => $quickLinks,
@@ -214,17 +216,22 @@ class DashboardController extends Controller
         $usedAttachmentBytes = (int) (clone $usedAttachmentsQuery)->sum('size');
         $unusedAttachments = max(0, $totalAttachments - $usedAttachments);
         $unusedAttachmentBytes = max(0, $totalAttachmentBytes - $usedAttachmentBytes);
+        $legacyAttachmentStats = SiteStorageUsage::legacyAttachmentStats($siteId);
+        $legacyAttachmentCount = (int) $legacyAttachmentStats['count'];
+        $legacyAttachmentBytes = (int) $legacyAttachmentStats['bytes'];
         $themeAssetCount = SiteStorageUsage::themeAssetCount($siteId);
         $themeAssetBytes = SiteStorageUsage::themeAssetBytes($siteId);
-        $assetChartTotal = max(0, $usedAttachments + $unusedAttachments + $themeAssetCount);
+        $assetChartTotal = max(0, $usedAttachments + $unusedAttachments + $themeAssetCount + $legacyAttachmentCount);
         $assetSegments = $this->buildAssetSegments([
             'used' => $usedAttachments,
             'unused' => $unusedAttachments,
             'theme' => $themeAssetCount,
+            'legacy' => $legacyAttachmentCount,
         ], [
             'used' => $usedAttachmentBytes,
             'unused' => $unusedAttachmentBytes,
             'theme' => $themeAssetBytes,
+            'legacy' => $legacyAttachmentBytes,
         ]);
 
         return [
@@ -268,12 +275,15 @@ class DashboardController extends Controller
                 'used' => $usedAttachments,
                 'unused' => $unusedAttachments,
                 'theme' => $themeAssetCount,
+                'legacy' => $legacyAttachmentCount,
                 'used_ratio' => $assetChartTotal > 0 ? (int) round(($usedAttachments / $assetChartTotal) * 100) : 0,
                 'unused_ratio' => $assetChartTotal > 0 ? (int) round(($unusedAttachments / $assetChartTotal) * 100) : 0,
                 'theme_ratio' => $assetChartTotal > 0 ? (int) round(($themeAssetCount / $assetChartTotal) * 100) : 0,
+                'legacy_ratio' => $assetChartTotal > 0 ? (int) round(($legacyAttachmentCount / $assetChartTotal) * 100) : 0,
+                'has_legacy' => (bool) $legacyAttachmentStats['has_data'],
                 'used_size_label' => SiteStorageUsage::formatBytes(SiteStorageUsage::totalBytes($siteId)),
                 'storage_limit_label' => $this->siteAttachmentStorageLimitLabel($siteId),
-                'chart_total_size_label' => SiteStorageUsage::formatBytes($totalAttachmentBytes + $themeAssetBytes),
+                'chart_total_size_label' => SiteStorageUsage::formatBytes($totalAttachmentBytes + $legacyAttachmentBytes + $themeAssetBytes),
                 'chart_total' => $assetSegments['total'],
                 'segments' => $assetSegments['segments'],
             ],
@@ -281,8 +291,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * @param  array{used:int,unused:int,theme:int}  $counts
-     * @param  array{used:int,unused:int,theme:int}  $bytes
+     * @param  array{used:int,unused:int,theme:int,legacy:int}  $counts
+     * @param  array{used:int,unused:int,theme:int,legacy:int}  $bytes
      * @return array{total:int,segments:array<int,array<string,mixed>>}
      */
     private function buildAssetSegments(array $counts, array $bytes): array
@@ -295,13 +305,19 @@ class DashboardController extends Controller
             'used' => ['label' => '已引用', 'color_class' => 'is-used'],
             'unused' => ['label' => '未引用', 'color_class' => 'is-unused'],
             'theme' => ['label' => '模板资源', 'color_class' => 'is-theme'],
+            'legacy' => ['label' => '旧附件', 'color_class' => 'is-legacy'],
         ];
 
         $segments = [];
 
-        foreach (['used', 'unused', 'theme'] as $key) {
+        foreach (['used', 'unused', 'theme', 'legacy'] as $key) {
             $value = max(0, (int) ($counts[$key] ?? 0));
             $size = max(0, (int) ($bytes[$key] ?? 0));
+
+            if ($key === 'legacy' && $value <= 0 && $size <= 0) {
+                continue;
+            }
+
             $ratio = $total > 0 ? round(($value / $total) * 100) : 0;
             $segmentLength = $total > 0 ? ($circumference * $value / $total) : 0.0;
             $segments[] = [

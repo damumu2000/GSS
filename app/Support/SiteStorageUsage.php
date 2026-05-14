@@ -7,6 +7,13 @@ use Illuminate\Support\Facades\File;
 
 class SiteStorageUsage
 {
+    public static function attachmentCount(int $siteId): int
+    {
+        return (int) DB::table('attachments')
+            ->where('site_id', $siteId)
+            ->count();
+    }
+
     /**
      * @return array{count:int, bytes:int}
      */
@@ -39,6 +46,24 @@ class SiteStorageUsage
             ->sum('size');
     }
 
+    /**
+     * @return array{count:int,bytes:int,scanned_at:?\Carbon\Carbon,has_data:bool}
+     */
+    public static function legacyAttachmentStats(int|object|string $site): array
+    {
+        return LegacyAttachmentStats::stats($site);
+    }
+
+    public static function legacyAttachmentBytes(int|object|string $site): int
+    {
+        return (int) (static::legacyAttachmentStats($site)['bytes'] ?? 0);
+    }
+
+    public static function legacyAttachmentCount(int|object|string $site): int
+    {
+        return (int) (static::legacyAttachmentStats($site)['count'] ?? 0);
+    }
+
     public static function themeAssetBytes(int|object|string $site): int
     {
         return static::themeAssetStats($site)['bytes'];
@@ -53,7 +78,21 @@ class SiteStorageUsage
     {
         $siteId = is_object($site) ? (int) ($site->id ?? 0) : (is_numeric($site) ? (int) $site : 0);
 
-        return static::attachmentBytes($siteId) + static::themeAssetBytes($site);
+        return static::attachmentBytes($siteId) + static::legacyAttachmentBytes($site) + static::themeAssetBytes($site);
+    }
+
+    public static function globalLegacyAttachmentBytes(): int
+    {
+        return (int) DB::table('site_settings')
+            ->where('setting_key', 'attachment.legacy_up_bytes')
+            ->sum(DB::raw('CAST(setting_value AS UNSIGNED)'));
+    }
+
+    public static function globalLegacyAttachmentCount(): int
+    {
+        return (int) DB::table('site_settings')
+            ->where('setting_key', 'attachment.legacy_up_file_count')
+            ->sum(DB::raw('CAST(setting_value AS UNSIGNED)'));
     }
 
     public static function globalThemeAssetBytes(): int
@@ -72,7 +111,7 @@ class SiteStorageUsage
 
     public static function globalTotalBytes(): int
     {
-        return (int) DB::table('attachments')->sum('size') + static::globalThemeAssetBytes();
+        return (int) DB::table('attachments')->sum('size') + static::globalLegacyAttachmentBytes() + static::globalThemeAssetBytes();
     }
 
     public static function storageLimitMb(int $siteId): int

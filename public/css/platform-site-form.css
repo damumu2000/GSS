@@ -398,6 +398,14 @@
         align-items: center;
     }
 
+    .status-monitor-row-actions {
+        align-items: flex-start;
+    }
+
+    .status-monitor-row-actions form {
+        flex-shrink: 0;
+    }
+
     .status-monitor-label {
         color: #8c8c8c;
         font-size: 13px;

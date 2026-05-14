@@ -282,7 +282,7 @@
                 <div class="insight-board-card-head">
                     <h3 class="insight-board-card-title">官闪闪公告栏</h3>
                     @if ($showPlatformNoticeLink)
-                        <a class="insight-board-card-tag" href="{{ route('site.channel', ['slug' => 'platform-notices']) }}" target="_blank">更多</a>
+                        <a class="insight-board-card-tag" href="{{ $platformNoticeChannelUrl }}" target="_blank">更多</a>
                     @endif
                 </div>
                 <div class="notice-list">
@@ -304,7 +304,7 @@
                             data-notice-trigger
                             data-notice-title="{{ $notice->title }}"
                             data-notice-date="{{ $notice->published_at ? \Illuminate\Support\Carbon::parse($notice->published_at)->format('Y-m-d') : '待发布' }}"
-                            data-notice-link="{{ route('site.article', ['id' => $notice->id, 'site' => $platformNoticeSiteKey]) }}"
+                            data-notice-link="{{ $notice->frontend_url }}"
                             data-notice-summary="{{ trim((string) ($notice->summary ?? '')) }}"
                             data-notice-content-id="platform-notice-content-{{ $notice->id }}"
                         >

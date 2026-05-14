@@ -25,6 +25,17 @@
         $domainRows = collect(['']);
     }
 
+    $attachmentUsage = $attachmentUsage ?? [];
+    $managedAttachmentCount = (int) ($attachmentUsage['managed_count'] ?? 0);
+    $managedAttachmentBytes = \App\Support\SiteStorageUsage::formatBytes((int) ($attachmentUsage['managed_bytes'] ?? 0));
+    $legacyAttachmentCount = (int) ($attachmentUsage['legacy_count'] ?? 0);
+    $legacyAttachmentBytes = \App\Support\SiteStorageUsage::formatBytes((int) ($attachmentUsage['legacy_bytes'] ?? 0));
+    $totalAttachmentBytes = \App\Support\SiteStorageUsage::formatBytes((int) ($attachmentUsage['total_bytes'] ?? 0));
+    $attachmentLimitBytes = (int) ($attachmentUsage['limit_bytes'] ?? 0);
+    $attachmentLimitLabel = $attachmentLimitBytes > 0 ? \App\Support\SiteStorageUsage::formatBytes($attachmentLimitBytes) : '不限';
+    $legacyAttachmentScannedAt = $attachmentUsage['legacy_scanned_at'] ?? null;
+    $hasLegacyAttachments = (bool) ($attachmentUsage['has_legacy'] ?? false);
+
     $moduleTabHasErrors = $errors->has('module')
         || $errors->has('module_id')
         || $errors->has('is_trial')
@@ -264,6 +275,34 @@
                                         <span class="status-monitor-label">到期时间</span>
                                         <span class="status-monitor-value {{ $expiresExpired ? 'is-danger' : ($expiresSoon ? 'is-warning' : '') }}">{{ $expiresAtValue ?: '未设置' }}</span>
                                     </div>
+                                    <div class="status-monitor-row">
+                                        <span class="status-monitor-label">资源库附件</span>
+                                        <span class="status-monitor-value">{{ $managedAttachmentCount }} 个文件 · {{ $managedAttachmentBytes }}</span>
+                                    </div>
+                                    @if ($hasLegacyAttachments)
+                                        <div class="status-monitor-row">
+                                            <span class="status-monitor-label">旧附件占用</span>
+                                            <span class="status-monitor-value">{{ $legacyAttachmentCount }} 个文件 · {{ $legacyAttachmentBytes }}</span>
+                                        </div>
+                                    @endif
+                                    <div class="status-monitor-row">
+                                        <span class="status-monitor-label">总资源占用</span>
+                                        <span class="status-monitor-value">{{ $totalAttachmentBytes }} / {{ $attachmentLimitLabel }}</span>
+                                    </div>
+                                    @if ($hasLegacyAttachments)
+                                        <div class="status-monitor-row status-monitor-row-actions">
+                                            <span class="status-monitor-label">
+                                                旧附件统计
+                                                @if ($legacyAttachmentScannedAt)
+                                                    · {{ $legacyAttachmentScannedAt->format('Y-m-d H:i') }}
+                                                @endif
+                                            </span>
+                                            <form method="POST" action="{{ route('admin.platform.sites.legacy-attachments.refresh', $site->id) }}">
+                                                @csrf
+                                                <button class="button secondary" type="submit" data-loading-text="刷新中...">刷新旧附件统计</button>
+                                            </form>
+                                        </div>
+                                    @endif
                                 </div>
                                 <div class="site-form-grid status-monitor-fields">
                                     <label class="field-group">

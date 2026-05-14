@@ -80,6 +80,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::post('/sites/media-upload', [PlatformSiteController::class, 'mediaUpload'])->name('sites.media-upload');
             Route::get('/sites/{site}', [PlatformSiteController::class, 'edit'])->name('sites.edit');
             Route::post('/sites/{site}', [PlatformSiteController::class, 'update'])->name('sites.update');
+            Route::post('/sites/{site}/legacy-attachments/refresh', [PlatformSiteController::class, 'refreshLegacyAttachmentStats'])->name('sites.legacy-attachments.refresh');
             Route::get('/sites/{site}/modules', [PlatformSiteController::class, 'modules'])->name('sites.modules');
             Route::post('/sites/{site}/modules/add', [PlatformSiteController::class, 'addModule'])->name('sites.modules.add');
             Route::post('/sites/{site}/modules/{module}/update', [PlatformSiteController::class, 'updateModuleBinding'])->whereNumber('module')->name('sites.modules.update');

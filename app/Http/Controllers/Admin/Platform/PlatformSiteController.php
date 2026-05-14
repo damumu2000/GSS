@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Support\AttachmentUsageTracker;
+use App\Support\LegacyAttachmentStats;
 use App\Support\Modules\ModuleManager;
 use App\Support\Site as SitePath;
+use App\Support\SiteStorageUsage;
 use App\Support\ThemeTemplateScaffold;
 use DOMDocument;
 use DOMElement;
@@ -196,6 +198,17 @@ class PlatformSiteController extends Controller
             ->where('site_id', $siteId)
             ->where('setting_key', 'attachment.storage_limit_mb')
             ->value('setting_value') ?? '0');
+        $legacyAttachmentStats = LegacyAttachmentStats::stats($site);
+        $attachmentUsage = [
+            'managed_count' => SiteStorageUsage::attachmentCount((int) $siteId),
+            'managed_bytes' => SiteStorageUsage::attachmentBytes((int) $siteId),
+            'legacy_count' => (int) $legacyAttachmentStats['count'],
+            'legacy_bytes' => (int) $legacyAttachmentStats['bytes'],
+            'legacy_scanned_at' => $legacyAttachmentStats['scanned_at'],
+            'has_legacy' => (bool) $legacyAttachmentStats['has_data'],
+            'total_bytes' => SiteStorageUsage::totalBytes($site),
+            'limit_bytes' => SiteStorageUsage::storageLimitBytes((int) $siteId),
+        ];
 
         $boundModules = DB::table('site_module_bindings')
             ->join('modules', 'modules.id', '=', 'site_module_bindings.module_id')
@@ -232,8 +245,25 @@ class PlatformSiteController extends Controller
             'boundModules' => $boundModules,
             'availableModules' => $availableModules,
             'attachmentStorageLimitMb' => (string) old('attachment_storage_limit_mb', $attachmentStorageLimitMb),
+            'attachmentUsage' => $attachmentUsage,
             'selectedSiteAdminIds' => collect(old('site_admin_ids', $selectedSiteAdminIds))->map(fn ($id) => (int) $id)->all(),
         ]);
+    }
+
+    public function refreshLegacyAttachmentStats(Request $request, string $siteId): RedirectResponse
+    {
+        $this->authorizePlatform($request, 'site.manage');
+        $site = DB::table('sites')->where('id', $siteId)->first(['id', 'site_key']);
+        abort_unless($site, 404);
+
+        $stats = LegacyAttachmentStats::refresh($site, (int) $request->user()->id);
+        $status = $stats['has_data']
+            ? '旧附件统计已刷新。'
+            : '未检测到旧附件，统计结果已刷新为 0。';
+
+        return redirect()
+            ->route('admin.platform.sites.edit', $siteId)
+            ->with('status', $status);
     }
 
     public function store(Request $request): RedirectResponse

@@ -115,6 +115,9 @@
                     <span class="badge attachment-summary-badge">
                         <span>
                             {{ $attachments->total() }} 个文件 · 已用 {{ $attachmentTotalSizeLabel }} / {{ $attachmentStorageLimitLabel }}
+                            @if (! empty($hasLegacyAttachments))
+                                <span class="attachment-summary-status"> · 旧附件已用 {{ $legacyAttachmentSizeLabel }}</span>
+                            @endif
                             <span class="attachment-summary-status"> · {{ $attachmentAutoCompressLabel }}</span>
                         </span>
                         <button class="attachment-rule-hint" type="button" aria-label="查看上传限制说明">

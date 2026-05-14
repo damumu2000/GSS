@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Site;
 use App\Http\Controllers\Controller;
 use App\Support\AttachmentUsageTracker;
 use App\Support\Site as SitePath;
+use App\Support\SiteStorageUsage;
 use App\Support\SystemSettings;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -87,12 +88,17 @@ class AttachmentController extends Controller
             })
         );
 
+        $legacyUpStats = SiteStorageUsage::legacyAttachmentStats($currentSite);
+
         return view('admin.site.attachments.index', [
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
             'attachments' => $attachments,
             'attachmentTotalSizeLabel' => $this->formatAttachmentSize((int) $attachmentTotalSize),
             'attachmentStorageLimitLabel' => $this->siteAttachmentStorageLimitLabel((int) $currentSite->id),
+            'legacyAttachmentCount' => (int) $legacyUpStats['count'],
+            'legacyAttachmentSizeLabel' => $this->formatAttachmentSize((int) $legacyUpStats['bytes']),
+            'hasLegacyAttachments' => (bool) $legacyUpStats['has_data'],
             'keyword' => $filters['keyword'],
             'selectedFilter' => $filters['filter'],
             'selectedUsage' => $filters['usage'],
@@ -1175,9 +1181,13 @@ class AttachmentController extends Controller
         }
 
         $limitBytes = $limitMb * 1024 * 1024;
-        $usedBytes = (int) DB::table('attachments')
-            ->where('site_id', $siteId)
-            ->sum('size');
+        $site = DB::table('sites')->where('id', $siteId)->first(['id', 'site_key']);
+
+        if (! $site) {
+            return;
+        }
+
+        $usedBytes = SiteStorageUsage::totalBytes($site);
         $remainingBytes = max(0, $limitBytes - $usedBytes);
 
         if (($usedBytes + $incomingBytes) <= $limitBytes) {
@@ -1186,7 +1196,7 @@ class AttachmentController extends Controller
 
         throw ValidationException::withMessages([
             'file' => sprintf(
-                '当前站点资源库容量不足，剩余 %s，本次上传需要 %s。',
+                '当前站点总容量不足，剩余 %s，本次上传需要 %s。',
                 $this->formatAttachmentSize($remainingBytes),
                 $this->formatAttachmentSize($incomingBytes),
             ),
@@ -1202,9 +1212,13 @@ class AttachmentController extends Controller
         }
 
         $limitBytes = $limitMb * 1024 * 1024;
-        $usedBytes = (int) DB::table('attachments')
-            ->where('site_id', $siteId)
-            ->sum('size');
+        $site = DB::table('sites')->where('id', $siteId)->first(['id', 'site_key']);
+
+        if (! $site) {
+            return;
+        }
+
+        $usedBytes = SiteStorageUsage::totalBytes($site);
         $projectedBytes = max(0, $usedBytes - $currentBytes) + $incomingBytes;
         $remainingBytes = max(0, $limitBytes - max(0, $usedBytes - $currentBytes));
 
@@ -1214,7 +1228,7 @@ class AttachmentController extends Controller
 
         throw ValidationException::withMessages([
             'file' => sprintf(
-                '当前站点资源库容量不足，替换后剩余 %s，本次文件需要 %s。',
+                '当前站点总容量不足，替换后剩余 %s，本次文件需要 %s。',
                 $this->formatAttachmentSize($remainingBytes),
                 $this->formatAttachmentSize($incomingBytes),
             ),

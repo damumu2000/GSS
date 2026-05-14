@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\SiteFrontendUrl;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
@@ -782,6 +783,14 @@ abstract class Controller
             return collect();
         }
 
+        $platformSite = DB::table('sites')
+            ->where('id', $this->platformSiteId())
+            ->first(['id', 'site_key']);
+
+        if (! $platformSite) {
+            return collect();
+        }
+
         return DB::table('contents')
             ->where('site_id', $this->platformSiteId())
             ->where('type', 'article')
@@ -803,7 +812,13 @@ abstract class Controller
                 'title_italic',
                 'is_top',
                 'is_recommend',
-            ]);
+            ])
+            ->map(function (object $notice) use ($platformSite) {
+                $notice->frontend_url = SiteFrontendUrl::articleUrl($platformSite, (int) $notice->id);
+                $notice->content = $this->absolutizePlatformNoticeHtml((string) ($notice->content ?? ''), $platformSite);
+
+                return $notice;
+            });
     }
 
     /**
@@ -822,6 +837,19 @@ abstract class Controller
         return (string) DB::table('sites')
             ->where('id', $this->platformSiteId())
             ->value('site_key');
+    }
+
+    protected function platformNoticeChannelUrl(): string
+    {
+        $platformSite = DB::table('sites')
+            ->where('id', $this->platformSiteId())
+            ->first(['id', 'site_key']);
+
+        if (! $platformSite) {
+            return route('site.channel', ['slug' => 'platform-notices']);
+        }
+
+        return SiteFrontendUrl::channelUrl($platformSite, 'platform-notices');
     }
 
     /**
@@ -1152,5 +1180,24 @@ abstract class Controller
             'guestbook_message' => '留言',
             default => trim((string) $targetType),
         };
+    }
+
+    protected function absolutizePlatformNoticeHtml(string $html, object $site): string
+    {
+        if (trim($html) === '') {
+            return $html;
+        }
+
+        $html = preg_replace_callback(
+            '#\b(src|href|poster)=([\'"])(/(?!/)[^\'"]*)\2#i',
+            fn (array $matches): string => $matches[1].'='.$matches[2].SiteFrontendUrl::absolutizeSiteAssetUrl($site, $matches[3]).$matches[2],
+            $html,
+        ) ?? $html;
+
+        return preg_replace_callback(
+            '#url\(([\'"]?)(/(?!/)[^)\'"]+)\1\)#i',
+            fn (array $matches): string => 'url('.$matches[1].SiteFrontendUrl::absolutizeSiteAssetUrl($site, $matches[2]).$matches[1].')',
+            $html,
+        ) ?? $html;
     }
 }
