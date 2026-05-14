@@ -419,7 +419,10 @@ class SiteSecurity
     {
         $path = trim((string) $request->path(), '/');
 
-        return $path === 'site-media' || str_starts_with($path, 'site-media/');
+        return $path === 'site-media'
+            || str_starts_with($path, 'site-media/')
+            || $path === 'atts'
+            || str_starts_with($path, 'atts/');
     }
 
     protected function requestFingerprintText(Request $request): string

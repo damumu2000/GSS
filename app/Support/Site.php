@@ -58,9 +58,23 @@ class Site
         return url('/site-media/'.static::key($site).'/'.ltrim($suffix, '/'));
     }
 
+    public static function attachmentUrl(int|object|string $site, string $suffix = ''): string
+    {
+        $siteKey = static::key($site);
+        $url = url('/atts/'.ltrim($suffix, '/'));
+
+        return static::shouldAppendLocalSiteQuery($url)
+            ? static::appendUrlQuery($url, ['site' => $siteKey])
+            : $url;
+    }
+
     public static function urlForStoredPath(string $path): string
     {
         $normalized = trim($path, '/');
+
+        if (preg_match('#^web/([^/]+)/media/attachments/(.+)$#', $normalized, $matches)) {
+            return static::attachmentUrl($matches[1], $matches[2]);
+        }
 
         if (preg_match('#^web/([^/]+)/media/(.+)$#', $normalized, $matches)) {
             return url('/site-media/'.$matches[1].'/'.$matches[2]);
@@ -78,14 +92,24 @@ class Site
         }
 
         $path = parse_url($url, PHP_URL_PATH);
-
-        if (! is_string($path) || preg_match('#^/site-media/([^/]+)/(.+)$#', $path, $matches) !== 1) {
+        if (! is_string($path)) {
             return $url;
         }
 
-        $absolutePath = static::mediaAbsolutePath($matches[1], $matches[2]);
+        $absolutePath = null;
 
-        if (! is_file($absolutePath)) {
+        if (preg_match('#^/site-media/([^/]+)/(.+)$#', $path, $matches) === 1) {
+            $absolutePath = static::mediaAbsolutePath($matches[1], $matches[2]);
+        } elseif (preg_match('#^/atts/(.+)$#', $path, $matches) === 1) {
+            $siteKey = trim((string) parse_url($url, PHP_URL_QUERY));
+            parse_str($siteKey, $query);
+            $resolvedSiteKey = trim((string) ($query['site'] ?? ''));
+            if ($resolvedSiteKey !== '') {
+                $absolutePath = static::mediaAbsolutePath($resolvedSiteKey, 'attachments/'.$matches[1]);
+            }
+        }
+
+        if (! is_string($absolutePath) || ! is_file($absolutePath)) {
             return $url;
         }
 
@@ -137,5 +161,19 @@ class Site
             ->map(fn (string $segment) => trim($segment, '/'))
             ->filter(fn (string $segment) => $segment !== '')
             ->implode('/');
+    }
+
+    protected static function shouldAppendLocalSiteQuery(string $url): bool
+    {
+        $host = mb_strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        return in_array($host, ['127.0.0.1', 'localhost'], true);
+    }
+
+    protected static function appendUrlQuery(string $url, array $query): string
+    {
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url.$separator.http_build_query($query);
     }
 }

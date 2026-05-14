@@ -3558,7 +3558,7 @@ class AdminAccessTest extends TestCase
         $this->assertSame('new-cover.jpg', $attachment->origin_name);
         $this->assertSame('jpg', $attachment->extension);
         $this->assertSame('replace-target.jpg', $attachment->stored_name);
-        $this->assertSame('http://127.0.0.1:8000/site-media/site/attachments/2026/04/replace-target.jpg', $attachment->url);
+        $this->assertSame('http://127.0.0.1:8000/atts/2026/04/replace-target.jpg?site=site', $attachment->url);
         $this->assertGreaterThan(strtotime('-1 hour'), strtotime((string) $attachment->created_at));
 
         $dimensions = getimagesize($absolutePath);
@@ -3658,7 +3658,7 @@ class AdminAccessTest extends TestCase
 
         $this->assertNotNull($item);
         $this->assertSame(
-            'http://127.0.0.1:8000/site-media/site/attachments/2026/04/cache-version.jpg?v='.$updatedAt->timestamp,
+            'http://127.0.0.1:8000/atts/2026/04/cache-version.jpg?site=site&v='.$updatedAt->timestamp,
             $item['url'] ?? null,
         );
     }

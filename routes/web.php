@@ -36,6 +36,12 @@ Route::get('/', [SiteController::class, 'show'])->name('site.home');
 Route::get('/cat/{slug}', [SiteController::class, 'channel'])->name('site.channel');
 Route::get('/article/{id}', [SiteController::class, 'article'])->name('site.article');
 Route::get('/page/{id}', [SiteController::class, 'page'])->name('site.page');
+Route::get('/atts/{path}', [SiteMediaController::class, 'attachment'])
+    ->where('path', '.*')
+    ->name('site.attachments');
+Route::get('/up/{path}', [SiteController::class, 'legacyUpAsset'])
+    ->where('path', '.*')
+    ->name('site.legacy-up');
 Route::get('/theme-assets/{theme}/{path}', [SiteController::class, 'themeAsset'])
     ->where('path', '.*')
     ->name('site.theme-asset');

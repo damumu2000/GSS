@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SiteController extends Controller
 {
@@ -307,6 +308,33 @@ class SiteController extends Controller
         ]);
     }
 
+    public function legacyUpAsset(Request $request, string $path): BinaryFileResponse|Response
+    {
+        $site = $this->resolvedSite($request);
+        if (! $site) {
+            return $this->renderDomainUnboundPage($request);
+        }
+        if ($disabled = $this->renderWhenFrontendDisabled($site)) {
+            return $disabled;
+        }
+
+        $normalizedPath = $this->normalizeLegacyUpPath($path);
+        abort_unless($normalizedPath !== null, 404);
+
+        $absolutePath = SitePath::root($site).DIRECTORY_SEPARATOR.'up'.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $normalizedPath);
+        abort_unless(File::isFile($absolutePath), 404);
+
+        $response = response()->file($absolutePath, [
+            'Cache-Control' => 'public, max-age=2592000',
+        ]);
+
+        $response->setEtag(sha1($absolutePath.'|'.File::lastModified($absolutePath).'|'.File::size($absolutePath)));
+        $response->setLastModified(\Illuminate\Support\Carbon::createFromTimestamp(File::lastModified($absolutePath)));
+        $response->isNotModified($request);
+
+        return $response;
+    }
+
     public function previewArticle(Request $request, string $content): Response
     {
         $accessibleSiteIds = $this->siteIdsWithPermission($request->user()->id, 'content.manage');
@@ -521,6 +549,21 @@ class SiteController extends Controller
             'woff2' => 'font/woff2',
             default => File::mimeType($path) ?: 'application/octet-stream',
         };
+    }
+
+    protected function normalizeLegacyUpPath(string $path): ?string
+    {
+        $path = trim(str_replace('\\', '/', $path), '/');
+
+        if ($path === '' || str_contains($path, '..') || str_starts_with($path, '.')) {
+            return null;
+        }
+
+        if (preg_match('#^[A-Za-z0-9/_\.-]+$#', $path) !== 1) {
+            return null;
+        }
+
+        return $path;
     }
 
     /**
