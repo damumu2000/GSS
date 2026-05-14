@@ -265,7 +265,7 @@
 
 @push('scripts')
     @include('admin.site._custom_select_scripts')
-    @if ($type === 'article')
+    @if (in_array($type, ['article', 'page'], true))
         <script src="/vendor/sortablejs/Sortable.min.js?v=1.15.3"></script>
     @endif
     <script src="/js/site-contents-index.js"></script>
