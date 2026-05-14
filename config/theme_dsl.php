@@ -32,6 +32,7 @@ return [
         'children',
         'parent',
         'siblings',
+        'localNav',
         'breadcrumb',
         'content',
         'promo',
