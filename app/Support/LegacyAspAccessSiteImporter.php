@@ -56,7 +56,9 @@ class LegacyAspAccessSiteImporter
                 $summary['warnings'][] = '目标站点当前不存在，正式执行时会自动创建新站点并初始化默认模板。';
             }
 
-            if ($summary['counts']['news'] !== $summary['counts']['news_content']) {
+            if ($summary['counts']['news_content'] === 0) {
+                $summary['warnings'][] = '当前数据目录未提供 News_Content.xml，导入时将仅使用 News.xml 中自带正文。';
+            } elseif ($summary['counts']['news'] !== $summary['counts']['news_content']) {
                 $summary['warnings'][] = sprintf(
                     'News 主表 %d 条，News_Content 正文 %d 条，导入时将按 ID 合并并跳过缺正文记录。',
                     $summary['counts']['news'],
@@ -289,7 +291,7 @@ class LegacyAspAccessSiteImporter
         $newsPath = $dir.DIRECTORY_SEPARATOR.'News.xml';
         $newsContentPath = $dir.DIRECTORY_SEPARATOR.'News_Content.xml';
 
-        foreach ([$typeDPath, $typePath, $aboutPath, $newsPath, $newsContentPath] as $path) {
+        foreach ([$typeDPath, $typePath, $aboutPath, $newsPath] as $path) {
             if (! is_file($path)) {
                 throw new RuntimeException('缺少导入文件：'.$path);
             }
@@ -300,7 +302,7 @@ class LegacyAspAccessSiteImporter
             'type' => $this->readSpreadsheetRows($typePath),
             'about' => $this->readSpreadsheetRows($aboutPath),
             'news' => $this->readXmlRecordRows($newsPath, 'News'),
-            'news_content' => $this->readNewsContentMap($newsContentPath),
+            'news_content' => is_file($newsContentPath) ? $this->readNewsContentMap($newsContentPath) : [],
         ];
     }
 
