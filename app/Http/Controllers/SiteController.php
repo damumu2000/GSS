@@ -321,8 +321,8 @@ class SiteController extends Controller
         $normalizedPath = $this->normalizeLegacyUpPath($path);
         abort_unless($normalizedPath !== null, 404);
 
-        $absolutePath = SitePath::root($site).DIRECTORY_SEPARATOR.'up'.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $normalizedPath);
-        abort_unless(File::isFile($absolutePath), 404);
+        $absolutePath = $this->resolveLegacyUpAbsolutePath($site, $normalizedPath);
+        abort_unless($absolutePath !== null && File::isFile($absolutePath), 404);
 
         $response = response()->file($absolutePath, [
             'Cache-Control' => 'public, max-age=2592000',
@@ -564,6 +564,57 @@ class SiteController extends Controller
         }
 
         return $path;
+    }
+
+    protected function resolveLegacyUpAbsolutePath(object $site, string $relativePath): ?string
+    {
+        $siteRoot = SitePath::root($site);
+        $baseDirectory = $this->resolveLegacyUpPathSegment($siteRoot, 'up');
+
+        if ($baseDirectory === null || ! File::isDirectory($baseDirectory)) {
+            return null;
+        }
+
+        $current = $baseDirectory;
+
+        foreach (explode('/', $relativePath) as $segment) {
+            $resolved = $this->resolveLegacyUpPathSegment($current, $segment);
+
+            if ($resolved === null) {
+                return null;
+            }
+
+            $current = $resolved;
+        }
+
+        return $current;
+    }
+
+    protected function resolveLegacyUpPathSegment(string $parent, string $segment): ?string
+    {
+        $exact = $parent.DIRECTORY_SEPARATOR.$segment;
+
+        if (file_exists($exact)) {
+            return $exact;
+        }
+
+        if (! File::isDirectory($parent)) {
+            return null;
+        }
+
+        foreach (File::files($parent) as $file) {
+            if (strcasecmp($file->getFilename(), $segment) === 0) {
+                return $file->getPathname();
+            }
+        }
+
+        foreach (File::directories($parent) as $directory) {
+            if (strcasecmp(basename($directory), $segment) === 0) {
+                return $directory;
+            }
+        }
+
+        return null;
     }
 
     /**
