@@ -24,6 +24,9 @@
 /public/build
 /public/hot
 /public/storage
+/public/.htaccess
+/public/.user.ini
+/public/Favicon_x.ico
 /bootstrap/cache/*.php
 /storage/logs/*.log
 /storage/framework/cache/*
@@ -41,6 +44,7 @@
 /phpunit.xml
 /work/*
 /vendor
+/.htaccess
 Homestead.json
 Homestead.yaml
 Thumbs.db
