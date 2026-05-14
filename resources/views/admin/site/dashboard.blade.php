@@ -33,9 +33,10 @@
     $serviceStableRunText = null;
 
     if ($serviceOpenedAt) {
-        $serviceRunInterval = $serviceOpenedAt->copy()->startOfDay()->diff($serviceNow->copy()->startOfDay());
-        $serviceRunYears = (int) $serviceRunInterval->y;
-        $serviceRunDays = (int) $serviceRunInterval->d;
+        $serviceRunStart = $serviceOpenedAt->copy()->startOfDay();
+        $serviceRunEnd = $serviceNow->copy()->startOfDay();
+        $serviceRunYears = (int) floor($serviceRunStart->diffInYears($serviceRunEnd));
+        $serviceRunDays = $serviceRunStart->copy()->addYears($serviceRunYears)->diffInDays($serviceRunEnd);
         $serviceStableRunText = $serviceRunYears > 0
             ? $serviceRunYears . '年' . $serviceRunDays . '天'
             : $serviceRunDays . '天';
