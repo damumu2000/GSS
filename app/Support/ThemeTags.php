@@ -299,6 +299,54 @@ class ThemeTags
             ->values();
     }
 
+    public function localNav(array $options = []): Collection
+    {
+        $channel = $this->resolveChannelFromOptions($options);
+
+        if (! $channel) {
+            return collect();
+        }
+
+        $rootId = ! empty($channel->parent_id)
+            ? (int) $channel->parent_id
+            : (int) $channel->id;
+
+        $channels = $this->allSiteChannels()
+            ->filter(fn (object $item): bool => (int) ($item->parent_id ?? 0) === $rootId)
+            ->sortBy([
+                ['sort', 'asc'],
+                ['id', 'asc'],
+            ]);
+
+        if (! empty($options['limit'])) {
+            $channels = $channels->take(max(1, (int) $options['limit']));
+        }
+
+        $channels = $channels
+            ->map(fn ($item) => $this->mapChannel($item))
+            ->values();
+
+        $fields = $this->normalizeFieldList($options['fields'] ?? null);
+
+        if ($fields === []) {
+            return $channels;
+        }
+
+        $fields = array_values(array_unique(array_merge(['id'], $fields)));
+
+        return $channels
+            ->map(function (array $item) use ($fields): array {
+                $payload = [];
+
+                foreach ($fields as $field) {
+                    $payload[$field] = $item[$field] ?? null;
+                }
+
+                return $payload;
+            })
+            ->values();
+    }
+
     public function breadcrumb(array $options = []): Collection
     {
         $channelId = $this->resolveChannelIdFromOptions($options);

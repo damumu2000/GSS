@@ -1008,6 +1008,11 @@
                                     <td><code>{% set siblingChannels = siblings(channel_id=current.channel.id, limit=6)%}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">localNav</td>
+                                    <td>取当前栏目所在本地导航组。当前是二级栏目时返回其所属一级栏目下的全部二级栏目；当前是一级栏目时返回它自己的全部子栏目。</td>
+                                    <td><code>{% set navItems = localNav(limit=20)%}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">breadcrumb</td>
                                     <td>取面包屑路径。</td>
                                     <td><code>{% set trail = breadcrumb(channel_id=current.channel.id)%}</code></td>
