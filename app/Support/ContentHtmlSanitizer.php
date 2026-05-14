@@ -46,6 +46,8 @@ class ContentHtmlSanitizer
         'ol',
         'li',
         'blockquote',
+        'pre',
+        'code',
         'a',
         'img',
         'figure',
@@ -269,6 +271,8 @@ class ContentHtmlSanitizer
             'h5',
             'h6',
             'blockquote',
+            'pre',
+            'code',
             'ul',
             'ol',
             'li',
@@ -303,6 +307,7 @@ class ContentHtmlSanitizer
                 'font-size' => static::sanitizeFontSizeStyle($value),
                 'font-family' => static::sanitizeFontFamilyStyle($value),
                 'line-height' => static::sanitizeLineHeightStyle($value),
+                'text-decoration' => static::sanitizeTextDecorationStyle($value),
                 default => '',
             };
 
@@ -344,7 +349,7 @@ class ContentHtmlSanitizer
     {
         $value = trim($value);
 
-        return preg_match('/^\d{1,3}(?:\.\d{1,2})?(?:px|em|rem|%)$/i', $value) === 1 ? strtolower($value) : '';
+        return preg_match('/^\d{1,3}(?:\.\d{1,2})?(?:px|pt|em|rem|%)$/i', $value) === 1 ? strtolower($value) : '';
     }
 
     protected static function sanitizeFontFamilyStyle(string $value): string
@@ -363,6 +368,13 @@ class ContentHtmlSanitizer
         $value = trim($value);
 
         return preg_match('/^\d{1,2}(?:\.\d{1,2})?(?:px|em|rem|%)?$/i', $value) === 1 ? strtolower($value) : '';
+    }
+
+    protected static function sanitizeTextDecorationStyle(string $value): string
+    {
+        $value = preg_replace('/\s+/u', ' ', Str::lower(trim($value))) ?? '';
+
+        return in_array($value, ['underline', 'line-through', 'underline line-through'], true) ? $value : '';
     }
 
     protected static function sanitizeClassList(string $classList, string $tagName): string

@@ -1946,7 +1946,7 @@ tinymce.init({
     convert_urls: false,
     relative_urls: false,
     valid_styles: {
-        '*': 'color,background-color,text-align,font-size,font-family,line-height',
+        '*': 'color,background-color,text-align,font-size,font-family,line-height,text-decoration',
     },
     images_upload_url: imageUploadUrl,
     automatic_uploads: true,
