@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\AttachmentUsageTracker;
+use App\Support\LegacyAspAccessSiteImporter;
 use App\Support\PromoItemExpiryManager;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -42,6 +43,59 @@ Artisan::command('cms:deactivate-expired-promos', function () {
 
     $this->info("已自动停用 {$affected} 条过期图宣项。");
 })->purpose('自动停用到期后的图宣项');
+
+Artisan::command('cms:import-legacy-asp {sourceDir : 旧站导出目录} {siteKey : 新站点标识} {siteName : 新站点名称} {--execute : 实际创建站点并写入数据}', function () {
+    $sourceDir = (string) $this->argument('sourceDir');
+    $siteKey = trim((string) $this->argument('siteKey'));
+    $siteName = trim((string) $this->argument('siteName'));
+    $execute = (bool) $this->option('execute');
+
+    $this->info($execute ? '开始执行旧站导入...' : '开始执行旧站导入预检查...');
+
+    $result = app(LegacyAspAccessSiteImporter::class)->import(
+        $siteKey,
+        $siteName,
+        $sourceDir,
+        $execute,
+    );
+
+    $site = $result['site'] ?? [];
+    $counts = $result['counts'] ?? [];
+    $imported = $result['imported'] ?? [];
+    $warnings = $result['warnings'] ?? [];
+
+    $this->line('目标站点：'.(($site['name'] ?? '').' ('.($site['site_key'] ?? '').')'));
+    $this->line('站点ID：'.(($site['id'] ?? null) !== null ? (string) $site['id'] : '待创建'));
+    $this->line('数据来源：'.$sourceDir);
+    $this->line('模式：'.($execute ? '写入执行' : '仅预检查'));
+    $this->newLine();
+
+    $this->line('源数据统计：');
+    $this->line('  一级栏目：'.(int) ($counts['type_d'] ?? 0));
+    $this->line('  二级栏目：'.(int) ($counts['type'] ?? 0));
+    $this->line('  单页面：'.(int) ($counts['about'] ?? 0));
+    $this->line('  文章主表：'.(int) ($counts['news'] ?? 0));
+    $this->line('  文章正文：'.(int) ($counts['news_content'] ?? 0));
+    $this->newLine();
+
+    if ($execute) {
+        $this->line('导入结果：');
+        $this->line('  栏目新增：'.(int) ($imported['channels_created'] ?? 0));
+        $this->line('  栏目更新：'.(int) ($imported['channels_updated'] ?? 0));
+        $this->line('  单页新增：'.(int) ($imported['pages_created'] ?? 0));
+        $this->line('  单页更新：'.(int) ($imported['pages_updated'] ?? 0));
+        $this->line('  文章新增：'.(int) ($imported['articles_created'] ?? 0));
+        $this->line('  文章更新：'.(int) ($imported['articles_updated'] ?? 0));
+        $this->line('  文章跳过：'.(int) ($imported['articles_skipped'] ?? 0));
+        $this->newLine();
+    }
+
+    foreach ($warnings as $warning) {
+        $this->warn((string) $warning);
+    }
+
+    $this->info($execute ? '旧站导入完成。' : '旧站导入预检查完成。');
+})->purpose('将 ASP + Access 老站导出文件导入为当前系统的新站点');
 
 Schedule::command('cms:deactivate-expired-promos')
     ->everyMinute()
