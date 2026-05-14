@@ -307,6 +307,14 @@ class ThemeTemplateLocator
             return $pageKey !== '' ? $customTitle.'_单页（'.$pageKey.'）' : $customTitle.'_单页';
         }
 
+        if (
+            preg_match('/^自定义列表模板（.+）$/u', $baseLabel) === 1
+            || preg_match('/^自定义详情模板（.+）$/u', $baseLabel) === 1
+            || preg_match('/^自定义模板（.+）$/u', $baseLabel) === 1
+        ) {
+            return $customTitle;
+        }
+
         return $baseLabel.'_'.$customTitle;
     }
 
