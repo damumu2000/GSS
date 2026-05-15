@@ -13,7 +13,7 @@ class LegacyAttachmentStats
     protected const SCANNED_AT_KEY = 'attachment.legacy_up_scanned_at';
 
     /**
-     * @return array{count:int,bytes:int,scanned_at:?Carbon,has_data:bool}
+     * @return array{count:int,bytes:int,scanned_at:?Carbon,has_data:bool,directory:?string}
      */
     public static function stats(int|object|string $site): array
     {
@@ -25,6 +25,7 @@ class LegacyAttachmentStats
                 'bytes' => 0,
                 'scanned_at' => null,
                 'has_data' => false,
+                'directory' => null,
             ];
         }
 
@@ -46,11 +47,12 @@ class LegacyAttachmentStats
             'bytes' => $bytes,
             'scanned_at' => $scannedAtValue !== '' ? Carbon::parse($scannedAtValue, 'Asia/Shanghai') : null,
             'has_data' => $count > 0 || $bytes > 0,
+            'directory' => static::resolveLegacyDirectory($siteRecord),
         ];
     }
 
     /**
-     * @return array{count:int,bytes:int,scanned_at:?Carbon,has_data:bool}
+     * @return array{count:int,bytes:int,scanned_at:?Carbon,has_data:bool,directory:?string}
      */
     public static function refresh(int|object|string $site, ?int $updatedBy = null): array
     {
@@ -62,6 +64,7 @@ class LegacyAttachmentStats
                 'bytes' => 0,
                 'scanned_at' => null,
                 'has_data' => false,
+                'directory' => null,
             ];
         }
 
@@ -90,6 +93,7 @@ class LegacyAttachmentStats
             'bytes' => $stats['bytes'],
             'scanned_at' => $now,
             'has_data' => $stats['count'] > 0 || $stats['bytes'] > 0,
+            'directory' => $stats['directory'],
         ];
     }
 
@@ -125,14 +129,14 @@ class LegacyAttachmentStats
     }
 
     /**
-     * @return array{count:int,bytes:int}
+     * @return array{count:int,bytes:int,directory:?string}
      */
     protected static function scan(object $site): array
     {
         $directory = static::resolveLegacyDirectory($site);
 
         if (! $directory || ! File::isDirectory($directory)) {
-            return ['count' => 0, 'bytes' => 0];
+            return ['count' => 0, 'bytes' => 0, 'directory' => $directory];
         }
 
         $files = File::allFiles($directory);
@@ -140,6 +144,7 @@ class LegacyAttachmentStats
         return [
             'count' => count($files),
             'bytes' => (int) collect($files)->sum(fn ($file): int => (int) $file->getSize()),
+            'directory' => $directory,
         ];
     }
 

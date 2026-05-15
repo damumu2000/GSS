@@ -245,8 +245,16 @@ class PlatformSiteController extends Controller
 
         $stats = LegacyAttachmentStats::refresh($site, (int) $request->user()->id);
         $status = $stats['has_data']
-            ? '旧附件统计已刷新。'
-            : '未检测到旧附件，统计结果已刷新为 0。';
+            ? sprintf(
+                '旧附件统计已刷新：%d 个文件，%s。扫描目录：%s',
+                (int) $stats['count'],
+                SiteStorageUsage::formatBytes((int) $stats['bytes']),
+                (string) ($stats['directory'] ?? '未识别'),
+            )
+            : sprintf(
+                '未检测到旧附件，统计结果已刷新为 0。扫描目录：%s',
+                (string) ($stats['directory'] ?? '未识别'),
+            );
 
         return redirect()
             ->route('admin.platform.sites.edit', $siteId)
