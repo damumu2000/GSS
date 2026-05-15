@@ -119,6 +119,60 @@ abstract class Controller
     }
 
     /**
+     * Resolve the default dashboard route with the current request host in mind.
+     */
+    protected function defaultAdminRouteForRequest(Request $request, ?int $userId = null, ?object $requestSite = null): string
+    {
+        $userId ??= auth()->id();
+
+        if (! $this->isPlatformAdmin($userId)) {
+            return 'admin.site-dashboard';
+        }
+
+        $requestSite ??= $this->siteFromRequestHost($request);
+
+        if ($requestSite && (int) $requestSite->id !== $this->platformSiteId()) {
+            return 'admin.site-dashboard';
+        }
+
+        return 'admin.dashboard';
+    }
+
+    /**
+     * Resolve a site explicitly addressed by the current request host.
+     */
+    protected function siteFromRequestHost(Request $request): ?object
+    {
+        $host = mb_strtolower(trim((string) $request->getHost()));
+
+        if ($host !== '') {
+            $site = DB::table('site_domains')
+                ->join('sites', 'sites.id', '=', 'site_domains.site_id')
+                ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
+                ->where('site_domains.status', 1)
+                ->first(['sites.id', 'sites.name', 'sites.site_key', 'sites.status', 'sites.expires_at']);
+
+            if ($site) {
+                return $site;
+            }
+        }
+
+        if (! in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return null;
+        }
+
+        $siteKey = trim((string) $request->query('site', ''));
+
+        if ($siteKey === '') {
+            return null;
+        }
+
+        return DB::table('sites')
+            ->where('site_key', $siteKey)
+            ->first(['id', 'name', 'site_key', 'status', 'expires_at']);
+    }
+
+    /**
      * Resolve the active site from the session or fall back to the first site.
      */
     protected function currentSite(Request $request): object

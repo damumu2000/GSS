@@ -42,7 +42,7 @@ class AuthenticatedSessionController extends Controller
     public function create(Request $request): View|RedirectResponse|Response
     {
         if (Auth::check()) {
-            return redirect()->route($this->defaultAdminRoute(Auth::id()));
+            return redirect()->route($this->defaultAdminRouteForRequest($request, Auth::id()));
         }
 
         $this->ensureLoginDeviceId($request);
@@ -209,6 +209,11 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        if ($isPlatformAdmin) {
+            $platformLoginSiteId = (int) ($loginSite->id ?? 0);
+            $request->session()->put('current_site_id', $platformLoginSiteId > 0 ? $platformLoginSiteId : $this->platformSiteId());
+        }
+
         $boundSites = $isPlatformAdmin ? collect() : $this->boundSites($userId);
 
         if (! $isPlatformAdmin && $boundSites->isEmpty()) {
@@ -261,12 +266,14 @@ class AuthenticatedSessionController extends Controller
                 'updated_at' => now(),
             ]);
 
-        $loginSiteId = $isPlatformAdmin
-            ? null
-            : (int) $request->session()->get('current_site_id', (int) ($boundSites->first()->id ?? 0));
+        $defaultAdminRoute = $this->defaultAdminRouteForRequest($request, $userId, $loginSite);
+        $loginScope = $defaultAdminRoute === 'admin.site-dashboard' ? 'site' : 'platform';
+        $loginSiteId = $loginScope === 'site'
+            ? (int) $request->session()->get('current_site_id', (int) ($loginSite->id ?? 0))
+            : null;
 
         $this->logOperation(
-            $isPlatformAdmin ? 'platform' : 'site',
+            $loginScope,
             'auth',
             'login',
             $loginSiteId > 0 ? $loginSiteId : null,
@@ -277,7 +284,7 @@ class AuthenticatedSessionController extends Controller
             $request,
         );
 
-        return redirect()->intended(route($this->defaultAdminRoute($userId)));
+        return redirect()->intended(route($defaultAdminRoute));
     }
 
     /**

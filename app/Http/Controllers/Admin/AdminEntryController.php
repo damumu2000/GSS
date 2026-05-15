@@ -16,6 +16,10 @@ class AdminEntryController extends Controller
     public function __invoke(Request $request): View|RedirectResponse
     {
         if ($this->isPlatformAdmin($request->user()->id)) {
+            if ($this->defaultAdminRouteForRequest($request, (int) $request->user()->id) === 'admin.site-dashboard') {
+                return redirect()->route('admin.site-dashboard');
+            }
+
             return app(PlatformDashboardController::class)($request);
         }
 

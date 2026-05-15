@@ -997,6 +997,15 @@ class AdminAccessTest extends TestCase
     <News_Date>2026-05-15 10:20:30</News_Date>
     <News_count>23</News_count>
   </News>
+  <News>
+    <News_ID>101</News_ID>
+    <News_Type>a22</News_Type>
+    <News_Title>异常栏目文章</News_Title>
+    <News_Pic></News_Pic>
+    <News_Content><p>异常栏目文章内容</p></News_Content>
+    <News_Date>2026-05-15 11:20:30</News_Date>
+    <News_count>7</News_count>
+  </News>
 </dataroot>
 XML);
 
@@ -1019,13 +1028,21 @@ XML);
             ->where('site_id', $siteId)
             ->where('slug', 'legacy-pages')
             ->value('id');
-        $pageChannelId = (int) DB::table('channels')
+        $pageContentId = (int) DB::table('contents')
             ->where('site_id', $siteId)
-            ->where('slug', 'legacy-page-1')
+            ->where('slug', 'legacy-page-content-1')
             ->value('id');
         $articleId = (int) DB::table('contents')
             ->where('site_id', $siteId)
             ->where('slug', 'legacy-news-100')
+            ->value('id');
+        $fallbackChannelId = (int) DB::table('channels')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-exception-content')
+            ->value('id');
+        $fallbackArticleId = (int) DB::table('contents')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-news-101')
             ->value('id');
 
         $this->assertSame(0, (int) $result['imported']['articles_skipped']);
@@ -1062,15 +1079,47 @@ XML);
         ]);
         $this->assertDatabaseHas('channels', [
             'id' => $pageParentChannelId,
-            'name' => '单页栏目',
+            'name' => '单页内容',
             'parent_id' => null,
-        ]);
-        $this->assertDatabaseHas('channels', [
-            'id' => $pageChannelId,
-            'name' => '幼儿园介绍',
-            'parent_id' => $pageParentChannelId,
             'type' => 'page',
         ]);
+        $this->assertDatabaseMissing('channels', [
+            'site_id' => $siteId,
+            'slug' => 'legacy-page-1',
+            'name' => '幼儿园介绍',
+        ]);
+        $this->assertDatabaseHas('channels', [
+            'site_id' => $siteId,
+            'slug' => 'legacy-pages',
+            'type' => 'page',
+        ]);
+        $this->assertDatabaseHas('contents', [
+            'id' => $pageContentId,
+            'channel_id' => $pageParentChannelId,
+            'type' => 'page',
+            'title' => '幼儿园介绍',
+        ]);
+        $this->assertDatabaseHas('content_channels', [
+            'content_id' => $pageContentId,
+            'channel_id' => $pageParentChannelId,
+        ]);
+        $this->assertDatabaseHas('channels', [
+            'id' => $fallbackChannelId,
+            'name' => '异常内容',
+            'parent_id' => null,
+            'type' => 'list',
+        ]);
+        $this->assertDatabaseHas('contents', [
+            'id' => $fallbackArticleId,
+            'channel_id' => $fallbackChannelId,
+            'title' => '异常栏目文章',
+            'view_count' => 7,
+        ]);
+        $this->assertDatabaseHas('content_channels', [
+            'content_id' => $fallbackArticleId,
+            'channel_id' => $fallbackChannelId,
+        ]);
+        $this->assertContains('文章 101《异常栏目文章》未找到对应栏目 ID a22，已导入到“异常内容”。', $result['warnings']);
     }
 
     public function test_platform_module_permissions_are_granted_to_default_platform_roles(): void
@@ -8530,7 +8579,7 @@ XML);
             ]);
     }
 
-    public function test_site_operator_can_only_login_on_bound_site_domain_but_platform_admin_is_not_affected(): void
+    public function test_platform_admin_login_uses_site_dashboard_on_site_domain_and_platform_dashboard_on_main_site(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -8561,6 +8610,7 @@ XML);
             ->post('http://remote-login.test/login', [
                 'username' => $foreignOperator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
             ])
             ->assertRedirect('http://remote-login.test/login')
             ->assertSessionHasErrors([
@@ -8571,17 +8621,39 @@ XML);
             ->post('http://remote-login.test/login', [
                 'username' => $remoteOperator->username,
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
             ])
             ->assertRedirect(route('admin.site-dashboard'));
 
         \Illuminate\Support\Facades\Auth::logout();
+        session()->flush();
 
         $this->from('http://remote-login.test/login')
             ->post('http://remote-login.test/login', [
                 'username' => 'superadmin',
                 'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
+            ])
+            ->assertRedirect(route('admin.site-dashboard'));
+
+        $this->assertSame($remoteSiteId, (int) session('current_site_id'));
+
+        $this->get('http://remote-login.test/admin')
+            ->assertRedirect(route('admin.site-dashboard'));
+
+        \Illuminate\Support\Facades\Auth::logout();
+        session()->flush();
+
+        $this->from('http://site.local/login')
+            ->post('http://site.local/login', [
+                'username' => 'superadmin',
+                'password' => 'ChangeMe123!',
+                'service_agreement' => '1',
             ])
             ->assertRedirect(route('admin.dashboard'));
+
+        $this->get('http://site.local/admin')
+            ->assertOk();
     }
 
     public function test_unbound_domain_shows_domain_unbound_page_for_site_and_login(): void

@@ -165,15 +165,15 @@ class LegacyAspAccessSiteImporter
                         (int) $site->id,
                         [
                             'parent_id' => null,
-                            'name' => '单页栏目',
+                            'name' => '单页内容',
                             'slug' => 'legacy-pages',
-                            'type' => 'list',
+                            'type' => 'page',
                             'path' => '/legacy-pages',
                             'depth' => 0,
                             'sort' => 0,
                             'status' => 1,
                             'is_nav' => 1,
-                            'list_template' => 'list',
+                            'list_template' => null,
                             'detail_template' => 'page',
                             'link_url' => null,
                             'link_target' => '_self',
@@ -182,30 +182,10 @@ class LegacyAspAccessSiteImporter
                     $summary['imported'][$pageParentCreated ? 'channels_created' : 'channels_updated']++;
                 }
 
-                [$channelId, $channelCreated] = $this->upsertChannel(
-                    (int) $site->id,
-                    [
-                        'parent_id' => $pageParentChannelId,
-                        'name' => $name,
-                        'slug' => 'legacy-page-'.$legacyId,
-                        'type' => 'page',
-                        'path' => '/legacy-page-'.$legacyId,
-                        'depth' => 1,
-                        'sort' => $legacyId,
-                        'status' => 1,
-                        'is_nav' => 1,
-                        'list_template' => null,
-                        'detail_template' => 'page',
-                        'link_url' => null,
-                        'link_target' => '_self',
-                    ]
-                );
-                $summary['imported'][$channelCreated ? 'channels_created' : 'channels_updated']++;
-
                 [, $contentCreated] = $this->upsertContent(
                     (int) $site->id,
                     [
-                        'channel_id' => $channelId,
+                        'channel_id' => $pageParentChannelId,
                         'type' => 'page',
                         'template_name' => 'page',
                         'title' => $name,
@@ -222,12 +202,14 @@ class LegacyAspAccessSiteImporter
                         'sort' => $legacyId,
                         'view_count' => 0,
                         'published_at' => null,
-                        'channel_ids' => [$channelId],
+                        'channel_ids' => [$pageParentChannelId],
                     ]
                 );
 
                 $summary['imported'][$contentCreated ? 'pages_created' : 'pages_updated']++;
             }
+
+            $fallbackArticleChannelId = null;
 
             foreach ($source['news'] as $row) {
                 $legacyId = $this->intValue($row['News_ID'] ?? null);
@@ -247,14 +229,36 @@ class LegacyAspAccessSiteImporter
 
                 $channelId = $channelIds[0] ?? null;
                 if (! $channelId) {
-                    $summary['imported']['articles_skipped']++;
+                    if ($fallbackArticleChannelId === null) {
+                        [$fallbackArticleChannelId, $fallbackCreated] = $this->upsertChannel(
+                            (int) $site->id,
+                            [
+                                'parent_id' => null,
+                                'name' => '异常内容',
+                                'slug' => 'legacy-exception-content',
+                                'type' => 'list',
+                                'path' => '/legacy-exception-content',
+                                'depth' => 0,
+                                'sort' => 0,
+                                'status' => 1,
+                                'is_nav' => 1,
+                                'list_template' => 'list',
+                                'detail_template' => 'detail',
+                                'link_url' => null,
+                                'link_target' => '_self',
+                            ]
+                        );
+                        $summary['imported'][$fallbackCreated ? 'channels_created' : 'channels_updated']++;
+                    }
+
+                    $channelId = $fallbackArticleChannelId;
+                    $channelIds = [$fallbackArticleChannelId];
                     $summary['warnings'][] = sprintf(
-                        '文章 %d《%s》未找到对应栏目 ID %s，已跳过。',
+                        '文章 %d《%s》未找到对应栏目 ID %s，已导入到“异常内容”。',
                         $legacyId,
                         $title,
                         trim((string) ($row['News_Type'] ?? ''))
                     );
-                    continue;
                 }
 
                 $rawContent = (string) ($row['News_Content'] ?? '');
