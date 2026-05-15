@@ -56,6 +56,7 @@ class ThemeTemplateEngine
         'themeAsset' => ['path'],
         'themeStyle' => ['path'],
         'themeScript' => ['path'],
+        'withQuery' => ['url', 'key', 'value'],
     ];
 
     /**
@@ -684,8 +685,42 @@ class ThemeTemplateEngine
             'themeAsset' => $this->resolveThemeAssetDirective((string) ($options['path'] ?? ''), $validateOnly),
             'themeStyle' => $this->resolveThemeStyleDirective((string) ($options['path'] ?? ''), $validateOnly),
             'themeScript' => $this->resolveThemeScriptDirective((string) ($options['path'] ?? ''), $validateOnly),
+            'withQuery' => $this->withQueryParameter(
+                (string) ($options['url'] ?? ''),
+                (string) ($options['key'] ?? ''),
+                $options['value'] ?? null
+            ),
             default => null,
         };
+    }
+
+    protected function withQueryParameter(string $url, string $key, mixed $value): string
+    {
+        $url = trim($url);
+        $key = trim($key);
+
+        if ($url === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key) !== 1) {
+            return $url;
+        }
+
+        $fragment = '';
+        if (str_contains($url, '#')) {
+            [$url, $fragment] = explode('#', $url, 2);
+            $fragment = '#'.$fragment;
+        }
+
+        $base = $url;
+        $query = [];
+
+        if (str_contains($url, '?')) {
+            [$base, $queryString] = explode('?', $url, 2);
+            parse_str($queryString, $query);
+        }
+
+        $query[$key] = is_bool($value) ? ($value ? '1' : '0') : (string) ($value ?? '');
+        $queryString = http_build_query($query);
+
+        return $base.($queryString !== '' ? '?'.$queryString : '').$fragment;
     }
 
     protected function resolveFirstValue(mixed $value): mixed

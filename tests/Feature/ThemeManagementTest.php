@@ -312,6 +312,65 @@ class ThemeManagementTest extends TestCase
         $this->assertStringNotContainsString('site='.$site->site_key, $domainUrl);
     }
 
+    public function test_detail_template_can_render_current_content_html_payload(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'detail.tpl',
+            "{{ current.content.title }}|{{{ current.content.content_html }}}|{{ current.content.author }}|{{ current.content.published_at | formatDate('Y-m-d', '--') }}"
+        );
+
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $site->id,
+            'name' => '文档测试栏目',
+            'slug' => 'docs-current-content',
+            'type' => 'list',
+            'status' => 1,
+            'is_nav' => 1,
+            'detail_template' => 'detail',
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $articleId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '当前内容测试',
+            'summary' => '测试摘要',
+            'content' => '<p><strong>正文内容</strong></p>',
+            'author' => '测试作者',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'published_at' => '2026-05-15 09:30:00',
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $articleId,
+            'channel_id' => $channelId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->get(route('site.article', ['id' => $articleId, 'site' => $site->site_key]))
+            ->assertOk()
+            ->assertSee('当前内容测试')
+            ->assertSee('<strong>正文内容</strong>', false)
+            ->assertSee('测试作者')
+            ->assertSee('2026-05-15');
+    }
+
     public function test_site_can_upload_and_delete_template_assets(): void
     {
         $this->seed(DatabaseSeeder::class);

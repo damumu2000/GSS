@@ -14,7 +14,7 @@
 ## L0 基线与边界（已开始）
 - [x] 盘点当前能力边界（ThemeTemplateEngine + ThemeTags）。
 - [x] 明确保留能力集合：`contentList/contentPage/channels/nav/promos/previous/next/related`。
-- [x] 明确安全边界：模板沙箱、内联脚本/样式禁用、事件属性禁用。
+- [x] 明确安全边界：模板沙箱、内联脚本禁用、事件属性禁用；内联样式允许但建议放入主题 CSS。
 
 验收：
 - 已形成可执行改造清单。
@@ -43,6 +43,7 @@
 - [x] 详情辅助统一：`previousOf/nextOf/relatedTo`（链式能力已接入）。
 - [x] 图宣统一：`query('promo')`。
 - [x] 栏目统一：`query('channel')` 与 `tree(true)` 树形输出。
+- [x] URL 查询参数辅助：`withQuery(url, key, value)`，统一兼容本地 `site` 参数和线上域名地址。
 
 验收：
 - 功能回归通过（列表/分页/搜索/导航/图宣/详情）。

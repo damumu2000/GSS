@@ -567,7 +567,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">{{{ ... }}}</td>
-                                    <td>输出原始 HTML，仅适合已经由系统处理过的安全内容。</td>
+                                    <td>输出系统可信 HTML。只有 <code>content_html</code>、<code>textToHtml()</code> 这类系统返回的安全对象会直出；普通字符串仍会被转义。</td>
                                     <td><code>{{{ current.content.content_html }}}</code></td>
                                 </tr>
                                 <tr>
@@ -626,7 +626,7 @@
                         <h2>模板资源与 CSP</h2>
                         <span class="section-kicker">当前上线规则</span>
                     </div>
-                    <p>当前系统为了让 <code>style-src 'self'</code> 和 <code>script-src 'self'</code> 完全成立，模板资源必须全部走当前主题目录的 <code>assets/</code>。模板里直接写引入即可，系统会自动生成当前站点、当前主题可访问的同源地址。</p>
+                    <p>当前系统的脚本仍执行严格同源策略：<code>script-src 'self'</code>。样式为兼容后台编辑器和富文本内容展示，允许 <code>style-src 'self' 'unsafe-inline'</code>。模板资源仍建议全部走当前主题目录，模板里直接写引入即可，系统会自动生成当前站点、当前主题可访问的同源地址。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -679,7 +679,7 @@
 
                     <div class="tip">
                         <strong>CSP 为什么要这样写</strong>
-                        <span>当前站点使用严格同源策略：<code>style-src 'self'</code> 和 <code>script-src 'self'</code>。这样做是为了让模板规范更标准，也让网站前后台保持更安全的运行环境。</span>
+                        <span>当前站点脚本使用严格同源策略：<code>script-src 'self'</code>；样式允许 <code>unsafe-inline</code>，用于兼容富文本里由编辑器生成的行内样式。模板交互脚本仍应放到主题 JS 文件中，通过 <code>themeScript</code> 引入。</span>
                     </div>
 
                     <div class="tip">
@@ -959,6 +959,21 @@
                                     <td>当前内容所属栏目 ID，可配合详情页辅助标签使用。</td>
                                     <td><code>{{ current.content.channel_id }}</code></td>
                                 </tr>
+                                <tr>
+                                    <td class="mono">current.content.content_html</td>
+                                    <td>当前文章或单页正文 HTML。正文已经过系统内容渲染处理，详情页输出正文时使用三花括号。</td>
+                                    <td><code>{{{ current.content.content_html }}}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.content.published_at</td>
+                                    <td>当前内容发布时间，可配合 <code>formatDate</code> 输出。</td>
+                                    <td><code>{{ current.content.published_at | formatDate('Y-m-d', '--') }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.content.summary / author / source / cover_image</td>
+                                    <td>当前内容摘要、作者、来源和封面图。文章详情和单页详情都可读取，字段为空时建议用 <code>default</code> 兜底。</td>
+                                    <td><code>{{ current.content.author | default('本站编辑') }}</code></td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -1028,6 +1043,11 @@
                                     <td><code>{{ linkTo(type='home')}}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">withQuery</td>
+                                    <td>给已有链接追加或替换查询参数，适合给栏目链接追加 <code>all=1</code>、分页或筛选参数；会自动处理已有 <code>?</code> 的本地测试地址。</td>
+                                    <td><code>{{ withQuery(current.channel.url, 'all', 1) }}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">channels parent_id / status / type / slug</td>
                                     <td>按父级、状态、类型或别名筛选栏目。</td>
                                     <td><code>{% set pageChannels = channels(type='page', status=1, limit=6)%}</code></td>
@@ -1050,7 +1070,7 @@
                                 <tr>
                                     <td class="mono">栏目页全部内容（all=1）</td>
                                     <td>在栏目页 URL 增加 <code>all=1</code> 后，列表查询会按当前站点全量文章分页，不再限制为当前栏目，可配合 <code>current.page.show_all</code> 做样式高亮。</td>
-                                    <td><code>&lt;a href="/cat/{{ current.channel.slug }}?site={{ site.site_key }}&amp;all=1"&gt;全部内容&lt;/a&gt;</code></td>
+                                    <td><code>&lt;a href="{{ withQuery(current.channel.url, 'all', 1) }}"&gt;全部内容&lt;/a&gt;</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">channels include_ids</td>
@@ -1299,6 +1319,11 @@
                                     <td class="mono">plainText</td>
                                     <td>去掉 HTML 标签，保留纯文本。</td>
                                     <td><code>{% set plainSummary = item.summary | plainText() %}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">htmlOut</td>
+                                    <td>历史兼容过滤器，当前等同于 <code>plainText</code>，不会直接输出 HTML。新模板建议统一使用 <code>plainText</code> 或三花括号输出可信 <code>content_html</code>。</td>
+                                    <td><code>{{ item.content_html | htmlOut() }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">truncate</td>
@@ -1944,7 +1969,7 @@
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
-<pre>&lt;a href="/cat/{{ current.channel.slug }}?site={{ site.site_key }}&amp;all=1" class="sidebar-link{% if current.page.show_all %} active{% endif %}"&gt;全部内容&lt;/a&gt; <span class="code-comment">&lt;!-- “全部内容”入口：点击后带上 all=1 参数，列表范围从当前栏目切换为全站文章；当前状态自动高亮 --&gt;</span>
+<pre>&lt;a href="{{ withQuery(current.channel.url, 'all', 1) }}" class="sidebar-link{% if current.page.show_all %} active{% endif %}"&gt;全部内容&lt;/a&gt; <span class="code-comment">&lt;!-- “全部内容”入口：点击后带上 all=1 参数；withQuery 会兼容本地 ?site=site 和线上纯域名地址 --&gt;</span>
 {% set pageData = contentPage(type='article', per_page=5, page_name='page', window=2, keyword=current.page.keyword)%} <span class="code-comment">{# 当 URL 包含 all=1 时，后端会按“全站文章”返回分页结果，而不是只返回当前栏目 #}</span></pre>
                             </div>
                         </div>

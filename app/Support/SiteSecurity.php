@@ -25,12 +25,14 @@ class SiteSecurity
         $host = mb_strtolower(trim((string) $request->getHost()));
 
         if ($host !== '') {
-            $site = DB::table('site_domains')
-                ->join('sites', 'sites.id', '=', 'site_domains.site_id')
-                ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
-                ->where('site_domains.status', 1)
-                ->where('sites.status', 1)
-                ->first(['sites.*']);
+            $site = Cache::remember('site-security:site-by-host:'.hash('sha256', $host), now('Asia/Shanghai')->addMinute(), function () use ($host): ?object {
+                return DB::table('site_domains')
+                    ->join('sites', 'sites.id', '=', 'site_domains.site_id')
+                    ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
+                    ->where('site_domains.status', 1)
+                    ->where('sites.status', 1)
+                    ->first(['sites.*']);
+            });
 
             if ($site) {
                 return $site;
@@ -385,6 +387,16 @@ class SiteSecurity
             ? $this->systemSettings->securityRateLimitSensitiveMaxRequests()
             : $this->systemSettings->securityRateLimitMaxRequests();
 
+        if ($this->isFrontendPageRequest($request)) {
+            $siteWideKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
+
+            if (RateLimiter::tooManyAttempts($siteWideKey, $maxAttempts)) {
+                return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+            }
+
+            RateLimiter::hit($siteWideKey, $window);
+        }
+
         $key = 'site-security-rate:'.$siteId.':'.sha1(
             ($request->ip() ?: 'guest').'|'.mb_strtolower($this->normalizedRequestPath($request))
         );
@@ -396,6 +408,20 @@ class SiteSecurity
         RateLimiter::hit($key, $window);
 
         return null;
+    }
+
+    protected function isFrontendPageRequest(Request $request): bool
+    {
+        if (! in_array(strtoupper((string) $request->method()), ['GET', 'HEAD'], true)) {
+            return false;
+        }
+
+        $path = trim((string) $request->path(), '/');
+
+        return $path === ''
+            || str_starts_with($path, 'cat/')
+            || str_starts_with($path, 'article/')
+            || str_starts_with($path, 'page/');
     }
 
     protected function isSensitiveRequest(Request $request): bool

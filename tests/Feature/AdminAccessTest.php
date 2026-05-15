@@ -115,6 +115,16 @@ class AdminAccessTest extends TestCase
         return 'site-security-rate:'.$siteId.':'.sha1('127.0.0.1|'.$path);
     }
 
+    protected function siteSecuritySiteWideRateKey(): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-rate:'.$siteId.':site:'.sha1('127.0.0.1');
+    }
+
     protected function disableSiteSecurityRateLimit(): void
     {
         DB::table('system_settings')->updateOrInsert(
@@ -8397,6 +8407,22 @@ class AdminAccessTest extends TestCase
 
         $this->post(route('login.captcha.check'), ['captcha' => 'ABCD'])
             ->assertForbidden();
+    }
+
+    public function test_frontend_page_rate_limit_counts_across_page_paths(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/article/1'));
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/cat/demo'));
+
+        for ($i = 0; $i < 15; $i++) {
+            $this->assertNotSame(403, $this->get('/?site=site')->getStatusCode());
+            $this->assertNotSame(403, $this->get('/article/1?site=site')->getStatusCode());
+        }
+
+        $this->get('/cat/demo?site=site')->assertForbidden();
     }
 
     public function test_disabled_site_operator_is_logged_out_on_next_admin_request(): void

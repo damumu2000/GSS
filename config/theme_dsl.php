@@ -24,6 +24,7 @@ return [
         'themeAsset',
         'themeStyle',
         'themeScript',
+        'withQuery',
         'siteValue',
         'contentList',
         'contentPage',
