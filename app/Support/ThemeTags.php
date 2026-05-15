@@ -58,6 +58,13 @@ class ThemeTags
         return $this;
     }
 
+    public function withTemplateName(?string $templateName = null): static
+    {
+        $this->currentTemplateName = $templateName;
+
+        return $this;
+    }
+
     protected function site(string $key, mixed $default = ''): mixed
     {
         $map = [
@@ -118,6 +125,7 @@ class ThemeTags
 
     public function current(): array
     {
+        $device = FrontendDevice::mode(request());
         $channel = $this->resolveCurrentChannel();
         $allQuery = strtolower(trim((string) request()->query('all', '0')));
         $showAllInChannelPage = $this->currentPageScope === 'channel'
@@ -128,6 +136,8 @@ class ThemeTags
                 'scope' => $this->currentPageScope ?? '',
                 'type' => $this->resolveCurrentPageType(),
                 'template_name' => $this->currentTemplateName ?? '',
+                'device' => $device,
+                'is_mobile' => $device === 'mobile',
                 'show_all' => $showAllInChannelPage,
                 'keyword' => $this->normalizeSearchKeyword((string) request()->query('keyword', '')),
             ],
@@ -986,12 +996,18 @@ class ThemeTags
     protected function frontendRouteParameters(): array
     {
         $host = mb_strtolower(trim((string) request()->getHost()));
+        $parameters = [];
 
         if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
-            return ['site' => $this->site->site_key];
+            $parameters['site'] = $this->site->site_key;
         }
 
-        return [];
+        $forcedDevice = FrontendDevice::forced(request());
+        if ($forcedDevice !== null) {
+            $parameters['device'] = $forcedDevice;
+        }
+
+        return $parameters;
     }
 
     protected function applyOrder($query, string $order): void

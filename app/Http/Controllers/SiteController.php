@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\EmbeddedContentRenderer;
+use App\Support\FrontendDevice;
 use App\Support\Site as SitePath;
 use App\Support\SiteBackendAccess;
 use App\Support\ThemeTags;
@@ -688,9 +689,19 @@ class SiteController extends Controller
 
     protected function renderTheme(object $site, string $themeCode, string $template, array $payload): Response
     {
+        $request = request();
+        $device = FrontendDevice::mode($request);
+        $template = $this->resolveResponsiveTemplate($site, $themeCode, $template, $request);
+
         abort_unless(file_exists(ThemeTemplateLocator::resolvePath($site->site_key, $themeCode, $template)), 404);
 
         $payload['csrfToken'] = csrf_token();
+        $payload['device'] = $device;
+
+        if (($payload['tags'] ?? null) instanceof ThemeTags) {
+            $payload['tags']->withTemplateName($template);
+        }
+
         $payload['current'] = $this->themeCurrentPayload($payload);
         $engine = new ThemeTemplateEngine(SitePath::key($site), $themeCode, $payload['tags']);
 
@@ -728,6 +739,21 @@ class SiteController extends Controller
         }
 
         return $assetTag."\n".$html;
+    }
+
+    protected function resolveResponsiveTemplate(object $site, string $themeCode, string $template, Request $request): string
+    {
+        $template = trim($template) !== '' ? trim($template) : 'home';
+
+        if (FrontendDevice::mode($request) !== 'mobile' || str_starts_with($template, 'm-')) {
+            return $template;
+        }
+
+        $mobileTemplate = 'm-'.$template;
+
+        return file_exists(ThemeTemplateLocator::resolvePath($site->site_key, $themeCode, $mobileTemplate))
+            ? $mobileTemplate
+            : $template;
     }
 
     protected function channelDetailTemplate(int $siteId, string $channelSlug): string
@@ -859,6 +885,11 @@ class SiteController extends Controller
         $base = is_object($tags) && method_exists($tags, 'current')
             ? $tags->current()
             : [];
+        $device = (string) ($payload['device'] ?? 'pc');
+
+        $base['page'] = is_array($base['page'] ?? null) ? $base['page'] : [];
+        $base['page']['device'] = $device;
+        $base['page']['is_mobile'] = $device === 'mobile';
 
         $content = $payload['article'] ?? $payload['page'] ?? null;
 
@@ -993,12 +1024,18 @@ class SiteController extends Controller
     protected function frontendRouteParameters(object $site): array
     {
         $host = mb_strtolower(trim((string) request()->getHost()));
+        $parameters = [];
 
         if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
-            return ['site' => $site->site_key];
+            $parameters['site'] = $site->site_key;
         }
 
-        return [];
+        $forcedDevice = FrontendDevice::forced(request());
+        if ($forcedDevice !== null) {
+            $parameters['device'] = $forcedDevice;
+        }
+
+        return $parameters;
     }
 
     protected function recordSiteVisit(int $siteId, string $type, ?int $contentId = null): void

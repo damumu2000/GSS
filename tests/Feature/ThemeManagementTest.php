@@ -371,6 +371,41 @@ class ThemeManagementTest extends TestCase
             ->assertSee('2026-05-15');
     }
 
+    public function test_mobile_template_is_used_when_available_and_falls_back_when_missing(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'home.tpl',
+            'PC {{ current.page.template_name }} {{ current.page.device }} {{ current.page.is_mobile }} {{ siteValue(key=\'home_url\') }}'
+        );
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'m-home.tpl',
+            'MOBILE {{ current.page.template_name }} {{ current.page.device }} {{ current.page.is_mobile }} {{ siteValue(key=\'home_url\') }}'
+        );
+
+        $this->get(route('site.home', ['site' => $site->site_key, 'device' => 'mobile']))
+            ->assertOk()
+            ->assertSee('MOBILE m-home mobile 1')
+            ->assertSee('device=mobile', false);
+
+        $this->get(route('site.home', ['site' => $site->site_key, 'device' => 'pc']))
+            ->assertOk()
+            ->assertSee('PC home pc')
+            ->assertDontSee('MOBILE');
+
+        File::delete($templateRoot.DIRECTORY_SEPARATOR.'m-home.tpl');
+
+        $this->get(route('site.home', ['site' => $site->site_key, 'device' => 'mobile']))
+            ->assertOk()
+            ->assertSee('PC home mobile 1')
+            ->assertDontSee('MOBILE');
+    }
+
     public function test_site_can_upload_and_delete_template_assets(): void
     {
         $this->seed(DatabaseSeeder::class);

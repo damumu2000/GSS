@@ -494,6 +494,7 @@
             <div class="hero-tags">
                 <a class="tag" href="#syntax">基础语法</a>
                 <a class="tag" href="#assets-csp">模板资源</a>
+                <a class="tag" href="#mobile-templates">手机模板</a>
                 <a class="tag" href="#assets-csp">CSP 约束</a>
                 <a class="tag" href="#tag-templates">Tag 通用模版标签</a>
                 <a class="tag" href="#site-values">站点信息</a>
@@ -528,6 +529,7 @@
                     <h2>快速跳转</h2>
                     <a class="nav-link" href="#syntax">基础语法与限制</a>
                     <a class="nav-link" href="#assets-csp">模板资源与 CSP</a>
+                    <a class="nav-link" href="#mobile-templates">手机模板</a>
                     <a class="nav-link" href="#tag-templates">Tag 通用模版标签</a>
                     <a class="nav-link" href="#site-values">站点信息</a>
                     <a class="nav-link" href="#context">当前上下文</a>
@@ -686,6 +688,73 @@
                         <strong>保存前最容易踩坑的地方</strong>
                         <span>以下写法会在模板保存时被直接拦截：内联 <code>&lt;script&gt;</code>、任何 <code>onclick</code> 这类内联事件属性。模板中可以直接写 <code>style</code> 属性或内联 <code>&lt;style&gt;</code>，但大块样式仍建议优先放到主题 CSS 文件中统一维护。</span>
                     </div>
+                </section>
+
+                <section class="section" id="mobile-templates">
+                    <div class="section-head">
+                        <h2>手机模板</h2>
+                        <span class="section-kicker">同地址自动适配</span>
+                    </div>
+                    <p>手机端不需要新建站点，也不需要复制内容。系统会在同一个前台地址下自动识别设备：手机访问时优先寻找 <code>m-当前模板.tpl</code>，存在就使用手机模板，不存在就自动回退原模板。</p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>PC 模板</th>
+                                    <th>手机模板</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="mono">home.tpl</td>
+                                    <td class="mono">m-home.tpl</td>
+                                    <td>手机首页。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">list.tpl</td>
+                                    <td class="mono">m-list.tpl</td>
+                                    <td>手机栏目列表页。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">detail.tpl</td>
+                                    <td class="mono">m-detail.tpl</td>
+                                    <td>手机文章详情页。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">page.tpl</td>
+                                    <td class="mono">m-page.tpl</td>
+                                    <td>手机单页详情。</td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">list-news.tpl</td>
+                                    <td class="mono">m-list-news.tpl</td>
+                                    <td>自定义模板也遵循 <code>m-原模板名</code> 规则。</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="code-sample">
+<pre>{{ themeStyle(path='m-theme.css') }}
+{{ themeStyle(path='m-home.css') }}
+
+{% set newsList = contentList(channel_id=32, limit=6)%}
+{% for item in newsList %}
+    &lt;a href="{{ item.url }}"&gt;{{ item.title | truncate(20) }}&lt;/a&gt;
+{% endfor %}
+
+{{ themeScript(path='m-home.js') }}</pre>
+                    </div>
+
+                    <ul class="rules-list">
+                        <li><strong>测试手机模板：</strong>本地或线上都可以在地址后加 <code>?device=mobile</code> 强制进入手机模式。</li>
+                        <li><strong>测试 PC 模板：</strong>地址后加 <code>?device=pc</code> 可强制使用 PC 模板。</li>
+                        <li><strong>链接参数保留：</strong>强制预览时，系统生成的站内链接会自动保留 <code>device=mobile</code> 或 <code>device=pc</code>，方便连续预览。</li>
+                        <li><strong>模板内判断：</strong>可用 <code>current.page.device</code> 和 <code>current.page.is_mobile</code> 判断当前渲染设备。</li>
+                        <li><strong>安全边界：</strong><code>device</code> 只能取 <code>mobile</code> 或 <code>pc</code>，不能通过 URL 指定任意模板文件。</li>
+                    </ul>
                 </section>
 
                 <section class="section" id="tag-templates">
@@ -908,6 +977,16 @@
                                     <td class="mono">current.page.template_name</td>
                                     <td>当前页面模板名。文章和单页面都支持在内容编辑页单独选择模板；如果内容本身没有单独绑定，就会回退到所属栏目的默认模板。</td>
                                     <td><code>{{ current.page.template_name }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.page.device</td>
+                                    <td>当前渲染设备，返回 <code>pc</code> 或 <code>mobile</code>。正常访问自动识别，预览时可通过 <code>device=mobile</code> 或 <code>device=pc</code> 强制指定。</td>
+                                    <td><code>{{ current.page.device }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">current.page.is_mobile</td>
+                                    <td>当前是否为手机端渲染。手机端为 <code>true</code>，PC 端为 <code>false</code>。</td>
+                                    <td><code>{% if current.page.is_mobile %}...{% endif %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">current.page.keyword</td>
