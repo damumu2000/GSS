@@ -933,12 +933,53 @@ class ContentController extends Controller
             $data = $validator->getData();
             $coverImage = trim((string) ($data['cover_image'] ?? ''));
 
-            if ($coverImage !== '' && ! $this->canAccessVisibleAttachmentUrl((int) $currentSite->id, $userId, [$coverImage], true)) {
+            if (
+                $coverImage !== ''
+                && ! $this->isAllowedLegacyCoverImagePath($coverImage)
+                && ! $this->canAccessVisibleAttachmentUrl((int) $currentSite->id, $userId, [$coverImage], true)
+            ) {
                 $validator->errors()->add('cover_image', '封面图不可访问，请重新从可用资源中选择。');
             }
         });
 
         return $validator->validate();
+    }
+
+    protected function isAllowedLegacyCoverImagePath(string $value): bool
+    {
+        $value = trim($value);
+
+        if ($value === '' || str_starts_with($value, '//')) {
+            return false;
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F<>"\']/', $value) === 1) {
+            return false;
+        }
+
+        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $value) === 1) {
+            return false;
+        }
+
+        $path = preg_replace('/[?#].*$/', '', str_replace('\\', '/', $value));
+        $path = is_string($path) ? '/'.ltrim($path, '/') : '';
+
+        if ($path === '/') {
+            return false;
+        }
+
+        $decodedPath = rawurldecode($path);
+        if (str_contains($decodedPath, "\0") || preg_match('#(?:^|/)\.\.(?:/|$)#', $decodedPath) === 1) {
+            return false;
+        }
+
+        if (preg_match('#\.(?:jpe?g|png|gif|webp)$#i', $path) !== 1) {
+            return false;
+        }
+
+        return preg_match('#^/up/.+#i', $path) === 1
+            || preg_match('#^/atts/up/.+#i', $path) === 1
+            || preg_match('#^/site-media/[^/]+/media/attachments/up/.+#i', $path) === 1;
     }
 
     protected function contentTemplateOptions(int $siteId, string $type): array

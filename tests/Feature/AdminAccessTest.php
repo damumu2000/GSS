@@ -7924,6 +7924,56 @@ XML);
         $this->assertSame('<p>原始正文</p>', (string) $content->content);
     }
 
+    public function test_restricted_content_operator_can_keep_legacy_up_cover_image_path(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $seedOperator = $this->createPlatformIdentity('content-legacy-cover-seeder');
+        $channelId = $this->createSiteChannel($siteId, 'content-legacy-cover-channel', '旧封面栏目', $seedOperator->id);
+        $operator = $this->createRestrictedContentOperator('content-legacy-cover-editor', $siteId, [$channelId]);
+
+        $this->setAttachmentSharing($siteId, false, $operator->id);
+
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '旧封面路径测试文章',
+            'slug' => 'content-legacy-cover-article',
+            'summary' => '用于旧封面路径保存校验',
+            'cover_image' => '/Up/original.jpg',
+            'content' => '<p>原始正文</p>',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->from(route('admin.articles.edit', $contentId))
+            ->post(route('admin.articles.update', $contentId), [
+                'channel_id' => $channelId,
+                'title' => '旧封面路径测试文章',
+                'summary' => '用于旧封面路径保存校验',
+                'cover_image' => '/Up/original.jpg',
+                'content' => '<p>更新正文</p>',
+                'author' => 'Restricted Editor',
+                'source' => '本站',
+                'status' => 'draft',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('contents', [
+            'id' => $contentId,
+            'cover_image' => '/Up/original.jpg',
+            'content' => '<p>更新正文</p>',
+        ]);
+    }
+
     public function test_restricted_content_operator_can_save_body_attachment_reference_via_srcset_without_visibility_validation(): void
     {
         $this->seed(DatabaseSeeder::class);
