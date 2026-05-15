@@ -298,10 +298,7 @@
                                                     · {{ $legacyAttachmentScannedAt->format('Y-m-d H:i') }}
                                                 @endif
                                             </span>
-                                            <form method="POST" action="{{ route('admin.platform.sites.legacy-attachments.refresh', $site->id) }}">
-                                                @csrf
-                                                <button class="button secondary" type="submit" data-loading-text="刷新中...">刷新旧附件统计</button>
-                                            </form>
+                                            <button class="button secondary" type="submit" form="legacy-attachment-refresh-form" data-loading-text="刷新中...">刷新旧附件统计</button>
                                         </div>
                                     @endif
                                 </div>
@@ -395,6 +392,11 @@
             <div class="site-form-footer">
             </div>
         </form>
+        @if ($hasLegacyAttachments || $hasLegacyAttachmentDirectory)
+            <form id="legacy-attachment-refresh-form" method="POST" action="{{ route('admin.platform.sites.legacy-attachments.refresh', $site->id) }}">
+                @csrf
+            </form>
+        @endif
     </section>
 
     <section class="site-form-card @if ($activeEditTab !== 'modules') is-hidden @endif" data-site-edit-tab-panel="modules">
