@@ -939,6 +939,7 @@
     let templateTreeHeightFrame = null;
     let templateTreeHeightRule = null;
     const createForm = document.getElementById('theme-template-create-form');
+    const createTemplatePrefixInput = createForm?.querySelector('[data-template-prefix-input]');
     const createTemplateSuffixInput = createForm?.querySelector('[data-template-suffix]');
     const templateTreeScrollKey = (() => {
         if (!configRoot) {
@@ -1056,6 +1057,29 @@
 
     bindTemplateSuffixInput(createTemplateSuffixInput);
 
+    const syncFixedMobileHomeTemplate = () => {
+        if (!createTemplatePrefixInput || !createTemplateSuffixInput) {
+            return;
+        }
+
+        if (createTemplatePrefixInput.value === 'mobile-home') {
+            createTemplateSuffixInput.value = 'm-home';
+            createTemplateSuffixInput.readOnly = true;
+            createTemplateSuffixInput.setAttribute('aria-readonly', 'true');
+            return;
+        }
+
+        if (createTemplateSuffixInput.readOnly && createTemplateSuffixInput.value === 'm-home') {
+            createTemplateSuffixInput.value = '';
+        }
+
+        createTemplateSuffixInput.readOnly = false;
+        createTemplateSuffixInput.removeAttribute('aria-readonly');
+    };
+
+    createTemplatePrefixInput?.addEventListener('change', syncFixedMobileHomeTemplate);
+    syncFixedMobileHomeTemplate();
+
     function applyTemplateTreeFilter() {
         const keyword = (treeSearchInput?.value || '').trim().toLowerCase();
 
@@ -1092,7 +1116,11 @@
     createForm?.addEventListener('submit', (event) => {
         const createTitleInput = createForm.querySelector('[name="template_title"]');
         if (createTemplateSuffixInput) {
-            createTemplateSuffixInput.value = normalizeTemplateSuffix(createTemplateSuffixInput.value, { finalize: true });
+            if (createTemplatePrefixInput?.value === 'mobile-home') {
+                createTemplateSuffixInput.value = '';
+            } else {
+                createTemplateSuffixInput.value = normalizeTemplateSuffix(createTemplateSuffixInput.value, { finalize: true });
+            }
         }
         if (!validateTemplateTitleLimit(createTitleInput)) {
             event.preventDefault();

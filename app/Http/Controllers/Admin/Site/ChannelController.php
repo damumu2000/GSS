@@ -792,6 +792,10 @@ class ChannelController extends Controller
 
         foreach (ThemeTemplateLocator::availableTemplatesForSite($siteId, $themeCode) as $templateItem) {
             $template = $templateItem['file'];
+            if (ThemeTemplateLocator::isMobileVariantTemplate($template)) {
+                continue;
+            }
+
             $label = trim(($templateItem['label'] ?? '').' '.$template.'.tpl');
 
             if ($template === 'list' || str_starts_with($template, 'list-')) {

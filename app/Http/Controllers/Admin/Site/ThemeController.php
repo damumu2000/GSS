@@ -556,7 +556,7 @@ class ThemeController extends Controller
         $themeCode = trim((string) $siteTemplate->template_key);
 
         $validated = $request->validateWithBag('createTemplate', [
-            'template_prefix' => ['required', 'string', Rule::in(['list', 'detail', 'page', 'tag', 'css', 'js'])],
+            'template_prefix' => ['required', 'string', Rule::in(['list', 'detail', 'page', 'tag', 'mobile-home', 'custom', 'css', 'js'])],
             'template_suffix' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/'],
             'template_title' => ['required', 'string', 'max:10'],
             'template_source' => ['nullable', 'string', 'max:200000'],
@@ -1365,6 +1365,14 @@ class ThemeController extends Controller
         $prefix = trim((string) ($validated['template_prefix'] ?? ''));
         $suffix = strtolower(trim((string) ($validated['template_suffix'] ?? '')));
         $allowedTplPrefixes = ['list', 'detail', 'page', 'tag'];
+
+        if ($prefix === 'mobile-home') {
+            return 'm-home';
+        }
+
+        if ($prefix === 'custom') {
+            return $suffix;
+        }
 
         if ($suffix === '') {
             return '';

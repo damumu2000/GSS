@@ -953,6 +953,9 @@ class ContentController extends Controller
 
         foreach (ThemeTemplateLocator::availableTemplatesForSite($siteId, $themeCode) as $templateItem) {
             $template = $templateItem['file'];
+            if (ThemeTemplateLocator::isMobileVariantTemplate($template)) {
+                continue;
+            }
 
             if ($type === 'page') {
                 if ($template !== 'page' && ! str_starts_with($template, 'page-')) {

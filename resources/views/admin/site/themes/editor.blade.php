@@ -48,6 +48,8 @@
             'detail' => '详情模板',
             'page' => '单页模板',
             'tag' => 'Tag 标签',
+            'mobile-home' => '手机版首页',
+            'custom' => '自定义模板',
             'css' => 'CSS 文件',
             'js' => 'JS 文件',
         ];

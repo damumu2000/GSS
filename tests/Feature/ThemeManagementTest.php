@@ -406,6 +406,114 @@ class ThemeManagementTest extends TestCase
             ->assertDontSee('MOBILE');
     }
 
+    public function test_site_can_create_fixed_mobile_home_template_from_editor(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $activeTemplateId = $this->activeTemplateId($site);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.themes.editor.template-create-form', ['site_template_id' => $activeTemplateId]))
+            ->assertOk()
+            ->assertSee('手机版首页')
+            ->assertDontSee('手机列表模板');
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.template-create'), [
+                'template_prefix' => 'mobile-home',
+                'template_suffix' => '',
+                'template_title' => '手机首页',
+                'template_source' => '<main>mobile home</main>',
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'm-home']));
+
+        $this->assertFileExists($templateRoot.DIRECTORY_SEPARATOR.'m-home.tpl');
+        $this->assertSame('<main>mobile home</main>', File::get($templateRoot.DIRECTORY_SEPARATOR.'m-home.tpl'));
+        $this->assertDatabaseHas('site_template_meta', [
+            'site_template_id' => DB::table('site_templates')->where('site_id', $site->id)->where('template_key', $themeCode)->value('id'),
+            'template_name' => 'm-home',
+            'title' => '手机首页',
+        ]);
+    }
+
+    public function test_mobile_variant_templates_are_hidden_from_binding_selects(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'m-list.tpl', '<main>mobile list</main>');
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'list-m-list.tpl', '<main>wrong mobile list</main>');
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'m-detail.tpl', '<main>mobile detail</main>');
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'detail-m-detail.tpl', '<main>wrong mobile detail</main>');
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'m-page.tpl', '<main>mobile page</main>');
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'page-m-page.tpl', '<main>wrong mobile page</main>');
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.channels.create'))
+            ->assertOk()
+            ->assertSee('list.tpl')
+            ->assertDontSee('m-list.tpl')
+            ->assertDontSee('list-m-list.tpl')
+            ->assertDontSee('m-detail.tpl')
+            ->assertDontSee('detail-m-detail.tpl')
+            ->assertDontSee('m-page.tpl')
+            ->assertDontSee('page-m-page.tpl');
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.articles.create'))
+            ->assertOk()
+            ->assertSee('detail.tpl')
+            ->assertDontSee('m-detail.tpl')
+            ->assertDontSee('detail-m-detail.tpl');
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.pages.create'))
+            ->assertOk()
+            ->assertSee('page.tpl')
+            ->assertDontSee('m-page.tpl')
+            ->assertDontSee('page-m-page.tpl');
+    }
+
+    public function test_site_can_create_direct_mobile_template_name_from_editor(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $activeTemplateId = $this->activeTemplateId($site);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.template-create'), [
+                'template_prefix' => 'custom',
+                'template_suffix' => 'm-list',
+                'template_title' => '手机列表',
+                'template_source' => '<main>mobile list</main>',
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'm-list']));
+
+        $this->assertFileExists($templateRoot.DIRECTORY_SEPARATOR.'m-list.tpl');
+        $this->assertSame('<main>mobile list</main>', File::get($templateRoot.DIRECTORY_SEPARATOR.'m-list.tpl'));
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.channels.create'))
+            ->assertOk()
+            ->assertDontSee('m-list.tpl');
+    }
+
     public function test_site_can_upload_and_delete_template_assets(): void
     {
         $this->seed(DatabaseSeeder::class);

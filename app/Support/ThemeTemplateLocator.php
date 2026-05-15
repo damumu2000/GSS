@@ -311,6 +311,7 @@ class ThemeTemplateLocator
             preg_match('/^自定义列表模板（.+）$/u', $baseLabel) === 1
             || preg_match('/^自定义详情模板（.+）$/u', $baseLabel) === 1
             || preg_match('/^自定义模板（.+）$/u', $baseLabel) === 1
+            || preg_match('/^手机.+模板(?:（.+）)?$/u', $baseLabel) === 1
         ) {
             return $customTitle;
         }
@@ -325,14 +326,26 @@ class ThemeTemplateLocator
             'top' => '页面顶部结构模板',
             'foot' => '页面底部结构模板',
             'home' => '首页模板',
+            'm-home' => '手机首页模板',
             'list' => '列表模板',
+            'm-list' => '手机列表模板',
             'list-grid' => '网格列表模板',
             'detail' => '详情模板',
+            'm-detail' => '手机详情模板',
             'detail-focus' => '聚焦详情模板',
             'page' => '单页模板',
+            'm-page' => '手机单页模板',
             'page-clean' => '简洁单页模板',
             default => static::customLabelFor($template),
         };
+    }
+
+    public static function isMobileVariantTemplate(string $template): bool
+    {
+        $template = trim($template);
+
+        return str_starts_with($template, 'm-')
+            || preg_match('/^(list|detail|page)-m(?:-|$)/', $template) === 1;
     }
 
     protected static function customLabelFor(string $template): string
@@ -341,12 +354,24 @@ class ThemeTemplateLocator
             return '自定义列表模板（'.substr($template, 5).'）';
         }
 
+        if (str_starts_with($template, 'm-list-')) {
+            return '手机列表模板（'.substr($template, 7).'）';
+        }
+
         if (str_starts_with($template, 'detail-')) {
             return '自定义详情模板（'.substr($template, 7).'）';
         }
 
+        if (str_starts_with($template, 'm-detail-')) {
+            return '手机详情模板（'.substr($template, 9).'）';
+        }
+
         if (str_starts_with($template, 'page-')) {
             return '单页模板（'.substr($template, 5).'）';
+        }
+
+        if (str_starts_with($template, 'm-page-')) {
+            return '手机单页模板（'.substr($template, 7).'）';
         }
 
         if (str_starts_with($template, 'tag-')) {
