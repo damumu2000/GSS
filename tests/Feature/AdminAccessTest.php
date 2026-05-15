@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\LegacyAspAccessSiteImporter;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -29,6 +30,7 @@ class AdminAccessTest extends TestCase
      */
     protected array $temporaryPayrollUploads = [];
     protected array $temporaryFilesystemBackups = [];
+    protected array $temporaryLegacyImportDirs = [];
 
     protected function tearDown(): void
     {
@@ -56,6 +58,14 @@ class AdminAccessTest extends TestCase
         }
 
         $this->temporaryFilesystemBackups = [];
+
+        foreach ($this->temporaryLegacyImportDirs as $path) {
+            if (is_string($path) && $path !== '' && File::isDirectory($path)) {
+                File::deleteDirectory($path);
+            }
+        }
+
+        $this->temporaryLegacyImportDirs = [];
 
         parent::tearDown();
     }
@@ -825,6 +835,22 @@ class AdminAccessTest extends TestCase
         $editorRoleId = (int) DB::table('site_roles')->where('code', 'editor')->whereNull('site_id')->value('id');
         $guestbookViewPermissionId = (int) DB::table('site_permissions')->where('code', 'guestbook.view')->value('id');
         $moduleUsePermissionId = (int) DB::table('site_permissions')->where('code', 'module.use')->value('id');
+        $guestbookModuleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+
+        DB::table('modules')->where('id', $guestbookModuleId)->update([
+            'status' => 1,
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $guestbookModuleId],
+            [
+                'is_trial' => 0,
+                'is_paused' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
 
         DB::table('site_role_permissions')
             ->where('site_id', $siteId)
@@ -859,6 +885,22 @@ class AdminAccessTest extends TestCase
         $user = $this->superAdmin();
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
         $editorRoleId = (int) DB::table('site_roles')->where('code', 'editor')->whereNull('site_id')->value('id');
+        $guestbookModuleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+
+        DB::table('modules')->where('id', $guestbookModuleId)->update([
+            'status' => 1,
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $guestbookModuleId],
+            [
+                'is_trial' => 0,
+                'is_paused' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
 
         $this->actingAs($user)
             ->withSession(['current_site_id' => $siteId])
@@ -867,6 +909,168 @@ class AdminAccessTest extends TestCase
             ->assertSee('功能模块权限配置')
             ->assertSee('留言板')
             ->assertDontSee('使用功能模块');
+    }
+
+    public function test_site_role_module_permissions_are_hidden_and_rejected_when_module_not_bound(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $editorRoleId = (int) DB::table('site_roles')->where('code', 'editor')->whereNull('site_id')->value('id');
+        $guestbookModuleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        $guestbookViewPermissionId = (int) DB::table('site_permissions')->where('code', 'guestbook.view')->value('id');
+        $moduleUsePermissionId = (int) DB::table('site_permissions')->where('code', 'module.use')->value('id');
+
+        DB::table('site_module_bindings')
+            ->where('site_id', $siteId)
+            ->where('module_id', $guestbookModuleId)
+            ->delete();
+
+        DB::table('site_role_permissions')
+            ->where('site_id', $siteId)
+            ->where('role_id', $editorRoleId)
+            ->whereIn('permission_id', [$guestbookViewPermissionId, $moduleUsePermissionId])
+            ->delete();
+
+        $this->actingAs($user)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.site-roles.edit', $editorRoleId))
+            ->assertOk()
+            ->assertDontSee('功能模块权限配置')
+            ->assertDontSee('留言板');
+
+        $this->actingAs($user)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.site-roles.update', $editorRoleId), [
+                'permission_ids' => [$guestbookViewPermissionId, $moduleUsePermissionId],
+            ])
+            ->assertRedirect(route('admin.site-roles.edit', $editorRoleId));
+
+        $this->assertDatabaseMissing('site_role_permissions', [
+            'site_id' => $siteId,
+            'role_id' => $editorRoleId,
+            'permission_id' => $guestbookViewPermissionId,
+        ]);
+        $this->assertDatabaseMissing('site_role_permissions', [
+            'site_id' => $siteId,
+            'role_id' => $editorRoleId,
+            'permission_id' => $moduleUsePermissionId,
+        ]);
+    }
+
+    public function test_legacy_asp_importer_supports_string_channel_ids_multi_channel_news_and_grouped_about_pages(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $sourceDir = storage_path('framework/testing-legacy-asp-'.uniqid());
+        File::ensureDirectoryExists($sourceDir);
+        $this->temporaryLegacyImportDirs[] = $sourceDir;
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type_D.xlsx', [
+            ['T_ID', 'T_Name', 'T_type', 'T_dlei', 'shunxu'],
+            [1, '最新动态', 2, '', 110],
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type.xlsx', [
+            ['T_ID', 'T_Name', 'T_type', 'T_Url', 'T_dlei', 'shunxu', 'flag'],
+            ['1', '旧单页栏目应忽略', 1, '', 0, 0, 1],
+            ['a11', '园内新闻', 2, '', 1, 10, 1],
+            ['a12', '园务公开', 2, '', 1, 20, 1],
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/About.xlsx', [
+            ['About_ID', 'About_Name', 'About_content'],
+            [1, '幼儿园介绍', '<p>园所介绍内容</p>'],
+        ]);
+
+        File::put($sourceDir.'/News.xml', <<<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<dataroot>
+  <News>
+    <News_ID>100</News_ID>
+    <News_Type>a11,a12</News_Type>
+    <News_Title>多栏目文章</News_Title>
+    <News_Pic>/Up/demo.jpg</News_Pic>
+    <News_Content><p>文章内容</p></News_Content>
+    <News_Date>2026-05-15 10:20:30</News_Date>
+    <News_count>23</News_count>
+  </News>
+</dataroot>
+XML);
+
+        $result = app(LegacyAspAccessSiteImporter::class)->import('site', '测试站点', $sourceDir, true);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $parentChannelId = (int) DB::table('channels')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-group-1')
+            ->value('id');
+        $firstArticleChannelId = (int) DB::table('channels')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-list-a11')
+            ->value('id');
+        $secondArticleChannelId = (int) DB::table('channels')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-list-a12')
+            ->value('id');
+        $pageParentChannelId = (int) DB::table('channels')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-pages')
+            ->value('id');
+        $pageChannelId = (int) DB::table('channels')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-page-1')
+            ->value('id');
+        $articleId = (int) DB::table('contents')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-news-100')
+            ->value('id');
+
+        $this->assertSame(0, (int) $result['imported']['articles_skipped']);
+        $this->assertGreaterThan(0, $parentChannelId);
+        $this->assertDatabaseHas('channels', [
+            'id' => $firstArticleChannelId,
+            'parent_id' => $parentChannelId,
+            'name' => '园内新闻',
+        ]);
+        $this->assertDatabaseHas('channels', [
+            'id' => $secondArticleChannelId,
+            'parent_id' => $parentChannelId,
+            'name' => '园务公开',
+        ]);
+        $this->assertDatabaseMissing('channels', [
+            'site_id' => $siteId,
+            'slug' => 'legacy-list-1',
+            'name' => '旧单页栏目应忽略',
+        ]);
+        $this->assertDatabaseHas('contents', [
+            'id' => $articleId,
+            'channel_id' => $firstArticleChannelId,
+            'title' => '多栏目文章',
+            'cover_image' => '/Up/demo.jpg',
+            'view_count' => 23,
+        ]);
+        $this->assertDatabaseHas('content_channels', [
+            'content_id' => $articleId,
+            'channel_id' => $firstArticleChannelId,
+        ]);
+        $this->assertDatabaseHas('content_channels', [
+            'content_id' => $articleId,
+            'channel_id' => $secondArticleChannelId,
+        ]);
+        $this->assertDatabaseHas('channels', [
+            'id' => $pageParentChannelId,
+            'name' => '单页栏目',
+            'parent_id' => null,
+        ]);
+        $this->assertDatabaseHas('channels', [
+            'id' => $pageChannelId,
+            'name' => '幼儿园介绍',
+            'parent_id' => $pageParentChannelId,
+            'type' => 'page',
+        ]);
     }
 
     public function test_platform_module_permissions_are_granted_to_default_platform_roles(): void
@@ -9142,6 +9346,19 @@ class AdminAccessTest extends TestCase
             null,
             true
         );
+    }
+
+    protected function writeLegacyImportSpreadsheet(string $path, array $rows): void
+    {
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->getActiveSheet()->fromArray($rows);
+
+        File::ensureDirectoryExists(dirname($path));
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($path);
+
+        $spreadsheet->disconnectWorksheets();
     }
 
     protected function createPlatformIdentity(string $username, string $roleCode = 'platform_admin'): User

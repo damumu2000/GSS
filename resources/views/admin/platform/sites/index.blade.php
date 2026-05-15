@@ -66,7 +66,7 @@
                 <div class="site-list-title">站点信息</div>
                 <div class="site-list-title">主域名</div>
                 <div class="site-list-title">时效信息</div>
-                <div class="site-list-title">已绑定模块</div>
+                <div class="site-list-title">备注内容</div>
                 <div class="site-list-title">运行状态</div>
                 <div class="site-list-title">操作</div>
             </div>
@@ -75,7 +75,8 @@
                 @php
                     $openedAt = $managedSite->opened_at ? \Illuminate\Support\Carbon::parse($managedSite->opened_at)->format('Y-m-d') : '未设置';
                     $expiresAt = $managedSite->expires_at ? \Illuminate\Support\Carbon::parse($managedSite->expires_at)->format('Y-m-d') : '长期有效';
-                    $moduleNames = trim((string) ($managedSite->module_names ?? ''));
+                    $remarkText = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($managedSite->remark ?? ''))) ?? '');
+                    $remarkText = $remarkText !== '' ? \Illuminate\Support\Str::limit($remarkText, 56) : '';
                     $expiration = app(\App\Support\SiteExpiration::class)->status($managedSite);
                     $expiresSoonLabel = null;
                     $statusBadgeClass = $managedSite->status ? '' : 'is-offline';
@@ -116,7 +117,7 @@
                             <span class="site-timeline-value">{{ $expiresAt }}</span>
                         </div>
                     </div>
-                    <div class="site-modules-text {{ $moduleNames === '' ? 'site-muted' : '' }}">{{ $moduleNames !== '' ? $moduleNames : '未绑定模块' }}</div>
+                    <div class="site-remark-text {{ $remarkText === '' ? 'site-muted' : '' }}">{{ $remarkText !== '' ? $remarkText : '暂无备注' }}</div>
                     <div class="site-status-wrap">
                         <span class="site-status-badge {{ $statusBadgeClass }}">{{ $statusLabel }}</span>
                         @if ($statusHint || $expiresSoonLabel)

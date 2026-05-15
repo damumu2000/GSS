@@ -13,7 +13,6 @@
     const noticeModalContent = document.getElementById('platform-notice-modal-content');
     const noticeModalLink = document.getElementById('platform-notice-modal-link');
     const noticeDetailCache = new Map();
-    let previousBodyOverflow = '';
 
     const closeNoticeModal = () => {
         if (!noticeModal || noticeModal.hidden) {
@@ -23,7 +22,6 @@
         noticeModal.classList.remove('is-open');
         window.setTimeout(() => {
             noticeModal.hidden = true;
-            document.body.classList.toggle('has-modal-open', previousBodyOverflow === 'hidden');
         }, 220);
     };
 
@@ -48,8 +46,6 @@
             : '<p>暂无公告内容。</p>';
         noticeModalLink.href = payload.link || '#';
         noticeModal.hidden = false;
-        previousBodyOverflow = document.body.classList.contains('has-modal-open') ? 'hidden' : '';
-        document.body.classList.add('has-modal-open');
         window.requestAnimationFrame(() => {
             noticeModal.classList.add('is-open');
         });

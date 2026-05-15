@@ -83,10 +83,10 @@ class LegacyAspAccessSiteImporter
             $parentChannelMap = [];
 
             foreach ($source['type_d'] as $row) {
-                $legacyId = $this->intValue($row['T_ID'] ?? null);
+                $legacyId = $this->legacyKey($row['T_ID'] ?? null);
                 $name = trim((string) ($row['T_Name'] ?? ''));
 
-                if ($legacyId <= 0 || $name === '') {
+                if ($this->legacyKeyIsEmpty($legacyId) || $name === '' || ! $this->isLegacyArticleChannelRow($row)) {
                     continue;
                 }
 
@@ -99,7 +99,7 @@ class LegacyAspAccessSiteImporter
                         'type' => 'list',
                         'path' => '/legacy-group-'.$legacyId,
                         'depth' => 0,
-                        'sort' => $legacyId,
+                        'sort' => $this->legacySortValue($row, $legacyId),
                         'status' => 1,
                         'is_nav' => 1,
                         'list_template' => 'list',
@@ -116,11 +116,11 @@ class LegacyAspAccessSiteImporter
             $articleChannelMap = [];
 
             foreach ($source['type'] as $row) {
-                $legacyId = $this->intValue($row['T_ID'] ?? null);
-                $parentLegacyId = $this->intValue($row['T_dlei'] ?? null);
+                $legacyId = $this->legacyKey($row['T_ID'] ?? null);
+                $parentLegacyId = $this->legacyKey($row['T_dlei'] ?? null);
                 $name = trim((string) ($row['T_Name'] ?? ''));
 
-                if ($legacyId <= 0 || $name === '') {
+                if ($this->legacyKeyIsEmpty($legacyId) || $name === '' || ! $this->isLegacyArticleChannelRow($row)) {
                     continue;
                 }
 
@@ -135,7 +135,7 @@ class LegacyAspAccessSiteImporter
                         'type' => 'list',
                         'path' => '/legacy-list-'.$legacyId,
                         'depth' => $parentChannelId ? 1 : 0,
-                        'sort' => $this->intValue($row['shunxu'] ?? null, $legacyId),
+                        'sort' => $this->legacySortValue($row, $legacyId),
                         'status' => 1,
                         'is_nav' => 1,
                         'list_template' => 'list',
@@ -149,6 +149,8 @@ class LegacyAspAccessSiteImporter
                 $summary['imported'][$created ? 'channels_created' : 'channels_updated']++;
             }
 
+            $pageParentChannelId = null;
+
             foreach ($source['about'] as $row) {
                 $legacyId = $this->intValue($row['About_ID'] ?? null);
                 $name = trim((string) ($row['About_Name'] ?? ''));
@@ -158,15 +160,37 @@ class LegacyAspAccessSiteImporter
                     continue;
                 }
 
+                if ($pageParentChannelId === null) {
+                    [$pageParentChannelId, $pageParentCreated] = $this->upsertChannel(
+                        (int) $site->id,
+                        [
+                            'parent_id' => null,
+                            'name' => '单页栏目',
+                            'slug' => 'legacy-pages',
+                            'type' => 'list',
+                            'path' => '/legacy-pages',
+                            'depth' => 0,
+                            'sort' => 0,
+                            'status' => 1,
+                            'is_nav' => 1,
+                            'list_template' => 'list',
+                            'detail_template' => 'page',
+                            'link_url' => null,
+                            'link_target' => '_self',
+                        ]
+                    );
+                    $summary['imported'][$pageParentCreated ? 'channels_created' : 'channels_updated']++;
+                }
+
                 [$channelId, $channelCreated] = $this->upsertChannel(
                     (int) $site->id,
                     [
-                        'parent_id' => null,
+                        'parent_id' => $pageParentChannelId,
                         'name' => $name,
                         'slug' => 'legacy-page-'.$legacyId,
                         'type' => 'page',
                         'path' => '/legacy-page-'.$legacyId,
-                        'depth' => 0,
+                        'depth' => 1,
                         'sort' => $legacyId,
                         'status' => 1,
                         'is_nav' => 1,
@@ -215,7 +239,7 @@ class LegacyAspAccessSiteImporter
                 }
 
                 $channelIds = collect($legacyChannelIds)
-                    ->map(fn (int $legacyChannelId): ?int => $articleChannelMap[$legacyChannelId] ?? null)
+                    ->map(fn (string $legacyChannelId): ?int => $articleChannelMap[$legacyChannelId] ?? null)
                     ->filter(fn (?int $channelId): bool => (int) $channelId > 0)
                     ->unique()
                     ->values()
@@ -659,6 +683,9 @@ class LegacyAspAccessSiteImporter
         return str_replace('\\', '/', $path);
     }
 
+    /**
+     * @return array<int, string>
+     */
     protected function parseLegacyChannelIds(mixed $value): array
     {
         $raw = trim((string) ($value ?? ''));
@@ -668,11 +695,57 @@ class LegacyAspAccessSiteImporter
         }
 
         return collect(preg_split('/[,\x{FF0C}\s]+/u', $raw) ?: [])
-            ->map(fn (string $item): int => $this->intValue($item))
-            ->filter(fn (int $id): bool => $id > 0)
+            ->map(fn (string $item): string => $this->legacyKey($item))
+            ->filter(fn (string $id): bool => ! $this->legacyKeyIsEmpty($id))
             ->unique()
             ->values()
             ->all();
+    }
+
+    protected function isLegacyArticleChannelRow(array $row): bool
+    {
+        $type = $this->intValue($row['T_type'] ?? null);
+
+        return $type === 0 || $type === 2;
+    }
+
+    protected function legacyKey(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        if (is_float($value) && floor($value) === $value) {
+            return (string) (int) $value;
+        }
+
+        $text = trim((string) $value);
+
+        if ($text !== '' && preg_match('/^\d+(?:\.0+)?$/', $text) === 1) {
+            return (string) (int) $text;
+        }
+
+        return $text;
+    }
+
+    protected function legacyKeyIsEmpty(string $value): bool
+    {
+        return $value === '' || $value === '0';
+    }
+
+    protected function legacySortValue(array $row, string $legacyId): int
+    {
+        $sort = $this->intValue($row['shunxu'] ?? null);
+
+        if ($sort !== 0) {
+            return $sort;
+        }
+
+        return $this->intValue($legacyId);
     }
 
     protected function intValue(mixed $value, int $default = 0): int

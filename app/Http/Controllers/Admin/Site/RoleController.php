@@ -115,11 +115,12 @@ class RoleController extends Controller
             ->groupBy('module');
 
         $moduleDefinitions = $this->moduleManager
-            ->all()
+            ->boundSiteModules((int) $currentSite->id)
             ->keyBy(fn (array $module): string => (string) $module['code']);
 
         $modulePermissionGroups = $moduleSpecificPermissions
             ->groupBy(fn ($permission): string => Str::before((string) $permission->code, '.'))
+            ->filter(fn (Collection $modulePermissions, string $moduleCode): bool => $moduleDefinitions->has($moduleCode))
             ->map(function (Collection $modulePermissions, string $moduleCode) use ($moduleDefinitions): array {
                 $moduleDefinition = $moduleDefinitions->get($moduleCode);
 
@@ -130,6 +131,19 @@ class RoleController extends Controller
                 ];
             })
             ->values();
+
+        $visiblePermissionIds = $generalPermissions
+            ->flatten(1)
+            ->pluck('id')
+            ->merge(
+                $modulePermissionGroups
+                    ->flatMap(fn (array $group): Collection => $group['permissions'])
+                    ->pluck('id')
+            )
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
         $selectedPermissionIds = DB::table('site_role_permissions')
             ->where('site_id', $currentSite->id)
@@ -142,6 +156,7 @@ class RoleController extends Controller
             ->where('site_role_permissions.site_id', $currentSite->id)
             ->where('site_role_permissions.role_id', $role->id)
             ->where('site_permissions.code', '!=', 'module.use')
+            ->whereIn('site_permissions.id', $visiblePermissionIds)
             ->pluck('site_role_permissions.permission_id')
             ->all();
 
@@ -218,6 +233,8 @@ class RoleController extends Controller
             ->pluck('id')
             ->all();
 
+        $permissionIds = $this->filterAllowedPermissionIdsForSite((int) $currentSite->id, $permissionIds);
+
         $hasModuleSpecificPermission = DB::table('site_permissions')
             ->whereIn('id', $permissionIds)
             ->where('module', 'module')
@@ -265,6 +282,41 @@ class RoleController extends Controller
         );
 
         return redirect()->route('admin.site-roles.edit', $role->id)->with('status', '操作角色权限已更新。');
+    }
+
+    protected function filterAllowedPermissionIdsForSite(int $siteId, array $permissionIds): array
+    {
+        $permissionIds = array_values(array_unique(array_map('intval', $permissionIds)));
+
+        if ($permissionIds === []) {
+            return [];
+        }
+
+        $boundModuleCodes = $this->moduleManager
+            ->boundSiteModules($siteId)
+            ->pluck('code')
+            ->map(fn ($code): string => (string) $code)
+            ->all();
+
+        return DB::table('site_permissions')
+            ->whereIn('id', $permissionIds)
+            ->where(function ($query) use ($boundModuleCodes): void {
+                $query->where('module', '!=', 'module');
+
+                if ($boundModuleCodes !== []) {
+                    $query->orWhere(function ($moduleQuery) use ($boundModuleCodes): void {
+                        $moduleQuery->where('module', 'module')
+                            ->where(function ($codeQuery) use ($boundModuleCodes): void {
+                                foreach ($boundModuleCodes as $moduleCode) {
+                                    $codeQuery->orWhere('code', 'like', $moduleCode.'.%');
+                                }
+                            });
+                    });
+                }
+            })
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 
     public function destroy(Request $request, string $roleId): RedirectResponse

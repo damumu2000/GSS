@@ -74,19 +74,6 @@ class PlatformSiteController extends Controller
                 'sites.id',
             )
             ->leftJoinSub(
-                DB::table('site_module_bindings')
-                    ->join('modules', 'modules.id', '=', 'site_module_bindings.module_id')
-                    ->select(
-                        'site_module_bindings.site_id',
-                        $this->groupConcatNamesExpression('modules.name', 'module_names'),
-                    )
-                    ->groupBy('site_module_bindings.site_id'),
-                'site_module_summary',
-                'site_module_summary.site_id',
-                '=',
-                'sites.id',
-            )
-            ->leftJoinSub(
                 DB::table('site_user_roles')
                     ->join('users', 'users.id', '=', 'site_user_roles.user_id')
                     ->where('site_user_roles.role_id', $siteAdminRoleId)
@@ -137,7 +124,6 @@ class PlatformSiteController extends Controller
                 'site_domain_summary.primary_domain',
                 'site_domain_summary.domain_count',
                 'site_template_summary.template_count',
-                'site_module_summary.module_names',
                 'site_admin_summary.admin_names',
             ]);
 
