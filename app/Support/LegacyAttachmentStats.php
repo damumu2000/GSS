@@ -93,6 +93,13 @@ class LegacyAttachmentStats
         ];
     }
 
+    public static function hasLegacyDirectory(int|object|string $site): bool
+    {
+        $siteRecord = static::siteRecord($site);
+
+        return $siteRecord !== null && static::resolveLegacyDirectory($siteRecord) !== null;
+    }
+
     protected static function siteRecord(int|object|string $site): ?object
     {
         if (is_object($site) && isset($site->id, $site->site_key)) {

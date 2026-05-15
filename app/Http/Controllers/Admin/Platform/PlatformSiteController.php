@@ -192,6 +192,7 @@ class PlatformSiteController extends Controller
             'legacy_bytes' => (int) $legacyAttachmentStats['bytes'],
             'legacy_scanned_at' => $legacyAttachmentStats['scanned_at'],
             'has_legacy' => (bool) $legacyAttachmentStats['has_data'],
+            'has_legacy_directory' => LegacyAttachmentStats::hasLegacyDirectory($site),
             'total_bytes' => SiteStorageUsage::totalBytes($site),
             'limit_bytes' => SiteStorageUsage::storageLimitBytes((int) $siteId),
         ];

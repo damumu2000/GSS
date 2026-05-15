@@ -35,6 +35,7 @@
     $attachmentLimitLabel = $attachmentLimitBytes > 0 ? \App\Support\SiteStorageUsage::formatBytes($attachmentLimitBytes) : '不限';
     $legacyAttachmentScannedAt = $attachmentUsage['legacy_scanned_at'] ?? null;
     $hasLegacyAttachments = (bool) ($attachmentUsage['has_legacy'] ?? false);
+    $hasLegacyAttachmentDirectory = (bool) ($attachmentUsage['has_legacy_directory'] ?? false);
 
     $moduleTabHasErrors = $errors->has('module')
         || $errors->has('module_id')
@@ -289,7 +290,7 @@
                                         <span class="status-monitor-label">总资源占用</span>
                                         <span class="status-monitor-value">{{ $totalAttachmentBytes }} / {{ $attachmentLimitLabel }}</span>
                                     </div>
-                                    @if ($hasLegacyAttachments)
+                                    @if ($hasLegacyAttachments || $hasLegacyAttachmentDirectory)
                                         <div class="status-monitor-row status-monitor-row-actions">
                                             <span class="status-monitor-label">
                                                 旧附件统计
