@@ -158,7 +158,8 @@
         .site-main {
             min-width: 0;
             display: grid;
-            gap: 8px;
+            justify-items: start;
+            gap: 6px;
         }
 
         .site-main-row {
@@ -204,6 +205,20 @@
 
         .site-domain-text {
             word-break: break-all;
+        }
+
+        .site-domain-link {
+            color: #2563eb;
+            font-weight: 700;
+            text-decoration: none;
+            transition: color 0.18s ease, text-decoration-color 0.18s ease;
+        }
+
+        .site-domain-link:hover {
+            color: #1d4ed8;
+            text-decoration: underline;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 3px;
         }
 
         .site-remark-text {

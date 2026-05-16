@@ -491,7 +491,7 @@
         let activeTarget = null;
         let floatingTooltip = null;
 
-        const isSvgTooltipTarget = (target) => target instanceof SVGElement;
+        const shouldUseFloatingTooltip = (target) => target instanceof SVGElement || target?.dataset.tooltipFloat === 'true';
 
         const removeFloatingTooltip = () => {
             floatingTooltip?.remove();
@@ -544,7 +544,7 @@
             }
 
             if (target === activeTarget) {
-                if (isSvgTooltipTarget(target) && floatingTooltip?.textContent === label) {
+                if (shouldUseFloatingTooltip(target) && floatingTooltip?.textContent === label) {
                     positionFloatingTooltip(target, floatingTooltip);
                     return;
                 }
@@ -555,7 +555,7 @@
                 }
             }
 
-            if (isSvgTooltipTarget(target)) {
+            if (shouldUseFloatingTooltip(target)) {
                 removeFloatingTooltip();
                 const tooltip = document.createElement('span');
                 tooltip.className = 'global-tooltip is-floating';

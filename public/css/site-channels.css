@@ -128,12 +128,13 @@
             width: 100%;
         }
 
-        .channel-table col.channel-col-name { width: 34%; }
-        .channel-table col.channel-col-attribute { width: 14%; }
-        .channel-table col.channel-col-type { width: 14%; }
-        .channel-table col.channel-col-slug { width: 18%; }
-        .channel-table col.channel-col-nav { width: 10%; }
-        .channel-table col.channel-col-actions { width: 10%; }
+        .channel-table col.channel-col-name { width: 30%; }
+        .channel-table col.channel-col-attribute { width: 13%; }
+        .channel-table col.channel-col-type { width: 13%; }
+        .channel-table col.channel-col-slug { width: 17%; }
+        .channel-table col.channel-col-id { width: 8%; }
+        .channel-table col.channel-col-nav { width: 8%; }
+        .channel-table col.channel-col-actions { width: 11%; }
 
         .channel-table thead th {
             color: #374151;
@@ -369,10 +370,46 @@
         }
 
         .channel-type-cell,
-        .channel-slug-cell {
+        .channel-slug-cell,
+        .channel-id-cell {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .channel-copy-token {
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            min-height: 30px;
+            padding: 0 10px;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            background: #f8fafc;
+            color: #334155;
+            font: inherit;
+            font-size: 13px;
+            line-height: 1;
+            font-weight: 700;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+
+        .channel-copy-token:hover,
+        .channel-copy-token:focus-visible {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            color: #1d4ed8;
+            outline: none;
+        }
+
+        .channel-copy-token.is-id {
+            justify-content: center;
+            min-width: 44px;
+            color: #475569;
         }
 
         .channel-status-pill {

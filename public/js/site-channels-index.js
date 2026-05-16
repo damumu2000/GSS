@@ -1,4 +1,41 @@
 (() => {
+    const copyText = async (text) => {
+        if (navigator.clipboard?.writeText && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+    };
+
+    document.querySelectorAll('[data-channel-copy]').forEach((button) => {
+        button.addEventListener('click', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const text = button.dataset.channelCopy || '';
+            if (text === '') {
+                return;
+            }
+
+            try {
+                await copyText(text);
+                window.showMessage?.(`${button.dataset.copyLabel || '内容'}已复制：${text}`);
+            } catch (error) {
+                window.showMessage?.('复制失败，请手动选择复制。', 'error');
+            }
+        });
+    });
+
     document.querySelectorAll('.js-channel-delete').forEach((button) => {
         button.addEventListener('click', () => {
             const formId = button.dataset.formId;

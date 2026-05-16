@@ -100,12 +100,16 @@
                     <div class="site-main">
                         <div class="site-main-row">
                             <h3 class="site-name">{{ $managedSite->name }}</h3>
-                            <span class="site-key-badge">{{ '@' . $managedSite->site_key }}</span>
                         </div>
+                        <span class="site-key-badge">{{ '@' . $managedSite->site_key }}</span>
                         <div class="site-domain-text site-muted">模板数量：{{ (int) ($managedSite->template_count ?? 0) }} / {{ (int) ($managedSite->template_limit ?? 1) }}</div>
                     </div>
                     <div class="site-domain-text">
-                        {{ $managedSite->primary_domain ?: '未绑定' }}@if(($managedSite->domain_count ?? 0) > 1) +{{ $managedSite->domain_count - 1 }}@endif
+                        @if ($managedSite->primary_domain)
+                            <a class="site-domain-link" href="//{{ $managedSite->primary_domain }}" target="_blank" rel="noopener noreferrer">{{ $managedSite->primary_domain }}</a>@if(($managedSite->domain_count ?? 0) > 1) +{{ $managedSite->domain_count - 1 }}@endif
+                        @else
+                            <span class="site-muted">未绑定</span>
+                        @endif
                     </div>
                     <div class="site-timeline">
                         <div class="site-timeline-item">

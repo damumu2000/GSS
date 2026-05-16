@@ -103,7 +103,9 @@ class SiteController extends Controller
                         ->whereColumn('content_channels.content_id', 'contents.id')
                         ->where('content_channels.channel_id', $channel->id);
                 })
+                ->orderByDesc('sort')
                 ->orderByDesc('updated_at')
+                ->orderByDesc('id')
                 ->first();
 
             abort_unless($page, 404);

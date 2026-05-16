@@ -371,6 +371,86 @@ class ThemeManagementTest extends TestCase
             ->assertSee('2026-05-15');
     }
 
+    public function test_page_channel_uses_highest_sorted_page_as_default_content(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'page.tpl',
+            '<!DOCTYPE html><html><head><title>Page</title></head><body>{{ current.content.title }}</body></html>'
+        );
+
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $site->id,
+            'name' => '单页排序栏目',
+            'slug' => 'sorted-page-channel',
+            'type' => 'page',
+            'status' => 1,
+            'is_nav' => 1,
+            'detail_template' => 'page',
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $olderHighSortPageId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'page',
+            'title' => '后台排序第一的单页',
+            'content' => '<p>排序第一</p>',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'sort' => 90,
+            'published_at' => now()->subDays(2),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ]);
+
+        $newerLowSortPageId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'page',
+            'title' => '更新时间更新但排序靠后的单页',
+            'content' => '<p>排序靠后</p>',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'sort' => 10,
+            'published_at' => now(),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            [
+                'content_id' => $olderHighSortPageId,
+                'channel_id' => $channelId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'content_id' => $newerLowSortPageId,
+                'channel_id' => $channelId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->get(route('site.channel', ['slug' => 'sorted-page-channel', 'site' => $site->site_key]))
+            ->assertOk()
+            ->assertSee('后台排序第一的单页')
+            ->assertDontSee('更新时间更新但排序靠后的单页');
+    }
+
     public function test_mobile_template_is_used_when_available_and_falls_back_when_missing(): void
     {
         $this->seed(DatabaseSeeder::class);

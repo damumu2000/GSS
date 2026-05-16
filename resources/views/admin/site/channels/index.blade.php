@@ -45,6 +45,7 @@
                         <col class="channel-col-attribute">
                         <col class="channel-col-type">
                         <col class="channel-col-slug">
+                        <col class="channel-col-id">
                         <col class="channel-col-nav">
                         <col class="channel-col-actions">
                     </colgroup>
@@ -54,6 +55,7 @@
                         <th>栏目属性</th>
                         <th>类型</th>
                         <th>别名</th>
+                        <th>栏目ID</th>
                         <th>导航</th>
                         <th class="table-actions">操作</th>
                     </tr>
@@ -135,16 +137,37 @@
                             </td>
                             <td><span class="channel-parent-cell">{{ $channelLevelLabel }}</span></td>
                             <td class="channel-type-cell"><span class="pill">{{ $channelTypes[$channel->type] ?? $channel->type }}</span></td>
-                            <td class="channel-slug-cell">{{ $channel->slug }}</td>
+                            <td class="channel-slug-cell">
+                                <button
+                                    class="channel-copy-token"
+                                    type="button"
+                                    data-channel-copy="{{ $channel->slug }}"
+                                    data-copy-label="栏目别名"
+                                    data-tooltip="点击可复制"
+                                    data-tooltip-float="true"
+                                    aria-label="点击复制栏目别名 {{ $channel->slug }}"
+                                >{{ $channel->slug }}</button>
+                            </td>
+                            <td class="channel-id-cell">
+                                <button
+                                    class="channel-copy-token is-id"
+                                    type="button"
+                                    data-channel-copy="{{ $channel->id }}"
+                                    data-copy-label="栏目ID"
+                                    data-tooltip="点击可复制"
+                                    data-tooltip-float="true"
+                                    aria-label="点击复制栏目ID {{ $channel->id }}"
+                                >{{ $channel->id }}</button>
+                            </td>
                             <td><span class="channel-status-pill {{ $channel->is_nav ? 'is-on' : '' }}">{{ $channel->is_nav ? '显示' : '隐藏' }}</span></td>
                             <td class="table-actions">
                                 <div class="channel-action-row">
-                                    <a class="channel-action-link" href="{{ route('admin.channels.edit', $channel->id) }}" aria-label="编辑" title="编辑">
+                                    <a class="channel-action-link" href="{{ route('admin.channels.edit', $channel->id) }}" aria-label="编辑" data-tooltip="编辑" data-tooltip-float="true">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
                                     </a>
                                     <form id="channel-delete-form-{{ $channel->id }}" method="POST" action="{{ route('admin.channels.destroy', $channel->id) }}">
                                         @csrf
-                                        <button class="channel-action-button is-danger js-channel-delete" type="button" data-form-id="channel-delete-form-{{ $channel->id }}" aria-label="删除" title="删除">
+                                        <button class="channel-action-button is-danger js-channel-delete" type="button" data-form-id="channel-delete-form-{{ $channel->id }}" aria-label="删除" data-tooltip="删除" data-tooltip-float="true">
                                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
                                         </button>
                                     </form>
