@@ -755,21 +755,23 @@ class LegacyAspAccessSiteImporter
      */
     protected function reserveLegacyChannelSlug(string $slug, string $fallback, array &$reserved): string
     {
-        if (! isset($reserved[$slug])) {
-            $reserved[$slug] = true;
+        $reservedKey = mb_strtolower($slug);
+
+        if (! isset($reserved[$reservedKey])) {
+            $reserved[$reservedKey] = true;
 
             return $slug;
         }
 
         $candidate = $fallback;
         $index = 2;
-        while (isset($reserved[$candidate])) {
+        while (isset($reserved[mb_strtolower($candidate)])) {
             $suffix = '-'.$index;
             $candidate = substr($fallback, 0, max(1, 20 - strlen($suffix))).$suffix;
             $index++;
         }
 
-        $reserved[$candidate] = true;
+        $reserved[mb_strtolower($candidate)] = true;
 
         return $candidate;
     }

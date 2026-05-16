@@ -1111,14 +1111,14 @@ class AdminAccessTest extends TestCase
 
         $this->writeLegacyImportSpreadsheet($sourceDir.'/Type_D.xlsx', [
             ['T_ID', 'T_Name', 'T_type', 'T_dlei', 'shunxu', 'en'],
-            [1, '最新动态', 2, '', 110, 'News Center'],
+            [1, '最新动态', 2, '', 110, 'News'],
         ]);
 
         $this->writeLegacyImportSpreadsheet($sourceDir.'/Type.xlsx', [
             ['Type_ID', 'Type_Name', 'Type_type', 'dalei', 'shunxu', 'flag', 'en'],
             ['1', '旧单页栏目应忽略', 1, 0, 0, 1, 'about'],
             ['a11', '园内新闻', 2, 1, 10, 1, 'Garden News'],
-            ['a12', '园务公开', 2, 1, 20, 1, ''],
+            ['a12', '园务公开', 2, 1, 20, 1, 'news'],
         ]);
 
         $this->writeLegacyImportSpreadsheet($sourceDir.'/About.xlsx', [
@@ -1155,7 +1155,7 @@ XML);
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
         $parentChannelId = (int) DB::table('channels')
             ->where('site_id', $siteId)
-            ->where('slug', 'News-Center')
+            ->where('slug', 'News')
             ->value('id');
         $firstArticleChannelId = (int) DB::table('channels')
             ->where('site_id', $siteId)
