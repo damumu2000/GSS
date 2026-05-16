@@ -307,9 +307,7 @@ class ChannelController extends Controller
             ->where('parent_id', $channelId)
             ->exists();
 
-        $hasContents = DB::table('contents')
-            ->where('channel_id', $channelId)
-            ->exists();
+        $hasContents = $this->channelHasContents((int) $currentSite->id, (int) $channelId, true);
 
         if ($hasChildren || $hasContents) {
             return redirect()
@@ -360,10 +358,7 @@ class ChannelController extends Controller
 
         foreach ($channels as $channel) {
             $hasChildren = DB::table('channels')->where('parent_id', $channel->id)->exists();
-            $hasContents = DB::table('contents')
-                ->where('channel_id', $channel->id)
-                ->whereNull('deleted_at')
-                ->exists();
+            $hasContents = $this->channelHasContents((int) $currentSite->id, (int) $channel->id);
 
             if ($hasChildren || $hasContents) {
                 $skipped++;
@@ -389,6 +384,27 @@ class ChannelController extends Controller
         return redirect()
             ->route('admin.channels.index')
             ->with('status', "批量处理完成，删除 {$deleted} 个栏目，跳过 {$skipped} 个。");
+    }
+
+    protected function channelHasContents(int $siteId, int $channelId, bool $includeDeleted = false): bool
+    {
+        if ($channelId < 1) {
+            return false;
+        }
+
+        return DB::table('contents')
+            ->where('site_id', $siteId)
+            ->when(! $includeDeleted, fn ($query) => $query->whereNull('deleted_at'))
+            ->where(function ($query) use ($channelId): void {
+                $query->where('channel_id', $channelId)
+                    ->orWhereExists(function ($subQuery) use ($channelId): void {
+                        $subQuery->selectRaw('1')
+                            ->from('content_channels')
+                            ->whereColumn('content_channels.content_id', 'contents.id')
+                            ->where('content_channels.channel_id', $channelId);
+                    });
+            })
+            ->exists();
     }
 
     /**

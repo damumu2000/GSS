@@ -33,6 +33,9 @@ class ContentController extends Controller
         $keyword = trim((string) $request->query('keyword', ''));
         $status = (string) $request->query('status', '');
         $channelId = (string) $request->query('channel_id', '');
+        $filterChannelIds = $channelId !== ''
+            ? $this->contentIndexFilterChannelIds((int) $currentSite->id, (int) $channelId, $type)
+            : [];
         $mine = (string) $request->query('mine', '');
 
         $contentsQuery = DB::table('contents')
@@ -53,12 +56,20 @@ class ContentController extends Controller
             ->when($status !== '', function ($query) use ($status): void {
                 $query->where('contents.status', $status);
             })
-            ->when($channelId !== '', function ($query) use ($channelId): void {
-                $query->whereExists(function ($subQuery) use ($channelId): void {
-                    $subQuery->selectRaw('1')
-                        ->from('content_channels')
-                        ->whereColumn('content_channels.content_id', 'contents.id')
-                        ->where('content_channels.channel_id', (int) $channelId);
+            ->when($channelId !== '', function ($query) use ($filterChannelIds): void {
+                if ($filterChannelIds === []) {
+                    $query->whereRaw('1 = 0');
+                    return;
+                }
+
+                $query->where(function ($channelQuery) use ($filterChannelIds): void {
+                    $channelQuery->whereIn('contents.channel_id', $filterChannelIds)
+                        ->orWhereExists(function ($subQuery) use ($filterChannelIds): void {
+                            $subQuery->selectRaw('1')
+                                ->from('content_channels')
+                                ->whereColumn('content_channels.content_id', 'contents.id')
+                                ->whereIn('content_channels.channel_id', $filterChannelIds);
+                        });
                 });
             });
 
@@ -943,6 +954,45 @@ class ContentController extends Controller
         });
 
         return $validator->validate();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function contentIndexFilterChannelIds(int $siteId, int $channelId, string $contentType): array
+    {
+        if ($channelId < 1) {
+            return [];
+        }
+
+        $allowedChannelType = $contentType === 'page' ? 'page' : 'list';
+        $channels = DB::table('channels')
+            ->where('site_id', $siteId)
+            ->get(['id', 'parent_id', 'type']);
+
+        $selectedChannel = $channels->firstWhere('id', $channelId);
+        if (! $selectedChannel || (string) $selectedChannel->type !== $allowedChannelType) {
+            return [];
+        }
+
+        $childrenByParent = $channels->groupBy(fn (object $channel): int => (int) ($channel->parent_id ?? 0));
+        $ids = [];
+        $stack = [$channelId];
+
+        while ($stack !== []) {
+            $currentId = (int) array_pop($stack);
+            $current = $channels->firstWhere('id', $currentId);
+
+            if ($current && (string) $current->type === $allowedChannelType) {
+                $ids[] = $currentId;
+            }
+
+            foreach ($childrenByParent->get($currentId, collect()) as $child) {
+                $stack[] = (int) $child->id;
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids, fn (int $id): bool => $id > 0)));
     }
 
     protected function isAllowedLegacyCoverImagePath(string $value): bool

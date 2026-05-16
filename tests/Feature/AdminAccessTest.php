@@ -5326,6 +5326,186 @@ XML);
             ->assertSee('共享开启后可见的文章');
     }
 
+    public function test_article_index_channel_filter_includes_descendant_channels(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $operator = $this->createSiteOperator('article-tree-filter-admin', true, 'site_admin');
+
+        $parentId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '一级新闻栏目',
+            'slug' => 'article-tree-filter-parent',
+            'type' => 'list',
+            'path' => '/article-tree-filter-parent',
+            'depth' => 0,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $childId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => $parentId,
+            'name' => '二级新闻栏目',
+            'slug' => 'article-tree-filter-child',
+            'type' => 'list',
+            'path' => '/article-tree-filter-parent/article-tree-filter-child',
+            'depth' => 1,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $otherParentId = $this->createSiteChannel($siteId, 'article-tree-filter-other-parent', '其他一级栏目', $operator->id);
+
+        $visibleContentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $childId,
+            'type' => 'article',
+            'title' => '一级筛选应该显示的子栏目文章',
+            'slug' => 'article-tree-filter-visible',
+            'summary' => 'visible',
+            'content' => '<p>visible</p>',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $visibleContentId,
+            'channel_id' => $childId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => $siteId,
+            'channel_id' => $otherParentId,
+            'type' => 'article',
+            'title' => '一级筛选不应该显示的其他栏目文章',
+            'slug' => 'article-tree-filter-hidden',
+            'summary' => 'hidden',
+            'content' => '<p>hidden</p>',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.articles.index', ['channel_id' => $parentId]))
+            ->assertOk()
+            ->assertSee('一级筛选应该显示的子栏目文章')
+            ->assertDontSee('一级筛选不应该显示的其他栏目文章');
+    }
+
+    public function test_article_review_channel_filter_includes_descendant_channels(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $operator = $this->createSiteOperator('review-tree-filter-admin', true, 'site_admin');
+
+        $parentId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '审核一级栏目',
+            'slug' => 'review-tree-filter-parent',
+            'type' => 'list',
+            'path' => '/review-tree-filter-parent',
+            'depth' => 0,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $childId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => $parentId,
+            'name' => '审核二级栏目',
+            'slug' => 'review-tree-filter-child',
+            'type' => 'list',
+            'path' => '/review-tree-filter-parent/review-tree-filter-child',
+            'depth' => 1,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $otherParentId = $this->createSiteChannel($siteId, 'review-tree-filter-other-parent', '审核其他栏目', $operator->id);
+
+        $visibleContentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $childId,
+            'type' => 'article',
+            'title' => '审核一级筛选应该显示的子栏目文章',
+            'slug' => 'review-tree-filter-visible',
+            'summary' => 'visible',
+            'content' => '<p>visible</p>',
+            'status' => 'pending',
+            'audit_status' => 'pending',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $visibleContentId,
+            'channel_id' => $childId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => $siteId,
+            'channel_id' => $otherParentId,
+            'type' => 'article',
+            'title' => '审核一级筛选不应该显示的其他栏目文章',
+            'slug' => 'review-tree-filter-hidden',
+            'summary' => 'hidden',
+            'content' => '<p>hidden</p>',
+            'status' => 'pending',
+            'audit_status' => 'pending',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.article-reviews.index', ['channel_id' => $parentId]))
+            ->assertOk()
+            ->assertSee('审核一级筛选应该显示的子栏目文章')
+            ->assertDontSee('审核一级筛选不应该显示的其他栏目文章');
+    }
+
     public function test_restricted_operator_update_preserves_existing_unmanageable_content_channels(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -5552,6 +5732,49 @@ XML);
         $this->assertTrue(
             DB::table('channels')->where('id', $channelId)->exists(),
             '跨站点栏目不应被批量删除。',
+        );
+    }
+
+    public function test_site_operator_cannot_delete_channel_used_as_secondary_content_channel(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('channel-secondary-reference-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $primaryChannelId = $this->createSiteChannel($siteId, 'channel-secondary-reference-primary', '主栏目', $operator->id);
+        $secondaryChannelId = $this->createSiteChannel($siteId, 'channel-secondary-reference-secondary', '第二栏目', $operator->id);
+
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $primaryChannelId,
+            'type' => 'article',
+            'title' => '第二栏目引用文章',
+            'slug' => 'channel-secondary-reference-article',
+            'summary' => 'secondary channel reference',
+            'content' => '<p>secondary channel reference</p>',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $contentId,
+            'channel_id' => $secondaryChannelId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.channels.destroy', $secondaryChannelId))
+            ->assertRedirect(route('admin.channels.index'));
+
+        $this->assertTrue(
+            DB::table('channels')->where('id', $secondaryChannelId)->exists(),
+            '被多栏目文章引用的栏目不应被删除。',
         );
     }
 

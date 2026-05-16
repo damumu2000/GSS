@@ -20,6 +20,9 @@ class ArticleReviewController extends Controller
         $channelId = (string) $request->query('channel_id', '');
         $status = (string) $request->query('status', 'pending');
         $manageableChannelIds = $this->manageableChannelIds($request->user()->id, $currentSite->id);
+        $filterChannelIds = $channelId !== ''
+            ? $this->reviewFilterChannelIds((int) $currentSite->id, (int) $channelId)
+            : [];
 
         $reviewableStatuses = ['pending', 'rejected'];
         if (! in_array($status, $reviewableStatuses, true)) {
@@ -35,7 +38,13 @@ class ArticleReviewController extends Controller
             ->when($manageableChannelIds !== [], function ($query) use ($manageableChannelIds): void {
                 $query->where(function ($subQuery) use ($manageableChannelIds): void {
                     $subQuery->whereNull('contents.channel_id')
-                        ->orWhereIn('contents.channel_id', $manageableChannelIds);
+                        ->orWhereIn('contents.channel_id', $manageableChannelIds)
+                        ->orWhereExists(function ($channelQuery) use ($manageableChannelIds): void {
+                            $channelQuery->selectRaw('1')
+                                ->from('content_channels')
+                                ->whereColumn('content_channels.content_id', 'contents.id')
+                                ->whereIn('content_channels.channel_id', $manageableChannelIds);
+                        });
                 });
             })
             ->where('contents.status', $status)
@@ -45,8 +54,21 @@ class ArticleReviewController extends Controller
                         ->orWhere('contents.summary', 'like', '%'.$keyword.'%');
                 });
             })
-            ->when($channelId !== '', function ($query) use ($channelId): void {
-                $query->where('contents.channel_id', $channelId);
+            ->when($channelId !== '', function ($query) use ($filterChannelIds): void {
+                if ($filterChannelIds === []) {
+                    $query->whereRaw('1 = 0');
+                    return;
+                }
+
+                $query->where(function ($channelQuery) use ($filterChannelIds): void {
+                    $channelQuery->whereIn('contents.channel_id', $filterChannelIds)
+                        ->orWhereExists(function ($subQuery) use ($filterChannelIds): void {
+                            $subQuery->selectRaw('1')
+                                ->from('content_channels')
+                                ->whereColumn('content_channels.content_id', 'contents.id')
+                                ->whereIn('content_channels.channel_id', $filterChannelIds);
+                        });
+                });
             })
             ->orderByDesc('contents.updated_at')
             ->paginate(10, [
@@ -211,6 +233,44 @@ class ArticleReviewController extends Controller
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function reviewFilterChannelIds(int $siteId, int $channelId): array
+    {
+        if ($channelId < 1) {
+            return [];
+        }
+
+        $channels = DB::table('channels')
+            ->where('site_id', $siteId)
+            ->get(['id', 'parent_id', 'type']);
+
+        $selectedChannel = $channels->firstWhere('id', $channelId);
+        if (! $selectedChannel || (string) $selectedChannel->type !== 'list') {
+            return [];
+        }
+
+        $childrenByParent = $channels->groupBy(fn (object $channel): int => (int) ($channel->parent_id ?? 0));
+        $ids = [];
+        $stack = [$channelId];
+
+        while ($stack !== []) {
+            $currentId = (int) array_pop($stack);
+            $current = $channels->firstWhere('id', $currentId);
+
+            if ($current && (string) $current->type === 'list') {
+                $ids[] = $currentId;
+            }
+
+            foreach ($childrenByParent->get($currentId, collect()) as $child) {
+                $stack[] = (int) $child->id;
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids, fn (int $id): bool => $id > 0)));
     }
 
     public function approve(Request $request, string $contentId): RedirectResponse
