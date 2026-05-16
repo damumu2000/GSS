@@ -1191,29 +1191,80 @@ function splitMixedMediaParagraphs(root) {
 
         return Array.from(node.children || []).some((child) => child.matches?.('br') === false);
     };
+    const copyParagraphPresentation = (source, target, options = {}) => {
+        const sourceStyle = source.getAttribute('style');
+        if (options.mediaOnly) {
+            const textAlign = source.style?.textAlign;
+            if (textAlign) {
+                target.style.textAlign = textAlign;
+            }
+        } else if (sourceStyle) {
+            target.setAttribute('style', sourceStyle);
+        }
+
+        const direction = source.getAttribute('dir');
+        if (direction) {
+            target.setAttribute('dir', direction);
+        }
+    };
+    const isMediaElement = (node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return false;
+        }
+
+        if (node.matches?.(mediaSelector)) {
+            return true;
+        }
+
+        if (!node.matches?.('a') || !node.querySelector(':scope > img')) {
+            return false;
+        }
+
+        return Array.from(node.childNodes).every((child) => {
+            if (child.nodeType === Node.TEXT_NODE) {
+                return (child.textContent || '').replace(/\u00a0/g, ' ').trim() === '';
+            }
+
+            return child.nodeType === Node.ELEMENT_NODE && child.matches?.('img, br');
+        });
+    };
+
+    Array.from(root.childNodes).forEach((child) => {
+        if (!isMediaElement(child)) {
+            return;
+        }
+
+        const paragraphDocument = child.ownerDocument || document;
+        const mediaParagraph = paragraphDocument.createElement('p');
+        mediaParagraph.appendChild(child.cloneNode(true));
+        child.replaceWith(mediaParagraph);
+    });
 
     root.querySelectorAll('p').forEach((node) => {
-        const mediaNodes = Array.from(node.querySelectorAll(':scope > img, :scope > table, :scope > iframe, :scope > video, :scope > figure, :scope > .bilibili-video-embed'));
+        const mediaNodes = Array.from(node.children || []).filter((child) => isMediaElement(child));
         const text = (node.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 
-        if (mediaNodes.length === 0 || text === '') {
+        if (mediaNodes.length === 0 || (text === '' && mediaNodes.length === 1)) {
             return;
         }
 
         const paragraphDocument = node.ownerDocument || document;
         const fragment = paragraphDocument.createDocumentFragment();
         let currentParagraph = paragraphDocument.createElement('p');
+        copyParagraphPresentation(node, currentParagraph);
 
         Array.from(node.childNodes).forEach((child) => {
-            if (child.nodeType === Node.ELEMENT_NODE && child.matches?.(mediaSelector)) {
+            if (isMediaElement(child)) {
                 if (hasMeaningfulParagraphContent(currentParagraph)) {
                     fragment.appendChild(currentParagraph);
                 }
 
                 const mediaParagraph = paragraphDocument.createElement('p');
+                copyParagraphPresentation(node, mediaParagraph, { mediaOnly: true });
                 mediaParagraph.appendChild(child.cloneNode(true));
                 fragment.appendChild(mediaParagraph);
                 currentParagraph = paragraphDocument.createElement('p');
+                copyParagraphPresentation(node, currentParagraph);
                 return;
             }
 
@@ -1409,6 +1460,11 @@ function normalizeArticleTypography(root) {
 
     root.querySelectorAll('img').forEach((node) => {
         const hasExplicitWidth = Boolean((node.style.width || '').trim()) || node.hasAttribute('width');
+        resetArticleClassSet(node, [
+            'cms-article-image',
+            'cms-article-image--default-width',
+            'cms-article-image--offset-top',
+        ]);
         node.classList.add('cms-article-image');
         if (!hasExplicitWidth) {
             node.classList.add('cms-article-image--default-width');

@@ -230,20 +230,32 @@
     border-radius: 14px;
 }
 
+.cms-article-paragraph--media > a {
+    display: block;
+    max-width: 100%;
+    text-decoration: none;
+}
+
 p[style*="text-align: left"] > .cms-article-image,
-p[style*="text-align:left"] > .cms-article-image {
+p[style*="text-align:left"] > .cms-article-image,
+p[style*="text-align: left"] > a > .cms-article-image,
+p[style*="text-align:left"] > a > .cms-article-image {
     margin-left: 0;
     margin-right: auto;
 }
 
 p[style*="text-align: right"] > .cms-article-image,
-p[style*="text-align:right"] > .cms-article-image {
+p[style*="text-align:right"] > .cms-article-image,
+p[style*="text-align: right"] > a > .cms-article-image,
+p[style*="text-align:right"] > a > .cms-article-image {
     margin-left: auto;
     margin-right: 0;
 }
 
 p[style*="text-align: center"] > .cms-article-image,
-p[style*="text-align:center"] > .cms-article-image {
+p[style*="text-align:center"] > .cms-article-image,
+p[style*="text-align: center"] > a > .cms-article-image,
+p[style*="text-align:center"] > a > .cms-article-image {
     margin-left: auto;
     margin-right: auto;
 }
