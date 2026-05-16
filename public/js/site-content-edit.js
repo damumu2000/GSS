@@ -692,6 +692,94 @@ function selectVideoEmbedNode(editor, node) {
     editor.focus();
 }
 
+const imageParagraphAlignCommands = {
+    justifyleft: 'left',
+    justifycenter: 'center',
+    justifyright: 'right',
+    justifyfull: 'justify',
+};
+
+function findEditorImageNode(node) {
+    if (!node) {
+        return null;
+    }
+
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!element) {
+        return null;
+    }
+
+    if (element.matches?.('img')) {
+        return element;
+    }
+
+    return element.closest?.('img') || null;
+}
+
+function selectedImageForAlignment(editor) {
+    const body = editor?.getBody?.();
+    if (!body) {
+        return null;
+    }
+
+    const selectedNode = editor.selection?.getNode?.();
+    const selectedImage = findEditorImageNode(selectedNode);
+    if (selectedImage && body.contains(selectedImage)) {
+        return selectedImage;
+    }
+
+    const mceSelectedImage = body.querySelector('img[data-mce-selected], img[aria-selected="true"], img.mce-selected');
+    if (mceSelectedImage) {
+        return mceSelectedImage;
+    }
+
+    const selectedElement = selectedNode?.nodeType === Node.ELEMENT_NODE ? selectedNode : selectedNode?.parentElement;
+    const selectionLooksLost = !selectedElement || selectedElement === body || selectedElement.tagName?.toLowerCase() === 'body';
+    const lastSelectedImageIsFresh = Date.now() - (editor.cmsLastSelectedImageAt || 0) < 5000;
+    if (selectionLooksLost && lastSelectedImageIsFresh && editor.cmsLastSelectedImage && body.contains(editor.cmsLastSelectedImage)) {
+        return editor.cmsLastSelectedImage;
+    }
+
+    return null;
+}
+
+function imageParagraphForAlignment(editor) {
+    const image = selectedImageForAlignment(editor);
+    const body = editor?.getBody?.();
+    const paragraph = image?.closest?.('p');
+
+    return paragraph && body?.contains(paragraph) ? paragraph : null;
+}
+
+function cleanupImageInlineAlignment(paragraph) {
+    paragraph.querySelectorAll(':scope img').forEach((image) => {
+        ['float', 'margin-left', 'margin-right', 'display'].forEach((property) => {
+            image.style.removeProperty(property);
+        });
+
+        if ((image.getAttribute('style') || '').trim() === '') {
+            image.removeAttribute('style');
+        }
+    });
+}
+
+function applyImageParagraphAlignment(editor, align) {
+    const paragraph = imageParagraphForAlignment(editor);
+    if (!paragraph || !align) {
+        return false;
+    }
+
+    editor.undoManager.transact(() => {
+        paragraph.style.textAlign = align;
+        cleanupImageInlineAlignment(paragraph);
+    });
+
+    editor.nodeChanged();
+    editor.save();
+
+    return true;
+}
+
 function buildBilibiliEmbedHtml(resolved, width, height, align) {
     const alignLabel = ({ left: '居左', center: '居中', right: '居右' })[align] || '居中';
 
@@ -2021,7 +2109,27 @@ tinymce.init({
                 selectVideoEmbedNode(editor, node);
                 return;
             }
+            const imageNode = findEditorImageNode(event.target);
+            editor.cmsLastSelectedImage = imageNode;
+            editor.cmsLastSelectedImageAt = imageNode ? Date.now() : 0;
             clearSelectedVideoEmbed(editor);
+        });
+        editor.on('BeforeExecCommand', (event) => {
+            const align = imageParagraphAlignCommands[String(event.command || '').toLowerCase()];
+            if (!align || !imageParagraphForAlignment(editor)) {
+                return;
+            }
+
+            event.preventDefault?.();
+            applyImageParagraphAlignment(editor, align);
+        });
+        editor.on('ExecCommand', (event) => {
+            const align = imageParagraphAlignCommands[String(event.command || '').toLowerCase()];
+            if (!align) {
+                return;
+            }
+
+            window.setTimeout(() => applyImageParagraphAlignment(editor, align), 0);
         });
         editor.on('contextmenu', (event) => {
             const node = findVideoEmbedNode(event.target);

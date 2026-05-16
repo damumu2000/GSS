@@ -230,6 +230,24 @@
     border-radius: 14px;
 }
 
+p[style*="text-align: left"] > .cms-article-image,
+p[style*="text-align:left"] > .cms-article-image {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+p[style*="text-align: right"] > .cms-article-image,
+p[style*="text-align:right"] > .cms-article-image {
+    margin-left: auto;
+    margin-right: 0;
+}
+
+p[style*="text-align: center"] > .cms-article-image,
+p[style*="text-align:center"] > .cms-article-image {
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .cms-article-image--default-width {
     width: 80%;
 }
