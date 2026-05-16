@@ -193,14 +193,49 @@
     color: #1f2937;
 }
 
+blockquote,
 .cms-article-blockquote {
-    margin: 1.2em 0;
-    padding: 0.9em 1.1em;
-    border-left: 4px solid #93c5fd;
-    border-radius: 0 14px 14px 0;
-    background: #f8fbff;
-    color: #334155;
+    position: relative;
+    margin: 1.35em 0;
+    padding: 1.05em 1.25em 1.05em 1.55em;
+    border: 1px solid #dbe7f5;
+    border-left: 5px solid #4f8dd9;
+    border-radius: 16px;
+    background:
+        linear-gradient(135deg, rgba(79, 141, 217, 0.13) 0%, rgba(255, 255, 255, 0.92) 46%, rgba(240, 247, 255, 0.82) 100%);
+    box-shadow: 0 12px 30px rgba(30, 64, 120, 0.08);
+    color: #2f4158;
     text-indent: 0;
+}
+
+blockquote::before,
+.cms-article-blockquote::before {
+    content: "\201C";
+    position: absolute;
+    top: -0.22em;
+    left: 0.18em;
+    color: rgba(79, 141, 217, 0.22);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 4.8em;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+}
+
+blockquote p,
+.cms-article-blockquote p,
+.cms-article-blockquote .cms-article-paragraph {
+    position: relative;
+    margin: 0 0 0.7em;
+    color: inherit;
+    line-height: 1.85;
+    text-indent: 0;
+}
+
+blockquote p:last-child,
+.cms-article-blockquote p:last-child,
+.cms-article-blockquote .cms-article-paragraph:last-child {
+    margin-bottom: 0;
 }
 
 .cms-article-table {
