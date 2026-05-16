@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Support\SystemChecks\MailQueueHealthCheck;
 use App\Support\SystemChecks\StaticVendorHealthCheck;
+use App\Support\SystemChecks\StaticVendorManager;
 
 class PlatformSystemStatus
 {
@@ -11,6 +12,7 @@ class PlatformSystemStatus
         protected SystemSettings $systemSettings,
         protected MailQueueHealthCheck $mailQueueHealthCheck,
         protected StaticVendorHealthCheck $staticVendorHealthCheck,
+        protected StaticVendorManager $staticVendorManager,
     ) {
     }
 
@@ -24,6 +26,7 @@ class PlatformSystemStatus
             'items' => [
                 $this->mailQueueStatusItem(),
                 $this->laravelVersionStatusItem(),
+                $this->jqueryVersionStatusItem(),
                 $this->imageProcessingStatusItem(),
             ],
         ];
@@ -114,6 +117,90 @@ class PlatformSystemStatus
             'detail' => '用于控制上传图片时是否自动缩小到限制尺寸，以及是否执行压缩处理。',
             'action_url' => route('admin.platform.settings.index', ['tab' => 'upload']),
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function jqueryVersionStatusItem(): array
+    {
+        $manifest = $this->staticVendorManager->manifest();
+        $asset = $manifest['jquery'] ?? null;
+
+        if (! is_array($asset)) {
+            return [
+                'title' => 'jQuery 公共库',
+                'state' => '未登记',
+                'status_class' => 'draft',
+                'meta' => '未找到 /pub/jquery.min.js 静态资源清单',
+                'detail' => '请检查 public/vendor/vendor-assets.json 中是否已登记 jquery 项。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        $currentVersion = (string) ($asset['version'] ?? '');
+        $latestVersion = (string) ($this->staticVendorManager->latestVersion('jquery') ?? '');
+        $file = (string) ($asset['file'] ?? '');
+        $fullPath = base_path(ltrim($file, '/'));
+        $expectedSha = strtolower((string) ($asset['sha256'] ?? ''));
+        $actualSha = is_file($fullPath) ? strtolower(hash_file('sha256', $fullPath)) : '';
+
+        if (! is_file($fullPath)) {
+            return [
+                'title' => 'jQuery 公共库',
+                'state' => '异常',
+                'status_class' => 'draft',
+                'meta' => $this->versionMeta($currentVersion, $latestVersion),
+                'detail' => '公共脚本文件不存在，请重新同步或恢复 public/pub/jquery.min.js。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        if ($expectedSha !== '' && $actualSha !== $expectedSha) {
+            return [
+                'title' => 'jQuery 公共库',
+                'state' => '异常',
+                'status_class' => 'draft',
+                'meta' => $this->versionMeta($currentVersion, $latestVersion),
+                'detail' => '公共脚本文件校验和与清单不一致，请确认是否被手动替换。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        if ($latestVersion === '') {
+            return [
+                'title' => 'jQuery 公共库',
+                'state' => '检测失败',
+                'status_class' => 'draft',
+                'meta' => $this->versionMeta($currentVersion, ''),
+                'detail' => '当前无法获取 jQuery 最新版本信息，已使用缓存优先策略避免频繁请求。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        $upgradeNeeded = $currentVersion !== '' && version_compare($currentVersion, $latestVersion, '<');
+
+        return [
+            'title' => 'jQuery 公共库',
+            'state' => $upgradeNeeded ? '可升级' : '已最新',
+            'status_class' => $upgradeNeeded ? 'pending' : 'published',
+            'meta' => $this->versionMeta($currentVersion, $latestVersion),
+            'detail' => $upgradeNeeded
+                ? '当前 jQuery 公共库低于最新版本，建议在测试通过后升级。'
+                : '当前 jQuery 公共库已是最新版本。',
+            'action_url' => route('admin.platform.system-checks.index'),
+        ];
+    }
+
+    protected function versionMeta(string $currentVersion, string $latestVersion): string
+    {
+        $current = $currentVersion !== '' ? '当前 v'.$currentVersion : '当前未知';
+
+        if ($latestVersion === '') {
+            return $current;
+        }
+
+        return $current.' · 最新 v'.$latestVersion;
     }
 
     protected function currentLaravelVersion(): string

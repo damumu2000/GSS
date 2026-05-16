@@ -1,4 +1,11 @@
 {
+    "jquery": {
+        "package": "jquery",
+        "version": "4.0.0",
+        "file": "public/pub/jquery.min.js",
+        "source": "https://cdn.jsdelivr.net/npm/jquery@4.0.0/dist/jquery.min.js",
+        "sha256": "39a546ea9ad97f8bfaf5d3e0e8f8556adb415e470e59007ada9759dce472adaa"
+    },
     "sortablejs": {
         "package": "sortablejs",
         "version": "1.15.7",

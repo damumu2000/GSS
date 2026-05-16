@@ -655,6 +655,11 @@
                                     <td>输出 <code>&lt;script src="..."&gt;&lt;/script&gt;</code>，用于加载主题 JS。</td>
                                     <td><code>{{ themeScript(path='home.js') }}</code></td>
                                 </tr>
+                                <tr>
+                                    <td class="mono">/pub/jquery.min.js</td>
+                                    <td>公共前台脚本库，所有站点模板可直接同源引用。</td>
+                                    <td><code>&lt;script src="/pub/jquery.min.js"&gt;&lt;/script&gt;</code></td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -676,6 +681,7 @@
                     <ul class="rules-list">
                         <li><strong>资源写法：</strong>直接在模板里写 <code>themeStyle</code> / <code>themeScript</code> / <code>themeAsset</code>。</li>
                         <li><strong>资源必须属于当前主题：</strong><code>path</code> 指向的文件必须真实存在于当前主题里，否则模板保存校验会报错。</li>
+                        <li><strong>公共脚本库：</strong>系统级公共前台资源统一放在 <code>/pub/</code> 下，例如 jQuery 使用 <code>&lt;script src="/pub/jquery.min.js"&gt;&lt;/script&gt;</code>；该目录资源由平台静态资源检查统一做版本和校验和管理。</li>
                         <li><strong>站点资源不能再直接引用：</strong>模板里不允许再写 <code>/site-media/...</code> 或旧的资源库地址；模板专用图片、字体、JSON 请放在当前主题的 <code>assets/</code> 目录。</li>
                     </ul>
 

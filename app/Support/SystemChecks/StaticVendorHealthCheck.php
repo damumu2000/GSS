@@ -66,7 +66,11 @@ class StaticVendorHealthCheck
     protected function inspectAsset(string $name, array $asset): array
     {
         $package = (string) ($asset['package'] ?? $name);
-        $label = strtoupper($name) === 'SORTABLEJS' ? 'SORTABLEJS（项目拖拽排序组件）' : strtoupper($name);
+        $label = match (strtolower($name)) {
+            'sortablejs' => 'SORTABLEJS（项目拖拽排序组件）',
+            'jquery' => 'jQuery（公共模板脚本库）',
+            default => strtoupper($name),
+        };
         $version = (string) ($asset['version'] ?? '');
         $file = (string) ($asset['file'] ?? '');
         $expectedSha = strtolower((string) ($asset['sha256'] ?? ''));
