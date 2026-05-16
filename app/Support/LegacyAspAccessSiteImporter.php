@@ -81,23 +81,30 @@ class LegacyAspAccessSiteImporter
             }
 
             $parentChannelMap = [];
+            $reservedChannelSlugs = [];
 
             foreach ($source['type_d'] as $row) {
-                $legacyId = $this->legacyKey($row['T_ID'] ?? null);
-                $name = trim((string) ($row['T_Name'] ?? ''));
+                $legacyId = $this->legacyKey($this->rowValue($row, ['T_ID', 'Type_ID']));
+                $name = trim((string) $this->rowValue($row, ['T_Name', 'Type_Name'], ''));
 
                 if ($this->legacyKeyIsEmpty($legacyId) || $name === '' || ! $this->isLegacyArticleChannelRow($row)) {
                     continue;
                 }
+
+                $slug = $this->reserveLegacyChannelSlug(
+                    $this->legacyChannelSlug($row, 'legacy-group-'.$legacyId),
+                    'legacy-group-'.$legacyId,
+                    $reservedChannelSlugs
+                );
 
                 [$channelId, $created] = $this->upsertChannel(
                     (int) $site->id,
                     [
                         'parent_id' => null,
                         'name' => $name,
-                        'slug' => 'legacy-group-'.$legacyId,
+                        'slug' => $slug,
                         'type' => 'list',
-                        'path' => '/legacy-group-'.$legacyId,
+                        'path' => '/'.$slug,
                         'depth' => 0,
                         'sort' => $this->legacySortValue($row, $legacyId),
                         'status' => 1,
@@ -116,24 +123,29 @@ class LegacyAspAccessSiteImporter
             $articleChannelMap = [];
 
             foreach ($source['type'] as $row) {
-                $legacyId = $this->legacyKey($row['T_ID'] ?? null);
-                $parentLegacyId = $this->legacyKey($row['T_dlei'] ?? null);
-                $name = trim((string) ($row['T_Name'] ?? ''));
+                $legacyId = $this->legacyKey($this->rowValue($row, ['T_ID', 'Type_ID']));
+                $parentLegacyId = $this->legacyKey($this->rowValue($row, ['T_dlei', 'T_Dlei', 'dalei', 'Type_dlei']));
+                $name = trim((string) $this->rowValue($row, ['T_Name', 'Type_Name'], ''));
 
                 if ($this->legacyKeyIsEmpty($legacyId) || $name === '' || ! $this->isLegacyArticleChannelRow($row)) {
                     continue;
                 }
 
                 $parentChannelId = $parentChannelMap[$parentLegacyId] ?? null;
+                $slug = $this->reserveLegacyChannelSlug(
+                    $this->legacyChannelSlug($row, 'legacy-list-'.$legacyId),
+                    'legacy-list-'.$legacyId,
+                    $reservedChannelSlugs
+                );
 
                 [$channelId, $created] = $this->upsertChannel(
                     (int) $site->id,
                     [
                         'parent_id' => $parentChannelId,
                         'name' => $name,
-                        'slug' => 'legacy-list-'.$legacyId,
+                        'slug' => $slug,
                         'type' => 'list',
-                        'path' => '/legacy-list-'.$legacyId,
+                        'path' => '/'.$slug,
                         'depth' => $parentChannelId ? 1 : 0,
                         'sort' => $this->legacySortValue($row, $legacyId),
                         'status' => 1,
@@ -708,9 +720,58 @@ class LegacyAspAccessSiteImporter
 
     protected function isLegacyArticleChannelRow(array $row): bool
     {
-        $type = $this->intValue($row['T_type'] ?? null);
+        $type = $this->intValue($this->rowValue($row, ['T_type', 'Type_type']));
 
         return $type === 0 || $type === 2;
+    }
+
+    protected function legacyChannelSlug(array $row, string $fallback): string
+    {
+        $slug = $this->normalizeLegacyChannelEnSlug((string) $this->rowValue($row, ['en'], ''));
+
+        return $slug !== '' ? $slug : $fallback;
+    }
+
+    protected function normalizeLegacyChannelEnSlug(string $value): string
+    {
+        $value = html_entity_decode(trim($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_replace('/\s+/', '-', $value) ?? $value;
+        $value = preg_replace('/[^A-Za-z0-9_-]+/', '-', $value) ?? $value;
+        $value = trim($value, '-_');
+
+        if ($value === '') {
+            return '';
+        }
+
+        return trim(substr($value, 0, 20), '-_');
+    }
+
+    /**
+     * @param  array<string, bool>  $reserved
+     */
+    protected function reserveLegacyChannelSlug(string $slug, string $fallback, array &$reserved): string
+    {
+        if (! isset($reserved[$slug])) {
+            $reserved[$slug] = true;
+
+            return $slug;
+        }
+
+        $candidate = $fallback;
+        $index = 2;
+        while (isset($reserved[$candidate])) {
+            $suffix = '-'.$index;
+            $candidate = substr($fallback, 0, max(1, 20 - strlen($suffix))).$suffix;
+            $index++;
+        }
+
+        $reserved[$candidate] = true;
+
+        return $candidate;
     }
 
     protected function legacyKey(mixed $value): string
@@ -743,7 +804,7 @@ class LegacyAspAccessSiteImporter
 
     protected function legacySortValue(array $row, string $legacyId): int
     {
-        $sort = $this->intValue($row['shunxu'] ?? null);
+        $sort = $this->intValue($this->rowValue($row, ['shunxu', 'sort', 'Sort']));
 
         if ($sort !== 0) {
             return $sort;
@@ -759,6 +820,31 @@ class LegacyAspAccessSiteImporter
         }
 
         return is_numeric($value) ? (int) $value : $default;
+    }
+
+    protected function rowValue(array $row, array|string $keys, mixed $default = null): mixed
+    {
+        $keys = (array) $keys;
+
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $row)) {
+                return $row[$key];
+            }
+        }
+
+        $normalized = [];
+        foreach ($row as $rowKey => $value) {
+            $normalized[mb_strtolower(trim((string) $rowKey))] = $value;
+        }
+
+        foreach ($keys as $key) {
+            $lookupKey = mb_strtolower(trim((string) $key));
+            if (array_key_exists($lookupKey, $normalized)) {
+                return $normalized[$lookupKey];
+            }
+        }
+
+        return $default;
     }
 
     protected function rowIsEmpty(array $values): bool

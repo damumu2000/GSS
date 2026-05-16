@@ -1110,15 +1110,15 @@ class AdminAccessTest extends TestCase
         $this->temporaryLegacyImportDirs[] = $sourceDir;
 
         $this->writeLegacyImportSpreadsheet($sourceDir.'/Type_D.xlsx', [
-            ['T_ID', 'T_Name', 'T_type', 'T_dlei', 'shunxu'],
-            [1, '最新动态', 2, '', 110],
+            ['T_ID', 'T_Name', 'T_type', 'T_dlei', 'shunxu', 'en'],
+            [1, '最新动态', 2, '', 110, 'News Center'],
         ]);
 
         $this->writeLegacyImportSpreadsheet($sourceDir.'/Type.xlsx', [
-            ['T_ID', 'T_Name', 'T_type', 'T_Url', 'T_dlei', 'shunxu', 'flag'],
-            ['1', '旧单页栏目应忽略', 1, '', 0, 0, 1],
-            ['a11', '园内新闻', 2, '', 1, 10, 1],
-            ['a12', '园务公开', 2, '', 1, 20, 1],
+            ['Type_ID', 'Type_Name', 'Type_type', 'dalei', 'shunxu', 'flag', 'en'],
+            ['1', '旧单页栏目应忽略', 1, 0, 0, 1, 'about'],
+            ['a11', '园内新闻', 2, 1, 10, 1, 'Garden News'],
+            ['a12', '园务公开', 2, 1, 20, 1, ''],
         ]);
 
         $this->writeLegacyImportSpreadsheet($sourceDir.'/About.xlsx', [
@@ -1155,11 +1155,11 @@ XML);
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
         $parentChannelId = (int) DB::table('channels')
             ->where('site_id', $siteId)
-            ->where('slug', 'legacy-group-1')
+            ->where('slug', 'News-Center')
             ->value('id');
         $firstArticleChannelId = (int) DB::table('channels')
             ->where('site_id', $siteId)
-            ->where('slug', 'legacy-list-a11')
+            ->where('slug', 'Garden-News')
             ->value('id');
         $secondArticleChannelId = (int) DB::table('channels')
             ->where('site_id', $siteId)
