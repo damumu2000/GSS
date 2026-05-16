@@ -7,6 +7,11 @@ use InvalidArgumentException;
 
 class Site
 {
+    /**
+     * @var array<string, int>
+     */
+    protected static array $siteIdsByKey = [];
+
     public static function key(int|object|string $site): string
     {
         if (is_string($site)) {
@@ -61,11 +66,37 @@ class Site
     public static function attachmentUrl(int|object|string $site, string $suffix = ''): string
     {
         $siteKey = static::key($site);
-        $url = url('/atts/'.ltrim($suffix, '/'));
+        $path = static::attachmentPublicPath($suffix);
+        $url = url($path);
 
-        return static::shouldAppendLocalSiteQuery($url)
-            ? static::appendUrlQuery($url, ['site' => $siteKey])
-            : $url;
+        if (static::shouldAppendLocalSiteQuery($url)) {
+            return static::appendUrlQuery($url, ['site' => $siteKey]);
+        }
+
+        $siteId = static::resolveId($site);
+        $domain = $siteId > 0 ? SiteFrontendUrl::primaryDomain($siteId) : null;
+
+        if (is_string($domain) && $domain !== '') {
+            return rtrim(request()->getScheme().'://'.$domain, '/').$path;
+        }
+
+        return url('/site-media/'.$siteKey.'/attachments/'.ltrim($suffix, '/'));
+    }
+
+    public static function attachmentPublicPath(string $suffix = ''): string
+    {
+        return '/atts/'.ltrim($suffix, '/');
+    }
+
+    public static function storedAttachmentUrlForPath(string $path): string
+    {
+        $normalized = trim($path, '/');
+
+        if (preg_match('#^web/[^/]+/media/attachments/(.+)$#', $normalized, $matches)) {
+            return static::attachmentPublicPath($matches[1]);
+        }
+
+        return url('/'.$normalized);
     }
 
     public static function urlForStoredPath(string $path): string
@@ -153,6 +184,31 @@ class Site
         }
 
         return trim($siteKey);
+    }
+
+    protected static function resolveId(int|object|string $site): int
+    {
+        if (is_int($site)) {
+            return $site;
+        }
+
+        if (is_object($site) && isset($site->id)) {
+            return (int) $site->id;
+        }
+
+        if (is_string($site) && trim($site) !== '') {
+            $siteKey = trim($site);
+
+            if (! array_key_exists($siteKey, static::$siteIdsByKey)) {
+                static::$siteIdsByKey[$siteKey] = (int) DB::table('sites')
+                    ->where('site_key', $siteKey)
+                    ->value('id');
+            }
+
+            return static::$siteIdsByKey[$siteKey];
+        }
+
+        return 0;
     }
 
     protected static function joinSegments(string ...$segments): string

@@ -220,6 +220,7 @@ class SiteController extends Controller
                 'attachments.extension',
                 'attachments.size',
                 'attachments.url',
+                'attachments.path',
             ])
             ->map(fn ($attachment) => [
                 'id' => $attachment->id,
@@ -228,7 +229,9 @@ class SiteController extends Controller
                 'extension_upper' => strtoupper($attachment->extension ?: '-'),
                 'size' => $attachment->size,
                 'size_kb' => number_format(($attachment->size ?? 0) / 1024, 1),
-                'url' => $attachment->url,
+                'url' => trim((string) ($attachment->path ?? '')) !== ''
+                    ? SitePath::urlForStoredPath((string) $attachment->path)
+                    : $attachment->url,
             ]);
 
         return $this->renderTheme($site, $themeCode, $detailTemplate, [
@@ -312,12 +315,8 @@ class SiteController extends Controller
 
     public function previewArticle(Request $request, string $content): Response
     {
-        $accessibleSiteIds = $this->siteIdsWithPermission($request->user()->id, 'content.manage');
-        abort_if($accessibleSiteIds === [], 404);
-
         $article = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
-            ->whereIn('contents.site_id', $accessibleSiteIds)
             ->where('contents.id', $content)
             ->where('contents.type', 'article')
             ->whereNull('contents.deleted_at');
@@ -329,6 +328,7 @@ class SiteController extends Controller
         ]);
 
         abort_unless($contentRecord, 404);
+        $this->authorizeSite($request, (int) $contentRecord->site_id, 'content.manage');
 
         $scopedArticle = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
@@ -372,6 +372,7 @@ class SiteController extends Controller
                 'attachments.extension',
                 'attachments.size',
                 'attachments.url',
+                'attachments.path',
             ])
             ->map(fn ($attachment) => [
                 'id' => $attachment->id,
@@ -380,7 +381,9 @@ class SiteController extends Controller
                 'extension_upper' => strtoupper($attachment->extension ?: '-'),
                 'size' => $attachment->size,
                 'size_kb' => number_format(($attachment->size ?? 0) / 1024, 1),
-                'url' => $attachment->url,
+                'url' => trim((string) ($attachment->path ?? '')) !== ''
+                    ? SitePath::urlForStoredPath((string) $attachment->path)
+                    : $attachment->url,
             ]);
 
         return $this->renderTheme($site, $themeCode, $detailTemplate, [
@@ -406,12 +409,8 @@ class SiteController extends Controller
 
     public function previewPage(Request $request, string $content): Response
     {
-        $accessibleSiteIds = $this->siteIdsWithPermission($request->user()->id, 'content.manage');
-        abort_if($accessibleSiteIds === [], 404);
-
         $page = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
-            ->whereIn('contents.site_id', $accessibleSiteIds)
             ->where('contents.id', $content)
             ->where('contents.type', 'page')
             ->whereNull('contents.deleted_at');
@@ -423,6 +422,7 @@ class SiteController extends Controller
         ]);
 
         abort_unless($contentRecord, 404);
+        $this->authorizeSite($request, (int) $contentRecord->site_id, 'content.manage');
 
         $scopedPage = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')

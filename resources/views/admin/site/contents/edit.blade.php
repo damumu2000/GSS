@@ -18,9 +18,7 @@
             ? ($initialEditorStatus === 'draft' ? '保存草稿' : $initialPublishActionLabel)
             : ($isCreate ? '创建' . $typeLabel : '保存修改');
         $previewUrl = ! $isCreate
-            ? ($type === 'page'
-                ? route('admin.content-preview.page', ['content' => $content->id])
-                : route('admin.content-preview.article', ['content' => $content->id]))
+            ? \App\Support\SiteFrontendUrl::contentPreviewUrl($currentSite, $type, $content->id)
             : '';
     @endphp
 

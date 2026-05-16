@@ -731,6 +731,7 @@ class ThemeTags
                 'attachments.origin_name as attachment_name',
                 'attachments.extension as attachment_extension',
                 'attachments.url as attachment_url',
+                'attachments.path as attachment_path',
             ]);
 
         $items = $items
@@ -1253,7 +1254,9 @@ class ThemeTags
             'channel_id' => $promo->channel_id !== null ? (int) $promo->channel_id : null,
             'template_name' => $promo->template_name ?: null,
             'attachment_id' => (int) $promo->attachment_id,
-            'image_url' => (string) $promo->attachment_url,
+            'image_url' => trim((string) ($promo->attachment_path ?? '')) !== ''
+                ? Site::urlForStoredPath((string) $promo->attachment_path)
+                : (string) $promo->attachment_url,
             'image_alt' => trim((string) ($promo->title ?: $promo->attachment_name ?: $promo->position_name)),
             'attachment_name' => (string) ($promo->attachment_name ?? ''),
             'attachment_extension' => (string) ($promo->attachment_extension ?? ''),

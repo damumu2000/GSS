@@ -75,15 +75,7 @@ class AttachmentController extends Controller
 
         $attachments->setCollection(
             $attachments->getCollection()->map(function ($attachment) {
-                $attachment->url = $this->appendAttachmentCacheVersion(
-                    (string) ($attachment->url ?? ''),
-                    ! empty($attachment->updated_at)
-                        ? Carbon::parse((string) $attachment->updated_at)->timestamp
-                        : (! empty($attachment->created_at)
-                            ? Carbon::parse((string) $attachment->created_at)->timestamp
-                            : null),
-                );
-
+                $attachment->url = $this->attachmentDisplayUrl($attachment);
                 return $attachment;
             })
         );
@@ -183,7 +175,7 @@ class AttachmentController extends Controller
         );
 
         return response()->json([
-            'location' => $attachment->url,
+            'location' => $this->attachmentDisplayUrl($attachment),
         ]);
     }
 
@@ -970,16 +962,7 @@ class AttachmentController extends Controller
      */
     protected function serializeAttachmentLibraryItem(object $attachment): array
     {
-        $rawUrl = (string) ($attachment->url ?? '');
-        $cacheVersion = null;
-
-        if (! empty($attachment->updated_at)) {
-            $cacheVersion = Carbon::parse((string) $attachment->updated_at)->timestamp;
-        } elseif (! empty($attachment->created_at)) {
-            $cacheVersion = Carbon::parse((string) $attachment->created_at)->timestamp;
-        }
-
-        $url = $this->appendAttachmentCacheVersion($rawUrl, $cacheVersion);
+        $url = $this->attachmentDisplayUrl($attachment);
 
         return [
             'id' => (int) ($attachment->id ?? 0),
@@ -1007,6 +990,26 @@ class AttachmentController extends Controller
         $separator = str_contains($url, '?') ? '&' : '?';
 
         return $url.$separator.'v='.$cacheVersion;
+    }
+
+    protected function attachmentDisplayUrl(object $attachment): string
+    {
+        $rawUrl = trim((string) ($attachment->url ?? ''));
+        $path = trim((string) ($attachment->path ?? ''));
+
+        $url = $path !== ''
+            ? SitePath::urlForStoredPath($path)
+            : $rawUrl;
+
+        $cacheVersion = null;
+
+        if (! empty($attachment->updated_at)) {
+            $cacheVersion = Carbon::parse((string) $attachment->updated_at)->timestamp;
+        } elseif (! empty($attachment->created_at)) {
+            $cacheVersion = Carbon::parse((string) $attachment->created_at)->timestamp;
+        }
+
+        return $this->appendAttachmentCacheVersion($url, $cacheVersion);
     }
 
     protected function normalizeAttachmentBrowserFilters(Request $request): array
@@ -1266,7 +1269,7 @@ class AttachmentController extends Controller
             'stored_name' => $storedName,
             'disk' => 'site',
             'path' => $path,
-            'url' => SitePath::urlForStoredPath($path),
+            'url' => SitePath::storedAttachmentUrlForPath($path),
             'mime_type' => (string) $preparedFile['mime_type'],
             'extension' => $extension,
             'size' => (int) $preparedFile['size'],

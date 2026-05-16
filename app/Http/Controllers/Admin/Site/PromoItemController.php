@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Site;
 use App\Http\Controllers\Controller;
 use App\Support\PromoAttachmentRelationSync;
 use App\Support\PromoItemExpiryManager;
+use App\Support\Site as SitePath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,9 @@ class PromoItemController extends Controller
                 'promo_items.*',
                 'attachments.origin_name as attachment_name',
                 'attachments.url as attachment_url',
+                'attachments.path as attachment_path',
+                'attachments.created_at as attachment_created_at',
+                'attachments.updated_at as attachment_updated_at',
                 'attachments.extension as attachment_extension',
             ])
             ->map(fn ($item) => $this->decorateItemState($item));
@@ -702,6 +706,9 @@ class PromoItemController extends Controller
                 'promo_items.*',
                 'attachments.origin_name as attachment_name',
                 'attachments.url as attachment_url',
+                'attachments.path as attachment_path',
+                'attachments.created_at as attachment_created_at',
+                'attachments.updated_at as attachment_updated_at',
             ]);
     }
 
@@ -728,7 +735,7 @@ class PromoItemController extends Controller
             'id' => (int) ($item->id ?? 0),
             'attachment_id' => (int) ($item->attachment_id ?? 0),
             'attachment_name' => (string) ($item->attachment_name ?? ''),
-            'attachment_url' => (string) ($item->attachment_url ?? ''),
+            'attachment_url' => $item ? $this->promoItemAttachmentDisplayUrl($item) : '',
             'title' => (string) ($item->title ?? ''),
             'subtitle' => (string) ($item->subtitle ?? ''),
             'link_url' => (string) ($item->link_url ?? ''),
@@ -744,8 +751,30 @@ class PromoItemController extends Controller
         ];
     }
 
+    protected function promoItemAttachmentDisplayUrl(object $item): string
+    {
+        $path = trim((string) ($item->attachment_path ?? ''));
+        $url = $path !== ''
+            ? SitePath::urlForStoredPath($path)
+            : trim((string) ($item->attachment_url ?? ''));
+
+        $cacheVersion = null;
+        if (! empty($item->attachment_updated_at)) {
+            $cacheVersion = Carbon::parse((string) $item->attachment_updated_at)->timestamp;
+        } elseif (! empty($item->attachment_created_at)) {
+            $cacheVersion = Carbon::parse((string) $item->attachment_created_at)->timestamp;
+        }
+
+        if ($url === '' || $cacheVersion === null || $cacheVersion <= 0) {
+            return $url;
+        }
+
+        return $url.(str_contains($url, '?') ? '&' : '?').'v='.$cacheVersion;
+    }
+
     protected function decorateItemState(object $item): object
     {
+        $item->attachment_url = $this->promoItemAttachmentDisplayUrl($item);
         $now = now();
         $startAt = !empty($item->start_at) ? Carbon::parse((string) $item->start_at) : null;
         $endAt = !empty($item->end_at) ? Carbon::parse((string) $item->end_at) : null;

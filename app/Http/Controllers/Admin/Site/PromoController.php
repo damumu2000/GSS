@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
+use App\Support\Site as SitePath;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -85,6 +86,9 @@ class PromoController extends Controller
                 'promo_items.start_at',
                 'promo_items.end_at',
                 'attachments.url as attachment_url',
+                'attachments.path as attachment_path',
+                'attachments.created_at as attachment_created_at',
+                'attachments.updated_at as attachment_updated_at',
                 'attachments.origin_name as attachment_name',
             ])
             ->groupBy('position_id');
@@ -96,7 +100,7 @@ class PromoController extends Controller
             $firstItem = $items->first();
 
             $position->enabled_item_count = $effectiveItems->count();
-            $position->preview_image_url = $firstEffectiveItem->attachment_url ?? null;
+            $position->preview_image_url = $firstEffectiveItem ? $this->promoAttachmentDisplayUrl($firstEffectiveItem) : null;
             $position->preview_title = $firstEffectiveItem ? ($firstEffectiveItem->title ?: ($firstEffectiveItem->attachment_name ?? null)) : null;
             $position->preview_subtitle = $firstEffectiveItem->subtitle ?? null;
             $position->preview_link_url = $firstEffectiveItem->link_url ?? null;
@@ -104,7 +108,7 @@ class PromoController extends Controller
             $position->preview_items = $effectiveItems
                 ->take(6)
                 ->map(fn ($item) => [
-                    'image_url' => $item->attachment_url,
+                    'image_url' => $this->promoAttachmentDisplayUrl($item),
                     'title' => $item->title ?: ($item->attachment_name ?? ''),
                 ])
                 ->values();
@@ -545,6 +549,27 @@ class PromoController extends Controller
             ->where('site_id', $siteId)
             ->where('id', $positionId)
             ->first();
+    }
+
+    protected function promoAttachmentDisplayUrl(object $item): string
+    {
+        $path = trim((string) ($item->attachment_path ?? ''));
+        $url = $path !== ''
+            ? SitePath::urlForStoredPath($path)
+            : trim((string) ($item->attachment_url ?? ''));
+
+        $cacheVersion = null;
+        if (! empty($item->attachment_updated_at)) {
+            $cacheVersion = Carbon::parse((string) $item->attachment_updated_at)->timestamp;
+        } elseif (! empty($item->attachment_created_at)) {
+            $cacheVersion = Carbon::parse((string) $item->attachment_created_at)->timestamp;
+        }
+
+        if ($url === '' || $cacheVersion === null || $cacheVersion <= 0) {
+            return $url;
+        }
+
+        return $url.(str_contains($url, '?') ? '&' : '?').'v='.$cacheVersion;
     }
 
     protected function channelOptions(int $siteId)

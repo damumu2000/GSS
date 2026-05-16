@@ -26,6 +26,20 @@ class SiteFrontendUrl
         return static::urlForSitePath($site, route('site.article', ['id' => $articleId], absolute: false));
     }
 
+    public static function contentPreviewUrl(object $site, string $type, int|string $contentId): string
+    {
+        $route = $type === 'page'
+            ? route('admin.content-preview.page', ['content' => $contentId], absolute: false)
+            : route('admin.content-preview.article', ['content' => $contentId], absolute: false);
+
+        return static::urlForSitePath($site, $route);
+    }
+
+    public static function guestbookUrl(object $site): string
+    {
+        return static::urlForSitePath($site, route('site.guestbook.index', absolute: false));
+    }
+
     public static function absolutizeSiteAssetUrl(object $site, string $url): string
     {
         $url = trim($url);

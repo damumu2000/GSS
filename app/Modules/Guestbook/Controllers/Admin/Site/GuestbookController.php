@@ -7,6 +7,7 @@ use App\Jobs\SendGuestbookMessageNotificationJob;
 use App\Modules\Guestbook\Support\GuestbookAttachmentRelationSync;
 use App\Modules\Guestbook\Support\GuestbookModule;
 use App\Modules\Guestbook\Support\GuestbookSettings;
+use App\Support\SiteFrontendUrl;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -679,22 +680,7 @@ class GuestbookController extends Controller
 
     protected function guestbookPreviewUrl(Request $request, object $site): string
     {
-        $host = mb_strtolower(trim((string) $request->getHost()));
-        if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
-            return route('site.guestbook.index', ['site' => $site->site_key]);
-        }
-
-        $domain = trim((string) DB::table('site_domains')
-            ->where('site_id', $site->id)
-            ->where('status', 1)
-            ->orderBy('id')
-            ->value('domain'));
-
-        if ($domain !== '') {
-            return $request->getScheme().'://'.$domain.'/guestbook';
-        }
-
-        return route('site.guestbook.index', ['site' => $site->site_key]);
+        return SiteFrontendUrl::guestbookUrl($site);
     }
 
     protected function messageIsPublic(object $message, array $settings): bool
