@@ -127,7 +127,7 @@
                                                         <span class="setting-toggle-text">站点开关</span>
                                                         <span class="setting-toggle-state" data-toggle-state-for="site_frontend_enabled">{{ old('site_frontend_enabled', ($settings['site.frontend_enabled'] ?? '1') === '1') ? '已开启' : '未开启' }}</span>
                                                     </div>
-                                                    <span class="setting-toggle-desc">关闭后前台无法访问，同时提示“站点已关闭”，请谨慎操作。</span>
+                                                    <span class="setting-toggle-desc">关闭后前台无法访问，并显示系统技术升级提示，请谨慎操作。</span>
                                                 </div>
                                             </div>
                                             @error('site_frontend_enabled')
