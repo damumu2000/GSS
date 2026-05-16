@@ -708,7 +708,7 @@ class SiteController extends Controller
         try {
             $html = $engine->render($template, $payload);
 
-            return response($this->injectSharedFrontendAssets($html));
+            return response($this->injectSharedFrontendAssets($html, $template));
         } catch (ThemeTemplateException $exception) {
             Log::error('Theme template render failed.', [
                 'site_id' => $site->id,
@@ -726,8 +726,12 @@ class SiteController extends Controller
         }
     }
 
-    protected function injectSharedFrontendAssets(string $html): string
+    protected function injectSharedFrontendAssets(string $html, string $template): string
     {
+        if (in_array($template, ['home', 'm-home'], true)) {
+            return $html;
+        }
+
         $assetTag = sprintf('<link rel="stylesheet" href="%s">', asset('css/site-content-render.css'));
 
         if (str_contains($html, $assetTag)) {

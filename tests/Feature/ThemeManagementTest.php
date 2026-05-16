@@ -406,6 +406,108 @@ class ThemeManagementTest extends TestCase
             ->assertDontSee('MOBILE');
     }
 
+    public function test_shared_content_styles_are_not_injected_on_homepage(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'home.tpl',
+            '<!DOCTYPE html><html><head><title>Home</title></head><body>HOME</body></html>'
+        );
+
+        $this->get(route('site.home', ['site' => $site->site_key]))
+            ->assertOk()
+            ->assertSee('HOME')
+            ->assertDontSee('site-content-render.css', false);
+    }
+
+    public function test_shared_content_styles_are_injected_before_head_close_on_inner_pages_only(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'list.tpl',
+            '<!DOCTYPE html><html><head><title>List</title></head><body>LIST {{ current.channel.name }}</body></html>'
+        );
+
+        DB::table('channels')->insert([
+            'site_id' => $site->id,
+            'parent_id' => null,
+            'name' => '列表栏目',
+            'slug' => 'shared-style-list',
+            'type' => 'list',
+            'list_template' => 'list',
+            'path' => '/shared-style-list',
+            'depth' => 0,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->get(route('site.channel', ['slug' => 'shared-style-list', 'site' => $site->site_key]))
+            ->assertOk()
+            ->assertSee('LIST 列表栏目')
+            ->assertSee('site-content-render.css', false);
+
+        $html = $response->getContent();
+        $this->assertLessThan(
+            stripos($html, '</head>'),
+            strpos($html, 'site-content-render.css'),
+        );
+    }
+
+    public function test_shared_content_styles_are_prepended_when_template_has_no_head(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'list.tpl',
+            '<main>NO HEAD {{ current.channel.name }}</main>'
+        );
+
+        DB::table('channels')->insert([
+            'site_id' => $site->id,
+            'parent_id' => null,
+            'name' => '缺少 Head 栏目',
+            'slug' => 'shared-style-no-head',
+            'type' => 'list',
+            'list_template' => 'list',
+            'path' => '/shared-style-no-head',
+            'depth' => 0,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->get(route('site.channel', ['slug' => 'shared-style-no-head', 'site' => $site->site_key]))
+            ->assertOk()
+            ->assertSee('NO HEAD 缺少 Head 栏目')
+            ->assertSee('site-content-render.css', false);
+
+        $html = $response->getContent();
+        $this->assertSame(0, strpos($html, '<link rel="stylesheet"'));
+    }
+
     public function test_site_can_create_fixed_mobile_home_template_from_editor(): void
     {
         $this->seed(DatabaseSeeder::class);
