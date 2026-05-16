@@ -198,6 +198,18 @@ class ContentHtmlSanitizer
                 continue;
             }
 
+            if ($tagName === 'img' && in_array($attributeName, ['width', 'height'], true)) {
+                $dimension = static::sanitizeImageDimensionAttribute($attributeValue);
+
+                if ($dimension === '') {
+                    $node->removeAttribute($attribute->nodeName);
+                } else {
+                    $node->setAttribute($attributeName, $dimension);
+                }
+
+                continue;
+            }
+
             if ($tagName === 'th' || $tagName === 'td') {
                 if (in_array($attributeName, ['colspan', 'rowspan'], true) && preg_match('/^\d{1,3}$/', $attributeValue) === 1) {
                     continue;
@@ -375,6 +387,19 @@ class ContentHtmlSanitizer
         $value = preg_replace('/\s+/u', ' ', Str::lower(trim($value))) ?? '';
 
         return in_array($value, ['underline', 'line-through', 'underline line-through'], true) ? $value : '';
+    }
+
+    protected static function sanitizeImageDimensionAttribute(string $value): string
+    {
+        $value = trim($value);
+
+        if (preg_match('/^\d{1,5}$/', $value) !== 1) {
+            return '';
+        }
+
+        $dimension = (int) $value;
+
+        return $dimension >= 1 && $dimension <= 20000 ? (string) $dimension : '';
     }
 
     protected static function sanitizeClassList(string $classList, string $tagName): string
