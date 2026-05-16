@@ -36,8 +36,8 @@ class LegacyAspAccessSiteImporter
                 'type_d' => count($source['type_d']),
                 'type' => count($source['type']),
                 'about' => count($source['about']),
-                'news' => count($source['news']),
-                'news_content' => count($source['news_content']),
+                'news' => $source['news_count'],
+                'news_content' => $source['news_content_count'],
             ],
             'imported' => [
                 'channels_created' => 0,
@@ -222,8 +222,9 @@ class LegacyAspAccessSiteImporter
             }
 
             $fallbackArticleChannelId = null;
+            $newsContentLookupTable = $this->prepareNewsContentLookup($source['news_content_path']);
 
-            foreach ($source['news'] as $row) {
+            foreach ($this->readXmlRecordRows($source['news_path'], 'News') as $row) {
                 $legacyId = $this->intValue($row['News_ID'] ?? null);
                 $title = trim((string) ($row['News_Title'] ?? ''));
                 $legacyChannelIds = $this->parseLegacyChannelIds($row['News_Type'] ?? null);
@@ -275,7 +276,7 @@ class LegacyAspAccessSiteImporter
 
                 $rawContent = (string) ($row['News_Content'] ?? '');
                 if (trim($rawContent) === '') {
-                    $rawContent = (string) ($source['news_content'][$legacyId] ?? '');
+                    $rawContent = $this->newsContentFromLookup($newsContentLookupTable, $legacyId);
                 }
 
                 if (trim($rawContent) === '') {
@@ -341,8 +342,10 @@ class LegacyAspAccessSiteImporter
             'type_d' => $this->readSpreadsheetRows($typeDPath),
             'type' => $this->readSpreadsheetRows($typePath),
             'about' => $this->readSpreadsheetRows($aboutPath),
-            'news' => $this->readXmlRecordRows($newsPath, 'News'),
-            'news_content' => is_file($newsContentPath) ? $this->readNewsContentMap($newsContentPath) : [],
+            'news_path' => $newsPath,
+            'news_content_path' => is_file($newsContentPath) ? $newsContentPath : null,
+            'news_count' => $this->countXmlRecords($newsPath, 'News'),
+            'news_content_count' => is_file($newsContentPath) ? $this->countXmlRecords($newsContentPath, 'News_Content') : 0,
         ];
     }
 
@@ -386,63 +389,140 @@ class LegacyAspAccessSiteImporter
         return $items;
     }
 
-    protected function readXmlRecordRows(string $path, string $recordTag): array
+    protected function readXmlRecordRows(string $path, string $recordTag): iterable
     {
-        $xml = (string) file_get_contents($path);
-        if ($xml === '') {
-            return [];
-        }
-
-        $startTag = '<'.$recordTag.'>';
-        $endTag = '</'.$recordTag.'>';
-        $segments = explode($startTag, $xml);
-        $rows = [];
-
-        foreach ($segments as $index => $segment) {
-            if ($index === 0 || ! str_contains($segment, $endTag)) {
-                continue;
-            }
-
-            $recordXml = (string) strstr($segment, $endTag, true);
-            $row = [];
-
-            preg_match_all('#<([A-Za-z0-9_]+)>(.*?)</\\1>#s', $recordXml, $fieldMatches, PREG_SET_ORDER);
-            foreach ($fieldMatches as $fieldMatch) {
-                $row[$fieldMatch[1]] = html_entity_decode(trim((string) $fieldMatch[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            }
-
+        foreach ($this->readXmlRecordSegments($path, $recordTag) as $recordXml) {
+            $row = $this->parseXmlRecordFields($recordXml, $recordTag);
             if ($row !== []) {
-                $rows[] = $row;
+                yield $row;
             }
         }
-
-        return $rows;
     }
 
-    protected function readNewsContentMap(string $path): array
+    protected function countXmlRecords(string $path, string $recordTag): int
     {
-        $xml = (string) file_get_contents($path);
-        if ($xml === '') {
-            return [];
+        $count = 0;
+
+        foreach ($this->readXmlRecordSegments($path, $recordTag) as $_) {
+            $count++;
         }
 
-        $items = [];
-        $segments = explode('<News_Content>', $xml);
+        return $count;
+    }
 
-        foreach ($segments as $index => $segment) {
-            if ($index === 0 || ! str_contains($segment, '</News_Content>')) {
+    protected function readXmlRecordSegments(string $path, string $recordTag): iterable
+    {
+        $handle = fopen($path, 'rb');
+        if (! is_resource($handle)) {
+            throw new RuntimeException('无法读取 XML 文件：'.$path);
+        }
+
+        $endTag = '</'.$recordTag.'>';
+        $endLength = strlen($endTag);
+        $startPattern = '#<'.preg_quote($recordTag, '#').'(?:\s[^>]*)?>#i';
+        $buffer = '';
+
+        try {
+            while (! feof($handle)) {
+                $chunk = fread($handle, 1024 * 1024);
+                if ($chunk === false || $chunk === '') {
+                    continue;
+                }
+
+                $buffer .= $chunk;
+
+                while (($endPos = stripos($buffer, $endTag)) !== false) {
+                    $beforeEnd = substr($buffer, 0, $endPos);
+                    if (preg_match_all($startPattern, $beforeEnd, $matches, PREG_OFFSET_CAPTURE) !== false && $matches[0] !== []) {
+                        $lastMatch = $matches[0][array_key_last($matches[0])];
+                        $startPos = (int) $lastMatch[1];
+
+                        yield substr($buffer, $startPos, $endPos + $endLength - $startPos);
+                    }
+
+                    $buffer = substr($buffer, $endPos + $endLength);
+                }
+
+                if (strlen($buffer) > 8 * 1024 * 1024 && preg_match_all($startPattern, $buffer, $matches, PREG_OFFSET_CAPTURE) !== false && $matches[0] !== []) {
+                    $lastMatch = $matches[0][array_key_last($matches[0])];
+                    $buffer = substr($buffer, (int) $lastMatch[1]);
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+
+    }
+
+    protected function parseXmlRecordFields(string $recordXml, string $recordTag): array
+    {
+        $innerXml = preg_replace('#^<'.preg_quote($recordTag, '#').'\b[^>]*>|</'.preg_quote($recordTag, '#').'>\s*$#s', '', trim($recordXml)) ?? $recordXml;
+        $row = [];
+
+        preg_match_all('#<([A-Za-z0-9_]+)(?:\s[^>]*)?>(.*?)</\\1>#s', $innerXml, $fieldMatches, PREG_SET_ORDER);
+        foreach ($fieldMatches as $fieldMatch) {
+            $row[$fieldMatch[1]] = $this->decodeXmlFieldValue((string) $fieldMatch[2]);
+        }
+
+        return $row;
+    }
+
+    protected function decodeXmlFieldValue(string $value): string
+    {
+        $value = trim($value);
+
+        if (preg_match('#^<!\[CDATA\[(.*)]]>$#s', $value, $match) === 1) {
+            $value = (string) $match[1];
+        }
+
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $value) ?? $value;
+
+        return html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    protected function prepareNewsContentLookup(?string $path): ?string
+    {
+        if ($path === null || ! is_file($path)) {
+            return null;
+        }
+
+        $table = 'legacy_news_content_import';
+
+        DB::statement("DROP TEMPORARY TABLE IF EXISTS `{$table}`");
+        DB::statement("CREATE TEMPORARY TABLE `{$table}` (`legacy_id` INT NOT NULL PRIMARY KEY, `content` LONGTEXT NULL)");
+
+        $batch = [];
+        foreach ($this->readXmlRecordRows($path, 'News_Content') as $row) {
+            $legacyId = $this->intValue($row['ID'] ?? null);
+            if ($legacyId <= 0) {
                 continue;
             }
 
-            $recordXml = (string) strstr($segment, '</News_Content>', true);
-            if (preg_match('#<ID>(\d+)</ID>\s*<Content>(.*?)</Content>#s', $recordXml, $match) !== 1) {
-                continue;
-            }
+            $batch[] = [
+                'legacy_id' => $legacyId,
+                'content' => (string) ($row['Content'] ?? ''),
+            ];
 
-            $items[(int) $match[1]] = html_entity_decode((string) $match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if (count($batch) >= 500) {
+                DB::table($table)->upsert($batch, ['legacy_id'], ['content']);
+                $batch = [];
+            }
         }
 
-        return $items;
+        if ($batch !== []) {
+            DB::table($table)->upsert($batch, ['legacy_id'], ['content']);
+        }
+
+        return $table;
+    }
+
+    protected function newsContentFromLookup(?string $table, int $legacyId): string
+    {
+        if ($table === null || $legacyId <= 0) {
+            return '';
+        }
+
+        return (string) (DB::table($table)->where('legacy_id', $legacyId)->value('content') ?? '');
     }
 
     protected function extractImportedHtml(string $html): string
