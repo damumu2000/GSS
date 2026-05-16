@@ -697,7 +697,24 @@ const imageParagraphAlignCommands = {
     justifycenter: 'center',
     justifyright: 'right',
     justifyfull: 'justify',
+    alignleft: 'left',
+    aligncenter: 'center',
+    alignright: 'right',
+    alignjustify: 'justify',
 };
+
+function imageParagraphAlignFromCommandEvent(event) {
+    const commandAlign = imageParagraphAlignCommands[String(event?.command || '').toLowerCase()];
+    if (commandAlign) {
+        return commandAlign;
+    }
+
+    if (String(event?.command || '').toLowerCase() === 'mcetoggleformat') {
+        return imageParagraphAlignCommands[String(event?.value || '').toLowerCase()] || '';
+    }
+
+    return '';
+}
 
 function findEditorImageNode(node) {
     if (!node) {
@@ -778,6 +795,18 @@ function applyImageParagraphAlignment(editor, align) {
     editor.save();
 
     return true;
+}
+
+function rememberEditorImageSelection(editor, node) {
+    const imageNode = findEditorImageNode(node);
+    const body = editor?.getBody?.();
+
+    if (!imageNode || !body?.contains(imageNode)) {
+        return;
+    }
+
+    editor.cmsLastSelectedImage = imageNode;
+    editor.cmsLastSelectedImageAt = Date.now();
 }
 
 function buildBilibiliEmbedHtml(resolved, width, height, align) {
@@ -2044,6 +2073,8 @@ tinymce.init({
     content_css: ['/css/site-content-render.css'],
     content_style: 'body { font-family: sans-serif; font-size: 15px; line-height: 1.85; } .bilibili-video-embed { width: fit-content; max-width: 100%; margin: 20px auto; padding: 16px 18px; border: 1px solid #e5e7eb; border-radius: 16px; background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%); color: #334155; text-align: center; cursor: pointer; transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease; } .bilibili-video-embed:hover { border-color: #94a3b8; box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.08); } .bilibili-video-embed.is-selected { border-color: #0047AB; box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.18); } .bilibili-video-embed__title { font-size: 14px; font-weight: 700; color: #1e3a8a; } .bilibili-video-embed__meta { margin-top: 6px; font-size: 12px; color: #64748b; }',
     font_family_formats: '默认字体=sans-serif;宋体=SimSun,STSong,serif;黑体=SimHei,Heiti SC,sans-serif;楷体=KaiTi,Kaiti SC,serif;仿宋=FangSong,STFangsong,serif;Arial=Arial,Helvetica,sans-serif;Times New Roman=Times New Roman,Times,serif;Courier New=Courier New,Courier,monospace',
+    font_size_formats: '12px 14px 15px 16px 18px 20px 22px 24px 28px 32px 36px 48px',
+    line_height_formats: '1 1.2 1.5 1.75 1.85 2 2.5 3',
     setup(editor) {
         editor.ui.registry.addButton('linkCn', { icon: 'link', tooltip: '插入链接', onAction: () => editor.execCommand('mceLink') });
         editor.ui.registry.addButton('mediaCn', { text: '媒体', tooltip: '插入媒体', onAction: () => editor.execCommand('mceMedia') });
@@ -2109,13 +2140,14 @@ tinymce.init({
                 selectVideoEmbedNode(editor, node);
                 return;
             }
-            const imageNode = findEditorImageNode(event.target);
-            editor.cmsLastSelectedImage = imageNode;
-            editor.cmsLastSelectedImageAt = imageNode ? Date.now() : 0;
+            rememberEditorImageSelection(editor, event.target);
             clearSelectedVideoEmbed(editor);
         });
+        editor.on('NodeChange ObjectSelected SelectionChange', (event) => {
+            rememberEditorImageSelection(editor, event.element || event.target || editor.selection.getNode());
+        });
         editor.on('BeforeExecCommand', (event) => {
-            const align = imageParagraphAlignCommands[String(event.command || '').toLowerCase()];
+            const align = imageParagraphAlignFromCommandEvent(event);
             if (!align || !imageParagraphForAlignment(editor)) {
                 return;
             }
@@ -2124,7 +2156,7 @@ tinymce.init({
             applyImageParagraphAlignment(editor, align);
         });
         editor.on('ExecCommand', (event) => {
-            const align = imageParagraphAlignCommands[String(event.command || '').toLowerCase()];
+            const align = imageParagraphAlignFromCommandEvent(event);
             if (!align) {
                 return;
             }
@@ -2152,7 +2184,7 @@ tinymce.init({
         });
         editor.on('change input undo redo', () => editor.save());
     },
-    toolbar: 'undo redo wordImportCn fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent table visualblocks quoteCn linkCn codeSampleCn codeCn clearCn smartArticleFormat schoolEmojiPicker schoolVideoEmbed schoolResourceLibrary schoolFullscreen',
+    toolbar: 'undo redo wordImportCn fontfamily fontsize lineheight bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent table visualblocks quoteCn linkCn codeSampleCn codeCn clearCn smartArticleFormat schoolEmojiPicker schoolVideoEmbed schoolResourceLibrary schoolFullscreen',
     images_upload_handler: (blobInfo, progress) => new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', imageUploadUrl);

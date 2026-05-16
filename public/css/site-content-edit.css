@@ -1810,6 +1810,23 @@
             white-space: nowrap;
         }
 
+        .content-editor-body .tox .tox-tbtn--select[title*="行间距"],
+        .content-editor-body .tox .tox-tbtn--select[aria-label*="行间距"],
+        .content-editor-body .tox .tox-tbtn--select[title*="Line height"],
+        .content-editor-body .tox .tox-tbtn--select[aria-label*="Line height"] {
+            min-width: 44px !important;
+            width: 44px !important;
+            max-width: 44px !important;
+            padding-inline: 4px !important;
+        }
+
+        .content-editor-body .tox .tox-tbtn--select[title*="行间距"] .tox-tbtn__select-label,
+        .content-editor-body .tox .tox-tbtn--select[aria-label*="行间距"] .tox-tbtn__select-label,
+        .content-editor-body .tox .tox-tbtn--select[title*="Line height"] .tox-tbtn__select-label,
+        .content-editor-body .tox .tox-tbtn--select[aria-label*="Line height"] .tox-tbtn__select-label {
+            display: none !important;
+        }
+
         .content-editor-body .tox .tox-edit-area::before {
             border: 0 !important;
         }

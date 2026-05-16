@@ -219,7 +219,7 @@ tinymce.addI18n("zh-CN", {
     "Light Purple": "\u6d45\u7d2b\u8272",
     "Light Red": "\u6d45\u7ea2\u8272",
     "Light Yellow": "\u6d45\u9ec4\u8272",
-    "Line height": "",
+    "Line height": "\u884c\u95f4\u8ddd",
     "Link": "",
     "Link list": "\u94fe\u63a5\u6e05\u5355",
     "Link...": "\u94fe\u63a5...",
