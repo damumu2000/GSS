@@ -391,6 +391,12 @@
         textarea.focus();
     };
 
+    const buildThemeAssetDirective = (assetPath) => {
+        const safePath = String(assetPath || '').trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+        return safePath !== '' ? `{{ themeAsset(path='${safePath}') }}` : '';
+    };
+
     openButtons.forEach((button) => {
         button.addEventListener('click', () => {
             modal?.classList.add('is-open');
@@ -746,11 +752,12 @@
         const insertTrigger = target.closest('[data-insert-theme-asset]');
         if (insertTrigger) {
             const assetPath = (insertTrigger.getAttribute('data-asset-path') || '').trim();
+            const assetDirective = buildThemeAssetDirective(assetPath);
 
-            if (assetPath !== '') {
-                insertAtCursor(editor, assetPath);
+            if (assetDirective !== '') {
+                insertAtCursor(editor, assetDirective);
                 closeThemeAssetsModal();
-                window.showMessage?.('模板资源路径已插入源码。');
+                window.showMessage?.('模板资源调用已插入源码。');
             }
 
             return;

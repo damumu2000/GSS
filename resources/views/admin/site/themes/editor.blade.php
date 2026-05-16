@@ -586,7 +586,7 @@
                                     </div>
                                 </div>
                                 <div class="theme-asset-actions">
-                                    <button class="button neutral-action editor-doc-button theme-asset-action-button" type="button" data-insert-theme-asset data-asset-path="{{ $asset['path'] }}">插入路径</button>
+                                    <button class="button neutral-action editor-doc-button theme-asset-action-button" type="button" data-insert-theme-asset data-asset-path="{{ $asset['path'] }}">插入调用</button>
                                     <form class="theme-asset-replace-form" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-replace-form>
                                         @csrf
                                         <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
