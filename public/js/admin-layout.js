@@ -796,12 +796,11 @@
 
     document.querySelectorAll('form').forEach((form) => {
         form.addEventListener('submit', (event) => {
-            const linkedButtons = form.id
-                ? Array.from(document.querySelectorAll(`button[form="${form.id}"][type="submit"]`))
-                : [];
-
-            const submitButtons = [...form.querySelectorAll('button[type="submit"]'), ...linkedButtons]
-                .filter((button) => button.dataset.loadingText);
+            const submitter = event.submitter instanceof HTMLButtonElement ? event.submitter : null;
+            const submitButtons = submitter && submitter.form === form && submitter.dataset.loadingText
+                ? [submitter]
+                : Array.from(document.querySelectorAll('button[type="submit"][data-loading-text]'))
+                    .filter((button) => button.form === form);
 
             submitButtons.forEach((button) => {
                 if (button.dataset.loadingApplied === 'true') {

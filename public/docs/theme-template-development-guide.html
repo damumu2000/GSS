@@ -680,6 +680,11 @@
                     </ul>
 
                     <div class="tip">
+                        <strong>公共正文样式注入规则</strong>
+                        <span>系统会给非首页模板自动注入 <code>/css/site-content-render.css</code>，用于保证文章正文、单页正文中的图片、表格、对齐和编辑器样式正常显示。首页模板 <code>home</code> / <code>m-home</code> 不会自动注入；其他页面优先插入到 <code>&lt;/head&gt;</code> 上方，如果旧模板缺少 <code>&lt;/head&gt;</code>，会兼容性地插入到页面最顶部。建议完整页面模板保持标准 <code>&lt;head&gt;...&lt;/head&gt;</code> 结构。</span>
+                    </div>
+
+                    <div class="tip">
                         <strong>CSP 为什么要这样写</strong>
                         <span>当前站点脚本使用严格同源策略：<code>script-src 'self'</code>；样式允许 <code>unsafe-inline</code>，用于兼容富文本里由编辑器生成的行内样式。模板交互脚本仍应放到主题 JS 文件中，通过 <code>themeScript</code> 引入。</span>
                     </div>

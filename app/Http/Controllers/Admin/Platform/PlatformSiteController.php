@@ -352,8 +352,12 @@ class PlatformSiteController extends Controller
             ]);
 
             $this->syncSiteDomains($siteId, $validated['domains'] ?? '');
-            $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
-            $this->syncSiteModules((int) $siteId, $validated['module_ids'] ?? []);
+            if ($request->has('site_admin_ids_present') || $request->has('site_admin_ids')) {
+                $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
+            }
+            if ($request->has('module_ids')) {
+                $this->syncSiteModules((int) $siteId, $validated['module_ids'] ?? []);
+            }
             $this->syncSiteSettings((int) $siteId, [
                 'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
             ], (int) $request->user()->id);

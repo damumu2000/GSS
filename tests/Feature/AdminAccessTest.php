@@ -677,6 +677,147 @@ class AdminAccessTest extends TestCase
             ->assertSee('留言板');
     }
 
+    public function test_platform_site_basic_update_preserves_existing_module_bindings(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            [
+                'site_id' => $siteId,
+                'module_id' => $moduleId,
+            ],
+            [
+                'is_trial' => false,
+                'is_paused' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        $this->actingAs($user)
+            ->post(route('admin.platform.sites.update', $siteId), [
+                'name' => '示例学校',
+                'site_key' => 'site',
+                'status' => '1',
+                'domains' => 'site.test',
+                'contact_phone' => '010-12345678',
+                'contact_email' => 'school@openai.com',
+                'address' => '示例地址 1 号',
+                'attachment_storage_limit_mb' => 512,
+                'theme_ids' => [],
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'opened_at' => now()->format('Y-m-d'),
+                'expires_at' => '',
+                'remark' => '站点备注',
+                'site_admin_ids' => [],
+            ])
+            ->assertRedirect(route('admin.platform.sites.edit', $siteId))
+            ->assertSessionHas('status', '站点信息已更新。');
+
+        $this->assertDatabaseHas('site_module_bindings', [
+            'site_id' => $siteId,
+            'module_id' => $moduleId,
+        ]);
+    }
+
+    public function test_platform_site_basic_update_preserves_admin_bindings_when_admin_field_is_absent(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $siteAdmin = $this->createSiteOperator('preserved-site-admin', false, 'site_admin');
+        $siteAdminRoleId = (int) DB::table('site_roles')->where('code', 'site_admin')->value('id');
+
+        DB::table('site_user_roles')->insert([
+            'site_id' => $siteId,
+            'user_id' => $siteAdmin->id,
+            'role_id' => $siteAdminRoleId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('admin.platform.sites.update', $siteId), [
+                'name' => '示例学校',
+                'site_key' => 'site',
+                'status' => '1',
+                'domains' => 'site.test',
+                'contact_phone' => '010-12345678',
+                'contact_email' => 'school@openai.com',
+                'address' => '示例地址 1 号',
+                'attachment_storage_limit_mb' => 512,
+                'theme_ids' => [],
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'opened_at' => now()->format('Y-m-d'),
+                'expires_at' => '',
+                'remark' => '站点备注',
+            ])
+            ->assertRedirect(route('admin.platform.sites.edit', $siteId))
+            ->assertSessionHas('status', '站点信息已更新。');
+
+        $this->assertDatabaseHas('site_user_roles', [
+            'site_id' => $siteId,
+            'user_id' => $siteAdmin->id,
+            'role_id' => $siteAdminRoleId,
+        ]);
+    }
+
+    public function test_platform_site_basic_update_can_clear_admin_bindings_when_admin_picker_is_submitted_empty(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $siteAdmin = $this->createSiteOperator('cleared-site-admin', false, 'site_admin');
+        $siteAdminRoleId = (int) DB::table('site_roles')->where('code', 'site_admin')->value('id');
+
+        DB::table('site_user_roles')->insert([
+            'site_id' => $siteId,
+            'user_id' => $siteAdmin->id,
+            'role_id' => $siteAdminRoleId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('admin.platform.sites.update', $siteId), [
+                'name' => '示例学校',
+                'site_key' => 'site',
+                'status' => '1',
+                'domains' => 'site.test',
+                'contact_phone' => '010-12345678',
+                'contact_email' => 'school@openai.com',
+                'address' => '示例地址 1 号',
+                'attachment_storage_limit_mb' => 512,
+                'theme_ids' => [],
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'opened_at' => now()->format('Y-m-d'),
+                'expires_at' => '',
+                'remark' => '站点备注',
+                'site_admin_ids_present' => '1',
+            ])
+            ->assertRedirect(route('admin.platform.sites.edit', $siteId))
+            ->assertSessionHas('status', '站点信息已更新。');
+
+        $this->assertDatabaseMissing('site_user_roles', [
+            'site_id' => $siteId,
+            'user_id' => $siteAdmin->id,
+            'role_id' => $siteAdminRoleId,
+        ]);
+    }
+
     public function test_module_manager_read_path_does_not_write_module_rows(): void
     {
         $this->seed(DatabaseSeeder::class);

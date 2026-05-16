@@ -76,6 +76,7 @@
         >
             @csrf
             <input type="hidden" name="site_key" value="{{ old('site_key', $site->site_key) }}">
+            <input type="hidden" name="site_admin_ids_present" value="1">
 
             <div class="site-form-body">
                 <div class="site-layout-grid">
