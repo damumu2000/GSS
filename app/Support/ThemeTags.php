@@ -372,20 +372,18 @@ class ThemeTags
                 ['id', 'asc'],
             ]);
 
-        $channels = $children->isNotEmpty()
-            ? $children
-            : $this->allSiteChannels()
-                ->filter(function (object $item) use ($channel): bool {
-                    if ($channel->parent_id === null) {
-                        return $item->parent_id === null;
-                    }
-
-                    return (int) ($item->parent_id ?? 0) === (int) $channel->parent_id;
-                })
+        if ($children->isNotEmpty()) {
+            $channels = $children;
+        } elseif (! empty($channel->parent_id) && $this->channelHasParent((int) $channel->parent_id)) {
+            $channels = $this->allSiteChannels()
+                ->filter(fn (object $item): bool => (int) ($item->parent_id ?? 0) === (int) $channel->parent_id)
                 ->sortBy([
                     ['sort', 'asc'],
                     ['id', 'asc'],
                 ]);
+        } else {
+            $channels = collect([$channel]);
+        }
 
         if (! empty($options['limit'])) {
             $channels = $channels->take(max(1, (int) $options['limit']));
@@ -414,6 +412,13 @@ class ThemeTags
                 return $payload;
             })
             ->values();
+    }
+
+    protected function channelHasParent(int $channelId): bool
+    {
+        $channel = $this->siteChannelsById()->get($channelId);
+
+        return $channel !== null && ! empty($channel->parent_id);
     }
 
     public function breadcrumb(array $options = []): Collection
