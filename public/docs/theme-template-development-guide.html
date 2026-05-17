@@ -1120,6 +1120,11 @@
                                     <td><code>{% set navItems = localNav(limit=20)%}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">childNav</td>
+                                    <td>取当前栏目的子导航。当前栏目有子栏目时返回子栏目；当前栏目没有子栏目时返回同级栏目。适合专题页二级栏目下的三级栏目导航。</td>
+                                    <td><code>{% set navItems = childNav(limit=20)%}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">breadcrumb</td>
                                     <td>取面包屑路径。</td>
                                     <td><code>{% set trail = breadcrumb(channel_id=current.channel.id)%}</code></td>
