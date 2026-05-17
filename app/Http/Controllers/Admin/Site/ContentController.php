@@ -971,7 +971,7 @@ class ContentController extends Controller
             ->get(['id', 'parent_id', 'type']);
 
         $selectedChannel = $channels->firstWhere('id', $channelId);
-        if (! $selectedChannel || (string) $selectedChannel->type !== $allowedChannelType) {
+        if (! $selectedChannel) {
             return [];
         }
 

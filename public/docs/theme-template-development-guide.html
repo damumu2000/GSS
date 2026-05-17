@@ -1808,6 +1808,36 @@
 
                     <div class="example-card">
                         <div class="example-head">
+                            <strong>范例 1-1：文章标题颜色、加粗和斜体</strong>
+                            <span>后台编辑器里设置的标题颜色、加粗、斜体会随内容字段返回，模板里可以按需输出到标题链接上。</span>
+                        </div>
+                        <div class="example-grid example-grid-single">
+                            <div class="example-code">
+<pre>&lt;a
+  href="{{ item.url }}"
+  title="{{ item.title | plainText() }}"
+  class="{% if item.title_bold %}is-bold{% endif %}{% if item.title_italic %} is-italic{% endif %}"
+  {% if item.title_color %}
+    style="color: {{ item.title_color }};"
+  {% endif %}
+&gt;
+  {{ item.title | plainText() | truncate(23) }}
+&lt;/a&gt;</pre>
+                            </div>
+                            <div class="example-code">
+<pre>.is-bold {
+  font-weight: bold;
+}
+
+.is-italic {
+  font-style: italic;
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="example-card">
+                        <div class="example-head">
                             <strong>范例 2：带筛选和格式化的推荐文章卡片</strong>
                             <span>适合首页头条卡片区，含筛选、摘要清洗、截断和日期格式化。</span>
                         </div>

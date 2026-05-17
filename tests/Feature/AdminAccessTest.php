@@ -5557,6 +5557,111 @@ XML);
             ->assertDontSee('一级筛选不应该显示的其他栏目文章');
     }
 
+    public function test_page_index_channel_filter_includes_descendant_page_channels_from_parent_group(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $operator = $this->createSiteOperator('page-tree-filter-admin', true, 'site_admin');
+
+        $parentId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '单页一级分组',
+            'slug' => 'page-tree-filter-parent',
+            'type' => 'list',
+            'path' => '/page-tree-filter-parent',
+            'depth' => 0,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $childPageChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => $parentId,
+            'name' => '二级单页栏目',
+            'slug' => 'page-tree-filter-child',
+            'type' => 'page',
+            'path' => '/page-tree-filter-parent/page-tree-filter-child',
+            'depth' => 1,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $otherPageChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '其他单页栏目',
+            'slug' => 'page-tree-filter-other',
+            'type' => 'page',
+            'path' => '/page-tree-filter-other',
+            'depth' => 0,
+            'sort' => 0,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $visiblePageId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $childPageChannelId,
+            'type' => 'page',
+            'title' => '一级筛选应该显示的子栏目单页',
+            'slug' => 'page-tree-filter-visible',
+            'summary' => 'visible',
+            'content' => '<p>visible</p>',
+            'status' => 'published',
+            'audit_status' => 'published',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $visiblePageId,
+            'channel_id' => $childPageChannelId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => $siteId,
+            'channel_id' => $otherPageChannelId,
+            'type' => 'page',
+            'title' => '一级筛选不应该显示的其他单页',
+            'slug' => 'page-tree-filter-hidden',
+            'summary' => 'hidden',
+            'content' => '<p>hidden</p>',
+            'status' => 'published',
+            'audit_status' => 'published',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.pages.index', ['channel_id' => $parentId]))
+            ->assertOk()
+            ->assertSee('一级筛选应该显示的子栏目单页')
+            ->assertDontSee('一级筛选不应该显示的其他单页');
+    }
+
     public function test_article_review_channel_filter_includes_descendant_channels(): void
     {
         $this->seed(DatabaseSeeder::class);
