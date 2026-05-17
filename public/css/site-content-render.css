@@ -434,3 +434,90 @@ p[style*="text-align:center"] > a > .cms-article-image {
 .bilibili-video-embed__frame--height-100em { height: 100em; }
 .bilibili-video-embed__frame--height-90em { height: 90em; }
 .bilibili-video-embed__frame--height-80em { height: 80em; }
+
+.legacy-swf-file {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin: 22px 0;
+    padding: 18px 20px;
+    border: 1px solid rgba(233, 180, 63, 0.38);
+    border-radius: 18px;
+    background:
+        linear-gradient(135deg, rgba(255, 251, 235, 0.98), rgba(255, 247, 237, 0.9)),
+        radial-gradient(circle at 15% 10%, rgba(251, 191, 36, 0.22), transparent 32%);
+    box-shadow: 0 18px 42px rgba(146, 64, 14, 0.1);
+    color: #713f12;
+}
+
+.legacy-swf-file__icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    box-shadow: 0 12px 26px rgba(239, 68, 68, 0.28);
+}
+
+.legacy-swf-file__body {
+    min-width: 0;
+}
+
+.legacy-swf-file__title {
+    margin: 0 0 5px;
+    color: #431407;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.legacy-swf-file__desc {
+    margin: 0 0 12px;
+    color: #92400e;
+    font-size: 14px;
+    line-height: 1.75;
+}
+
+.legacy-swf-file__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: #111827;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.16);
+}
+
+.legacy-swf-file__link:hover {
+    color: #fff;
+    background: #000;
+    text-decoration: none;
+}
+
+@media (max-width: 640px) {
+    .legacy-swf-file {
+        gap: 12px;
+        padding: 16px;
+        border-radius: 16px;
+    }
+
+    .legacy-swf-file__icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        font-size: 12px;
+    }
+}

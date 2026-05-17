@@ -134,6 +134,15 @@ class ContentHtmlSanitizer
         $tagName = Str::lower($node->tagName);
 
         if (in_array($tagName, static::DANGEROUS_TAGS, true)) {
+            if (in_array($tagName, ['object', 'embed'], true)) {
+                $swfUrl = static::extractLegacySwfUrl($node);
+
+                if ($swfUrl !== '') {
+                    static::replaceWithLegacySwfCard($node, $swfUrl);
+                    return;
+                }
+            }
+
             $node->parentNode?->removeChild($node);
 
             return;
@@ -452,6 +461,10 @@ class ContentHtmlSanitizer
             return $tagName === 'div';
         }
 
+        if (str_starts_with($className, 'legacy-swf-file')) {
+            return in_array($tagName, ['div', 'p', 'a', 'span'], true);
+        }
+
         return false;
     }
 
@@ -471,6 +484,101 @@ class ContentHtmlSanitizer
     protected static function isAllowedEmbedNode(DOMElement $node): bool
     {
         return trim((string) $node->getAttribute('data-bilibili-video')) === '1';
+    }
+
+    protected static function extractLegacySwfUrl(DOMElement $node): string
+    {
+        foreach (['src', 'data', 'movie', 'value'] as $attributeName) {
+            $value = trim((string) $node->getAttribute($attributeName));
+
+            if (static::isSafeSwfUrl($value)) {
+                return $value;
+            }
+        }
+
+        foreach ($node->getElementsByTagName('param') as $param) {
+            if (! $param instanceof DOMElement) {
+                continue;
+            }
+
+            $name = Str::lower(trim((string) $param->getAttribute('name')));
+
+            if (! in_array($name, ['movie', 'src'], true)) {
+                continue;
+            }
+
+            $value = trim((string) $param->getAttribute('value'));
+
+            if (static::isSafeSwfUrl($value)) {
+                return $value;
+            }
+        }
+
+        $html = $node->ownerDocument?->saveHTML($node) ?: '';
+
+        if (preg_match('/(?:src|data|movie|value)\s*=\s*([\'"])(.*?)\1/is', $html, $matches) === 1) {
+            $value = html_entity_decode(trim((string) ($matches[2] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+            if (static::isSafeSwfUrl($value)) {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    protected static function replaceWithLegacySwfCard(DOMElement $node, string $swfUrl): void
+    {
+        $document = $node->ownerDocument;
+        $parent = $node->parentNode;
+
+        if (! $document || ! $parent) {
+            return;
+        }
+
+        $card = $document->createElement('div');
+        $card->setAttribute('class', 'legacy-swf-file');
+
+        $icon = $document->createElement('span');
+        $icon->setAttribute('class', 'legacy-swf-file__icon');
+        $icon->appendChild($document->createTextNode('SWF'));
+
+        $body = $document->createElement('div');
+        $body->setAttribute('class', 'legacy-swf-file__body');
+
+        $title = $document->createElement('p');
+        $title->setAttribute('class', 'legacy-swf-file__title');
+        $title->appendChild($document->createTextNode('该内容包含旧版 Flash 文件'));
+
+        $description = $document->createElement('p');
+        $description->setAttribute('class', 'legacy-swf-file__desc');
+        $description->appendChild($document->createTextNode('当前浏览器已不支持直接播放，可下载原文件留存查看。'));
+
+        $link = $document->createElement('a');
+        $link->setAttribute('class', 'legacy-swf-file__link');
+        $link->setAttribute('href', $swfUrl);
+        $link->setAttribute('target', '_blank');
+        $link->setAttribute('rel', 'noopener noreferrer');
+        $link->appendChild($document->createTextNode('下载查看原文件'));
+
+        $body->appendChild($title);
+        $body->appendChild($description);
+        $body->appendChild($link);
+        $card->appendChild($icon);
+        $card->appendChild($body);
+
+        $parent->replaceChild($card, $node);
+    }
+
+    protected static function isSafeSwfUrl(string $value): bool
+    {
+        $value = trim($value);
+
+        if ($value === '' || ! static::isSafeUrl($value, false)) {
+            return false;
+        }
+
+        return preg_match('/\.swf(?:[?#].*)?$/i', $value) === 1;
     }
 
     protected static function isSafeUrl(string $value, bool $allowImageData): bool
