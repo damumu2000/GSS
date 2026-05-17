@@ -500,7 +500,7 @@ class ChannelController extends Controller
         $descendantIds = $channelId > 0 ? $this->descendantChannelIds((int) $currentSite->id, $channelId) : [];
 
         return $request->validate([
-            'name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{Han}A-Za-z0-9_\-\s·()（）]+$/u'],
+            'name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{Han}A-Za-z0-9_\-\+\x{FF0B}\s·()（）]+$/u'],
             'slug' => [
                 'required',
                 'string',
@@ -600,7 +600,7 @@ class ChannelController extends Controller
         ], [
             'name.min' => '栏目名称不能少于2个字符。',
             'name.max' => '栏目名称不能超过100个字符。',
-            'name.regex' => '栏目名称只能使用中文、英文、数字、空格、下划线、中划线、圆括号或间隔点。',
+            'name.regex' => '栏目名称只能使用中文、英文、数字、空格、下划线、中划线、加号、圆括号或间隔点。',
             'slug.min' => '栏目别名不能少于3个字符。',
             'slug.regex' => '栏目别名只能由英文、数字、下划线和短横线组成。',
             'slug.max' => '栏目别名不能超过20个字符。',

@@ -13,7 +13,7 @@
     const slugifyEndpoint = form.dataset.slugifyEndpoint || '';
     const serverMessages = JSON.parse(form.dataset.validationErrors || '[]');
     const currentTypeValue = form.dataset.currentType || 'list';
-    const channelNamePattern = /^[\u3400-\u9FFF\uF900-\uFAFFA-Za-z0-9_\-\s·()（）]+$/u;
+    const channelNamePattern = /^[\u3400-\u9FFF\uF900-\uFAFFA-Za-z0-9_\-+＋\s·()（）]+$/u;
 
     let slugManuallyEdited = !!slugInput && slugInput.value.trim() !== '';
     let slugRequestToken = 0;
@@ -134,7 +134,7 @@
         }
 
         if (!channelNamePattern.test(value)) {
-            return '栏目名称只能使用中文、英文、数字、空格、下划线、中划线、圆括号或间隔点。';
+            return '栏目名称只能使用中文、英文、数字、空格、下划线、中划线、加号、圆括号或间隔点。';
         }
 
         return value.length <= 100 ? '' : '栏目名称不能超过100个字符。';
