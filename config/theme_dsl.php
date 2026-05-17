@@ -34,6 +34,7 @@ return [
         'parent',
         'siblings',
         'localNav',
+        'childNav',
         'breadcrumb',
         'content',
         'promo',
