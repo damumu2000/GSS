@@ -920,6 +920,18 @@
     });
 
     document.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+            if (modal?.classList.contains('is-open') && editorForm) {
+                event.preventDefault();
+
+                if (editorForm.dataset.submitting !== '1') {
+                    editorForm.requestSubmit();
+                }
+            }
+
+            return;
+        }
+
         if (event.key === 'Escape' && themeAssetPreviewModal && !themeAssetPreviewModal.hidden) {
             closeThemeAssetPreviewModal();
             return;
