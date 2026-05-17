@@ -13,6 +13,7 @@
 
   var colors = ['#4285f4', '#34a853', '#fbbc05', '#ea4335', '#7c3aed'];
   var particles = [];
+  var trails = [];
   var width = 0;
   var height = 0;
   var pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -22,6 +23,9 @@
     y: 0,
     active: false,
     radius: window.innerWidth < 640 ? 110 : 170,
+    lastX: 0,
+    lastY: 0,
+    speed: 0,
   };
 
   function particleCount() {
@@ -41,7 +45,7 @@
       drift: -0.18 + Math.random() * 0.36,
       vx: 0,
       vy: 0,
-      pull: 0.12 + Math.random() * 0.38,
+      pull: 0.1 + Math.random() * 0.32,
       rotate: Math.random() * Math.PI,
       spin: -0.012 + Math.random() * 0.024,
       alpha: 0.28 + Math.random() * 0.5,
@@ -63,6 +67,55 @@
     var total = particleCount();
 
     particles = Array.from({ length: total }, createParticle);
+    trails = [];
+  }
+
+  function drawPointerGlow() {
+    if (!pointer.active) {
+      return;
+    }
+
+    var glowRadius = Math.min(pointer.radius * 0.85, 120);
+    var gradient = context.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, glowRadius);
+
+    gradient.addColorStop(0, 'rgba(66, 133, 244, 0.18)');
+    gradient.addColorStop(0.42, 'rgba(124, 58, 237, 0.08)');
+    gradient.addColorStop(1, 'rgba(66, 133, 244, 0)');
+
+    context.save();
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(pointer.x, pointer.y, glowRadius, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  }
+
+  function drawTrails() {
+    trails = trails.filter(function (trail) {
+      return trail.life > 0;
+    });
+
+    trails.forEach(function (trail) {
+      trail.life -= 0.022;
+      trail.x += trail.vx;
+      trail.y += trail.vy;
+
+      context.save();
+      context.globalAlpha = Math.max(0, trail.life);
+      context.translate(trail.x, trail.y);
+      context.rotate(trail.angle);
+      context.fillStyle = trail.color;
+
+      if (typeof context.roundRect === 'function') {
+        context.beginPath();
+        context.roundRect(-trail.size * 2.2, -trail.size / 2, trail.size * 4.4, trail.size, trail.size / 2);
+        context.fill();
+      } else {
+        context.fillRect(-trail.size * 2.2, -trail.size / 2, trail.size * 4.4, trail.size);
+      }
+
+      context.restore();
+    });
   }
 
   function drawParticle(particle) {
@@ -85,6 +138,8 @@
 
   function tick() {
     context.clearRect(0, 0, width, height);
+    drawPointerGlow();
+    drawTrails();
 
     particles.forEach(function (particle) {
       if (pointer.active) {
@@ -96,7 +151,8 @@
           var force = (1 - distance / pointer.radius) * particle.pull;
           particle.vx += (-dx / distance) * force;
           particle.vy += (-dy / distance) * force;
-          particle.rotate += force * 0.12;
+          particle.rotate += force * 0.16;
+          particle.alpha = Math.min(0.9, particle.alpha + force * 0.016);
         }
       }
 
@@ -129,17 +185,38 @@
   });
 
   window.addEventListener('pointermove', function (event) {
+    var moveX = event.clientX - pointer.lastX;
+    var moveY = event.clientY - pointer.lastY;
+
     pointer.x = event.clientX;
     pointer.y = event.clientY;
     pointer.active = true;
+    pointer.speed = Math.min(26, Math.sqrt(moveX * moveX + moveY * moveY));
+    pointer.lastX = pointer.x;
+    pointer.lastY = pointer.y;
+
+    if (pointer.speed > 2 && trails.length < 28) {
+      trails.push({
+        x: pointer.x,
+        y: pointer.y,
+        vx: -moveX * 0.018 + (-0.25 + Math.random() * 0.5),
+        vy: -moveY * 0.018 + (-0.25 + Math.random() * 0.5),
+        angle: Math.atan2(moveY, moveX),
+        size: 1.5 + Math.random() * 3.2,
+        life: 0.48 + Math.random() * 0.28,
+        color: colors[Math.floor(Math.random() * colors.length)],
+      });
+    }
   }, { passive: true });
 
   window.addEventListener('pointerleave', function () {
     pointer.active = false;
+    pointer.speed = 0;
   }, { passive: true });
 
   window.addEventListener('blur', function () {
     pointer.active = false;
+    pointer.speed = 0;
   });
 
   window.addEventListener('resize', resize, { passive: true });
