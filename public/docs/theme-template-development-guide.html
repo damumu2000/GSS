@@ -1307,6 +1307,11 @@
                                     <td><code>{% set randomArticles = contentList(channel='news', random=true, limit=3)%}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">site_wide</td>
+                                    <td>不限制当前栏目，在当前站点全部内容中查询，适合全站随机推荐。</td>
+                                    <td><code>{% set randomArticles = contentList(site_wide=true, has_image=true, is_recommend=true, random=true, limit=3)%}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">fields</td>
                                     <td>只返回指定字段，系统会保留 <code>id</code>。</td>
                                     <td><code>{% set liteArticles = contentList(fields='title,url,published_at', limit=4)%}</code></td>
