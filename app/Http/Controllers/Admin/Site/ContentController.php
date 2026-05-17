@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use function defined;
 
@@ -514,6 +515,15 @@ class ContentController extends Controller
             );
 
             $this->syncContentChannels((int) $contentId, $finalChannelIds['channel_ids']);
+
+            $this->moveContentBeforeTargetIfRequested(
+                (int) $contentId,
+                (int) $currentSite->id,
+                $type,
+                $finalChannelIds['primary_channel_id'] !== null ? (int) $finalChannelIds['primary_channel_id'] : null,
+                (int) ($validated['insert_before_content_id'] ?? 0),
+                (int) $request->user()->id,
+            );
         });
 
         $this->syncAttachments($currentSite->id, (int) $contentId, []);
@@ -878,6 +888,7 @@ class ContentController extends Controller
             'author' => ['nullable', 'string', 'max:100'],
             'source' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'max:20'],
+            'insert_before_content_id' => ['nullable', 'integer', 'min:1'],
             'published_at' => [
                 'nullable',
                 'string',
@@ -927,6 +938,7 @@ class ContentController extends Controller
             'author' => '作者',
             'source' => '来源',
             'status' => '状态',
+            'insert_before_content_id' => '插入到内容 ID 前',
             'published_at' => '发布时间',
         ]);
 
@@ -993,6 +1005,271 @@ class ContentController extends Controller
         }
 
         return array_values(array_unique(array_filter($ids, fn (int $id): bool => $id > 0)));
+    }
+
+    protected function moveContentBeforeTargetIfRequested(
+        int $contentId,
+        int $siteId,
+        string $type,
+        ?int $channelId,
+        int $targetContentId,
+        int $userId
+    ): void {
+        if ($targetContentId <= 0) {
+            return;
+        }
+
+        if ($targetContentId === $contentId) {
+            throw ValidationException::withMessages([
+                'insert_before_content_id' => '不能填写当前内容自己的 ID。',
+            ]);
+        }
+
+        if ($channelId === null || $channelId <= 0) {
+            throw ValidationException::withMessages([
+                'insert_before_content_id' => '当前内容需要先选择栏目后才能调整排序。',
+            ]);
+        }
+
+        $scope = [
+            'site_id' => $siteId,
+            'type' => $type,
+            'channel_id' => $channelId,
+        ];
+
+        $target = $this->contentSortScopeQuery($scope, $userId)
+            ->where('id', $targetContentId)
+            ->first(['id', 'sort', 'updated_at']);
+
+        if (! $target) {
+            throw ValidationException::withMessages([
+                'insert_before_content_id' => '目标内容不存在或必须与当前内容属于同一栏目。',
+            ]);
+        }
+
+        $previous = $this->contentSortScopeQuery($scope, $userId)
+            ->where('id', '!=', $contentId)
+            ->where(function ($query) use ($target): void {
+                $query->where('sort', '>', (int) $target->sort)
+                    ->orWhere(function ($tieQuery) use ($target): void {
+                        $tieQuery->where('sort', (int) $target->sort)
+                            ->where(function ($sameSortQuery) use ($target): void {
+                                $sameSortQuery->where('updated_at', '>', $target->updated_at)
+                                    ->orWhere(function ($sameUpdatedQuery) use ($target): void {
+                                        $sameUpdatedQuery->where('updated_at', $target->updated_at)
+                                            ->where('id', '>', (int) $target->id);
+                                    });
+                            });
+                    });
+            })
+            ->orderBy('sort')
+            ->orderBy('updated_at')
+            ->orderBy('id')
+            ->first(['id', 'sort']);
+
+        if (! $previous) {
+            $this->updateContentSortValue($contentId, (int) $target->sort + 10, $userId);
+            return;
+        }
+
+        $gap = (int) $previous->sort - (int) $target->sort;
+
+        if ($gap > 1) {
+            $this->updateContentSortValue($contentId, intdiv((int) $previous->sort + (int) $target->sort, 2), $userId);
+            return;
+        }
+
+        $this->reorderLocalContentWindowBeforeTarget($contentId, $targetContentId, $scope, $userId);
+    }
+
+    /**
+     * @param  array{site_id:int,type:string,channel_id:int}  $scope
+     */
+    protected function contentSortScopeQuery(array $scope, ?int $userId = null)
+    {
+        $query = DB::table('contents')
+            ->where('site_id', $scope['site_id'])
+            ->where('type', $scope['type'])
+            ->where('channel_id', $scope['channel_id'])
+            ->whereNull('deleted_at');
+
+        if ($userId !== null) {
+            $this->applySiteContentVisibilityScope($query, $userId, $scope['site_id']);
+        }
+
+        return $query;
+    }
+
+    protected function updateContentSortValue(int $contentId, int $sort, int $userId): void
+    {
+        DB::table('contents')
+            ->where('id', $contentId)
+            ->update([
+                'sort' => max(0, $sort),
+                'updated_by' => $userId,
+            ]);
+    }
+
+    /**
+     * @param  array{site_id:int,type:string,channel_id:int}  $scope
+     */
+    protected function reorderLocalContentWindowBeforeTarget(int $contentId, int $targetContentId, array $scope, int $userId): void
+    {
+        $target = $this->contentSortScopeQuery($scope, $userId)
+            ->where('id', $targetContentId)
+            ->first(['id', 'sort', 'updated_at']);
+
+        if (! $target) {
+            throw ValidationException::withMessages([
+                'insert_before_content_id' => '排序调整失败，请刷新后重试。',
+            ]);
+        }
+
+        $beforeIds = $this->contentSortScopeQuery($scope, $userId)
+            ->where('id', '!=', $contentId)
+            ->where(function ($query) use ($target): void {
+                $query->where('sort', '>', (int) $target->sort)
+                    ->orWhere(function ($tieQuery) use ($target): void {
+                        $tieQuery->where('sort', (int) $target->sort)
+                            ->where(function ($sameSortQuery) use ($target): void {
+                                $sameSortQuery->where('updated_at', '>', $target->updated_at)
+                                    ->orWhere(function ($sameUpdatedQuery) use ($target): void {
+                                        $sameUpdatedQuery->where('updated_at', $target->updated_at)
+                                            ->where('id', '>', (int) $target->id);
+                                    });
+                            });
+                    });
+            })
+            ->orderBy('sort')
+            ->orderBy('updated_at')
+            ->orderBy('id')
+            ->limit(4)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->reverse()
+            ->values()
+            ->all();
+
+        $afterIds = $this->contentSortScopeQuery($scope, $userId)
+            ->where('id', '!=', $contentId)
+            ->where(function ($query) use ($target): void {
+                $query->where('id', (int) $target->id)
+                    ->orWhere('sort', '<', (int) $target->sort)
+                    ->orWhere(function ($tieQuery) use ($target): void {
+                        $tieQuery->where('sort', (int) $target->sort)
+                            ->where(function ($sameSortQuery) use ($target): void {
+                                $sameSortQuery->where('updated_at', '<', $target->updated_at)
+                                    ->orWhere(function ($sameUpdatedQuery) use ($target): void {
+                                        $sameUpdatedQuery->where('updated_at', $target->updated_at)
+                                            ->where('id', '<=', (int) $target->id);
+                                    });
+                            });
+                    });
+            })
+            ->orderByDesc('sort')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+
+        $windowIds = array_values(array_unique(array_merge($beforeIds, $afterIds)));
+
+        if (! in_array($targetContentId, $windowIds, true)) {
+            throw ValidationException::withMessages([
+                'insert_before_content_id' => '排序调整失败，请刷新后重试。',
+            ]);
+        }
+
+        $windowIds = array_values(array_filter($windowIds, fn (int $id): bool => $id !== $contentId));
+        $targetWindowIndex = array_search($targetContentId, $windowIds, true);
+
+        if ($targetWindowIndex === false) {
+            throw ValidationException::withMessages([
+                'insert_before_content_id' => '排序调整失败，请刷新后重试。',
+            ]);
+        }
+
+        array_splice($windowIds, (int) $targetWindowIndex, 0, [$contentId]);
+
+        $windowBoundaryItems = $this->contentSortScopeQuery($scope, $userId)
+            ->whereIn('id', $windowIds)
+            ->get(['id', 'sort', 'updated_at'])
+            ->keyBy('id');
+        $firstWindowItem = $windowBoundaryItems->get($windowIds[0] ?? 0);
+        $lastWindowItem = $windowBoundaryItems->get($windowIds[count($windowIds) - 1] ?? 0);
+
+        if (! $firstWindowItem || ! $lastWindowItem) {
+            throw ValidationException::withMessages([
+                'insert_before_content_id' => '排序调整失败，请刷新后重试。',
+            ]);
+        }
+
+        $boundaryBefore = $this->contentSortScopeQuery($scope, $userId)
+            ->whereNotIn('id', $windowIds)
+            ->where(function ($query) use ($firstWindowItem): void {
+                $query->where('sort', '>', (int) $firstWindowItem->sort)
+                    ->orWhere(function ($tieQuery) use ($firstWindowItem): void {
+                        $tieQuery->where('sort', (int) $firstWindowItem->sort)
+                            ->where(function ($sameSortQuery) use ($firstWindowItem): void {
+                                $sameSortQuery->where('updated_at', '>', $firstWindowItem->updated_at)
+                                    ->orWhere(function ($sameUpdatedQuery) use ($firstWindowItem): void {
+                                        $sameUpdatedQuery->where('updated_at', $firstWindowItem->updated_at)
+                                            ->where('id', '>', (int) $firstWindowItem->id);
+                                    });
+                            });
+                    });
+            })
+            ->orderBy('sort')
+            ->orderBy('updated_at')
+            ->orderBy('id')
+            ->first(['id', 'sort']);
+
+        $boundaryAfter = $this->contentSortScopeQuery($scope, $userId)
+            ->whereNotIn('id', $windowIds)
+            ->where(function ($query) use ($lastWindowItem): void {
+                $query->where('sort', '<', (int) $lastWindowItem->sort)
+                    ->orWhere(function ($tieQuery) use ($lastWindowItem): void {
+                        $tieQuery->where('sort', (int) $lastWindowItem->sort)
+                            ->where(function ($sameSortQuery) use ($lastWindowItem): void {
+                                $sameSortQuery->where('updated_at', '<', $lastWindowItem->updated_at)
+                                    ->orWhere(function ($sameUpdatedQuery) use ($lastWindowItem): void {
+                                        $sameUpdatedQuery->where('updated_at', $lastWindowItem->updated_at)
+                                            ->where('id', '<', (int) $lastWindowItem->id);
+                                    });
+                            });
+                    });
+            })
+            ->orderByDesc('sort')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first(['id', 'sort']);
+
+        $upperSort = $boundaryBefore ? (int) $boundaryBefore->sort : ((int) $firstWindowItem->sort + 10);
+        $lowerSort = $boundaryAfter ? (int) $boundaryAfter->sort : null;
+        $windowCount = count($windowIds);
+
+        if ($lowerSort !== null) {
+            $availableSlots = $upperSort - $lowerSort - 1;
+
+            if ($availableSlots < $windowCount) {
+                throw ValidationException::withMessages([
+                    'insert_before_content_id' => '排序调整失败，请刷新后重试。',
+                ]);
+            }
+
+            $step = max(1, intdiv($availableSlots, $windowCount + 1));
+            $startSort = $upperSort - $step;
+        } else {
+            $step = 10;
+            $startSort = $boundaryBefore ? $upperSort - $step : $upperSort;
+        }
+
+        foreach ($windowIds as $index => $id) {
+            $this->updateContentSortValue($id, $startSort - ($index * $step), $userId);
+        }
     }
 
     protected function isAllowedLegacyCoverImagePath(string $value): bool

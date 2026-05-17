@@ -157,6 +157,29 @@
                                         <input class="field" id="source" type="text" name="source" value="{{ old('source', $content->source ?: $currentSite->name) }}">
                                     </div>
                                 </div>
+                                @if (! $isCreate)
+                                    <div class="content-pane-grid">
+                                        <div class="content-pane-card is-plain">
+                                            <h4 class="content-pane-card-title">排序位置</h4>
+                                            <input
+                                                class="field @error('insert_before_content_id') is-error @enderror"
+                                                id="insert_before_content_id"
+                                                type="text"
+                                                name="insert_before_content_id"
+                                                value="{{ old('insert_before_content_id') }}"
+                                                inputmode="numeric"
+                                                pattern="[0-9]*"
+                                                autocomplete="off"
+                                                placeholder="例如 1288"
+                                                data-numeric-only
+                                            >
+                                            <div class="helper-text">填写一篇同栏目内容 ID，保存后当前{{ $type === 'page' ? '单页面' : '文章' }}会移动到该内容前面。留空则不调整排序。</div>
+                                            @error('insert_before_content_id')
+                                                <span class="form-error">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                @endif
                                 <div class="content-pane-grid">
                                     <div class="content-pane-card is-plain">
                                         <h4 class="content-pane-card-title">发布人</h4>

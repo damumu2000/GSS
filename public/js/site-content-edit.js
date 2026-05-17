@@ -42,6 +42,12 @@ const richImportUrl = siteContentEditConfig?.dataset.richImportUrl || '';
 const richImageFetchUrl = siteContentEditConfig?.dataset.richImageFetchUrl || '';
 const siteContentEditErrors = JSON.parse(siteContentEditConfig?.dataset.editorErrors || '[]');
 
+document.querySelectorAll('[data-numeric-only]').forEach((input) => {
+    input.addEventListener('input', () => {
+        input.value = input.value.replace(/\D+/g, '');
+    });
+});
+
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
         || document.querySelector('input[name="_token"]')?.value
