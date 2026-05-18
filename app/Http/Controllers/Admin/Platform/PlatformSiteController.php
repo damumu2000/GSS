@@ -15,6 +15,7 @@ use DOMNode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
@@ -999,6 +1000,13 @@ class PlatformSiteController extends Controller
 
     protected function syncSiteDomains(int|string $siteId, string $domainsText): void
     {
+        $existingDomains = DB::table('site_domains')
+            ->where('site_id', $siteId)
+            ->pluck('domain')
+            ->filter(fn ($domain): bool => is_string($domain) && trim($domain) !== '')
+            ->map(fn ($domain): string => mb_strtolower(trim((string) $domain)))
+            ->values()
+            ->all();
         $domains = $this->parseDomains($domainsText);
 
         DB::table('site_domains')->where('site_id', $siteId)->delete();
@@ -1012,6 +1020,25 @@ class PlatformSiteController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+        }
+
+        $this->forgetThemeAssetBaseCacheForDomains(array_merge($existingDomains, $domains));
+    }
+
+    /**
+     * @param  array<int, string>  $domains
+     */
+    protected function forgetThemeAssetBaseCacheForDomains(array $domains): void
+    {
+        foreach ($domains as $domain) {
+            $normalized = mb_strtolower(trim((string) $domain));
+
+            if ($normalized === '') {
+                continue;
+            }
+
+            Cache::forget('theme-asset-base:'.$normalized);
+            Cache::forget('attachment-base:'.$normalized);
         }
     }
 

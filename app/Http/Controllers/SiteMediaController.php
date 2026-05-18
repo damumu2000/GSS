@@ -5,24 +5,31 @@ namespace App\Http\Controllers;
 use App\Support\Site as SitePath;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SiteMediaController extends Controller
 {
+    protected const ATTACHMENT_BASE_CACHE_TTL_SECONDS = 86400;
+
     public function attachment(Request $request, string $path): BinaryFileResponse
     {
-        $siteKey = $this->resolveAttachmentSiteKey($request);
-        abort_unless($siteKey !== null, 404);
-        abort_if(str_contains($path, '..'), 404);
+        $attachmentBase = $this->resolveAttachmentBase($request);
+        abort_unless(is_string($attachmentBase) && $attachmentBase !== '', 404);
 
         $normalizedPath = $this->normalizeAttachmentPath($path);
         abort_unless($normalizedPath !== null, 404);
+        abort_unless(! $this->pathHasHiddenSegments($normalizedPath), 404);
 
-        $absolutePath = SitePath::mediaAbsolutePath($siteKey, 'attachments/'.$normalizedPath);
+        $attachmentRoot = storage_path('app/'.$attachmentBase);
+        $resolvedAttachmentRoot = realpath($attachmentRoot);
+        abort_unless(is_string($resolvedAttachmentRoot) && File::isDirectory($resolvedAttachmentRoot), 404);
 
-        abort_unless(File::isFile($absolutePath), 404);
+        $absolutePath = realpath($resolvedAttachmentRoot.DIRECTORY_SEPARATOR.$normalizedPath);
+        abort_unless(is_string($absolutePath) && File::isFile($absolutePath), 404);
+        abort_unless($this->pathWithinRoot($resolvedAttachmentRoot, $absolutePath), 404);
 
         $response = response()->file($absolutePath, [
             'Cache-Control' => 'public, max-age=2592000',
@@ -55,11 +62,18 @@ class SiteMediaController extends Controller
         return $response;
     }
 
-    protected function resolveAttachmentSiteKey(Request $request): ?string
+    protected function resolveAttachmentBase(Request $request): ?string
     {
         $host = mb_strtolower(trim((string) $request->getHost()));
 
-        if ($host !== '') {
+        if ($host !== '' && ! in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            $cacheKey = $this->attachmentBaseCacheKey($host);
+            $cachedBase = Cache::get($cacheKey);
+
+            if (is_string($cachedBase) && $cachedBase !== '') {
+                return $cachedBase;
+            }
+
             $siteKey = DB::table('site_domains')
                 ->join('sites', 'sites.id', '=', 'site_domains.site_id')
                 ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
@@ -68,7 +82,10 @@ class SiteMediaController extends Controller
                 ->value('sites.site_key');
 
             if (is_string($siteKey) && trim($siteKey) !== '') {
-                return trim($siteKey);
+                $attachmentBase = SitePath::mediaRelative(trim($siteKey), 'attachments');
+                Cache::put($cacheKey, $attachmentBase, now()->addSeconds(self::ATTACHMENT_BASE_CACHE_TTL_SECONDS));
+
+                return $attachmentBase;
             }
         }
 
@@ -82,12 +99,53 @@ class SiteMediaController extends Controller
             return null;
         }
 
+        $cacheKey = $this->attachmentBaseCacheKey('local', $siteKey);
+        $cachedBase = Cache::get($cacheKey);
+
+        if (is_string($cachedBase) && $cachedBase !== '') {
+            return $cachedBase;
+        }
+
         $exists = DB::table('sites')
             ->where('site_key', $siteKey)
             ->where('status', 1)
             ->exists();
 
-        return $exists ? $siteKey : null;
+        if (! $exists) {
+            return null;
+        }
+
+        $attachmentBase = SitePath::mediaRelative($siteKey, 'attachments');
+        Cache::put($cacheKey, $attachmentBase, now()->addSeconds(self::ATTACHMENT_BASE_CACHE_TTL_SECONDS));
+
+        return $attachmentBase;
+    }
+
+    protected function attachmentBaseCacheKey(string $host, ?string $siteKey = null): string
+    {
+        $host = mb_strtolower(trim($host));
+        $suffix = $siteKey !== null && trim($siteKey) !== '' ? ':'.mb_strtolower(trim($siteKey)) : '';
+
+        return 'attachment-base:'.$host.$suffix;
+    }
+
+    protected function pathHasHiddenSegments(string $path): bool
+    {
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || str_starts_with($segment, '.')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function pathWithinRoot(string $root, string $path): bool
+    {
+        $normalizedRoot = rtrim($root, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        $normalizedPath = rtrim($path, DIRECTORY_SEPARATOR);
+
+        return str_starts_with($normalizedPath, $normalizedRoot);
     }
 
     protected function normalizeAttachmentPath(string $path): ?string
