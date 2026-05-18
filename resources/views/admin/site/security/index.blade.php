@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="/css/site-security.css">
 @endpush
 
+@push('scripts')
+    <script src="/js/site-security.js"></script>
+@endpush
+
 @section('content')
     <section class="page-header">
         <div class="page-header-main">
@@ -243,6 +247,7 @@
                                 <div class="security-type-bar security-type-bar--r-{{ max(0, min(100, (int) round($item['ratio']))) }}"></div>
                             </div>
                             <div class="security-type-meta">占比 {{ $item['ratio'] }}%</div>
+                            <div class="security-type-note">{{ $item['note'] }}</div>
                         </div>
                     @empty
                         <div class="security-empty">当前还没有拦截记录。功能已经就绪，后续有命中时会在这里显示。</div>
@@ -254,9 +259,18 @@
         <section class="security-panel">
             <h3 class="security-panel-title">最近拦截记录</h3>
             <div class="security-panel-desc">展示最近命中的拦截记录、访问 IP、处置方式和防护类型。</div>
+            <div class="security-event-filters" data-security-event-filters>
+                <button class="security-event-filter is-active" type="button" data-filter="all">全部</button>
+                <button class="security-event-filter" type="button" data-filter="high-risk">只看高危</button>
+                <button class="security-event-filter" type="button" data-filter="probe-abuse">只看扫描试探超限</button>
+            </div>
             <div class="security-events">
                 @forelse ($security['events'] as $event)
-                    <article class="security-event">
+                    <article
+                        class="security-event"
+                        data-rule-code="{{ $event['rule_code'] }}"
+                        data-risk-level="{{ $event['risk_label'] === '高危' ? 'high' : 'medium' }}"
+                    >
                         <div class="security-event-top">
                             <div class="security-event-rule">{{ $event['rule_name'] }}</div>
                             <div class="security-event-time">{{ $event['created_at_label'] }}</div>
@@ -272,7 +286,11 @@
                 @empty
                     <div class="security-empty">当前还没有最近拦截记录。站点端会在命中拦截后自动更新，不需要手动操作。</div>
                 @endforelse
+                @if (! empty($security['events']))
+                    <div class="security-empty security-empty-filtered" data-security-event-empty hidden>当前筛选条件下没有命中的拦截记录。</div>
+                @endif
             </div>
         </section>
     </div>
+
 @endsection

@@ -73,31 +73,37 @@ class SiteSecurity
             return null;
         }
 
-        if (! $this->isMediaRequest($request) && ($rule = $this->matchBadPath($request))) {
+        $siteId = (int) $site->id;
+
+        if ($rule = $this->matchProbeBlock($request, $siteId)) {
             return $rule;
+        }
+
+        if (! $this->isMediaRequest($request) && ($rule = $this->matchBadPath($request))) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
         if ($rule = $this->matchPathTraversal($request)) {
-            return $rule;
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
         if ($this->isMediaRequest($request)) {
-            return $this->matchRateLimit($request, (int) $site->id);
+            return $this->matchRateLimit($request, $siteId);
         }
 
         if ($rule = $this->matchBadUpload($request)) {
-            return $rule;
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
         if ($rule = $this->matchSqlInjection($request)) {
-            return $rule;
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
         if ($rule = $this->matchXss($request)) {
-            return $rule;
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if ($rule = $this->matchRateLimit($request, (int) $site->id)) {
+        if ($rule = $this->matchRateLimit($request, $siteId)) {
             return $rule;
         }
 
@@ -203,19 +209,22 @@ class SiteSecurity
             ->selectRaw('SUM(blocked_path_traversal) as path_traversal')
             ->selectRaw('SUM(blocked_bad_upload) as bad_upload')
             ->selectRaw('SUM(blocked_rate_limit) as rate_limit')
+            ->selectRaw('SUM(blocked_probe_abuse) as probe_abuse')
             ->first();
 
         $types = collect([
-            ['label' => '恶意扫描', 'value' => (int) ($typeTotals->bad_path ?? 0)],
-            ['label' => 'SQL 注入', 'value' => (int) ($typeTotals->sql_injection ?? 0)],
-            ['label' => 'XSS 攻击', 'value' => (int) ($typeTotals->xss ?? 0)],
-            ['label' => '路径穿越', 'value' => (int) ($typeTotals->path_traversal ?? 0)],
-            ['label' => '可疑上传', 'value' => (int) ($typeTotals->bad_upload ?? 0)],
-            ['label' => '频繁刷新', 'value' => (int) ($typeTotals->rate_limit ?? 0)],
+            ['code' => 'bad_path', 'label' => '恶意扫描', 'value' => (int) ($typeTotals->bad_path ?? 0)],
+            ['code' => 'sql_injection', 'label' => 'SQL 注入', 'value' => (int) ($typeTotals->sql_injection ?? 0)],
+            ['code' => 'xss', 'label' => 'XSS 攻击', 'value' => (int) ($typeTotals->xss ?? 0)],
+            ['code' => 'path_traversal', 'label' => '路径穿越', 'value' => (int) ($typeTotals->path_traversal ?? 0)],
+            ['code' => 'bad_upload', 'label' => '可疑上传', 'value' => (int) ($typeTotals->bad_upload ?? 0)],
+            ['code' => 'rate_limit', 'label' => '频繁刷新', 'value' => (int) ($typeTotals->rate_limit ?? 0)],
+            ['code' => 'probe_abuse', 'label' => '扫描试探超限', 'value' => (int) ($typeTotals->probe_abuse ?? 0)],
         ])->filter(fn (array $item): bool => $item['value'] > 0)
             ->map(fn (array $item) => [
                 ...$item,
                 'ratio' => $sevenDayTotal > 0 ? (int) round(($item['value'] / $sevenDayTotal) * 100) : 0,
+                'note' => $this->typeDistributionNote((string) $item['code']),
             ])
             ->values()
             ->all();
@@ -288,19 +297,44 @@ class SiteSecurity
         }
 
         $path = mb_strtolower($this->normalizedRequestPath($request));
-        $needles = [
-            '.env',
-            'phpinfo.php',
-            'wp-admin',
-            'wp-login',
-            'vendor/phpunit',
-            'boaform',
-            'hnap1',
-            'manager/html',
+        $exactOrChildPrefixes = [
+            '/wp-admin',
+            '/wp-login',
+            '/vendor/phpunit',
+            '/phpmyadmin',
+            '/pma',
+            '/adminer',
+            '/actuator',
+            '/swagger-ui',
+            '/v2/api-docs',
+            '/v3/api-docs',
+            '/druid',
+            '/jenkins',
+            '/boaform',
+            '/hnap1',
+            '/manager/html',
+            '/manager/status',
+            '/server-status',
+            '/thinkphp',
+            '/runtime/log',
+            '/storage/logs',
+        ];
+        $suffixMatches = [
+            '/.env',
+            '/.git/config',
+            '/.svn/entries',
+            '/phpinfo.php',
+            '/config/database.php',
         ];
 
-        foreach ($needles as $needle) {
-            if (str_contains($path, $needle)) {
+        foreach ($exactOrChildPrefixes as $prefix) {
+            if ($this->pathMatchesPrefix($path, $prefix)) {
+                return ['code' => 'bad_path', 'name' => '恶意扫描路径'];
+            }
+        }
+
+        foreach ($suffixMatches as $suffix) {
+            if ($path === $suffix || str_ends_with($path, $suffix)) {
                 return ['code' => 'bad_path', 'name' => '恶意扫描路径'];
             }
         }
@@ -314,11 +348,20 @@ class SiteSecurity
             return null;
         }
 
-        $payload = mb_strtolower($this->requestFingerprintText($request));
-        $needles = ['union select', 'sleep(', 'benchmark(', 'or 1=1', 'and 1=1', 'information_schema', 'updatexml(', 'extractvalue('];
+        $payload = $this->requestFingerprintText($request);
+        $patterns = [
+            '/\bunion\s+select\b/i',
+            '/\bsleep\s*\(/i',
+            '/\bbenchmark\s*\(/i',
+            '/\bor\s+1\s*=\s*1\b/i',
+            '/\band\s+1\s*=\s*1\b/i',
+            '/\binformation_schema\b/i',
+            '/\bupdatexml\s*\(/i',
+            '/\bextractvalue\s*\(/i',
+        ];
 
-        foreach ($needles as $needle) {
-            if (str_contains($payload, $needle)) {
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $payload) === 1) {
                 return ['code' => 'sql_injection', 'name' => 'SQL 注入拦截'];
             }
         }
@@ -332,11 +375,17 @@ class SiteSecurity
             return null;
         }
 
-        $payload = mb_strtolower($this->requestFingerprintText($request));
-        $needles = ['<script', 'javascript:', 'onerror=', 'onload=', 'alert(', '<img', '<svg'];
+        $payload = $this->requestFingerprintText($request);
+        $patterns = [
+            '/<script\b/i',
+            '/javascript\s*:/i',
+            '/on(?:error|load)\s*=/i',
+            '/<img\b[^>]*(onerror\s*=|src\s*=\s*[\'"]?\s*javascript:)/i',
+            '/<svg\b[^>]*(onload\s*=|onerror\s*=)/i',
+        ];
 
-        foreach ($needles as $needle) {
-            if (str_contains($payload, $needle)) {
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $payload) === 1) {
                 return ['code' => 'xss', 'name' => 'XSS 攻击拦截'];
             }
         }
@@ -370,10 +419,34 @@ class SiteSecurity
 
         foreach ($request->allFiles() as $file) {
             foreach ($this->flattenFiles($file) as $uploadedFile) {
+                $originalName = mb_strtolower((string) ($uploadedFile?->getClientOriginalName() ?: ''));
                 $extension = mb_strtolower((string) ($uploadedFile?->getClientOriginalExtension() ?: ''));
+                $serverMime = mb_strtolower((string) ($uploadedFile?->getMimeType() ?: ''));
+                $clientMime = mb_strtolower((string) ($uploadedFile?->getClientMimeType() ?: ''));
 
                 if (in_array($extension, ['php', 'phtml', 'phar', 'jsp', 'asp', 'aspx'], true)) {
                     return ['code' => 'bad_upload', 'name' => '可疑上传拦截'];
+                }
+
+                if ($originalName !== '' && preg_match('/\.(php[0-9]*|phtml|phar|jsp|asp|aspx)(?:\.[a-z0-9_-]+)+$/i', $originalName) === 1) {
+                    return ['code' => 'bad_upload', 'name' => '可疑上传拦截'];
+                }
+
+                foreach ([$serverMime, $clientMime] as $mime) {
+                    if (in_array($mime, [
+                        'application/x-httpd-php',
+                        'application/x-httpd-php-source',
+                        'application/x-php',
+                        'application/php',
+                        'text/php',
+                        'text/x-php',
+                        'application/x-jsp',
+                        'text/x-jsp',
+                        'application/x-asp',
+                        'text/x-asp',
+                    ], true)) {
+                        return ['code' => 'bad_upload', 'name' => '可疑上传拦截'];
+                    }
                 }
             }
         }
@@ -393,7 +466,7 @@ class SiteSecurity
                 ? $this->systemSettings->securityRateLimitSensitiveMaxRequests()
                 : $this->systemSettings->securityRateLimitMaxRequests();
             $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
-            $blockKey = 'site-security-block:'.$siteId.':'.sha1($request->ip() ?: 'guest');
+            $blockKey = $this->rateLimitBlockKey($siteId, $request);
 
             if ($blockSeconds > 0 && RateLimiter::tooManyAttempts($blockKey, 1)) {
                 return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
@@ -437,6 +510,57 @@ class SiteSecurity
         }
 
         return null;
+    }
+
+    protected function matchProbeBlock(Request $request, int $siteId): ?array
+    {
+        if (! $this->systemSettings->securityScanProbeEnabled()) {
+            return null;
+        }
+
+        $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
+
+        if ($blockSeconds <= 0) {
+            return null;
+        }
+
+        $blockKey = $this->probeBlockKey($siteId, $request);
+
+        if (RateLimiter::tooManyAttempts($blockKey, 1)) {
+            return ['code' => 'probe_abuse', 'name' => '扫描试探超限'];
+        }
+
+        return null;
+    }
+
+    protected function escalateProbeIfNeeded(Request $request, int $siteId, array $rule): ?array
+    {
+        if (! $this->systemSettings->securityScanProbeEnabled()) {
+            return null;
+        }
+
+        if (! $this->isProbeCandidateRule((string) ($rule['code'] ?? ''))) {
+            return null;
+        }
+
+        $window = $this->systemSettings->securityScanProbeWindowSeconds();
+        $threshold = $this->systemSettings->securityScanProbeThreshold();
+        $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
+        $totalKey = $this->probeTotalKey($siteId, $request);
+        $ruleKey = $this->probeRuleKey($siteId, $request, (string) $rule['code']);
+
+        RateLimiter::hit($totalKey, $window);
+        RateLimiter::hit($ruleKey, $window);
+
+        if (! RateLimiter::tooManyAttempts($totalKey, $threshold) && ! RateLimiter::tooManyAttempts($ruleKey, $threshold)) {
+            return null;
+        }
+
+        if ($blockSeconds > 0) {
+            RateLimiter::hit($this->probeBlockKey($siteId, $request), $blockSeconds);
+        }
+
+        return ['code' => 'probe_abuse', 'name' => '扫描试探超限'];
     }
 
     protected function siteByHost(string $host): ?object
@@ -520,6 +644,7 @@ class SiteSecurity
             'path_traversal' => 'blocked_path_traversal',
             'bad_upload' => 'blocked_bad_upload',
             'rate_limit' => 'blocked_rate_limit',
+            'probe_abuse' => 'blocked_probe_abuse',
             default => 'blocked_total',
         };
     }
@@ -547,6 +672,11 @@ class SiteSecurity
                 'action_label' => '危险文件上传已阻断',
                 'risk_label' => '高危',
             ],
+            'probe_abuse' => [
+                'category_label' => '扫描试探超限',
+                'action_label' => '多次命中扫描规则后已临时限制访问',
+                'risk_label' => '高危',
+            ],
             'rate_limit' => [
                 'category_label' => '异常高频访问',
                 'action_label' => '频率阈值命中已拦截',
@@ -562,6 +692,20 @@ class SiteSecurity
                 'action_label' => '安全规则已拦截',
                 'risk_label' => '中危',
             ],
+        };
+    }
+
+    protected function typeDistributionNote(string $ruleCode): string
+    {
+        return match ($ruleCode) {
+            'bad_path' => '常见目录探测、组件探测和规范性扫描目标。',
+            'sql_injection' => '针对查询参数和表单字段的注入试探。',
+            'xss' => '脚本注入、事件注入和可执行前端载荷尝试。',
+            'path_traversal' => '尝试通过 ../ 等方式越级读取目录或文件。',
+            'bad_upload' => '危险脚本或可执行文件上传尝试。',
+            'rate_limit' => '短时间内高频访问触发的临时拦截。',
+            'probe_abuse' => '同一来源多次命中扫描规则后升级限制访问。',
+            default => '安护盾记录到的异常访问类型。',
         };
     }
 
@@ -656,6 +800,36 @@ class SiteSecurity
         if (Cache::add('site-security:prune-stats:'.$siteId, 1, now('Asia/Shanghai')->addHours(12))) {
             $this->pruneStats($siteId);
         }
+    }
+
+    protected function isProbeCandidateRule(string $code): bool
+    {
+        return in_array($code, ['bad_path', 'sql_injection', 'xss', 'path_traversal', 'bad_upload'], true);
+    }
+
+    protected function pathMatchesPrefix(string $path, string $prefix): bool
+    {
+        return $path === $prefix || str_starts_with($path, $prefix.'/');
+    }
+
+    protected function probeTotalKey(int $siteId, Request $request): string
+    {
+        return 'site-security-probe:'.$siteId.':'.sha1($request->ip() ?: 'guest');
+    }
+
+    protected function probeRuleKey(int $siteId, Request $request, string $ruleCode): string
+    {
+        return 'site-security-probe:'.$siteId.':'.$ruleCode.':'.sha1($request->ip() ?: 'guest');
+    }
+
+    protected function probeBlockKey(int $siteId, Request $request): string
+    {
+        return 'site-security-probe-block:'.$siteId.':'.sha1($request->ip() ?: 'guest');
+    }
+
+    protected function rateLimitBlockKey(int $siteId, Request $request): string
+    {
+        return 'site-security-rate-block:'.$siteId.':'.sha1($request->ip() ?: 'guest');
     }
 
     /**

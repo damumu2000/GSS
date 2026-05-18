@@ -69,8 +69,17 @@
             </div>
         </div>
         <div class="topbar-right">
+            <form method="POST" action="{{ route('admin.themes.editor.refresh-frontend-cache') }}">
+                @csrf
+                <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
+                <input type="hidden" name="template" value="{{ $template }}">
+                <input type="hidden" name="panel" value="{{ $workspacePanel }}">
+                @if ($compareVersion)
+                    <input type="hidden" name="version" value="{{ $compareVersion->version }}">
+                @endif
+                <button class="button secondary" type="submit">刷新前台缓存</button>
+            </form>
             <a class="button secondary" href="{{ route('admin.themes.index') }}">返回模板管理</a>
-            <a class="button secondary" href="{{ \App\Support\SiteFrontendUrl::homeUrl($currentSite) }}" target="_blank">预览前台</a>
         </div>
     </section>
 

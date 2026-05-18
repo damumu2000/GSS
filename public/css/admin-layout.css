@@ -902,6 +902,36 @@
             line-height: 1.5;
         }
 
+        .frontend-visit-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 36px;
+            padding: 0 14px 0 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #ffffff;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+            transition: border-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .frontend-visit-link:hover,
+        .frontend-visit-link:focus-visible {
+            border-color: var(--primary-border-soft);
+            background: #fbfdff;
+            color: var(--text);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        }
+
+        .frontend-visit-link:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--primary-soft-strong);
+        }
+
         .theme-switcher-trigger {
             width: 36px;
             height: 36px;

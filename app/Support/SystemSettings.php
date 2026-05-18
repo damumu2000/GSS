@@ -211,6 +211,21 @@ class SystemSettings
         return max(0, min(86400, $this->int('security.rate_limit_block_seconds', 60)));
     }
 
+    public function securityScanProbeEnabled(): bool
+    {
+        return $this->bool('security.scan_probe_enabled', true);
+    }
+
+    public function securityScanProbeWindowSeconds(): int
+    {
+        return max(10, min(86400, $this->int('security.scan_probe_window_seconds', 300)));
+    }
+
+    public function securityScanProbeThreshold(): int
+    {
+        return max(1, min(100, $this->int('security.scan_probe_threshold', 3)));
+    }
+
     public function securityEventRetentionLimit(): int
     {
         return max(20, $this->int('security.event_retention_limit', 200));
@@ -401,6 +416,9 @@ class SystemSettings
             'security_rate_limit_max_requests' => $this->securityRateLimitMaxRequests(),
             'security_rate_limit_sensitive_max_requests' => $this->securityRateLimitSensitiveMaxRequests(),
             'security_rate_limit_block_seconds' => $this->securityRateLimitBlockSeconds(),
+            'security_scan_probe_enabled' => $this->securityScanProbeEnabled(),
+            'security_scan_probe_window_seconds' => $this->securityScanProbeWindowSeconds(),
+            'security_scan_probe_threshold' => $this->securityScanProbeThreshold(),
             'security_event_retention_limit' => $this->securityEventRetentionLimit(),
             'security_stats_retention_days' => $this->securityStatsRetentionDays(),
             'mail_enabled' => $this->mailEnabled(),

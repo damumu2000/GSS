@@ -465,6 +465,28 @@ class ThemeController extends Controller
         return $this->editor($request);
     }
 
+    public function refreshFrontendCache(Request $request): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, $currentSite->id, 'theme.edit');
+
+        $siteTemplateId = max(0, (int) $request->input('site_template_id', 0));
+        $template = trim((string) $request->input('template', ''));
+        $panel = trim((string) $request->input('panel', ''));
+        $version = trim((string) $request->input('version', ''));
+
+        $this->flushSiteFrontendRuntimeCaches($currentSite);
+
+        return redirect()
+            ->route('admin.themes.editor', array_filter([
+                'site_template_id' => $siteTemplateId > 0 ? $siteTemplateId : null,
+                'template' => $template !== '' ? $template : null,
+                'panel' => $panel !== '' ? $panel : null,
+                'version' => $version !== '' ? $version : null,
+            ]))
+            ->with('status', '当前站点前台缓存已刷新。');
+    }
+
     public function createTemplateForm(Request $request): View|RedirectResponse
     {
         $request->query->set('panel', 'create');

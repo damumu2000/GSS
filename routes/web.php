@@ -188,6 +188,7 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/themes/editor', [ThemeController::class, 'editor'])->name('themes.editor');
             Route::get('/themes/editor/snapshots', [ThemeController::class, 'snapshots'])->name('themes.snapshots');
             Route::get('/themes/editor/template-create', [ThemeController::class, 'createTemplateForm'])->name('themes.editor.template-create-form');
+            Route::post('/themes/editor/refresh-frontend-cache', [ThemeController::class, 'refreshFrontendCache'])->name('themes.editor.refresh-frontend-cache');
             Route::post('/themes/editor', [ThemeController::class, 'updateEditor'])->name('themes.editor.update');
             Route::post('/themes/editor/template-create', [ThemeController::class, 'createTemplate'])->name('themes.editor.template-create');
             Route::post('/themes/editor/template-delete', [ThemeController::class, 'deleteTemplate'])->name('themes.editor.template-delete');

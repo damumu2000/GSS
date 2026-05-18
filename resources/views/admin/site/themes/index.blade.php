@@ -23,7 +23,6 @@
             </div>
         </div>
         <div class="topbar-right">
-            <a class="button theme-preview-button" href="{{ \App\Support\SiteFrontendUrl::homeUrl($currentSite) }}" target="_blank">预览前台</a>
             <button class="button" type="button" data-open-template-create-modal>新增站点模板</button>
         </div>
     </section>

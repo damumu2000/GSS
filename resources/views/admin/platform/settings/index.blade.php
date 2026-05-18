@@ -296,7 +296,38 @@
                 <label class="settings-field">
                     <span class="settings-label">超限限制时长（秒）</span>
                     <input class="field" type="number" name="security_rate_limit_block_seconds" min="0" max="86400" value="{{ old('security_rate_limit_block_seconds', $settings['security_rate_limit_block_seconds']) }}">
-                    <span class="settings-note">超过阈值后，会按站点与访问 IP 临时限制访问。填 0 表示只按窗口拦截，不追加限制时长。</span>
+                    <span class="settings-note">超过阈值后，会按站点与访问 IP 临时限制访问。填 0 表示只按窗口拦截。</span>
+                </label>
+
+                <div class="settings-toggle-grid">
+                    <span class="settings-label">扫描试探防护</span>
+                    <div class="settings-toggle-shell">
+                        <div class="settings-field setting-toggle-field">
+                            <div class="setting-toggle-row">
+                                <div class="setting-toggle-control">
+                                    <input class="setting-toggle-input" id="security_scan_probe_enabled" type="checkbox" name="security_scan_probe_enabled" value="1" @checked(old('security_scan_probe_enabled', $settings['security_scan_probe_enabled']))>
+                                    <span class="setting-toggle-track" aria-hidden="true"></span>
+                                </div>
+                                <div class="setting-toggle-copy" aria-hidden="true">
+                                    <span class="setting-toggle-text">启用扫描试探防护</span>
+                                    <span class="setting-toggle-state" id="security_scan_probe_enabled_label">{{ old('security_scan_probe_enabled', $settings['security_scan_probe_enabled']) ? '已开启' : '未开启' }}</span>
+                                    <span class="setting-toggle-desc">同一站点同一 IP 在短时间内多次命中恶意扫描、注入、路径穿越或可疑上传规则时，会复用超限限制时长进行临时限制。</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <label class="settings-field">
+                    <span class="settings-label">扫描统计窗口（秒）</span>
+                    <input class="field" type="number" name="security_scan_probe_window_seconds" min="10" max="86400" value="{{ old('security_scan_probe_window_seconds', $settings['security_scan_probe_window_seconds']) }}">
+                    <span class="settings-note">例如 300，表示在 5 分钟内累计命中扫描类规则达到阈值后，会触发临时限制。</span>
+                </label>
+
+                <label class="settings-field">
+                    <span class="settings-label">扫描触发阈值（次）</span>
+                    <input class="field" type="number" name="security_scan_probe_threshold" min="1" max="100" value="{{ old('security_scan_probe_threshold', $settings['security_scan_probe_threshold']) }}">
+                    <span class="settings-note">同一 IP 在统计窗口内多次命中扫描类规则，达到这个次数后会进入限制状态。</span>
                 </label>
 
                 <label class="settings-field">

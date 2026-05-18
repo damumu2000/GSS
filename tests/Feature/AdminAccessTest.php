@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -135,14 +136,24 @@ class AdminAccessTest extends TestCase
         return 'site-security-rate:'.$siteId.':site:'.sha1('127.0.0.1');
     }
 
-    protected function siteSecurityBlockKey(): string
+    protected function siteSecurityRateLimitBlockKey(): string
     {
         $siteId = (int) DB::table('sites')
             ->where('status', 1)
             ->orderBy('id')
             ->value('id');
 
-        return 'site-security-block:'.$siteId.':'.sha1('127.0.0.1');
+        return 'site-security-rate-block:'.$siteId.':'.sha1('127.0.0.1');
+    }
+
+    protected function siteSecurityProbeBlockKey(): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-probe-block:'.$siteId.':'.sha1('127.0.0.1');
     }
 
     protected function disableSiteSecurityRateLimit(): void
@@ -3144,6 +3155,50 @@ XML);
             ->assertSessionHas('status', '系统设置已更新。');
 
         $this->assertSame('90', DB::table('system_settings')->where('setting_key', 'security.rate_limit_block_seconds')->value('setting_value'));
+    }
+
+    public function test_platform_admin_can_save_security_scan_probe_settings(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.settings.update'), [
+                'system_name' => '站群后台',
+                'system_version' => '2.1.0',
+                'current_tab' => 'security',
+                'attachment_allowed_extensions' => 'jpg,jpeg,png,webp,pdf,zip',
+                'attachment_max_size_mb' => 18,
+                'attachment_image_max_size_mb' => 6,
+                'attachment_image_max_width' => 3200,
+                'attachment_image_max_height' => 2400,
+                'attachment_image_auto_resize' => '1',
+                'attachment_image_auto_compress' => '1',
+                'attachment_image_quality' => 76,
+                'admin_enabled' => '1',
+                'admin_disabled_message' => '后台暂时关闭，请联系管理员。',
+                'security_site_protection_enabled' => '1',
+                'security_block_bad_path_enabled' => '1',
+                'security_block_sql_injection_enabled' => '1',
+                'security_block_xss_enabled' => '1',
+                'security_block_path_traversal_enabled' => '1',
+                'security_block_bad_upload_enabled' => '1',
+                'security_rate_limit_enabled' => '1',
+                'security_rate_limit_window_seconds' => '12',
+                'security_rate_limit_max_requests' => '33',
+                'security_rate_limit_sensitive_max_requests' => '9',
+                'security_rate_limit_block_seconds' => '90',
+                'security_scan_probe_enabled' => '1',
+                'security_scan_probe_window_seconds' => '600',
+                'security_scan_probe_threshold' => '4',
+                'security_event_retention_limit' => '260',
+                'security_stats_retention_days' => '365',
+            ])
+            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'security']))
+            ->assertSessionHas('status', '系统设置已更新。');
+
+        $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'security.scan_probe_enabled')->value('setting_value'));
+        $this->assertSame('600', DB::table('system_settings')->where('setting_key', 'security.scan_probe_window_seconds')->value('setting_value'));
+        $this->assertSame('4', DB::table('system_settings')->where('setting_key', 'security.scan_probe_threshold')->value('setting_value'));
     }
 
     public function test_platform_admin_can_clear_uploaded_brand_assets(): void
@@ -6618,6 +6673,75 @@ XML);
             ->assertForbidden();
     }
 
+    public function test_theme_editor_refresh_frontend_cache_button_clears_only_current_site_runtime_caches(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('template-editor-cache-refresher', true, 'template_editor');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $siteTemplate = DB::table('site_templates')
+            ->where('site_id', $siteId)
+            ->orderBy('id')
+            ->first(['id', 'template_key']);
+
+        $this->assertNotNull($siteTemplate);
+
+        DB::table('site_domains')->updateOrInsert(
+            ['site_id' => $siteId, 'domain' => 'www.refresh-cache.test'],
+            [
+                'is_primary' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        $otherSiteId = $this->createAdditionalSite('refresh-cache-foreign-site', '缓存隔离测试站点');
+
+        Cache::forever('frontend-page-cache:site:'.$siteId.':version', 7);
+        Cache::forever('theme-asset-base:local:site', 'web/site/theme');
+        Cache::forever('attachment-base:local:site', 'web/site/media/attachments');
+        Cache::forever('theme-asset-base:www.refresh-cache.test', 'web/site/theme');
+        Cache::forever('attachment-base:www.refresh-cache.test', 'web/site/media/attachments');
+
+        Cache::forever('frontend-page-cache:site:'.$otherSiteId.':version', 11);
+        Cache::forever('theme-asset-base:local:refresh-cache-foreign-site', 'web/refresh-cache-foreign-site/theme');
+        Cache::forever('attachment-base:local:refresh-cache-foreign-site', 'web/refresh-cache-foreign-site/media/attachments');
+        Cache::forever('theme-asset-base:foreign.refresh-cache.test', 'web/refresh-cache-foreign-site/theme');
+        Cache::forever('attachment-base:foreign.refresh-cache.test', 'web/refresh-cache-foreign-site/media/attachments');
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.themes.editor'))
+            ->assertOk()
+            ->assertSee('刷新前台缓存');
+
+        $response = $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.themes.editor.refresh-frontend-cache'), [
+                'site_template_id' => (int) $siteTemplate->id,
+                'panel' => 'editor',
+            ]);
+
+        $response
+            ->assertRedirect(route('admin.themes.editor', [
+                'site_template_id' => (int) $siteTemplate->id,
+                'panel' => 'editor',
+            ]))
+            ->assertSessionHas('status', '当前站点前台缓存已刷新。');
+
+        $this->assertSame(8, (int) Cache::get('frontend-page-cache:site:'.$siteId.':version'));
+        $this->assertNull(Cache::get('theme-asset-base:local:site'));
+        $this->assertNull(Cache::get('attachment-base:local:site'));
+        $this->assertNull(Cache::get('theme-asset-base:www.refresh-cache.test'));
+        $this->assertNull(Cache::get('attachment-base:www.refresh-cache.test'));
+
+        $this->assertSame(11, (int) Cache::get('frontend-page-cache:site:'.$otherSiteId.':version'));
+        $this->assertSame('web/refresh-cache-foreign-site/theme', Cache::get('theme-asset-base:local:refresh-cache-foreign-site'));
+        $this->assertSame('web/refresh-cache-foreign-site/media/attachments', Cache::get('attachment-base:local:refresh-cache-foreign-site'));
+        $this->assertSame('web/refresh-cache-foreign-site/theme', Cache::get('theme-asset-base:foreign.refresh-cache.test'));
+        $this->assertSame('web/refresh-cache-foreign-site/media/attachments', Cache::get('attachment-base:foreign.refresh-cache.test'));
+    }
+
     public function test_site_dashboard_quick_links_follow_role_permissions(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -6758,6 +6882,228 @@ XML);
         ]);
     }
 
+    public function test_site_security_blocks_xss_and_records_stats(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->get('/?site=site&keyword='.urlencode('<script>alert(1)</script>'))
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截')
+            ->assertSee('XSS 攻击拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_xss' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'xss',
+            'rule_name' => 'XSS 攻击拦截',
+            'request_path' => '/',
+            'request_method' => 'GET',
+        ]);
+    }
+
+    public function test_site_security_does_not_block_benign_sql_related_text(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->get('/?site=site&keyword='.urlencode('union selection of student clubs'))
+            ->assertOk();
+    }
+
+    public function test_site_security_does_not_block_benign_frontend_text(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->get('/?site=site&keyword='.urlencode('javascript framework overview and svg icons'))
+            ->assertOk();
+    }
+
+    public function test_site_security_blocks_path_traversal_and_records_stats(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->get('/?site=site&file='.urlencode('../.env'))
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截')
+            ->assertSee('路径穿越拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_path_traversal' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'path_traversal',
+            'rule_name' => '路径穿越拦截',
+            'request_path' => '/',
+            'request_method' => 'GET',
+        ]);
+    }
+
+    public function test_site_security_blocks_bad_path_and_records_stats(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
+
+        $this->get('/wp-admin?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截')
+            ->assertSee('恶意扫描路径');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_bad_path' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'bad_path',
+            'rule_name' => '恶意扫描路径',
+            'request_path' => '/wp-admin',
+            'request_method' => 'GET',
+        ]);
+    }
+
+    public function test_site_security_blocks_common_compliance_scan_paths(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        Route::middleware('web')->get('/.git/config', fn () => response('ok'));
+        Route::middleware('web')->get('/swagger-ui/index.html', fn () => response('ok'));
+        Route::middleware('web')->get('/actuator/health', fn () => response('ok'));
+        Route::middleware('web')->get('/docs/swagger-ui-note', fn () => response('ok'));
+
+        $this->get('/docs/swagger-ui-note?site=site')
+            ->assertOk();
+
+        $this->get('/.git/config?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->get('/swagger-ui/index.html?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->get('/actuator/health?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+    }
+
+    public function test_site_security_blocks_bad_upload_and_records_stats(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        Route::middleware('web')->post('/demo-security/upload', fn () => response('ok'));
+
+        $this->post('/demo-security/upload?site=site', [
+            'file' => UploadedFile::fake()->create('shell.php', 1, 'application/x-httpd-php'),
+        ])
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截')
+            ->assertSee('可疑上传拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_bad_upload' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'bad_upload',
+            'rule_name' => '可疑上传拦截',
+            'request_path' => '/demo-security/upload',
+            'request_method' => 'POST',
+        ]);
+    }
+
+    public function test_site_security_blocks_bad_upload_with_disguised_double_extension(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        Route::middleware('web')->post('/demo-security/upload', fn () => response('ok'));
+
+        $this->post('/demo-security/upload?site=site', [
+            'file' => UploadedFile::fake()->create('shell.php.jpg', 1, 'image/jpeg'),
+        ])
+            ->assertForbidden()
+            ->assertSee('可疑上传拦截');
+    }
+
+    public function test_site_security_blocks_bad_upload_with_dangerous_mime_even_when_extension_looks_safe(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        Route::middleware('web')->post('/demo-security/upload', fn () => response('ok'));
+
+        $this->post('/demo-security/upload?site=site', [
+            'file' => UploadedFile::fake()->create('manual.jpg', 1, 'application/x-httpd-php'),
+        ])
+            ->assertForbidden()
+            ->assertSee('可疑上传拦截');
+    }
+
+    public function test_site_security_escalates_repeated_probe_hits_into_temporary_block(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.scan_probe_enabled' => '1',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '3',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        RateLimiter::clear($this->siteSecurityProbeBlockKey());
+
+        Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
+
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('恶意扫描路径');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('恶意扫描路径');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('扫描试探超限');
+
+        $this->get('/?site=site')->assertForbidden()->assertSee('扫描试探超限');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_probe_abuse' => 2,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'probe_abuse',
+            'rule_name' => '扫描试探超限',
+        ]);
+
+        $this->travel(61)->seconds();
+
+        $this->get('/?site=site')->assertOk();
+    }
+
     public function test_site_security_blocks_frequent_refresh_requests(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -6812,7 +7158,7 @@ XML);
             );
         }
 
-        RateLimiter::clear($this->siteSecurityBlockKey());
+        RateLimiter::clear($this->siteSecurityRateLimitBlockKey());
         RateLimiter::clear($this->siteSecuritySiteWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
 
@@ -6831,6 +7177,47 @@ XML);
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
 
         $this->get('/?site=site')->assertOk();
+    }
+
+    public function test_site_security_rate_limit_block_does_not_get_recorded_as_probe_abuse(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+            'security.scan_probe_enabled' => '1',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        RateLimiter::clear($this->siteSecurityRateLimitBlockKey());
+        RateLimiter::clear($this->siteSecurityProbeBlockKey());
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+
+        $this->get('/?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_rate_limit' => 2,
+            'blocked_probe_abuse' => 0,
+        ]);
     }
 
     public function test_site_media_frequent_refresh_is_counted_by_lightweight_security_guard(): void

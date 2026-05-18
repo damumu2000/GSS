@@ -97,6 +97,7 @@
         'theme-heart' => '<svg viewBox="0 0 24 24"><path d="m12 20-7-7a4.5 4.5 0 0 1 6.36-6.36L12 7.27l.64-.63A4.5 4.5 0 1 1 19 13z"/></svg>',
         'theme-snow' => '<svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="m4.93 6 14.14 12"/><path d="m19.07 6-14.14 12"/><path d="M2 12h20"/></svg>',
         'theme-spark' => '<svg viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+        'external-link' => '<svg viewBox="0 0 24 24"><path d="M14 5h5v5"/><path d="M10 14 19 5"/><path d="M19 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4"/></svg>',
     ];
 
 @endphp
@@ -207,6 +208,12 @@
                             </div>
                         </form>
                     </div>
+                @endif
+                @if ($activeAdminArea === 'site' && $currentSite)
+                    <a class="frontend-visit-link" href="{{ \App\Support\SiteFrontendUrl::homeUrl($currentSite) }}" target="_blank" rel="noopener" data-tooltip="访问前台">
+                        <span class="button-icon">{!! $icons['external-link'] !!}</span>
+                        <span>访问前台</span>
+                    </a>
                 @endif
                 <div class="theme-switcher" data-theme-switcher>
                     <button class="theme-switcher-trigger" type="button" data-theme-trigger data-tooltip="界面风格">

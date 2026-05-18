@@ -8,6 +8,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -18,6 +19,39 @@ abstract class Controller
         $siteId = is_object($site) ? (int) ($site->id ?? 0) : (int) $site;
 
         FrontendPageCache::flushSite($siteId);
+    }
+
+    protected function flushSiteFrontendRuntimeCaches(int|object $site): void
+    {
+        $siteObject = is_object($site)
+            ? $site
+            : DB::table('sites')->where('id', (int) $site)->first(['id', 'site_key']);
+
+        if (! $siteObject || (int) ($siteObject->id ?? 0) <= 0) {
+            return;
+        }
+
+        $this->flushFrontendPageCache((int) $siteObject->id);
+
+        $siteKey = trim((string) ($siteObject->site_key ?? ''));
+        if ($siteKey !== '') {
+            Cache::forget('theme-asset-base:local:'.mb_strtolower($siteKey));
+            Cache::forget('attachment-base:local:'.mb_strtolower($siteKey));
+        }
+
+        $domains = DB::table('site_domains')
+            ->where('site_id', (int) $siteObject->id)
+            ->pluck('domain');
+
+        foreach ($domains as $domain) {
+            $normalized = mb_strtolower(trim((string) $domain));
+            if ($normalized === '') {
+                continue;
+            }
+
+            Cache::forget('theme-asset-base:'.$normalized);
+            Cache::forget('attachment-base:'.$normalized);
+        }
     }
 
     protected function activeSiteTemplate(int|object $site): ?object
