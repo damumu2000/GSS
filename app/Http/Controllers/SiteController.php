@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\EmbeddedContentRenderer;
+use App\Support\FrontendPageCache;
 use App\Support\FrontendDevice;
 use App\Support\Site as SitePath;
 use App\Support\SiteBackendAccess;
@@ -31,6 +32,9 @@ class SiteController extends Controller
         }
         if ($disabled = $this->renderWhenFrontendDisabled($site)) {
             return $disabled;
+        }
+        if ($cached = $this->cachedFrontendPageResponse($request, $site)) {
+            return $cached;
         }
         $this->recordSiteVisit((int) $site->id, 'home');
 
@@ -66,6 +70,9 @@ class SiteController extends Controller
         }
         if ($disabled = $this->renderWhenFrontendDisabled($site)) {
             return $disabled;
+        }
+        if ($cached = $this->cachedFrontendPageResponse($request, $site)) {
+            return $cached;
         }
         $this->recordSiteVisit((int) $site->id, 'channel');
         $settings = $this->siteSettings($site->id);
@@ -181,6 +188,9 @@ class SiteController extends Controller
         if ($disabled = $this->renderWhenFrontendDisabled($site)) {
             return $disabled;
         }
+        if ($cached = $this->cachedFrontendPageResponse($request, $site)) {
+            return $cached;
+        }
         $settings = $this->siteSettings($site->id);
         $themeCode = $this->frontendThemeCode($site->id);
         if ($themeCode === null) {
@@ -266,6 +276,9 @@ class SiteController extends Controller
         }
         if ($disabled = $this->renderWhenFrontendDisabled($site)) {
             return $disabled;
+        }
+        if ($cached = $this->cachedFrontendPageResponse($request, $site)) {
+            return $cached;
         }
         $this->recordSiteVisit((int) $site->id, 'page');
         $settings = $this->siteSettings($site->id);
@@ -689,6 +702,22 @@ class SiteController extends Controller
         ], 503);
     }
 
+    protected function cachedFrontendPageResponse(Request $request, object $site): ?Response
+    {
+        if (! FrontendPageCache::shouldUse($request)) {
+            return null;
+        }
+
+        $cacheKey = FrontendPageCache::key($site, $request, FrontendDevice::mode($request));
+        $cachedHtml = FrontendPageCache::get($cacheKey);
+
+        if ($cachedHtml === null) {
+            return null;
+        }
+
+        return response($cachedHtml)->header('X-Frontend-Page-Cache', 'HIT');
+    }
+
     protected function renderTheme(object $site, string $themeCode, string $template, array $payload): Response
     {
         $request = request();
@@ -706,11 +735,22 @@ class SiteController extends Controller
 
         $payload['current'] = $this->themeCurrentPayload($payload);
         $engine = new ThemeTemplateEngine(SitePath::key($site), $themeCode, $payload['tags']);
+        $cacheKey = FrontendPageCache::shouldUse($request)
+            ? FrontendPageCache::key($site, $request, $device)
+            : null;
+
+        if ($cacheKey !== null && ($cachedHtml = FrontendPageCache::get($cacheKey)) !== null) {
+            return response($cachedHtml)->header('X-Frontend-Page-Cache', 'HIT');
+        }
 
         try {
-            $html = $engine->render($template, $payload);
+            $html = $this->injectSharedFrontendAssets($engine->render($template, $payload), $template);
 
-            return response($this->injectSharedFrontendAssets($html, $template));
+            if ($cacheKey !== null && FrontendPageCache::canStoreHtml($html)) {
+                FrontendPageCache::put($cacheKey, $html);
+            }
+
+            return response($html)->header('X-Frontend-Page-Cache', $cacheKey !== null ? 'MISS' : 'BYPASS');
         } catch (ThemeTemplateException $exception) {
             Log::error('Theme template render failed.', [
                 'site_id' => $site->id,

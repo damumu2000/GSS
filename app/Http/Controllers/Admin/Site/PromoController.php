@@ -179,6 +179,8 @@ class PromoController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.promos.index', $this->promoIndexQuery($request))
             ->with('status', '图宣位已创建。');
@@ -238,6 +240,8 @@ class PromoController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.promos.index', $this->promoIndexQuery($request))
             ->with('status', '图宣位已更新。');
@@ -278,6 +282,8 @@ class PromoController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.promos.index', $this->promoIndexQuery($request))
             ->with('status', '图宣位已删除。');
@@ -314,6 +320,8 @@ class PromoController extends Controller
             ['name' => $positionRecord->name, 'code' => $positionRecord->code, 'status' => $nextStatus],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.promos.index', $this->promoIndexQuery($request))

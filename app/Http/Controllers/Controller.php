@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\FrontendPageCache;
 use App\Support\SiteFrontendUrl;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
@@ -12,6 +13,13 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 abstract class Controller
 {
+    protected function flushFrontendPageCache(int|object $site): void
+    {
+        $siteId = is_object($site) ? (int) ($site->id ?? 0) : (int) $site;
+
+        FrontendPageCache::flushSite($siteId);
+    }
+
     protected function activeSiteTemplate(int|object $site): ?object
     {
         $siteId = is_object($site) ? (int) $site->id : (int) $site;

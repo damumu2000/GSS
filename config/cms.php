@@ -250,4 +250,9 @@ return [
     'static_vendor_manifest_path' => public_path('vendor/vendor-assets.json'),
     'static_vendor_root_path' => base_path(),
     'static_vendor_version_cache_seconds' => 1800,
+
+    'frontend_page_cache' => [
+        'enabled' => filter_var(env('FRONTEND_PAGE_CACHE_ENABLED', env('APP_ENV', 'production') === 'production'), FILTER_VALIDATE_BOOL),
+        'ttl' => (int) env('FRONTEND_PAGE_CACHE_TTL', 300),
+    ],
 ];

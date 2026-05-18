@@ -89,6 +89,8 @@ class RecycleBinController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.recycle-bin.index')
             ->with('status', '内容已恢复。');
@@ -136,6 +138,8 @@ class RecycleBinController extends Controller
             ['title' => $content->title, 'type' => $content->type],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.recycle-bin.index')
@@ -210,6 +214,8 @@ class RecycleBinController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.recycle-bin.index')
             ->with('status', $message);
@@ -265,6 +271,8 @@ class RecycleBinController extends Controller
             ['ids' => $contentIds],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.recycle-bin.index')

@@ -375,6 +375,8 @@ class PlatformSiteController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache((int) $siteId);
+
         return redirect()->route('admin.platform.sites.edit', $siteId)->with('status', '站点信息已更新。');
     }
 
@@ -488,6 +490,8 @@ class PlatformSiteController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache((int) $siteId);
+
         return $this->moduleManagementRedirect($request, (int) $siteId)
             ->with('status', '模块已添加到当前站点。');
     }
@@ -536,6 +540,8 @@ class PlatformSiteController extends Controller
             ],
             $request,
         );
+
+        $this->flushFrontendPageCache((int) $siteId);
 
         return $this->moduleManagementRedirect($request, (int) $siteId)
             ->with('status', '模块状态已更新。');
@@ -587,6 +593,8 @@ class PlatformSiteController extends Controller
             ],
             $request,
         );
+
+        $this->flushFrontendPageCache((int) $siteId);
 
         return $this->moduleManagementRedirect($request, (int) $siteId)
             ->with('status', '模块已移除，所属站点模块数据已同步清理。');

@@ -165,6 +165,8 @@ class SettingController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.settings.index')
             ->with('status', '站点设置已更新。');

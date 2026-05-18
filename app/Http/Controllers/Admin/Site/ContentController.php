@@ -407,6 +407,8 @@ class ContentController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         $route = $type === 'page'
             ? 'admin.pages.index'
             : 'admin.articles.index';
@@ -530,6 +532,8 @@ class ContentController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         $returnTo = (string) $request->input('return_to', '');
         $fallbackUrl = route($type === 'page' ? 'admin.pages.index' : 'admin.articles.index');
 
@@ -582,6 +586,8 @@ class ContentController extends Controller
             ['title' => $content->title, 'type' => $type],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         $fallbackRoute = $type === 'page' ? 'admin.pages.index' : 'admin.articles.index';
         $returnTo = (string) $request->input('return_to', '');
@@ -707,6 +713,8 @@ class ContentController extends Controller
             ['ids' => $contents->pluck('id')->all(), 'type' => $type],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         $fallbackUrl = route($type === 'page' ? 'admin.pages.index' : 'admin.articles.index');
         $returnTo = (string) ($validated['return_to'] ?? '');

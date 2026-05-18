@@ -229,6 +229,8 @@ class ChannelController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.channels.index')
             ->with('status', '栏目已创建。');
@@ -283,6 +285,8 @@ class ChannelController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.channels.index')
             ->with('status', '栏目已更新。');
@@ -328,6 +332,8 @@ class ChannelController extends Controller
             ['name' => $channel->name],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.channels.index')
@@ -380,6 +386,10 @@ class ChannelController extends Controller
             ['ids' => $validated['ids'], 'deleted' => $deleted, 'skipped' => $skipped],
             $request,
         );
+
+        if ($deleted > 0) {
+            $this->flushFrontendPageCache($currentSite);
+        }
 
         return redirect()
             ->route('admin.channels.index')

@@ -89,6 +89,8 @@ class PromoItemController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))
             ->with('status', '图宣内容已创建。');
@@ -128,6 +130,8 @@ class PromoItemController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return response()->json([
             'message' => '图宣内容已创建。',
             'item' => $this->serializeItem($itemRecord),
@@ -165,6 +169,8 @@ class PromoItemController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))
             ->with('status', '图宣内容已更新。');
@@ -198,6 +204,8 @@ class PromoItemController extends Controller
             ['position' => $positionRecord->code, 'attachment_id' => (int) $validated['attachment_id']],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return response()->json([
             'message' => '图宣内容已更新。',
@@ -247,6 +255,8 @@ class PromoItemController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return response()->json([
             'message' => '图宣图片已更新。',
             'item' => $this->serializeItem($updatedRecord),
@@ -277,6 +287,8 @@ class PromoItemController extends Controller
             ['position' => $positionRecord->code, 'attachment_id' => (int) $itemRecord->attachment_id],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))
@@ -313,6 +325,8 @@ class PromoItemController extends Controller
             ['position' => $positionRecord->code, 'status' => $nextStatus],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))
@@ -376,6 +390,8 @@ class PromoItemController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))
             ->with('status', $direction === 'up' ? '图宣内容已上移。' : '图宣内容已下移。');
@@ -438,6 +454,8 @@ class PromoItemController extends Controller
             ],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return response()->json([
             'message' => '图宣内容排序已保存。',
@@ -507,6 +525,8 @@ class PromoItemController extends Controller
             ],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))

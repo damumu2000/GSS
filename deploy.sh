@@ -67,6 +67,7 @@ php artisan migrate --force
 echo "[deploy] refreshing caches..."
 php artisan optimize:clear
 php artisan config:cache
+php artisan route:cache
 php artisan view:cache
 
 if [[ ! -L "public/storage" ]]; then

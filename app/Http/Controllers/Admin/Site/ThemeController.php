@@ -119,6 +119,8 @@ class ThemeController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.themes.index')
             ->with('status', '站点模版已启用。');
@@ -202,6 +204,8 @@ class ThemeController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.themes.index')
             ->with('status', '站点模版已创建。');
@@ -258,6 +262,8 @@ class ThemeController extends Controller
             ['template_key' => $siteTemplate->template_key],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.themes.index')
@@ -530,6 +536,8 @@ class ThemeController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => '模板源码已保存。',
@@ -621,6 +629,8 @@ class ThemeController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId, 'template' => $template])
             ->with('status', '自定义模板已创建。');
@@ -661,6 +671,8 @@ class ThemeController extends Controller
             ['code' => $themeCode, 'template' => $template],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId])
@@ -721,6 +733,8 @@ class ThemeController extends Controller
             ['code' => $themeCode, 'template' => $template, 'version_id' => $version->id],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.themes.editor', ['site_template_id' => $siteTemplateId, 'template' => $template])
@@ -893,6 +907,8 @@ class ThemeController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return redirect()
             ->route('admin.themes.editor', [
                 'site_template_id' => $siteTemplateId,
@@ -932,6 +948,8 @@ class ThemeController extends Controller
             ['code' => $themeCode, 'path' => $assetPath],
             $request,
         );
+
+        $this->flushFrontendPageCache($currentSite);
 
         return redirect()
             ->route('admin.themes.editor', [

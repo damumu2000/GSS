@@ -1,10 +1,12 @@
 <?php
 
 use App\Support\AttachmentUsageTracker;
+use App\Support\FrontendPageCache;
 use App\Support\LegacyAspAccessSiteImporter;
 use App\Support\PromoItemExpiryManager;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -43,6 +45,32 @@ Artisan::command('cms:deactivate-expired-promos', function () {
 
     $this->info("已自动停用 {$affected} 条过期图宣项。");
 })->purpose('自动停用到期后的图宣项');
+
+Artisan::command('cms:clear-frontend-page-cache {siteKey? : 站点标识，不填则刷新全部站点缓存版本}', function () {
+    $siteKey = trim((string) ($this->argument('siteKey') ?? ''));
+
+    $query = DB::table('sites')->orderBy('id');
+    if ($siteKey !== '') {
+        $query->where('site_key', $siteKey);
+    }
+
+    $sites = $query->get(['id', 'name', 'site_key']);
+
+    if ($sites->isEmpty()) {
+        $this->error($siteKey !== '' ? "未找到站点：{$siteKey}" : '未找到任何站点。');
+
+        return 1;
+    }
+
+    foreach ($sites as $site) {
+        FrontendPageCache::flushSite((int) $site->id);
+        $this->line(sprintf('已刷新：%s (%s)', $site->name, $site->site_key));
+    }
+
+    $this->info('前台整页缓存版本已刷新。');
+
+    return 0;
+})->purpose('刷新前台整页缓存版本');
 
 Artisan::command('cms:import-legacy-asp {sourceDir : 旧站导出目录} {siteKey : 新站点标识} {siteName : 新站点名称} {--execute : 实际创建站点并写入数据}', function () {
     $sourceDir = (string) $this->argument('sourceDir');
