@@ -292,6 +292,56 @@ class ThemeManagementTest extends TestCase
         $response->assertHeader('Content-Type', 'text/css; charset=utf-8');
     }
 
+    public function test_theme_asset_route_can_serve_non_active_theme_static_asset_for_same_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, 'seasonal');
+
+        File::ensureDirectoryExists($templateRoot.DIRECTORY_SEPARATOR.'assets');
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'special.json', '{"theme":"seasonal"}');
+
+        $response = $this->get(route('site.theme-asset', [
+            'theme' => 'seasonal',
+            'path' => 'assets/special.json',
+            'site' => $site->site_key,
+        ]));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    public function test_theme_asset_route_rejects_template_source_and_hidden_or_traversal_paths(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->activeTemplateKey($site);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::ensureDirectoryExists($templateRoot.DIRECTORY_SEPARATOR.'assets');
+        File::put($templateRoot.DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'.hidden.css', 'body{display:none;}');
+
+        $this->get(route('site.theme-asset', [
+            'theme' => $themeCode,
+            'path' => 'home.tpl',
+            'site' => $site->site_key,
+        ]))->assertNotFound();
+
+        $this->get(route('site.theme-asset', [
+            'theme' => $themeCode,
+            'path' => 'assets/.hidden.css',
+            'site' => $site->site_key,
+        ]))->assertNotFound();
+
+        $this->get(route('site.theme-asset', [
+            'theme' => $themeCode,
+            'path' => '../list.css',
+            'site' => $site->site_key,
+        ]))->assertStatus(403);
+    }
+
     public function test_theme_asset_directive_omits_site_query_on_bound_domain(): void
     {
         $this->seed(DatabaseSeeder::class);

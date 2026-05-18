@@ -68,6 +68,14 @@ class RuntimeHealthCheck
             'bootstrap/cache' => base_path('bootstrap/cache'),
         ];
 
+        if ((string) config('cache.default') === 'file') {
+            $targets['storage/framework/cache/data'] = (string) config('cache.stores.file.path', storage_path('framework/cache/data'));
+        }
+
+        if ((string) config('session.driver') === 'file') {
+            $targets['storage/framework/sessions'] = (string) config('session.files', storage_path('framework/sessions'));
+        }
+
         $blocked = [];
 
         foreach ($targets as $label => $path) {

@@ -11,16 +11,21 @@ use App\Support\ThemeTags;
 use App\Support\ThemeTemplateEngine;
 use App\Support\ThemeTemplateException;
 use App\Support\ThemeTemplateLocator;
+use DateTimeImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class SiteController extends Controller
 {
+    protected const THEME_ASSET_BASE_CACHE_TTL_SECONDS = 86400;
+
     /**
      * Render the default site homepage with the active theme.
      */
@@ -485,34 +490,35 @@ class SiteController extends Controller
         ]);
     }
 
-    public function themeAsset(Request $request, string $theme, string $path): Response
+    public function themeAsset(Request $request, string $theme, string $path): SymfonyResponse
     {
         abort_unless(preg_match('/^[A-Za-z0-9_-]+$/', $theme) === 1, 404);
 
-        $site = $this->resolveThemeAssetSite($request);
-
-        abort_unless($site, 404);
-        abort_unless($this->frontendThemeCode((int) $site->id) === $theme, 404);
+        $assetBase = $this->resolveThemeAssetBase($request);
+        abort_unless(is_string($assetBase) && $assetBase !== '', 404);
 
         $normalizedPath = ThemeTemplateLocator::normalizeAssetPath($path);
-
         abort_unless($normalizedPath !== null, 404);
+        abort_unless(! $this->themeAssetPathHasHiddenSegments($normalizedPath), 404);
 
-        $resolved = ThemeTemplateLocator::resolveAssetPath($site->site_key, $theme, $normalizedPath);
-        abort_unless($resolved !== null && File::exists($resolved), 404);
+        $themeRoot = storage_path('app/'.$assetBase.DIRECTORY_SEPARATOR.$theme);
+        $resolvedThemeRoot = realpath($themeRoot);
+        abort_unless(is_string($resolvedThemeRoot) && File::isDirectory($resolvedThemeRoot), 404);
+
+        $resolved = realpath($resolvedThemeRoot.DIRECTORY_SEPARATOR.$normalizedPath);
+        abort_unless(is_string($resolved) && File::isFile($resolved), 404);
+        abort_unless($this->themeAssetPathWithinRoot($resolvedThemeRoot, $resolved), 404);
 
         $etag = sha1($resolved.'|'.File::lastModified($resolved).'|'.File::size($resolved));
-        $response = response(File::get($resolved), 200, [
+        $response = response()->file($resolved, [
             'Content-Type' => $this->themeAssetMimeType($resolved),
             'Cache-Control' => 'public, max-age=3600',
-            'ETag' => '"'.$etag.'"',
-            'Last-Modified' => gmdate('D, d M Y H:i:s', File::lastModified($resolved)).' GMT',
         ]);
-
-        if ($request->headers->get('If-None-Match') === '"'.$etag.'"') {
-            $response->setStatusCode(304);
-            $response->setContent(null);
-        }
+        $response->setPublic();
+        $response->setMaxAge(3600);
+        $response->setEtag($etag);
+        $response->setLastModified((new DateTimeImmutable())->setTimestamp(File::lastModified($resolved)));
+        $response->isNotModified($request);
 
         return $response;
     }
@@ -534,21 +540,33 @@ class SiteController extends Controller
         };
     }
 
-    protected function resolveThemeAssetSite(Request $request): ?object
+    protected function resolveThemeAssetBase(Request $request): ?string
     {
         $host = mb_strtolower(trim((string) $request->getHost()));
 
-        if ($host !== '') {
-            $site = DB::table('site_domains')
+        if ($host !== '' && ! in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            $cacheKey = $this->themeAssetBaseCacheKey($host);
+            $cachedBase = Cache::get($cacheKey);
+
+            if (is_string($cachedBase) && $cachedBase !== '') {
+                return $cachedBase;
+            }
+
+            $siteKey = DB::table('site_domains')
                 ->join('sites', 'sites.id', '=', 'site_domains.site_id')
                 ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
                 ->where('site_domains.status', 1)
                 ->where('sites.status', 1)
-                ->first(['sites.id', 'sites.site_key', 'sites.active_site_template_id']);
+                ->value('sites.site_key');
 
-            if ($site) {
-                return $site;
+            if (! is_string($siteKey) || trim($siteKey) === '') {
+                return null;
             }
+
+            $assetBase = SitePath::rootRelative(trim($siteKey)).'/theme';
+            Cache::put($cacheKey, $assetBase, now()->addSeconds(self::THEME_ASSET_BASE_CACHE_TTL_SECONDS));
+
+            return $assetBase;
         }
 
         if (! in_array($host, ['127.0.0.1', 'localhost'], true)) {
@@ -556,17 +574,57 @@ class SiteController extends Controller
         }
 
         $siteKey = trim((string) $request->query('site', ''));
-
-        if ($siteKey === '') {
+        if ($siteKey === '' || preg_match('/^[A-Za-z0-9][A-Za-z0-9\\-]*$/', $siteKey) !== 1) {
             return null;
         }
 
-        $site = DB::table('sites')
+        $cacheKey = $this->themeAssetBaseCacheKey('local', $siteKey);
+        $cachedBase = Cache::get($cacheKey);
+
+        if (is_string($cachedBase) && $cachedBase !== '') {
+            return $cachedBase;
+        }
+
+        $resolvedSiteKey = DB::table('sites')
             ->where('site_key', $siteKey)
             ->where('status', 1)
-            ->first(['id', 'site_key', 'active_site_template_id']);
+            ->value('site_key');
 
-        return $site ?: null;
+        if (! is_string($resolvedSiteKey) || trim($resolvedSiteKey) === '') {
+            return null;
+        }
+
+        $assetBase = SitePath::rootRelative(trim($resolvedSiteKey)).'/theme';
+        Cache::put($cacheKey, $assetBase, now()->addSeconds(self::THEME_ASSET_BASE_CACHE_TTL_SECONDS));
+
+        return $assetBase;
+    }
+
+    protected function themeAssetBaseCacheKey(string $host, ?string $siteKey = null): string
+    {
+        $host = mb_strtolower(trim($host));
+        $suffix = $siteKey !== null && trim($siteKey) !== '' ? ':'.mb_strtolower(trim($siteKey)) : '';
+
+        return 'theme-asset-base:'.$host.$suffix;
+    }
+
+    protected function themeAssetPathHasHiddenSegments(string $path): bool
+    {
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || str_starts_with($segment, '.')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function themeAssetPathWithinRoot(string $root, string $path): bool
+    {
+        $normalizedRoot = rtrim($root, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        $normalizedPath = rtrim($path, DIRECTORY_SEPARATOR);
+
+        return str_starts_with($normalizedPath, $normalizedRoot);
     }
 
     /**

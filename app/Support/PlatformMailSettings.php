@@ -244,11 +244,19 @@ class PlatformMailSettings
 
     public static function recordQueueWorkerHeartbeat(): void
     {
-        Cache::put(self::QUEUE_WORKER_HEARTBEAT_CACHE_KEY, [
-            'timestamp' => time(),
-            'pid' => getmypid(),
-            'connection' => (string) config('queue.default', 'sync'),
-        ], now()->addSeconds(self::QUEUE_WORKER_HEARTBEAT_TTL_SECONDS * 2));
+        try {
+            Cache::put(self::QUEUE_WORKER_HEARTBEAT_CACHE_KEY, [
+                'timestamp' => time(),
+                'pid' => getmypid(),
+                'connection' => (string) config('queue.default', 'sync'),
+            ], now()->addSeconds(self::QUEUE_WORKER_HEARTBEAT_TTL_SECONDS * 2));
+        } catch (\Throwable $exception) {
+            Log::warning('Queue worker heartbeat cache failed.', [
+                'message' => $exception->getMessage(),
+                'connection' => (string) config('queue.default', 'sync'),
+                'pid' => getmypid(),
+            ]);
+        }
     }
 
     public function host(): string
