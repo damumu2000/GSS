@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Support\SystemChecks\MailQueueHealthCheck;
 use App\Support\SystemChecks\StaticVendorHealthCheck;
 use App\Support\SystemChecks\StaticVendorManager;
+use Illuminate\Support\Facades\Cache;
 
 class PlatformSystemStatus
 {
@@ -27,6 +28,8 @@ class PlatformSystemStatus
                 $this->mailQueueStatusItem(),
                 $this->laravelVersionStatusItem(),
                 $this->jqueryVersionStatusItem(),
+                $this->opcacheStatusItem(),
+                $this->frontendPageCacheStatusItem(),
                 $this->imageProcessingStatusItem(),
             ],
         ];
@@ -48,7 +51,7 @@ class PlatformSystemStatus
         };
 
         return [
-            'title' => '邮件服务 / 队列执行状态',
+            'title' => '邮件服务',
             'state' => $state,
             'status_class' => $statusClass,
             'meta' => (string) ($item['details'] ?? ''),
@@ -188,6 +191,127 @@ class PlatformSystemStatus
             'detail' => $upgradeNeeded
                 ? '当前 jQuery 公共库低于最新版本，建议在测试通过后升级。'
                 : '当前 jQuery 公共库已是最新版本。',
+            'action_url' => route('admin.platform.system-checks.index'),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function frontendPageCacheStatusItem(): array
+    {
+        $enabled = FrontendPageCache::enabled();
+        $ttl = FrontendPageCache::ttl();
+        $store = (string) config('cache.default', 'file');
+        $driver = (string) config("cache.stores.{$store}.driver", $store);
+
+        if (! $enabled || $ttl <= 0) {
+            return [
+                'title' => '前台整页缓存',
+                'state' => '未启用',
+                'status_class' => 'draft',
+                'meta' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
+                'detail' => '当前不会缓存前台页面。需要启用时请配置 FRONTEND_PAGE_CACHE_ENABLED=true。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        try {
+            Cache::put('frontend-page-cache:health-check', 'ok', 30);
+            $writable = Cache::get('frontend-page-cache:health-check') === 'ok';
+        } catch (\Throwable $exception) {
+            $writable = false;
+            $message = $exception->getMessage();
+        }
+
+        $fileCachePath = $driver === 'file'
+            ? (string) config("cache.stores.{$store}.path", storage_path('framework/cache/data'))
+            : '';
+
+        if (! $writable) {
+            return [
+                'title' => '前台整页缓存',
+                'state' => '异常',
+                'status_class' => 'draft',
+                'meta' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
+                'detail' => $driver === 'file'
+                    ? '缓存写入失败，请检查目录权限：'.$fileCachePath
+                    : '缓存写入失败：'.($message ?? '请检查缓存服务配置。'),
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        return [
+            'title' => '前台整页缓存',
+            'state' => '正常',
+            'status_class' => 'published',
+            'meta' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
+            'detail' => $driver === 'file'
+                ? '缓存目录可写，前台公开 GET 页面可正常写入整页缓存。'
+                : '缓存服务可写，前台公开 GET 页面可正常写入整页缓存。',
+            'action_url' => route('admin.platform.system-checks.index'),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function opcacheStatusItem(): array
+    {
+        $enabled = filter_var(ini_get('opcache.enable'), FILTER_VALIDATE_BOOL);
+        $cliEnabled = filter_var(ini_get('opcache.enable_cli'), FILTER_VALIDATE_BOOL);
+
+        if (! extension_loaded('Zend OPcache')) {
+            return [
+                'title' => 'OPcache',
+                'state' => '未安装',
+                'status_class' => 'draft',
+                'meta' => 'PHP 扩展未加载',
+                'detail' => '当前 PHP 未加载 Zend OPcache 扩展。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        if (! $enabled) {
+            return [
+                'title' => 'OPcache',
+                'state' => '未启用',
+                'status_class' => 'draft',
+                'meta' => 'Web：关 · CLI：'.($cliEnabled ? '开' : '关'),
+                'detail' => 'OPcache 未对 Web 请求启用，PHP 文件每次请求仍需重新解析。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        $status = function_exists('opcache_get_status') ? @opcache_get_status(false) : false;
+
+        if (! is_array($status)) {
+            return [
+                'title' => 'OPcache',
+                'state' => '已启用',
+                'status_class' => 'published',
+                'meta' => 'Web：开 · CLI：'.($cliEnabled ? '开' : '关'),
+                'detail' => 'OPcache 已启用，但当前无法读取运行统计。',
+                'action_url' => route('admin.platform.system-checks.index'),
+            ];
+        }
+
+        $statistics = is_array($status['opcache_statistics'] ?? null) ? $status['opcache_statistics'] : [];
+        $memory = is_array($status['memory_usage'] ?? null) ? $status['memory_usage'] : [];
+        $hitRate = round((float) ($statistics['opcache_hit_rate'] ?? 0), 1);
+        $usedMemory = (int) ($memory['used_memory'] ?? 0);
+        $freeMemory = (int) ($memory['free_memory'] ?? 0);
+        $totalMemory = max(1, $usedMemory + $freeMemory + (int) ($memory['wasted_memory'] ?? 0));
+        $usedRatio = round(($usedMemory / $totalMemory) * 100, 1);
+        $scripts = (int) ($statistics['num_cached_scripts'] ?? 0);
+        $state = $hitRate >= 90 ? '正常' : ($hitRate > 0 ? '预热中' : '已启用');
+
+        return [
+            'title' => 'OPcache',
+            'state' => $state,
+            'status_class' => $hitRate >= 90 ? 'published' : 'pending',
+            'meta' => '命中率：'.$hitRate.'% · 内存：'.$usedRatio.'% · 脚本：'.$scripts,
+            'detail' => 'OPcache 正在缓存 PHP 编译结果，用于减少 PHP 文件解析开销。',
             'action_url' => route('admin.platform.system-checks.index'),
         ];
     }

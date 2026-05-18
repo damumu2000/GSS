@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class FrontendPageCache
@@ -52,14 +53,24 @@ class FrontendPageCache
 
     public static function get(string $key): ?string
     {
-        $html = Cache::get($key);
+        try {
+            $html = Cache::get($key);
+        } catch (\Throwable $exception) {
+            self::reportCacheFailure('read', $exception);
+
+            return null;
+        }
 
         return is_string($html) && $html !== '' ? $html : null;
     }
 
     public static function put(string $key, string $html): void
     {
-        Cache::put($key, $html, self::ttl());
+        try {
+            Cache::put($key, $html, self::ttl());
+        } catch (\Throwable $exception) {
+            self::reportCacheFailure('write', $exception);
+        }
     }
 
     public static function canStoreHtml(string $html): bool
@@ -78,16 +89,34 @@ class FrontendPageCache
             return;
         }
 
-        Cache::forever(self::siteVersionKey($siteId), self::siteVersion($siteId) + 1);
+        try {
+            Cache::forever(self::siteVersionKey($siteId), self::siteVersion($siteId) + 1);
+        } catch (\Throwable $exception) {
+            self::reportCacheFailure('flush', $exception);
+        }
     }
 
     protected static function siteVersion(int $siteId): int
     {
-        return max(1, (int) Cache::get(self::siteVersionKey($siteId), 1));
+        try {
+            return max(1, (int) Cache::get(self::siteVersionKey($siteId), 1));
+        } catch (\Throwable $exception) {
+            self::reportCacheFailure('version', $exception);
+
+            return 1;
+        }
     }
 
     protected static function siteVersionKey(int $siteId): string
     {
         return 'frontend-page-cache:site:'.$siteId.':version';
+    }
+
+    protected static function reportCacheFailure(string $action, \Throwable $exception): void
+    {
+        Log::warning('Frontend page cache operation failed.', [
+            'action' => $action,
+            'message' => $exception->getMessage(),
+        ]);
     }
 }

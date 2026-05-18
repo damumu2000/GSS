@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 
 class SiteSecurity
@@ -25,14 +26,18 @@ class SiteSecurity
         $host = mb_strtolower(trim((string) $request->getHost()));
 
         if ($host !== '') {
-            $site = Cache::remember('site-security:site-by-host:'.hash('sha256', $host), now('Asia/Shanghai')->addMinute(), function () use ($host): ?object {
-                return DB::table('site_domains')
-                    ->join('sites', 'sites.id', '=', 'site_domains.site_id')
-                    ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
-                    ->where('site_domains.status', 1)
-                    ->where('sites.status', 1)
-                    ->first(['sites.*']);
-            });
+            try {
+                $site = Cache::remember('site-security:site-by-host:'.hash('sha256', $host), now('Asia/Shanghai')->addMinute(), function () use ($host): ?object {
+                    return $this->siteByHost($host);
+                });
+            } catch (\Throwable $exception) {
+                Log::warning('Site security host cache failed.', [
+                    'host' => $host,
+                    'message' => $exception->getMessage(),
+                ]);
+
+                $site = $this->siteByHost($host);
+            }
 
             if ($site) {
                 return $site;
@@ -382,32 +387,52 @@ class SiteSecurity
             return null;
         }
 
-        $window = $this->systemSettings->securityRateLimitWindowSeconds();
-        $maxAttempts = $this->isSensitiveRequest($request)
-            ? $this->systemSettings->securityRateLimitSensitiveMaxRequests()
-            : $this->systemSettings->securityRateLimitMaxRequests();
+        try {
+            $window = $this->systemSettings->securityRateLimitWindowSeconds();
+            $maxAttempts = $this->isSensitiveRequest($request)
+                ? $this->systemSettings->securityRateLimitSensitiveMaxRequests()
+                : $this->systemSettings->securityRateLimitMaxRequests();
 
-        if ($this->isFrontendPageRequest($request)) {
-            $siteWideKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
+            if ($this->isFrontendPageRequest($request)) {
+                $siteWideKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
 
-            if (RateLimiter::tooManyAttempts($siteWideKey, $maxAttempts)) {
+                if (RateLimiter::tooManyAttempts($siteWideKey, $maxAttempts)) {
+                    return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+                }
+
+                RateLimiter::hit($siteWideKey, $window);
+            }
+
+            $key = 'site-security-rate:'.$siteId.':'.sha1(
+                ($request->ip() ?: 'guest').'|'.mb_strtolower($this->normalizedRequestPath($request))
+            );
+
+            if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
                 return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
             }
 
-            RateLimiter::hit($siteWideKey, $window);
+            RateLimiter::hit($key, $window);
+        } catch (\Throwable $exception) {
+            Log::warning('Site security rate limit cache failed.', [
+                'site_id' => $siteId,
+                'path' => $request->path(),
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
         }
-
-        $key = 'site-security-rate:'.$siteId.':'.sha1(
-            ($request->ip() ?: 'guest').'|'.mb_strtolower($this->normalizedRequestPath($request))
-        );
-
-        if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
-            return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
-        }
-
-        RateLimiter::hit($key, $window);
 
         return null;
+    }
+
+    protected function siteByHost(string $host): ?object
+    {
+        return DB::table('site_domains')
+            ->join('sites', 'sites.id', '=', 'site_domains.site_id')
+            ->whereRaw('LOWER(site_domains.domain) = ?', [$host])
+            ->where('site_domains.status', 1)
+            ->where('sites.status', 1)
+            ->first(['sites.*']);
     }
 
     protected function isFrontendPageRequest(Request $request): bool
