@@ -51,7 +51,7 @@ class PlatformSystemStatus
         };
 
         return [
-            'title' => '邮件服务',
+            'title' => '邮件队列服务',
             'state' => $state,
             'status_class' => $statusClass,
             'meta' => (string) ($item['details'] ?? ''),
@@ -84,7 +84,7 @@ class PlatformSystemStatus
             'title' => 'Laravel 版本',
             'state' => $upgradeNeeded ? '可升级' : '已最新',
             'status_class' => $upgradeNeeded ? 'pending' : 'published',
-            'meta' => '当前 v'.$currentVersion.' · 最新 v'.$latestVersion,
+            'meta' => '当前 v'.$currentVersion."\n".'最新 v'.$latestVersion,
             'detail' => $upgradeNeeded
                 ? '当前框架版本低于最新稳定版，建议在测试通过后安排升级。'
                 : '当前框架版本已是最新稳定版。',
@@ -113,10 +113,10 @@ class PlatformSystemStatus
         };
 
         return [
-            'title' => '上传图片自动处理',
+            'title' => '图片处理',
             'state' => $state,
             'status_class' => $statusClass,
-            'meta' => '自动缩小：'.($resizeEnabled ? '开' : '关').' · 自动压缩：'.($compressEnabled ? '开' : '关'),
+            'meta' => '自动缩小：'.($resizeEnabled ? '开' : '关')."\n".'自动压缩：'.($compressEnabled ? '开' : '关'),
             'detail' => '用于控制上传图片时是否自动缩小到限制尺寸，以及是否执行压缩处理。',
             'action_url' => route('admin.platform.settings.index', ['tab' => 'upload']),
         ];
@@ -210,7 +210,7 @@ class PlatformSystemStatus
                 'title' => '前台整页缓存',
                 'state' => '未启用',
                 'status_class' => 'draft',
-                'meta' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
+                'meta' => '缓存驱动：'.$driver."\n".'TTL：'.$ttl.' 秒',
                 'detail' => '当前不会缓存前台页面。需要启用时请配置 FRONTEND_PAGE_CACHE_ENABLED=true。',
                 'action_url' => route('admin.platform.system-checks.index'),
             ];
@@ -233,7 +233,7 @@ class PlatformSystemStatus
                 'title' => '前台整页缓存',
                 'state' => '异常',
                 'status_class' => 'draft',
-                'meta' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
+                'meta' => '缓存驱动：'.$driver."\n".'TTL：'.$ttl.' 秒',
                 'detail' => $driver === 'file'
                     ? '缓存写入失败，请检查目录权限：'.$fileCachePath
                     : '缓存写入失败：'.($message ?? '请检查缓存服务配置。'),
@@ -245,7 +245,7 @@ class PlatformSystemStatus
             'title' => '前台整页缓存',
             'state' => '正常',
             'status_class' => 'published',
-            'meta' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
+            'meta' => '缓存驱动：'.$driver."\n".'TTL：'.$ttl.' 秒',
             'detail' => $driver === 'file'
                 ? '缓存目录可写，前台公开 GET 页面可正常写入整页缓存。'
                 : '缓存服务可写，前台公开 GET 页面可正常写入整页缓存。',
@@ -310,7 +310,7 @@ class PlatformSystemStatus
             'title' => 'OPcache',
             'state' => $state,
             'status_class' => $hitRate >= 90 ? 'published' : 'pending',
-            'meta' => '命中率：'.$hitRate.'% · 内存：'.$usedRatio.'% · 脚本：'.$scripts,
+            'meta' => '命中率：'.$hitRate.'%'."\n".'内存：'.$usedRatio.'% · 脚本：'.$scripts,
             'detail' => 'OPcache 正在缓存 PHP 编译结果，用于减少 PHP 文件解析开销。',
             'action_url' => route('admin.platform.system-checks.index'),
         ];
@@ -324,7 +324,7 @@ class PlatformSystemStatus
             return $current;
         }
 
-        return $current.' · 最新 v'.$latestVersion;
+        return $current."\n".'最新 v'.$latestVersion;
     }
 
     protected function currentLaravelVersion(): string

@@ -223,11 +223,11 @@
 
                 return `
                     <article class="recent-feed-item system-status-item">
-                        <div class="recent-feed-main">
+                        <div class="system-status-head">
                             ${titleMarkup}
-                            <div class="system-status-meta">${meta}</div>
+                            <span class="status-badge recent-feed-status ${statusClass}">${state}</span>
                         </div>
-                        <span class="status-badge recent-feed-status ${statusClass}">${state}</span>
+                        <div class="system-status-meta">${meta}</div>
                     </article>
                 `;
             }).join('');

@@ -38,7 +38,6 @@ class MailQueueHealthCheck
                 'details' => implode(' · ', array_filter([
                     '待执行 '.(string) ($diagnostics['pending_jobs'] ?? '—'),
                     '失败 '.(string) ($diagnostics['failed_jobs'] ?? '—'),
-                    $diagnostics['last_seen_at'] !== '' ? '最近心跳 '.$diagnostics['last_seen_at'] : '',
                 ])),
             ]],
         ];

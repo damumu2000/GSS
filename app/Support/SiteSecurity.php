@@ -392,11 +392,21 @@ class SiteSecurity
             $maxAttempts = $this->isSensitiveRequest($request)
                 ? $this->systemSettings->securityRateLimitSensitiveMaxRequests()
                 : $this->systemSettings->securityRateLimitMaxRequests();
+            $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
+            $blockKey = 'site-security-block:'.$siteId.':'.sha1($request->ip() ?: 'guest');
+
+            if ($blockSeconds > 0 && RateLimiter::tooManyAttempts($blockKey, 1)) {
+                return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+            }
 
             if ($this->isFrontendPageRequest($request)) {
                 $siteWideKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
 
                 if (RateLimiter::tooManyAttempts($siteWideKey, $maxAttempts)) {
+                    if ($blockSeconds > 0) {
+                        RateLimiter::hit($blockKey, $blockSeconds);
+                    }
+
                     return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
                 }
 
@@ -408,6 +418,10 @@ class SiteSecurity
             );
 
             if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
+                if ($blockSeconds > 0) {
+                    RateLimiter::hit($blockKey, $blockSeconds);
+                }
+
                 return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
             }
 

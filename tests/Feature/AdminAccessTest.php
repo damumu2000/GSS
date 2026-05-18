@@ -135,6 +135,16 @@ class AdminAccessTest extends TestCase
         return 'site-security-rate:'.$siteId.':site:'.sha1('127.0.0.1');
     }
 
+    protected function siteSecurityBlockKey(): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-block:'.$siteId.':'.sha1('127.0.0.1');
+    }
+
     protected function disableSiteSecurityRateLimit(): void
     {
         DB::table('system_settings')->updateOrInsert(
@@ -3097,6 +3107,45 @@ XML);
         $this->assertFileExists(public_path(ltrim($faviconPath, '/')));
     }
 
+    public function test_platform_admin_can_save_security_rate_limit_block_seconds_setting(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.settings.update'), [
+                'system_name' => '站群后台',
+                'system_version' => '2.1.0',
+                'current_tab' => 'security',
+                'attachment_allowed_extensions' => 'jpg,jpeg,png,webp,pdf,zip',
+                'attachment_max_size_mb' => 18,
+                'attachment_image_max_size_mb' => 6,
+                'attachment_image_max_width' => 3200,
+                'attachment_image_max_height' => 2400,
+                'attachment_image_auto_resize' => '1',
+                'attachment_image_auto_compress' => '1',
+                'attachment_image_quality' => 76,
+                'admin_enabled' => '1',
+                'admin_disabled_message' => '后台暂时关闭，请联系管理员。',
+                'security_site_protection_enabled' => '1',
+                'security_block_bad_path_enabled' => '1',
+                'security_block_sql_injection_enabled' => '1',
+                'security_block_xss_enabled' => '1',
+                'security_block_path_traversal_enabled' => '1',
+                'security_block_bad_upload_enabled' => '1',
+                'security_rate_limit_enabled' => '1',
+                'security_rate_limit_window_seconds' => '12',
+                'security_rate_limit_max_requests' => '33',
+                'security_rate_limit_sensitive_max_requests' => '9',
+                'security_rate_limit_block_seconds' => '90',
+                'security_event_retention_limit' => '260',
+                'security_stats_retention_days' => '365',
+            ])
+            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'security']))
+            ->assertSessionHas('status', '系统设置已更新。');
+
+        $this->assertSame('90', DB::table('system_settings')->where('setting_key', 'security.rate_limit_block_seconds')->value('setting_value'));
+    }
+
     public function test_platform_admin_can_clear_uploaded_brand_assets(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -4111,6 +4160,21 @@ XML);
         $this->actingAs($operator)
             ->get('/admin')
             ->assertRedirect(route('admin.site-dashboard'));
+    }
+
+    public function test_authenticated_user_visiting_login_is_redirected_to_admin_entry(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('login'))
+            ->assertRedirect(route('admin.entry'));
+
+        $operator = $this->createSiteOperator('login-return-site-operator', true, 'editor');
+
+        $this->actingAs($operator)
+            ->get(route('login'))
+            ->assertRedirect(route('admin.entry'));
     }
 
     public function test_unbound_operator_cannot_enter_admin_backend(): void
@@ -6705,6 +6769,7 @@ XML);
             'security.rate_limit_window_seconds' => '10',
             'security.rate_limit_max_requests' => '2',
             'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
         ] as $key => $value) {
             DB::table('system_settings')->updateOrInsert(
                 ['setting_key' => $key],
@@ -6727,6 +6792,45 @@ XML);
             'rule_code' => 'rate_limit',
             'rule_name' => '频繁刷新拦截',
         ]);
+    }
+
+    public function test_site_security_rate_limit_block_persists_for_configured_seconds(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        RateLimiter::clear($this->siteSecurityBlockKey());
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertForbidden();
+
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+
+        $this->get('/?site=site')->assertForbidden();
+
+        $this->travel(61)->seconds();
+
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+
+        $this->get('/?site=site')->assertOk();
     }
 
     public function test_site_media_frequent_refresh_is_counted_by_lightweight_security_guard(): void

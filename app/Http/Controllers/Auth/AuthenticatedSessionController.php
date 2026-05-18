@@ -42,7 +42,7 @@ class AuthenticatedSessionController extends Controller
     public function create(Request $request): View|RedirectResponse|Response
     {
         if (Auth::check()) {
-            return redirect()->route($this->defaultAdminRouteForRequest($request, Auth::id()));
+            return redirect()->route('admin.entry');
         }
 
         $this->ensureLoginDeviceId($request);

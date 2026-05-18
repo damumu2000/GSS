@@ -74,6 +74,7 @@ return new class extends Migration
             'security.rate_limit_window_seconds' => '10',
             'security.rate_limit_max_requests' => '30',
             'security.rate_limit_sensitive_max_requests' => '10',
+            'security.rate_limit_block_seconds' => '60',
             'security.event_retention_limit' => '200',
             'security.stats_retention_days' => '180',
         ];

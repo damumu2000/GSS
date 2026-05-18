@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['admin_theme']);
+        $middleware->redirectUsersTo(fn () => route('admin.entry'));
         $middleware->trustProxies(
             at: env('TRUSTED_PROXIES', '*'),
             headers: Request::HEADER_X_FORWARDED_FOR

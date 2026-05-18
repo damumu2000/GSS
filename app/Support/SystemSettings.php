@@ -206,6 +206,11 @@ class SystemSettings
         return max(1, $this->int('security.rate_limit_sensitive_max_requests', 10));
     }
 
+    public function securityRateLimitBlockSeconds(): int
+    {
+        return max(0, min(86400, $this->int('security.rate_limit_block_seconds', 60)));
+    }
+
     public function securityEventRetentionLimit(): int
     {
         return max(20, $this->int('security.event_retention_limit', 200));
@@ -395,6 +400,7 @@ class SystemSettings
             'security_rate_limit_window_seconds' => $this->securityRateLimitWindowSeconds(),
             'security_rate_limit_max_requests' => $this->securityRateLimitMaxRequests(),
             'security_rate_limit_sensitive_max_requests' => $this->securityRateLimitSensitiveMaxRequests(),
+            'security_rate_limit_block_seconds' => $this->securityRateLimitBlockSeconds(),
             'security_event_retention_limit' => $this->securityEventRetentionLimit(),
             'security_stats_retention_days' => $this->securityStatsRetentionDays(),
             'mail_enabled' => $this->mailEnabled(),

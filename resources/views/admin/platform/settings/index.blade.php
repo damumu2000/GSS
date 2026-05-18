@@ -294,6 +294,12 @@
                 </label>
 
                 <label class="settings-field">
+                    <span class="settings-label">超限限制时长（秒）</span>
+                    <input class="field" type="number" name="security_rate_limit_block_seconds" min="0" max="86400" value="{{ old('security_rate_limit_block_seconds', $settings['security_rate_limit_block_seconds']) }}">
+                    <span class="settings-note">超过阈值后，会按站点与访问 IP 临时限制访问。填 0 表示只按窗口拦截，不追加限制时长。</span>
+                </label>
+
+                <label class="settings-field">
                     <span class="settings-label">最近事件保留条数</span>
                     <input class="field" type="number" name="security_event_retention_limit" min="20" max="1000" value="{{ old('security_event_retention_limit', $settings['security_event_retention_limit']) }}">
                     <span class="settings-note">每个站点只保留最近这么多条拦截记录。</span>

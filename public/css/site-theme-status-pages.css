@@ -117,6 +117,7 @@ body {
 .theme-status-card.is-closed .theme-status-meta-item {
     display: flex;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
@@ -197,6 +198,7 @@ body {
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .theme-status-badge.is-warning {
