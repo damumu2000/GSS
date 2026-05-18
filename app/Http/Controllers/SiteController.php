@@ -777,7 +777,7 @@ class SiteController extends Controller
             ->where('id', $articleId)
             ->value('template_name');
 
-        if (is_string($template) && trim($template) !== '') {
+        if (is_string($template) && trim($template) !== '' && trim($template) !== 'detail') {
             return trim($template);
         }
 
