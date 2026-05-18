@@ -7,9 +7,12 @@ use App\Modules\Payroll\Support\PayrollModule;
 use App\Modules\Payroll\Support\PayrollSettings;
 use App\Support\Modules\ModuleManager;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use RuntimeException;
 
 class LegacyPayrollAttachmentBatchImporter
@@ -46,7 +49,7 @@ class LegacyPayrollAttachmentBatchImporter
             ->orderBy('id')
             ->get(['id', 'month_key', 'salary_file_name', 'performance_file_name', 'status']);
 
-        $fileIndex = $this->buildFileIndex($rootPath);
+        $fileIndex = $this->buildFileIndex($rootPath, $batches);
 
         $summary = [
             'site' => [
@@ -150,6 +153,14 @@ class LegacyPayrollAttachmentBatchImporter
                     $detail[$sheetType]['imported'] = false;
                     $detail[$sheetType]['error'] = $exception->getMessage();
                     $summary['errors'][] = $detail['month_key'].' '.($sheetType === 'salary' ? '工资表' : '绩效表').'解析失败：'.$exception->getMessage();
+                } catch (\Throwable $exception) {
+                    $detail[$sheetType]['imported'] = false;
+                    $detail[$sheetType]['error'] = $exception->getMessage();
+                    $summary['errors'][] = $detail['month_key'].' '.($sheetType === 'salary' ? '工资表' : '绩效表').'导入异常：'.$exception->getMessage();
+                } finally {
+                    if (function_exists('gc_collect_cycles')) {
+                        gc_collect_cycles();
+                    }
                 }
             }
         }
@@ -194,12 +205,39 @@ class LegacyPayrollAttachmentBatchImporter
     /**
      * @return array<string, array<int, string>>
      */
-    protected function buildFileIndex(string $rootPath): array
+    protected function buildFileIndex(string $rootPath, Collection $batches): array
     {
         $index = [];
+        $needed = $batches
+            ->flatMap(fn ($batch) => [
+                mb_strtolower(trim((string) ($batch->salary_file_name ?? ''))),
+                mb_strtolower(trim((string) ($batch->performance_file_name ?? ''))),
+            ])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
-        foreach (File::allFiles($rootPath) as $file) {
+        if ($needed === []) {
+            return $index;
+        }
+
+        $neededLookup = array_fill_keys($needed, true);
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($rootPath, RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if (! $file->isFile()) {
+                continue;
+            }
+
             $basename = mb_strtolower($file->getFilename());
+            if (! isset($neededLookup[$basename])) {
+                continue;
+            }
+
             $index[$basename] ??= [];
             $index[$basename][] = $file->getPathname();
         }

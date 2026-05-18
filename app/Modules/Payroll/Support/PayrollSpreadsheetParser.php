@@ -29,67 +29,76 @@ class PayrollSpreadsheetParser
         $sheets = [];
         $duplicates = [];
 
-        foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
-            $highestRow = $worksheet->getHighestDataRow();
-            $highestColumn = $worksheet->getHighestDataColumn();
+        try {
+            foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
+                $highestRow = $worksheet->getHighestDataRow();
+                $highestColumn = $worksheet->getHighestDataColumn();
 
-            if ($highestRow < 2 || ($highestColumn === 'A' && trim($this->readWorksheetCellValue($worksheet, 1, 1)) === '')) {
-                continue;
-            }
+                if ($highestRow < 2 || ($highestColumn === 'A' && trim($this->readWorksheetCellValue($worksheet, 1, 1)) === '')) {
+                    continue;
+                }
 
-            $rows = $this->extractWorksheetRows($worksheet, $highestRow, $highestColumn);
-            $sheetPayload = $this->parseWorksheet($rows, $worksheet->getTitle(), $sheetType);
+                $rows = $this->extractWorksheetRows($worksheet, $highestRow, $highestColumn);
+                $sheetPayload = $this->parseWorksheet($rows, $worksheet->getTitle(), $sheetType);
 
-            if ($sheetPayload['matched'] === 0) {
+                if ($sheetPayload['matched'] === 0) {
+                    $sheets[] = [
+                        'name' => $worksheet->getTitle(),
+                        'title' => $worksheet->getTitle(),
+                        'mode' => 'skipped',
+                        'matched' => 0,
+                        'reason' => '未识别到可导入的姓名与项目结构',
+                    ];
+
+                    continue;
+                }
+
                 $sheets[] = [
                     'name' => $worksheet->getTitle(),
                     'title' => $worksheet->getTitle(),
-                    'mode' => 'skipped',
-                    'matched' => 0,
-                    'reason' => '未识别到可导入的姓名与项目结构',
+                    'mode' => $sheetPayload['mode'],
+                    'matched' => $sheetPayload['matched'],
+                    'reason' => null,
                 ];
 
-                continue;
+                foreach ($sheetPayload['duplicates'] as $duplicateName) {
+                    $duplicates[$duplicateName] = $duplicateName;
+                }
+
+                foreach ($sheetPayload['records'] as $name => $items) {
+                    if (isset($records[$name])) {
+                        $duplicates[$name] = $name;
+                    }
+
+                    $records[$name] ??= [
+                        'employee_name' => $name,
+                        'sheet_type' => $sheetType,
+                        'items' => [],
+                    ];
+
+                    foreach ($items as $item) {
+                        $this->pushItem($records[$name]['items'], $item['label'], $item['value']);
+                    }
+                }
             }
 
-            $sheets[] = [
-                'name' => $worksheet->getTitle(),
-                'title' => $worksheet->getTitle(),
-                'mode' => $sheetPayload['mode'],
-                'matched' => $sheetPayload['matched'],
-                'reason' => null,
+            return [
+                'records' => array_values(array_map(function (array $record): array {
+                    $record['items'] = array_values($record['items']);
+
+                    return $record;
+                }, $records)),
+                'sheets' => $sheets,
+                'duplicates' => array_values($duplicates),
             ];
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
 
-            foreach ($sheetPayload['duplicates'] as $duplicateName) {
-                $duplicates[$duplicateName] = $duplicateName;
-            }
-
-            foreach ($sheetPayload['records'] as $name => $items) {
-                if (isset($records[$name])) {
-                    $duplicates[$name] = $name;
-                }
-
-                $records[$name] ??= [
-                    'employee_name' => $name,
-                    'sheet_type' => $sheetType,
-                    'items' => [],
-                ];
-
-                foreach ($items as $item) {
-                    $this->pushItem($records[$name]['items'], $item['label'], $item['value']);
-                }
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
             }
         }
-
-        return [
-            'records' => array_values(array_map(function (array $record): array {
-                $record['items'] = array_values($record['items']);
-
-                return $record;
-            }, $records)),
-            'sheets' => $sheets,
-            'duplicates' => array_values($duplicates),
-        ];
     }
 
     /**
