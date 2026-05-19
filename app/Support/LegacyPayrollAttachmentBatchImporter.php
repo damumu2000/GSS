@@ -17,6 +17,11 @@ use RuntimeException;
 
 class LegacyPayrollAttachmentBatchImporter
 {
+    /**
+     * @var array<int, string>
+     */
+    protected array $skipPerformanceMonths = ['2024-10', '2025-02'];
+
     public function __construct(
         protected PayrollImportService $payrollImportService,
         protected PayrollModule $payrollModule,
@@ -121,6 +126,21 @@ class LegacyPayrollAttachmentBatchImporter
             foreach (['salary', 'performance'] as $sheetType) {
                 $resolution = $detail[$sheetType];
                 $status = (string) ($resolution['status'] ?? '');
+
+                if ($sheetType === 'performance' && $this->shouldSkipPerformanceMonth((string) $detail['month_key'])) {
+                    DB::table('module_payroll_records')
+                        ->where('site_id', (int) $site->id)
+                        ->where('batch_id', $batchId)
+                        ->where('sheet_type', 'performance')
+                        ->delete();
+
+                    $detail[$sheetType]['imported'] = false;
+                    $detail[$sheetType]['skipped'] = true;
+                    $detail[$sheetType]['reason'] = '按导入规则跳过该月份绩效表，并清空现有绩效明细。';
+                    $summary['warnings'][] = $detail['month_key'].' 绩效表按规则跳过，并清空现有绩效明细。';
+
+                    continue;
+                }
 
                 if ($status !== 'found') {
                     if ($status === 'missing') {
@@ -297,6 +317,11 @@ class LegacyPayrollAttachmentBatchImporter
             true
         );
 
-        return $this->payrollImportService->import($siteId, $batchId, $uploadedFile, $sheetType);
+        return $this->payrollImportService->import($siteId, $batchId, $uploadedFile, $sheetType, true);
+    }
+
+    protected function shouldSkipPerformanceMonth(string $monthKey): bool
+    {
+        return in_array($monthKey, $this->skipPerformanceMonths, true);
     }
 }

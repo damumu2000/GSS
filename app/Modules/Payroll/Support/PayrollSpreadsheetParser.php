@@ -14,7 +14,7 @@ class PayrollSpreadsheetParser
     /**
      * @return array{records: array<int, array<string, mixed>>, sheets: array<int, array<string, mixed>>, duplicates: array<int, string>}
      */
-    public function parse(string $path, string $sheetType): array
+    public function parse(string $path, string $sheetType, bool $keepFirstDuplicateRecord = false): array
     {
         $reader = IOFactory::createReaderForFile($path);
         if (method_exists($reader, 'setReadDataOnly')) {
@@ -39,7 +39,7 @@ class PayrollSpreadsheetParser
                 }
 
                 $rows = $this->extractWorksheetRows($worksheet, $highestRow, $highestColumn);
-                $sheetPayload = $this->parseWorksheet($rows, $worksheet->getTitle(), $sheetType);
+                $sheetPayload = $this->parseWorksheet($rows, $worksheet->getTitle(), $sheetType, $keepFirstDuplicateRecord);
 
                 if ($sheetPayload['matched'] === 0) {
                     $sheets[] = [
@@ -68,6 +68,10 @@ class PayrollSpreadsheetParser
                 foreach ($sheetPayload['records'] as $name => $items) {
                     if (isset($records[$name])) {
                         $duplicates[$name] = $name;
+
+                        if ($keepFirstDuplicateRecord) {
+                            continue;
+                        }
                     }
 
                     $records[$name] ??= [
@@ -147,19 +151,19 @@ class PayrollSpreadsheetParser
      * @param  array<int, array<string, mixed>>  $rows
      * @return array{mode: string, matched: int, records: array<string, array<int, array{label: string, value: string}>>, duplicates: array<int, string>}
      */
-    protected function parseWorksheet(array $rows, string $sheetTitle, string $sheetType): array
+    protected function parseWorksheet(array $rows, string $sheetTitle, string $sheetType, bool $keepFirstDuplicateRecord = false): array
     {
         if ($this->looksLikeHorizontalSheet($rows)) {
             return [
                 'mode' => 'horizontal',
-                ...$this->parseHorizontalSheet($rows),
+                ...$this->parseHorizontalSheet($rows, $keepFirstDuplicateRecord),
             ];
         }
 
         if ($this->looksLikePairedSheet($rows)) {
             return [
                 'mode' => 'paired',
-                ...$this->parsePairedSheet($rows, $sheetTitle, $sheetType),
+                ...$this->parsePairedSheet($rows, $sheetTitle, $sheetType, $keepFirstDuplicateRecord),
             ];
         }
 
@@ -211,7 +215,7 @@ class PayrollSpreadsheetParser
      * @param  array<int, array<string, mixed>>  $rows
      * @return array{matched: int, records: array<string, array<int, array{label: string, value: string}>>, duplicates: array<int, string>}
      */
-    protected function parseHorizontalSheet(array $rows): array
+    protected function parseHorizontalSheet(array $rows, bool $keepFirstDuplicateRecord = false): array
     {
         $headerRow = array_shift($rows) ?? [];
         $columns = array_keys($headerRow);
@@ -238,6 +242,10 @@ class PayrollSpreadsheetParser
 
             if (isset($records[$name])) {
                 $duplicates[$name] = $name;
+
+                if ($keepFirstDuplicateRecord) {
+                    continue;
+                }
             }
 
             $items = [
@@ -269,7 +277,7 @@ class PayrollSpreadsheetParser
      * @param  array<int, array<string, mixed>>  $rows
      * @return array{matched: int, records: array<string, array<int, array{label: string, value: string}>>, duplicates: array<int, string>}
      */
-    protected function parsePairedSheet(array $rows, string $sheetTitle, string $sheetType): array
+    protected function parsePairedSheet(array $rows, string $sheetTitle, string $sheetType, bool $keepFirstDuplicateRecord = false): array
     {
         $headerRow = array_shift($rows) ?? [];
         $headers = array_values($headerRow);
@@ -307,6 +315,10 @@ class PayrollSpreadsheetParser
 
                 if (isset($records[$name])) {
                     $duplicates[$name] = $name;
+
+                    if ($keepFirstDuplicateRecord) {
+                        continue;
+                    }
                 }
 
                 $records[$name] ??= [
