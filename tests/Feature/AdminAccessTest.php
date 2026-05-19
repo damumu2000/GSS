@@ -2096,6 +2096,45 @@ XML);
         $this->assertNotSame($defaultTemplateId, (int) DB::table('sites')->where('id', $siteId)->value('active_site_template_id'));
     }
 
+    public function test_cms_bootstrap_seeder_does_not_recreate_demo_site_content_for_existing_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_domains')
+            ->where('site_id', $siteId)
+            ->where('domain', 'site.local')
+            ->delete();
+
+        DB::table('contents')
+            ->where('site_id', $siteId)
+            ->where('slug', 'platform-welcome-notice')
+            ->delete();
+
+        DB::table('channels')
+            ->where('site_id', $siteId)
+            ->where('slug', 'platform-notices')
+            ->delete();
+
+        $this->seed(CmsBootstrapSeeder::class);
+
+        $this->assertDatabaseMissing('site_domains', [
+            'site_id' => $siteId,
+            'domain' => 'site.local',
+        ]);
+
+        $this->assertDatabaseMissing('channels', [
+            'site_id' => $siteId,
+            'slug' => 'platform-notices',
+        ]);
+
+        $this->assertDatabaseMissing('contents', [
+            'site_id' => $siteId,
+            'slug' => 'platform-welcome-notice',
+        ]);
+    }
+
     public function test_guestbook_notification_job_sends_mail_using_site_contact_email_fallback(): void
     {
         $this->seed(DatabaseSeeder::class);

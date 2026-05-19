@@ -189,12 +189,7 @@ class CmsBootstrapSeeder extends Seeder
             $siteWasCreated = true;
         }
 
-        $siteTemplateId = DB::table('site_templates')
-            ->where('site_id', $siteId)
-            ->where('template_key', 'default')
-            ->value('id');
-
-        if (! $siteTemplateId) {
+        if ($siteWasCreated) {
             $siteTemplateId = DB::table('site_templates')->insertGetId([
                 'site_id' => $siteId,
                 'name' => '默认模板',
@@ -204,123 +199,116 @@ class CmsBootstrapSeeder extends Seeder
                 'updated_at' => $now,
             ]);
             $templateWasCreated = true;
-        }
 
-        $sitePayload = [
-            'template_limit' => max(1, (int) (DB::table('sites')->where('id', $siteId)->value('template_limit') ?: 5)),
-            'updated_at' => $now,
-        ];
+            DB::table('sites')
+                ->where('id', $siteId)
+                ->update([
+                    'template_limit' => max(1, (int) (DB::table('sites')->where('id', $siteId)->value('template_limit') ?: 5)),
+                    'active_site_template_id' => $siteTemplateId,
+                    'updated_at' => $now,
+                ]);
 
-        $currentActiveTemplateId = DB::table('sites')->where('id', $siteId)->value('active_site_template_id');
-
-        if ($siteWasCreated || ! $currentActiveTemplateId) {
-            $sitePayload['active_site_template_id'] = $siteTemplateId;
-        }
-
-        DB::table('sites')
-            ->where('id', $siteId)
-            ->update($sitePayload);
-
-        if ($siteWasCreated || $templateWasCreated) {
-            $templateRoot = SitePath::siteTemplateRoot('site', 'default');
-            ThemeTemplateScaffold::copyDefaultFiles($templateRoot);
-        }
-
-        DB::table('site_domains')->updateOrInsert(
-            ['domain' => 'site.local'],
-            [
-                'site_id' => $siteId,
-                'is_primary' => 1,
-                'status' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ],
-        );
-
-        $defaultSiteRolePermissions = config('cms.default_site_role_permissions', []);
-
-        foreach ($defaultSiteRolePermissions as $roleCode => $permissionCodes) {
-            $roleId = DB::table('site_roles')
-                ->where('code', $roleCode)
-                ->whereNull('site_id')
-                ->value('id');
-
-            if (! $roleId) {
-                continue;
+            if ($templateWasCreated) {
+                $templateRoot = SitePath::siteTemplateRoot('site', 'default');
+                ThemeTemplateScaffold::copyDefaultFiles($templateRoot);
             }
 
-            foreach ($permissionCodes as $permissionCode) {
-                $permissionId = DB::table('site_permissions')
-                    ->where('code', $permissionCode)
+            DB::table('site_domains')->updateOrInsert(
+                ['domain' => 'site.local'],
+                [
+                    'site_id' => $siteId,
+                    'is_primary' => 1,
+                    'status' => 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+            );
+
+            $defaultSiteRolePermissions = config('cms.default_site_role_permissions', []);
+
+            foreach ($defaultSiteRolePermissions as $roleCode => $permissionCodes) {
+                $roleId = DB::table('site_roles')
+                    ->where('code', $roleCode)
+                    ->whereNull('site_id')
                     ->value('id');
 
-                if (! $permissionId) {
+                if (! $roleId) {
                     continue;
                 }
 
+                foreach ($permissionCodes as $permissionCode) {
+                    $permissionId = DB::table('site_permissions')
+                        ->where('code', $permissionCode)
+                        ->value('id');
+
+                    if (! $permissionId) {
+                        continue;
+                    }
+
+                    DB::table('site_role_permissions')->updateOrInsert(
+                        ['site_id' => $siteId, 'role_id' => $roleId, 'permission_id' => $permissionId],
+                        ['created_at' => $now, 'updated_at' => $now],
+                    );
+                }
+            }
+
+            $moduleUsePermissionId = DB::table('site_permissions')
+                ->where('code', 'module.use')
+                ->value('id');
+
+            $siteAdminRoleId = DB::table('site_roles')
+                ->where('code', 'site_admin')
+                ->whereNull('site_id')
+                ->value('id');
+
+            if ($moduleUsePermissionId && $siteAdminRoleId && $siteId) {
                 DB::table('site_role_permissions')->updateOrInsert(
-                    ['site_id' => $siteId, 'role_id' => $roleId, 'permission_id' => $permissionId],
+                    ['site_id' => $siteId, 'role_id' => $siteAdminRoleId, 'permission_id' => $moduleUsePermissionId],
                     ['created_at' => $now, 'updated_at' => $now],
                 );
             }
-        }
 
-        $moduleUsePermissionId = DB::table('site_permissions')
-            ->where('code', 'module.use')
-            ->value('id');
-
-        $siteAdminRoleId = DB::table('site_roles')
-            ->where('code', 'site_admin')
-            ->whereNull('site_id')
-            ->value('id');
-
-        if ($moduleUsePermissionId && $siteAdminRoleId && $siteId) {
-            DB::table('site_role_permissions')->updateOrInsert(
-                ['site_id' => $siteId, 'role_id' => $siteAdminRoleId, 'permission_id' => $moduleUsePermissionId],
-                ['created_at' => $now, 'updated_at' => $now],
-            );
-        }
-
-        DB::table('channels')->updateOrInsert(
-            ['site_id' => $siteId, 'slug' => 'platform-notices'],
-            [
-                'parent_id' => null,
-                'name' => '平台公告',
-                'type' => 'list',
-                'path' => '/platform-notices',
-                'depth' => 0,
-                'sort' => 0,
-                'status' => 1,
-                'is_nav' => 0,
-                'created_by' => $superAdminId,
-                'updated_by' => $superAdminId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ],
-        );
-
-        $platformNoticeChannelId = DB::table('channels')
-            ->where('site_id', $siteId)
-            ->where('slug', 'platform-notices')
-            ->value('id');
-
-        if ($platformNoticeChannelId) {
-            DB::table('contents')->updateOrInsert(
-                ['site_id' => $siteId, 'channel_id' => $platformNoticeChannelId, 'slug' => 'platform-welcome-notice'],
+            DB::table('channels')->updateOrInsert(
+                ['site_id' => $siteId, 'slug' => 'platform-notices'],
                 [
-                    'type' => 'article',
-                    'title' => '平台公告发布通道已启用',
-                    'summary' => '这里用于统一发布平台更新、安全提醒与系统维护通知。',
-                    'content' => '<p>平台公告栏目已启用。后续可在此统一发布平台更新、安全提醒、维护窗口与服务通知。</p>',
-                    'status' => 'published',
-                    'audit_status' => 'approved',
-                    'published_at' => $now,
+                    'parent_id' => null,
+                    'name' => '平台公告',
+                    'type' => 'list',
+                    'path' => '/platform-notices',
+                    'depth' => 0,
+                    'sort' => 0,
+                    'status' => 1,
+                    'is_nav' => 0,
                     'created_by' => $superAdminId,
                     'updated_by' => $superAdminId,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
             );
+
+            $platformNoticeChannelId = DB::table('channels')
+                ->where('site_id', $siteId)
+                ->where('slug', 'platform-notices')
+                ->value('id');
+
+            if ($platformNoticeChannelId) {
+                DB::table('contents')->updateOrInsert(
+                    ['site_id' => $siteId, 'channel_id' => $platformNoticeChannelId, 'slug' => 'platform-welcome-notice'],
+                    [
+                        'type' => 'article',
+                        'title' => '平台公告发布通道已启用',
+                        'summary' => '这里用于统一发布平台更新、安全提醒与系统维护通知。',
+                        'content' => '<p>平台公告栏目已启用。后续可在此统一发布平台更新、安全提醒、维护窗口与服务通知。</p>',
+                        'status' => 'published',
+                        'audit_status' => 'approved',
+                        'published_at' => $now,
+                        'created_by' => $superAdminId,
+                        'updated_by' => $superAdminId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ],
+                );
+            }
         }
     }
 

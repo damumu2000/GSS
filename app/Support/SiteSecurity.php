@@ -260,7 +260,10 @@ class SiteSecurity
 
         $regionCounts = [];
         foreach ($regionRows as $row) {
-            $label = trim((string) ($row->region_name ?? '')) ?: $this->resolveAttackRegionLabel((string) $row->client_ip);
+            $label = $this->normalizeAttackRegionDisplayLabel(
+                trim((string) ($row->region_name ?? '')),
+                (string) ($row->client_ip ?? '')
+            );
             $regionCounts[$label] = ($regionCounts[$label] ?? 0) + 1;
         }
 
@@ -732,16 +735,27 @@ class SiteSecurity
                     $region = trim((string) ($record['region'] ?? ''));
                     $city = trim((string) ($record['city'] ?? ''));
                     $country = trim((string) ($record['country_name'] ?? ''));
-                    $label = $region !== '' ? $region : ($city !== '' ? $city : $country);
-                    if ($label !== '') {
-                        return $label;
+                    $countryCode = strtoupper(trim((string) ($record['country_code'] ?? '')));
+
+                    if ($this->isDomesticAttackCountry($countryCode, $country)) {
+                        $label = $this->normalizeDomesticAttackRegionLabel($region, $city);
+
+                        if ($label !== '') {
+                            return $label;
+                        }
+
+                        return '国内网络';
+                    }
+
+                    if ($country !== '') {
+                        return $country;
                     }
                 }
             } catch (\Throwable) {
             }
         }
 
-        return '公网来源';
+        return '国外网络';
     }
 
     protected function resolveAttackRegionLabelCached(string $ip): string
@@ -761,6 +775,46 @@ class SiteSecurity
         return Cache::remember($cacheKey, now('Asia/Shanghai')->addDays(7), function () use ($ip): string {
             return $this->resolveAttackRegionLabel($ip);
         });
+    }
+
+    protected function normalizeAttackRegionDisplayLabel(string $storedLabel, string $ip): string
+    {
+        $storedLabel = trim($storedLabel);
+
+        if ($storedLabel !== '' && ! in_array($storedLabel, ['公网来源', '未知来源'], true)) {
+            if (in_array($storedLabel, ['本地测试环境', '内网来源', '国内网络', '国外网络'], true)) {
+                return $storedLabel;
+            }
+
+            return $storedLabel;
+        }
+
+        return $this->resolveAttackRegionLabelCached($ip);
+    }
+
+    protected function isDomesticAttackCountry(string $countryCode, string $country): bool
+    {
+        if ($countryCode === 'CN') {
+            return true;
+        }
+
+        return in_array(mb_strtolower($country), ['china', '中国', '中华人民共和国'], true);
+    }
+
+    protected function normalizeDomesticAttackRegionLabel(string $region, string $city): string
+    {
+        $region = trim($region);
+        $city = trim($city);
+
+        if ($region !== '') {
+            return $region;
+        }
+
+        if ($city !== '') {
+            return $city;
+        }
+
+        return '';
     }
 
     protected function pruneEvents(int $siteId): void
