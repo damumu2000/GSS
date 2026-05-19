@@ -824,12 +824,23 @@ class PayrollController extends SiteController
             'wechat_avatar' => $identity['avatar'] ?: $employee->wechat_avatar,
         ]);
 
-        $updates = [
-            'name' => $sanitizedName,
-            'wechat_nickname' => $resolvedEmployee->wechat_nickname,
-            'wechat_unionid' => $resolvedEmployee->wechat_unionid,
-            'wechat_avatar' => $resolvedEmployee->wechat_avatar,
-        ];
+        $updates = [];
+
+        if ((string) $employee->name !== $sanitizedName) {
+            $updates['name'] = $sanitizedName;
+        }
+
+        if ((string) $employee->wechat_nickname !== (string) $resolvedEmployee->wechat_nickname) {
+            $updates['wechat_nickname'] = $resolvedEmployee->wechat_nickname;
+        }
+
+        if ((string) $employee->wechat_unionid !== (string) $resolvedEmployee->wechat_unionid) {
+            $updates['wechat_unionid'] = $resolvedEmployee->wechat_unionid;
+        }
+
+        if ((string) $employee->wechat_avatar !== (string) $resolvedEmployee->wechat_avatar) {
+            $updates['wechat_avatar'] = $resolvedEmployee->wechat_avatar;
+        }
 
         if (! $request->session()->has($this->loginSessionKey((int) $site->id, (int) $employee->id))) {
             $updates['last_login_at'] = now();
@@ -846,9 +857,11 @@ class PayrollController extends SiteController
             $request->session()->put($this->loginSessionKey((int) $site->id, (int) $employee->id), true);
         }
 
-        DB::table('module_payroll_employees')
-            ->where('id', $employee->id)
-            ->update(array_merge($updates, ['updated_at' => now()]));
+        if ($updates !== []) {
+            DB::table('module_payroll_employees')
+                ->where('id', $employee->id)
+                ->update(array_merge($updates, ['updated_at' => now()]));
+        }
 
         return $resolvedEmployee;
     }

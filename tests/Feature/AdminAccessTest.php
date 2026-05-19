@@ -3063,6 +3063,104 @@ XML);
             ->assertSee('我的薪资信息列表');
     }
 
+    public function test_payroll_frontend_same_session_does_not_rewrite_employee_when_profile_is_unchanged(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.payroll.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        $employeeId = (int) DB::table('module_payroll_employees')->insertGetId([
+            'site_id' => $siteId,
+            'wechat_openid' => 'wx-no-rewrite-user',
+            'wechat_unionid' => 'union-no-rewrite',
+            'wechat_nickname' => '稳定昵称',
+            'wechat_avatar' => 'https://example.com/avatar.png',
+            'name' => '稳定老师',
+            'mobile' => '13800138009',
+            'status' => 'approved',
+            'password_enabled' => 0,
+            'password_hash' => null,
+            'approved_at' => now(),
+            'last_login_at' => null,
+            'last_login_ip' => null,
+            'created_at' => now(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        $batchId = (int) DB::table('module_payroll_batches')->insertGetId([
+            'site_id' => $siteId,
+            'month_key' => '2026-05',
+            'status' => 'imported',
+            'salary_file_name' => 'salary.xlsx',
+            'performance_file_name' => 'performance.xlsx',
+            'imported_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('module_payroll_records')->insert([
+            'site_id' => $siteId,
+            'batch_id' => $batchId,
+            'employee_name' => '稳定老师',
+            'sheet_type' => 'salary',
+            'items_json' => json_encode([['label' => '姓名', 'value' => '稳定老师']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'row_hash' => hash('sha256', 'no-rewrite-salary'),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $identitySession = [
+            'payroll.identity.'.$siteId => [
+                'openid' => 'wx-no-rewrite-user',
+                'unionid' => 'union-no-rewrite',
+                'nickname' => '稳定昵称',
+                'avatar' => 'https://example.com/avatar.png',
+            ],
+        ];
+
+        $this->withSession($identitySession)
+            ->get(route('site.payroll.index', ['site' => 'site']))
+            ->assertOk();
+
+        $firstUpdatedAt = DB::table('module_payroll_employees')
+            ->where('id', $employeeId)
+            ->value('updated_at');
+
+        $loginSession = array_merge($identitySession, [
+            'payroll.login.'.$siteId.'.'.$employeeId => true,
+        ]);
+
+        $this->travel(5)->seconds();
+
+        $this->withSession($loginSession)
+            ->get(route('site.payroll.index', ['site' => 'site']))
+            ->assertOk();
+
+        $secondUpdatedAt = DB::table('module_payroll_employees')
+            ->where('id', $employeeId)
+            ->value('updated_at');
+
+        $this->assertSame((string) $firstUpdatedAt, (string) $secondUpdatedAt);
+        $this->assertSame(1, DB::table('module_payroll_login_logs')
+            ->where('site_id', $siteId)
+            ->where('employee_id', $employeeId)
+            ->count());
+    }
+
     public function test_payroll_frontend_logout_redirects_to_logged_out_page_and_clears_session(): void
     {
         $this->seed(DatabaseSeeder::class);
