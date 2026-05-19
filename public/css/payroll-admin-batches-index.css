@@ -293,6 +293,9 @@
     line-height: 1;
     text-decoration: none;
     transition: all 0.2s;
+    white-space: nowrap;
+    word-break: keep-all;
+    writing-mode: horizontal-tb;
 }
 .payroll-pagination .pagination-page {
     width: 32px;
@@ -304,6 +307,12 @@
     min-width: auto;
     padding: 0 4px;
     color: #4b5563;
+}
+.payroll-pagination .pagination-button span,
+.payroll-pagination .pagination-page span {
+    white-space: nowrap;
+    word-break: keep-all;
+    writing-mode: horizontal-tb;
 }
 .payroll-pagination .pagination-button:hover,
 .payroll-pagination .pagination-page:hover {

@@ -124,7 +124,3 @@
         </section>
     </div>
 @endsection
-
-@push('scripts')
-    <script src="{{ asset('js/payroll-admin-employees-index.js') }}"></script>
-@endpush

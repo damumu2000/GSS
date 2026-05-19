@@ -172,6 +172,18 @@
     color: #374151;
     font-size: 12px;
     font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.payroll-action-button:hover,
+.payroll-action-button:focus-visible {
+    border-color: #d1d5db;
+    background: #f8fafc;
+    color: #111827;
+}
+.payroll-action-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
 }
 .payroll-action-button.is-primary {
     border-color: rgba(0, 80, 179, 0.14);
@@ -219,6 +231,9 @@
     line-height: 1;
     text-decoration: none;
     transition: all 0.2s;
+    white-space: nowrap;
+    word-break: keep-all;
+    writing-mode: horizontal-tb;
 }
 .payroll-pagination .pagination-page {
     width: 32px;
@@ -230,6 +245,12 @@
     min-width: auto;
     padding: 0 4px;
     color: #4b5563;
+}
+.payroll-pagination .pagination-button span,
+.payroll-pagination .pagination-page span {
+    white-space: nowrap;
+    word-break: keep-all;
+    writing-mode: horizontal-tb;
 }
 .payroll-pagination .pagination-button:hover,
 .payroll-pagination .pagination-page:hover {

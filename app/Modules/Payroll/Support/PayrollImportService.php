@@ -16,11 +16,11 @@ class PayrollImportService
     /**
      * @return array{matched: int, sheets: array<int, array<string, mixed>>, imported_at: string}
      */
-    public function import(int $siteId, int $batchId, UploadedFile $file, string $sheetType, bool $ignoreDuplicateRows = false): array
+    public function import(int $siteId, int $batchId, UploadedFile $file, string $sheetType): array
     {
-        $payload = $this->parser->parse($file->getRealPath(), $sheetType, $ignoreDuplicateRows);
+        $payload = $this->parser->parse($file->getRealPath(), $sheetType);
 
-        if (! $ignoreDuplicateRows && ! empty($payload['duplicates'])) {
+        if (! empty($payload['duplicates'])) {
             $duplicateName = (string) ($payload['duplicates'][0] ?? '');
 
             throw new InvalidArgumentException('检测到姓名“'.$duplicateName.'”重复，请检查后重新提交。');
