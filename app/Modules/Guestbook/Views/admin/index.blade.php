@@ -92,13 +92,13 @@
                             </div>
                             <div class="guestbook-badges">
                                 <span class="guestbook-badge {{ $message['is_read'] ? 'is-info' : 'is-warning' }}">{{ $message['read_label'] }}</span>
-                                <span class="guestbook-badge {{ $message['status'] === 'replied' ? 'is-success' : 'is-warning' }}">{{ $message['status_label'] }}</span>
+                                <span class="guestbook-badge {{ $message['status'] === 'pending' ? 'is-warning' : 'is-success' }}">{{ $message['status_label'] }}</span>
                                 <span class="guestbook-visibility-badge {{ $message['is_public'] ? 'is-public' : 'is-hidden' }}">{{ $message['is_public'] ? '已公开' : '未公开' }}</span>
                             </div>
                         </div>
                         <div class="guestbook-item-summary">{{ $message['summary'] }}</div>
                         <div class="guestbook-item-actions">
-                            <div class="guestbook-action-hint">{{ $message['reply_content'] !== '' ? '已回复，可进入详情继续调整留言内容和回复内容。' : '尚未回复，可进入详情页办理。' }}</div>
+                            <div class="guestbook-action-hint">{{ $message['status'] === 'resolved_offline' ? '已线下办理，如需补充公开回复，可进入详情继续处理。' : ($message['reply_content'] !== '' ? '已回复，可进入详情继续调整留言内容和回复内容。' : '尚未回复，可进入详情页办理。') }}</div>
                             <div class="action-row">
                                 @if ($canDeleteMessage)
                                     <form method="post" action="{{ route('admin.guestbook.destroy', $message['id']) }}" data-confirm-submit data-confirm-text="确认删除这条留言吗？删除后不可恢复。">
@@ -111,6 +111,16 @@
                                     </form>
                                 @endif
                                 <a class="button secondary" href="{{ route('admin.guestbook.show', $message['id']) }}">查看 / 回复</a>
+                                @if ($message['status'] === 'pending')
+                                    <form method="post" action="{{ route('admin.guestbook.resolve-offline', $message['id']) }}" data-confirm-submit data-confirm-text="确认将这条留言标记为已线下办理吗？">
+                                        @csrf
+                                        <input type="hidden" name="keyword" value="{{ $keyword }}">
+                                        <input type="hidden" name="read_status" value="{{ $readStatus }}">
+                                        <input type="hidden" name="reply_status" value="{{ $replyStatus }}">
+                                        <input type="hidden" name="page" value="{{ $messages->currentPage() }}">
+                                        <button class="button secondary" type="submit">已线下办理</button>
+                                    </form>
+                                @endif
                             </div>
                         </div>
                     </article>

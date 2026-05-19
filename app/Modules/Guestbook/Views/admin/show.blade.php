@@ -28,7 +28,7 @@
                 <div class="guestbook-section-desc">当前留言处理状态、浏览状态和前台展示结果会在这里同步显示。</div>
                 <div class="guestbook-badges">
                     <span class="guestbook-badge {{ $message['is_read'] ? 'is-info' : 'is-warning' }}">{{ $message['read_label'] }}</span>
-                    <span class="guestbook-badge {{ $message['status'] === 'replied' ? 'is-success' : 'is-warning' }}">{{ $message['status_label'] }}</span>
+                    <span class="guestbook-badge {{ $message['status'] === 'pending' ? 'is-warning' : 'is-success' }}">{{ $message['status_label'] }}</span>
                     <span class="guestbook-badge {{ $message['is_public'] ? 'is-success' : '' }}">{{ $message['visibility_label'] }}</span>
                 </div>
             </div>
@@ -78,7 +78,7 @@
                     <button class="button secondary guestbook-edit-button" type="button" data-toggle-editor="reply_content" data-label-edit="编辑" data-label-cancel="取消编辑">编辑</button>
                 </div>
                 <div class="guestbook-display" data-editor-display="reply_content" @if ($message['reply_content'] === '' && ! $errors->has('reply_content')) hidden @endif>
-                    <div class="guestbook-content" data-editor-display-content="reply_content">{{ old('reply_content', $message['reply_content']) !== '' ? old('reply_content', $message['reply_content']) : '尚未回复' }}</div>
+                    <div class="guestbook-content" data-editor-display-content="reply_content">{{ old('reply_content', $message['reply_content']) !== '' ? old('reply_content', $message['reply_content']) : ($message['is_offline_resolved'] ? '已线下办理，未填写公开回复。' : '尚未回复') }}</div>
                 </div>
                 <div class="guestbook-editor" data-editor-field="reply_content" @if ($message['reply_content'] !== '' && ! $errors->has('reply_content')) hidden @endif>
                     <div class="guestbook-textarea-wrap">

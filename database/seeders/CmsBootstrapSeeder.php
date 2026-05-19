@@ -164,6 +164,8 @@ class CmsBootstrapSeeder extends Seeder
         }
 
         $siteId = DB::table('sites')->where('site_key', 'site')->value('id');
+        $siteWasCreated = false;
+        $templateWasCreated = false;
 
         if (! $siteId) {
             DB::table('sites')->insert([
@@ -184,6 +186,7 @@ class CmsBootstrapSeeder extends Seeder
             ]);
 
             $siteId = DB::getPdo()->lastInsertId();
+            $siteWasCreated = true;
         }
 
         $siteTemplateId = DB::table('site_templates')
@@ -200,18 +203,28 @@ class CmsBootstrapSeeder extends Seeder
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+            $templateWasCreated = true;
+        }
+
+        $sitePayload = [
+            'template_limit' => max(1, (int) (DB::table('sites')->where('id', $siteId)->value('template_limit') ?: 5)),
+            'updated_at' => $now,
+        ];
+
+        $currentActiveTemplateId = DB::table('sites')->where('id', $siteId)->value('active_site_template_id');
+
+        if ($siteWasCreated || ! $currentActiveTemplateId) {
+            $sitePayload['active_site_template_id'] = $siteTemplateId;
         }
 
         DB::table('sites')
             ->where('id', $siteId)
-            ->update([
-                'template_limit' => max(1, (int) (DB::table('sites')->where('id', $siteId)->value('template_limit') ?: 5)),
-                'active_site_template_id' => $siteTemplateId,
-                'updated_at' => $now,
-            ]);
+            ->update($sitePayload);
 
-        $templateRoot = SitePath::siteTemplateRoot('site', 'default');
-        ThemeTemplateScaffold::copyDefaultFiles($templateRoot);
+        if ($siteWasCreated || $templateWasCreated) {
+            $templateRoot = SitePath::siteTemplateRoot('site', 'default');
+            ThemeTemplateScaffold::copyDefaultFiles($templateRoot);
+        }
 
         DB::table('site_domains')->updateOrInsert(
             ['domain' => 'site.local'],

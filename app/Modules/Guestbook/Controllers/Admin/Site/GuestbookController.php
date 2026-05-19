@@ -51,7 +51,7 @@ class GuestbookController extends Controller
             })
             ->when($readStatus === 'read', fn ($query) => $query->where('is_read', 1))
             ->when($readStatus === 'unread', fn ($query) => $query->where('is_read', 0))
-            ->when($replyStatus === 'replied', fn ($query) => $query->where('status', 'replied'))
+            ->when($replyStatus === 'replied', fn ($query) => $query->whereIn('status', ['replied', 'resolved_offline']))
             ->when($replyStatus === 'pending', fn ($query) => $query->where('status', 'pending'))
             ->orderByDesc('created_at')
             ->paginate(8)
@@ -61,7 +61,7 @@ class GuestbookController extends Controller
         $stats = [
             'total' => (int) DB::table('module_guestbook_messages')->where('site_id', $currentSite->id)->count(),
             'pending' => (int) DB::table('module_guestbook_messages')->where('site_id', $currentSite->id)->where('status', 'pending')->count(),
-            'replied' => (int) DB::table('module_guestbook_messages')->where('site_id', $currentSite->id)->where('status', 'replied')->count(),
+            'replied' => (int) DB::table('module_guestbook_messages')->where('site_id', $currentSite->id)->whereIn('status', ['replied', 'resolved_offline'])->count(),
             'unread' => (int) DB::table('module_guestbook_messages')->where('site_id', $currentSite->id)->where('is_read', 0)->count(),
         ];
 
@@ -137,7 +137,8 @@ class GuestbookController extends Controller
 
         $content = trim((string) ($validated['content'] ?? ''));
         $replyContent = trim((string) ($validated['reply_content'] ?? ''));
-        $isReplied = $replyContent !== '';
+        $nextStatus = $this->resolveNextMessageStatus((string) $message->status, $replyContent);
+        $isReplied = $nextStatus === 'replied';
         $wasReplied = (string) $message->status === 'replied';
         $currentContent = (string) $message->content;
         $canManageMessage = in_array('guestbook.manage', $this->sitePermissionCodes((int) $request->user()->id, (int) $currentSite->id), true);
@@ -163,11 +164,11 @@ class GuestbookController extends Controller
                 'content' => $content,
                 'original_content' => $nextOriginalContent,
                 'reply_content' => $replyContent !== '' ? $replyContent : null,
-                'status' => $isReplied ? 'replied' : 'pending',
+                'status' => $nextStatus,
                 'is_read' => 1,
                 'read_at' => now(),
-                'replied_at' => $isReplied ? now() : null,
-                'replied_by' => $isReplied ? $request->user()->id : null,
+                'replied_at' => $nextStatus === 'pending' ? null : ($message->replied_at ?: now()),
+                'replied_by' => $nextStatus === 'pending' ? null : ((int) ($message->replied_by ?? 0) > 0 ? $message->replied_by : $request->user()->id),
                 'updated_at' => now(),
             ]);
 
@@ -179,7 +180,7 @@ class GuestbookController extends Controller
             $request->user()->id,
             'guestbook_message',
             $message->id,
-            ['display_no' => $message->display_no, 'status' => $isReplied ? 'replied' : 'pending'],
+            ['display_no' => $message->display_no, 'status' => $nextStatus],
             $request,
         );
 
@@ -188,6 +189,48 @@ class GuestbookController extends Controller
         return redirect()
             ->route('admin.guestbook.show', $message->id)
             ->with('status', '留言已更新。');
+    }
+
+    public function resolveOffline(Request $request, string $messageId): RedirectResponse
+    {
+        $currentSite = $this->currentSite($request);
+        $this->authorizeSite($request, (int) $currentSite->id, 'guestbook.reply');
+        $this->resolveModuleOrAbort((int) $currentSite->id);
+
+        $message = $this->findMessageOrAbort((int) $currentSite->id, $messageId);
+
+        DB::table('module_guestbook_messages')
+            ->where('id', $message->id)
+            ->update([
+                'status' => 'resolved_offline',
+                'reply_content' => null,
+                'is_read' => 1,
+                'read_at' => now(),
+                'replied_at' => $message->replied_at ?: now(),
+                'replied_by' => (int) ($message->replied_by ?? 0) > 0 ? $message->replied_by : $request->user()->id,
+                'updated_at' => now(),
+            ]);
+
+        $this->logOperation(
+            'site',
+            'guestbook',
+            'resolve_offline',
+            $currentSite->id,
+            $request->user()->id,
+            'guestbook_message',
+            $message->id,
+            ['display_no' => $message->display_no, 'status' => 'resolved_offline'],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.guestbook.index', array_filter([
+                'keyword' => trim((string) $request->input('keyword', '')),
+                'read_status' => trim((string) $request->input('read_status', '')),
+                'reply_status' => trim((string) $request->input('reply_status', '')),
+                'page' => (int) $request->input('page', 1) > 1 ? (int) $request->input('page', 1) : null,
+            ], static fn ($value): bool => $value !== null && $value !== ''))
+            ->with('status', '留言已标记为线下办理。');
     }
 
     public function destroy(Request $request, string $messageId): RedirectResponse
@@ -411,17 +454,32 @@ class GuestbookController extends Controller
             'original_content' => (string) ($message->original_content ?? ''),
             'summary' => $summary,
             'status' => (string) $message->status,
-            'status_label' => (string) $message->status === 'replied' ? '已办理' : '待办理',
+            'status_label' => $this->messageStatusLabel((string) $message->status),
             'is_read' => (bool) $message->is_read,
             'read_label' => (bool) $message->is_read ? '已浏览' : '未浏览',
             'is_public' => $isPublic,
             'visibility_label' => $isPublic ? '前台显示中' : '未公开',
             'reply_content' => (string) ($message->reply_content ?? ''),
+            'is_offline_resolved' => (string) $message->status === 'resolved_offline',
             'created_at' => $message->created_at,
             'created_at_label' => $message->created_at ? date('Y-m-d H:i', strtotime((string) $message->created_at)) : '',
             'replied_at_label' => $message->replied_at ? date('Y-m-d H:i', strtotime((string) $message->replied_at)) : '',
             'show_name' => (bool) $settings['show_name'],
         ];
+    }
+
+    protected function resolveNextMessageStatus(string $currentStatus, string $replyContent): string
+    {
+        if ($replyContent !== '') {
+            return 'replied';
+        }
+
+        return $currentStatus === 'resolved_offline' ? 'resolved_offline' : 'pending';
+    }
+
+    protected function messageStatusLabel(string $status): string
+    {
+        return $status === 'pending' ? '待办理' : '已办理';
     }
 
     protected function displayNo(int $displayNo): string

@@ -564,7 +564,7 @@ class GuestbookController extends SiteController
             'display_no' => $this->displayNo((int) $message->display_no),
             'content' => (string) $message->content,
             'summary' => $summary,
-            'status_label' => (string) $message->status === 'replied' ? '已办理' : '待办理',
+            'status_label' => (string) $message->status === 'pending' ? '待办理' : '已办理',
             'read_label' => (bool) $message->is_read ? '已浏览' : '未浏览',
             'created_at_label' => $message->created_at ? date('Y-m-d', strtotime((string) $message->created_at)) : '',
             'replied_at_label' => $message->replied_at ? date('Y-m-d', strtotime((string) $message->replied_at)) : '',

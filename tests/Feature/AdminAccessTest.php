@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Support\LegacyAspAccessSiteImporter;
+use Database\Seeders\CmsBootstrapSeeder;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -1949,6 +1950,150 @@ XML);
                 && $job->messageId === $messageId
                 && $job->trigger === 'replied';
         });
+    }
+
+    public function test_guestbook_admin_can_mark_message_resolved_offline(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        $messageId = (int) DB::table('module_guestbook_messages')->insertGetId([
+            'site_id' => $siteId,
+            'display_no' => 601,
+            'name' => '线下办理留言',
+            'phone' => '13800138101',
+            'content' => '这条留言在线下已经处理。',
+            'status' => 'pending',
+            'is_read' => 0,
+            'reply_content' => null,
+            'replied_at' => null,
+            'replied_by' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $siteAdmin = $this->createSiteOperator('guestbook-resolve-offline-admin', true, 'site_admin');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.guestbook.resolve-offline', $messageId), [
+                'keyword' => '线下',
+                'read_status' => 'unread',
+                'reply_status' => 'pending',
+                'page' => 2,
+            ])
+            ->assertRedirect(route('admin.guestbook.index', [
+                'keyword' => '线下',
+                'read_status' => 'unread',
+                'reply_status' => 'pending',
+                'page' => 2,
+            ]));
+
+        $this->assertDatabaseHas('module_guestbook_messages', [
+            'id' => $messageId,
+            'status' => 'resolved_offline',
+            'reply_content' => null,
+            'replied_by' => $siteAdmin->id,
+            'is_read' => 1,
+        ]);
+
+        $this->assertSame(0, DB::table('module_guestbook_messages')
+            ->where('site_id', $siteId)
+            ->where('status', 'pending')
+            ->count());
+    }
+
+    public function test_guestbook_frontend_does_not_show_offline_resolved_message_when_show_after_reply_is_enabled(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        DB::table('module_guestbook_messages')->insert([
+            [
+                'site_id' => $siteId,
+                'display_no' => 701,
+                'name' => '公开回复留言',
+                'phone' => '13800138201',
+                'content' => '这条留言有公开回复。',
+                'status' => 'replied',
+                'is_read' => 1,
+                'reply_content' => '这是公开回复。',
+                'replied_at' => now(),
+                'replied_by' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $siteId,
+                'display_no' => 702,
+                'name' => '线下办理留言',
+                'phone' => '13800138202',
+                'content' => '这条留言线下办理，不应前台公开。',
+                'status' => 'resolved_offline',
+                'is_read' => 1,
+                'reply_content' => null,
+                'replied_at' => now(),
+                'replied_by' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->get(route('site.guestbook.index', ['site' => 'site']))
+            ->assertOk()
+            ->assertSee('这条留言有公开回复。')
+            ->assertDontSee('这条留言线下办理，不应前台公开。');
+
+        $this->get(route('site.guestbook.show', ['site' => 'site', 'displayNo' => 702]))
+            ->assertNotFound();
+    }
+
+    public function test_cms_bootstrap_seeder_does_not_override_existing_site_active_template(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $defaultTemplateId = (int) DB::table('site_templates')
+            ->where('site_id', $siteId)
+            ->where('template_key', 'default')
+            ->value('id');
+
+        $customTemplateId = (int) DB::table('site_templates')->insertGetId([
+            'site_id' => $siteId,
+            'name' => '正式模板',
+            'template_key' => 'formal',
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('sites')->where('id', $siteId)->update([
+            'active_site_template_id' => $customTemplateId,
+            'updated_at' => now(),
+        ]);
+
+        $this->seed(CmsBootstrapSeeder::class);
+
+        $this->assertSame($customTemplateId, (int) DB::table('sites')->where('id', $siteId)->value('active_site_template_id'));
+        $this->assertNotSame($defaultTemplateId, (int) DB::table('sites')->where('id', $siteId)->value('active_site_template_id'));
     }
 
     public function test_guestbook_notification_job_sends_mail_using_site_contact_email_fallback(): void

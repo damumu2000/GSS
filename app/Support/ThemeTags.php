@@ -1776,7 +1776,7 @@ class ThemeTags
             'reply_content' => $replyContent,
             'reply_summary' => $this->guestbookSummary($replyContent, 160),
             'status' => (string) $message->status,
-            'status_label' => (string) $message->status === 'replied' ? '已办理' : '待办理',
+            'status_label' => (string) $message->status === 'pending' ? '待办理' : '已办理',
             'created_at' => $message->created_at,
             'created_at_label' => $message->created_at
                 ? Carbon::parse((string) $message->created_at)->format('Y-m-d')
