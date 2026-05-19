@@ -9,7 +9,6 @@
 <body>
     <div class="shell">
         <div class="topbar">工资查询</div>
-        <div class="subbar">{{ $site->name }}</div>
 
         <section class="panel">
             <div class="icon">薪</div>

@@ -48,24 +48,42 @@ button { font: inherit; }
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    align-items: flex-start;
+    align-items: center;
 }
-.greeting-name { color: #111827; font-size: 16px; font-weight: 700; }
+.greeting-name { color: #111827; font-size: 16px; font-weight: 700; line-height: 1.4; }
 .greeting-actions {
     display: inline-flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     flex-wrap: wrap;
     justify-content: flex-end;
 }
+.greeting-actions form {
+    margin: 0;
+    display: inline-flex;
+}
 .greeting-link {
-    color: var(--danger);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(77, 162, 255, 0.16);
+    background: rgba(255, 255, 255, 0.9);
+    color: #475467;
     font-size: 13px;
     font-weight: 700;
-    background: transparent;
-    border: none;
-    padding: 0;
+    line-height: 1;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+.greeting-link:hover,
+.greeting-link:focus-visible {
+    border-color: rgba(77, 162, 255, 0.34);
+    background: rgba(77, 162, 255, 0.08);
+    color: var(--primary-deep);
+    outline: none;
 }
 .section-title {
     margin-top: 18px;
@@ -100,12 +118,33 @@ button { font: inherit; }
 }
 .month-name { color: #334155; font-size: 15px; font-weight: 600; }
 .month-link {
-    text-align: center;
-    color: var(--danger);
-    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(77, 162, 255, 0.14);
+    background: rgba(77, 162, 255, 0.06);
+    color: var(--primary-deep);
+    font-size: 13px;
     font-weight: 700;
+    line-height: 1;
+    transition: all 0.2s ease;
 }
-.month-link.is-disabled { color: #c0c7d4; pointer-events: none; }
+.month-link:hover,
+.month-link:focus-visible {
+    border-color: rgba(77, 162, 255, 0.28);
+    background: rgba(77, 162, 255, 0.12);
+    color: #165db3;
+    outline: none;
+}
+.month-link.is-disabled {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(255, 255, 255, 0.64);
+    color: #c0c7d4;
+    pointer-events: none;
+}
 .empty-state {
     margin-top: 14px;
     padding: 28px 18px;

@@ -432,7 +432,17 @@ class PayrollController extends SiteController
 
         $request->session()->forget($this->identitySessionKey((int) $site->id));
 
-        return redirect()->route('site.payroll.index', $siteQuery);
+        return redirect()->route('site.payroll.logout.done', $siteQuery);
+    }
+
+    public function logoutDone(Request $request): Response
+    {
+        [$site, , $siteQuery, ] = $this->resolvePayrollContext($request);
+
+        return response()->view('payroll::frontend.logout', [
+            'site' => $site,
+            'siteQuery' => $siteQuery,
+        ]);
     }
 
     public function detail(Request $request, string $batchId, string $type): Response|RedirectResponse

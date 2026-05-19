@@ -9,12 +9,13 @@
 <body>
     <div class="shell">
         <div class="topbar">{{ ! empty($manageMode) ? '密码管理' : '请输入密码' }}</div>
-        <div class="subbar">{{ $site->name }}</div>
 
         <section class="panel">
             <div class="headline">
                 <h1 class="title">{{ ! empty($manageMode) ? '管理自定义密码' : '请输入密码' }}</h1>
-                <a class="back-link" href="{{ route('site.payroll.index', $siteQuery) }}">返回列表</a>
+                @if (! empty($manageMode))
+                    <a class="back-link" href="{{ route('site.payroll.index', $siteQuery) }}">返回列表</a>
+                @endif
             </div>
 
             @if (session('status'))
@@ -69,14 +70,6 @@
                 </div>
             @else
                 <div class="hint">当前账户已开启密码保护，请先输入自定义密码，验证通过后再进入工资信息列表。</div>
-
-                <div class="status-card">
-                    <div>
-                        <strong>当前进入方式</strong>
-                        <span>微信身份已识别成功，本次只需要再完成密码验证即可进入工资查询页面。</span>
-                    </div>
-                    <span class="status-pill">待验证</span>
-                </div>
 
                 <form method="POST" action="{{ route('site.payroll.password.unlock', $siteQuery) }}" data-manage-mode="0">
                     @csrf

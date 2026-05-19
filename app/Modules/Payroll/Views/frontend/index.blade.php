@@ -9,7 +9,6 @@
 <body>
     <div class="shell">
         <div class="topbar">薪资信息列表</div>
-        <div class="subbar">{{ $site->name }}</div>
 
         <section class="panel">
             <div class="greeting">

@@ -2875,6 +2875,61 @@ XML);
             ->assertSee('我的薪资信息列表');
     }
 
+    public function test_payroll_frontend_logout_redirects_to_logged_out_page_and_clears_session(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.payroll.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $employeeId = (int) DB::table('module_payroll_employees')->insertGetId([
+            'site_id' => $siteId,
+            'wechat_openid' => 'wx-logout-user',
+            'wechat_nickname' => '退出老师',
+            'name' => '退出老师',
+            'mobile' => '13800138002',
+            'status' => 'approved',
+            'password_enabled' => 0,
+            'approved_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withSession([
+            'payroll.identity.'.$siteId => [
+                'openid' => 'wx-logout-user',
+                'unionid' => '',
+                'nickname' => '退出老师',
+                'avatar' => '',
+            ],
+            'payroll.unlock.'.$siteId.'.'.$employeeId => true,
+            'payroll.login.'.$siteId.'.'.$employeeId => now()->timestamp,
+        ])->post(route('site.payroll.logout', ['site' => 'site']));
+
+        $response->assertRedirect(route('site.payroll.logout.done', ['site' => 'site']));
+        $response->assertSessionMissing('payroll.identity.'.$siteId);
+        $response->assertSessionMissing('payroll.unlock.'.$siteId.'.'.$employeeId);
+        $response->assertSessionMissing('payroll.login.'.$siteId.'.'.$employeeId);
+
+        $this->get(route('site.payroll.logout.done', ['site' => 'site']))
+            ->assertOk()
+            ->assertSee('你已经安全退出')
+            ->assertSee('可直接关闭此页面');
+    }
+
     public function test_site_admin_can_export_payroll_batch_records(): void
     {
         $this->seed(DatabaseSeeder::class);

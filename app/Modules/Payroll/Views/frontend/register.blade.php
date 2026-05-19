@@ -9,7 +9,6 @@
 <body>
     <div class="shell">
         <div class="topbar">登记信息</div>
-        <div class="subbar">{{ $site->name }}</div>
 
         <section class="panel">
             <div class="headline">

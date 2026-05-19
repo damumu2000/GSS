@@ -16,6 +16,7 @@ Route::post('/payroll/password/unlock', [PayrollController::class, 'unlock'])->n
 Route::get('/payroll/password/manage', [PayrollController::class, 'passwordManage'])->name('site.payroll.password.manage');
 Route::post('/payroll/password/manage', [PayrollController::class, 'passwordSave'])->name('site.payroll.password.save');
 Route::post('/payroll/logout', [PayrollController::class, 'logout'])->name('site.payroll.logout');
+Route::get('/payroll/logout/done', [PayrollController::class, 'logoutDone'])->name('site.payroll.logout.done');
 Route::get('/payroll/{batch}/{type}', [PayrollController::class, 'detail'])
     ->whereIn('type', ['salary', 'performance'])
     ->name('site.payroll.show');
