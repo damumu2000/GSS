@@ -544,7 +544,7 @@
 
         .security-region-list-items {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 12px;
         }
 
@@ -555,25 +555,31 @@
             border-radius: 18px;
             background: rgba(255, 255, 255, 0.88);
             border: 1px solid rgba(231, 237, 244, 0.96);
+            min-width: 0;
         }
 
         .security-region-item-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 6px;
         }
 
         .security-region-item-name {
             color: #344054;
             font-size: 14px;
             font-weight: 800;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .security-region-item-meta {
             color: #64748b;
             font-size: 12px;
             font-weight: 700;
+            line-height: 1.4;
+            white-space: nowrap;
         }
 
         .security-region-track {

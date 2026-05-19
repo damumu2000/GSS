@@ -753,9 +753,11 @@ class SiteSecurity
                 }
             } catch (\Throwable) {
             }
+
+            return '公网来源';
         }
 
-        return '国外网络';
+        return '公网来源';
     }
 
     protected function resolveAttackRegionLabelCached(string $ip): string
