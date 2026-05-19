@@ -68,11 +68,28 @@ return new class extends Migration
             ->where('code', 'site.role.manage')
             ->value('id');
 
-        if ($permissionId > 0) {
+        if ($permissionId < 1) {
+            return;
+        }
+
+        $siteAdminRoleIds = DB::table('site_roles')
+            ->where('code', 'site_admin')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($siteAdminRoleIds !== []) {
             DB::table('site_role_permissions')
                 ->where('permission_id', $permissionId)
+                ->whereIn('role_id', $siteAdminRoleIds)
                 ->delete();
+        }
 
+        $hasRemainingBindings = DB::table('site_role_permissions')
+            ->where('permission_id', $permissionId)
+            ->exists();
+
+        if (! $hasRemainingBindings) {
             DB::table('site_permissions')
                 ->where('id', $permissionId)
                 ->delete();
