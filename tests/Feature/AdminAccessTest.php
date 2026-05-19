@@ -2511,6 +2511,194 @@ XML);
             ->assertSee('3810');
     }
 
+    public function test_payroll_frontend_local_site_preview_bootstraps_demo_data_without_wechat(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        $response = $this->followingRedirects()
+            ->get(route('site.payroll.index', ['site' => 'site']));
+
+        $response->assertOk()
+            ->assertSee('本地预览老师')
+            ->assertSee('我的薪资信息列表')
+            ->assertSee('工资条')
+            ->assertSee('绩效');
+
+        $this->assertDatabaseHas('module_payroll_employees', [
+            'site_id' => $siteId,
+            'wechat_openid' => 'wx-local-payroll-preview',
+            'name' => '本地预览老师',
+            'status' => 'approved',
+            'password_enabled' => 0,
+        ]);
+
+        $employeeName = '本地预览老师';
+        $this->assertSame(50, DB::table('module_payroll_batches')
+            ->where('site_id', $siteId)
+            ->where('salary_file_name', 'like', 'local-preview-salary-%')
+            ->count());
+        $this->assertSame(100, DB::table('module_payroll_records')
+            ->where('site_id', $siteId)
+            ->where('employee_name', $employeeName)
+            ->count());
+    }
+
+    public function test_payroll_frontend_local_site_preview_batches_are_paginated(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        $firstPage = $this->followingRedirects()
+            ->get(route('site.payroll.index', ['site' => 'site']));
+
+        $firstPage->assertOk()
+            ->assertSee('payroll_page=2', false)
+            ->assertSee('工资条')
+            ->assertSee('绩效');
+
+        preg_match_all('/\d{4}年\d+月/u', $firstPage->getContent(), $firstPageMonths);
+        $this->assertCount(10, array_unique($firstPageMonths[0]));
+
+        $secondPage = $this->followingRedirects()
+            ->get(route('site.payroll.index', ['site' => 'site', 'payroll_page' => 2]));
+
+        $secondPage->assertOk()
+            ->assertSee('payroll_page=1', false);
+    }
+
+    public function test_payroll_frontend_local_site_preview_preserves_password_settings(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        $this->followingRedirects()
+            ->get(route('site.payroll.index', ['site' => 'site']))
+            ->assertOk();
+
+        $hash = Hash::make('123456');
+
+        DB::table('module_payroll_employees')
+            ->where('site_id', $siteId)
+            ->where('wechat_openid', 'wx-local-payroll-preview')
+            ->update([
+                'password_enabled' => 1,
+                'password_hash' => $hash,
+                'updated_at' => now(),
+            ]);
+
+        $this->get(route('site.payroll.logout', ['site' => 'site']));
+
+        $this->followingRedirects()
+            ->get(route('site.payroll.index', ['site' => 'site']))
+            ->assertOk()
+            ->assertSee('请输入密码');
+
+        $this->assertDatabaseHas('module_payroll_employees', [
+            'site_id' => $siteId,
+            'wechat_openid' => 'wx-local-payroll-preview',
+            'password_enabled' => 1,
+            'password_hash' => $hash,
+        ]);
+    }
+
+    public function test_payroll_password_page_redirects_to_index_when_password_protection_has_been_disabled(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.payroll.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $employeeId = (int) DB::table('module_payroll_employees')->insertGetId([
+            'site_id' => $siteId,
+            'wechat_openid' => 'wx-password-refresh-user',
+            'wechat_unionid' => '',
+            'wechat_nickname' => '密码页用户',
+            'wechat_avatar' => '',
+            'name' => '密码页老师',
+            'mobile' => '13800138111',
+            'status' => 'approved',
+            'password_enabled' => 1,
+            'password_hash' => Hash::make('123456'),
+            'approved_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $batchId = (int) DB::table('module_payroll_batches')->insertGetId([
+            'site_id' => $siteId,
+            'month_key' => '2026-05',
+            'status' => 'imported',
+            'salary_file_name' => 'salary.xlsx',
+            'performance_file_name' => 'performance.xlsx',
+            'imported_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('module_payroll_records')->insert([
+            'site_id' => $siteId,
+            'batch_id' => $batchId,
+            'employee_name' => '密码页老师',
+            'sheet_type' => 'salary',
+            'items_json' => json_encode([['label' => '姓名', 'value' => '密码页老师']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'row_hash' => hash('sha256', 'password-refresh-salary'),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $session = [
+            'payroll.identity.'.$siteId => [
+                'openid' => 'wx-password-refresh-user',
+                'unionid' => '',
+                'nickname' => '密码页用户',
+                'avatar' => '',
+            ],
+        ];
+
+        $this->withSession($session)
+            ->get(route('site.payroll.password', ['site' => 'site']))
+            ->assertOk()
+            ->assertSee('请输入密码');
+
+        DB::table('module_payroll_employees')
+            ->where('id', $employeeId)
+            ->update([
+                'password_enabled' => 0,
+                'password_hash' => null,
+                'updated_at' => now(),
+            ]);
+
+        $this->withSession($session)
+            ->get(route('site.payroll.password', ['site' => 'site']))
+            ->assertRedirect(route('site.payroll.index', ['site' => 'site']));
+
+        $this->followingRedirects()
+            ->withSession($session)
+            ->post(route('site.payroll.password.unlock', ['site' => 'site']), ['password' => '123456'])
+            ->assertOk()
+            ->assertSee('我的薪资信息列表')
+            ->assertSee('工资条');
+    }
+
     public function test_payroll_settings_can_be_updated_without_callback_url(): void
     {
         $this->seed(DatabaseSeeder::class);

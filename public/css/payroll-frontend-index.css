@@ -96,6 +96,7 @@ button { font: inherit; }
     padding: 0 14px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 78px 78px;
+    column-gap: 12px;
     align-items: center;
     min-height: 44px;
     border-radius: 14px;
@@ -110,6 +111,7 @@ button { font: inherit; }
     padding: 0 14px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 78px 78px;
+    column-gap: 12px;
     align-items: center;
     min-height: 62px;
     border-radius: 16px;
@@ -155,4 +157,78 @@ button { font: inherit; }
     line-height: 1.9;
     background: rgba(255, 255, 255, 0.76);
     border: 1px dashed rgba(116, 151, 191, 0.28);
+}
+.payroll-pagination {
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+}
+.payroll-pager {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(77, 162, 255, 0.10);
+    box-shadow: 0 8px 18px rgba(37, 119, 216, 0.06);
+}
+.payroll-pager-button,
+.payroll-pager-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(77, 162, 255, 0.14);
+    background: rgba(255, 255, 255, 0.96);
+    color: #4b5563;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+}
+.payroll-pager-button:hover,
+.payroll-pager-button:focus-visible {
+    transform: translateY(-1px);
+    background: rgba(77, 162, 255, 0.08);
+    border-color: rgba(77, 162, 255, 0.24);
+    color: var(--primary-deep);
+    outline: none;
+}
+.payroll-pager-status {
+    padding: 0 14px;
+    border-color: rgba(77, 162, 255, 0.10);
+    background: rgba(77, 162, 255, 0.06);
+    color: var(--primary-deep);
+}
+.payroll-pager-button.is-disabled {
+    color: #c0c7d4;
+    cursor: default;
+    pointer-events: none;
+}
+@media (max-width: 480px) {
+    .payroll-pager {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1fr);
+        width: 100%;
+        gap: 6px;
+    }
+    .payroll-pager-button {
+        width: 100%;
+        min-width: 0;
+        padding: 0 8px;
+        font-size: 11px;
+    }
+    .payroll-pager-status {
+        grid-column: auto;
+        order: 0;
+        padding: 0 8px;
+        font-size: 11px;
+    }
 }

@@ -8,8 +8,6 @@
 </head>
 <body>
     <div class="shell">
-        <div class="topbar">薪资信息列表</div>
-
         <section class="panel">
             <div class="greeting">
                 <div class="greeting-name">{{ $employee->name }}，你好！</div>
@@ -48,6 +46,39 @@
             @empty
                 <div class="empty-state">暂无您的工资信息。<br>如您刚完成登记，请等待管理员审核并导入对应月份工资表后再查看。</div>
             @endforelse
+
+            @if ($batches->hasPages())
+                @php($pager = $batches->appends($siteQuery))
+                <div class="payroll-pagination">
+                    <nav class="payroll-pager" role="navigation" aria-label="月份分页导航">
+                        @if ($pager->onFirstPage())
+                            <span class="payroll-pager-button is-disabled" aria-disabled="true">首页</span>
+                        @else
+                            <a class="payroll-pager-button" href="{{ $pager->url(1) }}" rel="first">首页</a>
+                        @endif
+
+                        @if ($pager->onFirstPage())
+                            <span class="payroll-pager-button is-disabled" aria-disabled="true">上一页</span>
+                        @else
+                            <a class="payroll-pager-button" href="{{ $pager->previousPageUrl() }}" rel="prev">上一页</a>
+                        @endif
+
+                        <span class="payroll-pager-status">{{ $pager->currentPage() }} / {{ $pager->lastPage() }}</span>
+
+                        @if ($pager->hasMorePages())
+                            <a class="payroll-pager-button" href="{{ $pager->nextPageUrl() }}" rel="next">下一页</a>
+                        @else
+                            <span class="payroll-pager-button is-disabled" aria-disabled="true">下一页</span>
+                        @endif
+
+                        @if ($pager->hasMorePages())
+                            <a class="payroll-pager-button" href="{{ $pager->url($pager->lastPage()) }}" rel="last">尾页</a>
+                        @else
+                            <span class="payroll-pager-button is-disabled" aria-disabled="true">尾页</span>
+                        @endif
+                    </nav>
+                </div>
+            @endif
         </section>
     </div>
 </body>

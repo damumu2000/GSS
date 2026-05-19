@@ -10,6 +10,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -21,6 +23,10 @@ use Throwable;
 
 class PayrollController extends SiteController
 {
+    protected string $localPreviewOpenid = 'wx-local-payroll-preview';
+
+    protected string $localPreviewName = '本地预览老师';
+
     public function __construct(
         protected PayrollModule $payrollModule,
         protected PayrollSettings $payrollSettings,
@@ -50,7 +56,7 @@ class PayrollController extends SiteController
             return redirect()->route('site.payroll.password', $siteQuery);
         }
 
-        $batches = $this->employeeBatches((int) $site->id, (string) $employee->name);
+        $batches = $this->employeeBatches($request, (int) $site->id, (string) $employee->name);
 
         return response()->view('payroll::frontend.index', [
             'site' => $site,
@@ -281,6 +287,12 @@ class PayrollController extends SiteController
             return $employee;
         }
 
+        if (! $employee->password_enabled) {
+            $request->session()->forget($this->unlockSessionKey((int) $site->id, (int) $employee->id));
+
+            return redirect()->route('site.payroll.index', $siteQuery);
+        }
+
         return response()->view('payroll::frontend.password', [
             'site' => $site,
             'settings' => $settings,
@@ -303,6 +315,12 @@ class PayrollController extends SiteController
             return redirect()->route('site.payroll.index', $siteQuery);
         }
 
+        if (! $employee->password_enabled) {
+            $request->session()->forget($this->unlockSessionKey((int) $site->id, (int) $employee->id));
+
+            return redirect()->route('site.payroll.index', $siteQuery);
+        }
+
         $limiterKey = 'payroll-unlock:'.$site->id.':'.$employee->id.':'.$request->ip();
         if (RateLimiter::tooManyAttempts($limiterKey, 8)) {
             return redirect()
@@ -311,7 +329,7 @@ class PayrollController extends SiteController
         }
 
         $validated = Validator::make($request->all(), [
-            'password' => ['required', 'string', 'min:4', 'max:32'],
+            'password' => ['required', 'string', 'min:4', 'max:15'],
         ], [
             'password.required' => '请输入密码。',
         ])->validate();
@@ -381,10 +399,11 @@ class PayrollController extends SiteController
 
         $validated = Validator::make($request->all(), [
             'password_enabled' => ['nullable', 'boolean'],
-            'password' => ['nullable', 'string', 'min:4', 'max:32', 'confirmed'],
+            'password' => ['nullable', 'string', 'min:4', 'max:15', 'confirmed'],
         ], [
             'password.confirmed' => '两次输入的密码不一致。',
             'password.min' => '密码至少需要 4 位。',
+            'password.max' => '密码最多支持 15 位。',
         ])->after(function ($validator) use ($request, $employee): void {
             if (! $request->boolean('password_enabled')) {
                 return;
@@ -505,6 +524,10 @@ class PayrollController extends SiteController
             throw new HttpResponseException($disabled);
         }
 
+        if ($this->shouldUseLocalPreview($request, $site)) {
+            $this->ensureLocalPreviewModuleReady($site);
+        }
+
         $settings = $this->payrollSettings->forSite((int) $site->id);
         $module = $this->payrollModule->activeForSite((int) $site->id);
         $siteQuery = $request->query('site') ? ['site' => $site->site_key] : [];
@@ -556,24 +579,193 @@ class PayrollController extends SiteController
 
     protected function captureLocalPreviewIdentity(Request $request, object $site, array $siteQuery): ?RedirectResponse
     {
-        $host = mb_strtolower(trim((string) $request->getHost()));
-        if (! in_array($host, ['127.0.0.1', 'localhost'], true)) {
+        if (! $this->shouldUseLocalPreview($request, $site)) {
             return null;
         }
 
-        $mockOpenid = trim((string) $request->query('mock_openid', ''));
-        if ($mockOpenid === '') {
+        $currentIdentity = $this->currentIdentity($request, (int) $site->id);
+        $explicitMockOpenid = trim((string) $request->query('mock_openid', ''));
+        if ($currentIdentity && $explicitMockOpenid === '') {
             return null;
+        }
+
+        $mockOpenid = $explicitMockOpenid !== '' ? $explicitMockOpenid : $this->localPreviewOpenid;
+        $mockNickname = trim((string) $request->query('mock_nickname', ''));
+        $mockNickname = $mockNickname !== '' ? $mockNickname : $this->localPreviewName;
+        if ($currentIdentity && ($currentIdentity['openid'] ?? '') === $mockOpenid) {
+            return null;
+        }
+
+        if ($site->site_key === 'site' && $explicitMockOpenid === '') {
+            $this->ensureLocalPreviewFixtures($site, $mockOpenid, $mockNickname);
         }
 
         $request->session()->put($this->identitySessionKey((int) $site->id), [
             'openid' => $mockOpenid,
             'unionid' => trim((string) $request->query('mock_unionid', '')),
-            'nickname' => trim((string) $request->query('mock_nickname', '本地预览用户')),
+            'nickname' => $mockNickname,
             'avatar' => trim((string) $request->query('mock_avatar', '')),
         ]);
 
         return redirect()->route('site.payroll.index', $siteQuery);
+    }
+
+    protected function shouldUseLocalPreview(Request $request, object $site): bool
+    {
+        if (! app()->environment(['local', 'testing'])) {
+            return false;
+        }
+
+        $host = mb_strtolower(trim((string) $request->getHost()));
+        if (! in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return false;
+        }
+
+        return $site->site_key === 'site';
+    }
+
+    protected function ensureLocalPreviewFixtures(object $site, string $openid, string $nickname): void
+    {
+        $siteId = (int) $site->id;
+        $now = now();
+
+        $this->ensureLocalPreviewModuleReady($site);
+
+        $existingEmployee = DB::table('module_payroll_employees')
+            ->where('site_id', $siteId)
+            ->where('wechat_openid', $openid)
+            ->first();
+
+        if ($existingEmployee) {
+            DB::table('module_payroll_employees')
+                ->where('id', $existingEmployee->id)
+                ->update([
+                    'wechat_unionid' => '',
+                    'wechat_nickname' => $nickname,
+                    'wechat_avatar' => '',
+                    'name' => $this->localPreviewName,
+                    'mobile' => '13800138000',
+                    'status' => 'approved',
+                    'updated_at' => $now,
+                ]);
+
+            $employeeId = (int) $existingEmployee->id;
+        } else {
+            $employeeId = (int) DB::table('module_payroll_employees')->insertGetId([
+                'site_id' => $siteId,
+                'wechat_openid' => $openid,
+                'wechat_unionid' => '',
+                'wechat_nickname' => $nickname,
+                'wechat_avatar' => '',
+                'name' => $this->localPreviewName,
+                'mobile' => '13800138000',
+                'status' => 'approved',
+                'password_enabled' => 0,
+                'password_hash' => null,
+                'approved_at' => $now,
+                'last_login_at' => null,
+                'last_login_ip' => null,
+                'updated_at' => $now,
+                'created_at' => $now,
+            ]);
+        }
+
+        $monthKeys = [];
+        for ($offset = 0; $offset < 50; $offset++) {
+            $monthKeys[] = Carbon::now()->startOfMonth()->subMonths($offset)->format('Y-m');
+        }
+
+        $batchIds = [];
+        foreach ($monthKeys as $index => $monthKey) {
+            DB::table('module_payroll_batches')->updateOrInsert(
+                ['site_id' => $siteId, 'month_key' => $monthKey],
+                [
+                    'status' => 'imported',
+                    'salary_file_name' => 'local-preview-salary-'.$monthKey.'.xlsx',
+                    'performance_file_name' => 'local-preview-performance-'.$monthKey.'.xlsx',
+                    'imported_at' => $now,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ],
+            );
+
+            $batchIds[$monthKey] = (int) DB::table('module_payroll_batches')
+                ->where('site_id', $siteId)
+                ->where('month_key', $monthKey)
+                ->value('id');
+        }
+
+        DB::table('module_payroll_records')
+            ->where('site_id', $siteId)
+            ->where('employee_name', $this->localPreviewName)
+            ->whereIn('batch_id', array_values($batchIds))
+            ->delete();
+
+        $rows = [];
+        foreach ($monthKeys as $index => $monthKey) {
+            $batchId = $batchIds[$monthKey] ?? 0;
+            if ($batchId <= 0) {
+                continue;
+            }
+
+            $salaryItems = [
+                ['label' => '姓名', 'value' => $this->localPreviewName],
+                ['label' => '岗位工资', 'value' => (string) (5200 + ($index * 13))],
+                ['label' => '薪级工资', 'value' => (string) (1100 + ($index * 7))],
+                ['label' => '绩效工资', 'value' => (string) (900 + ($index * 5))],
+            ];
+
+            $performanceItems = [
+                ['label' => '姓名', 'value' => $this->localPreviewName],
+                ['label' => '基础绩效', 'value' => (string) (1400 + ($index * 3))],
+                ['label' => '考核绩效', 'value' => (string) (600 + ($index * 2))],
+            ];
+
+            foreach (['salary' => $salaryItems, 'performance' => $performanceItems] as $sheetType => $items) {
+                $itemsJson = json_encode($items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+                $rows[] = [
+                    'site_id' => $siteId,
+                    'batch_id' => $batchId,
+                    'employee_name' => $this->localPreviewName,
+                    'sheet_type' => $sheetType,
+                    'items_json' => $itemsJson,
+                    'row_hash' => hash('sha256', $this->localPreviewName.'|'.$monthKey.'|'.$sheetType.'|preview'),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+
+        if ($rows !== []) {
+            DB::table('module_payroll_records')->insert($rows);
+        }
+    }
+
+    protected function ensureLocalPreviewModuleReady(object $site): void
+    {
+        $siteId = (int) $site->id;
+        $now = now();
+
+        DB::table('modules')
+            ->where('code', 'payroll')
+            ->update(['status' => 1, 'updated_at' => $now]);
+
+        $moduleId = (int) DB::table('modules')
+            ->where('code', 'payroll')
+            ->value('id');
+
+        if ($moduleId > 0) {
+            DB::table('site_module_bindings')->updateOrInsert(
+                ['site_id' => $siteId, 'module_id' => $moduleId],
+                ['created_at' => $now, 'updated_at' => $now],
+            );
+        }
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.payroll.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now],
+        );
     }
 
     protected function resolveApprovedEmployee(Request $request, object $site, array $settings, array $siteQuery): \stdClass|RedirectResponse|Response
@@ -591,8 +783,8 @@ class PayrollController extends SiteController
                     'site' => $site,
                     'settings' => $settings,
                     'siteQuery' => $siteQuery,
-                    'disabledTitle' => '已禁止自动注册',
-                    'disabledMessage' => $settings['registration_disabled_message'],
+                    'disabledTitle' => '注册通道已关闭',
+                    'disabledMessage' => '当前系统已关闭注册，如有疑问请联系管理员。',
                 ]);
             }
 
@@ -725,7 +917,7 @@ class PayrollController extends SiteController
     /**
      * @return array<int, array<string, mixed>>
      */
-    protected function employeeBatches(int $siteId, string $employeeName): array
+    protected function employeeBatches(Request $request, int $siteId, string $employeeName): LengthAwarePaginator
     {
         $recordRows = DB::table('module_payroll_records')
             ->join('module_payroll_batches', 'module_payroll_batches.id', '=', 'module_payroll_records.batch_id')
@@ -738,7 +930,7 @@ class PayrollController extends SiteController
                 'module_payroll_records.sheet_type',
             ]);
 
-        return $recordRows
+        $batches = $recordRows
             ->groupBy('batch_id')
             ->map(function ($group) {
                 $first = $group->first();
@@ -752,6 +944,23 @@ class PayrollController extends SiteController
             })
             ->values()
             ->all();
+
+        $perPage = 10;
+        $pageName = 'payroll_page';
+        $currentPage = LengthAwarePaginator::resolveCurrentPage($pageName);
+        $total = count($batches);
+        $items = array_slice($batches, max(0, ($currentPage - 1) * $perPage), $perPage);
+
+        return new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'pageName' => $pageName,
+            ],
+        );
     }
 
     protected function identitySessionKey(int $siteId): string

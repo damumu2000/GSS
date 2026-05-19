@@ -8,17 +8,16 @@
 </head>
 <body>
     <div class="shell">
-        <div class="topbar">工资查询</div>
-
         <section class="panel">
-            <div class="icon">薪</div>
+            @php($isAccountDisabled = ($disabledTitle ?? '') === '账户已禁用')
+            <div class="icon" aria-hidden="true">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M15 15L33 33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
             <h1 class="title">{{ $disabledTitle ?? '工资查询暂未开放' }}</h1>
             <div class="desc">{{ $disabledMessage ?? $settings['registration_disabled_message'] }}</div>
-            <div class="note">如当前站点已经完成微信登录配置，建议从微信入口重新进入；如仍无法访问，请联系管理员检查模块状态、微信配置与员工审核状态。</div>
-            <div class="actions">
-                <a class="button secondary" href="{{ route('site.payroll.index', $siteQuery) }}">重新进入</a>
-                <a class="button" href="{{ route('site.payroll.wechat.redirect', $siteQuery) }}">尝试微信登录</a>
-            </div>
         </section>
     </div>
 </body>

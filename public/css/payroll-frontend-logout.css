@@ -51,8 +51,10 @@ body {
     justify-content: center;
     background: rgba(77, 162, 255, 0.12);
     color: var(--accent);
-    font-size: 28px;
-    font-weight: 700;
+}
+.icon svg {
+    width: 30px;
+    height: 30px;
 }
 .title {
     margin: 0;

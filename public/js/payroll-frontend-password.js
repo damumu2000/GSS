@@ -59,6 +59,11 @@
             return false;
         }
 
+        if (value.length > 15) {
+            toggleError(passwordError, '密码最多支持 15 位。');
+            return false;
+        }
+
         toggleError(passwordError, '');
         return true;
     };

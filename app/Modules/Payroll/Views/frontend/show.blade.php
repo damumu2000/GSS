@@ -8,8 +8,6 @@
 </head>
 <body>
     <div class="shell">
-        <div class="topbar">工资信息</div>
-
         <section class="panel">
             <div class="headline">
                 <h1 class="title">{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $batch->month_key)->format('Y年n月') }} {{ $sheetType === 'salary' ? '工资条' : '绩效' }}详情</h1>

@@ -8,19 +8,15 @@
 </head>
 <body>
     <div class="shell">
-        <div class="topbar">登记信息</div>
-
         <section class="panel">
             <div class="headline">
-                <h1 class="title">首次进入请完善信息</h1>
+                <h1 class="title">请完善个人信息</h1>
                 @if ($employee && $employee->status === 'pending')
                     <span class="status-pill is-pending">审核中</span>
-                @else
-                    <span class="status-pill is-ready">待提交</span>
                 @endif
             </div>
 
-            <div class="desc">微信身份识别完成后，如果当前系统中还没有您的员工信息，请登记姓名和手机号码。管理员审核通过后，您就可以直接进入工资查询页面。</div>
+            <div class="desc">请登记姓名和手机号码。管理员审核通过后，您就可以直接进入工资查询页面。</div>
 
             @if (session('status'))
                 <div class="notice is-success">{{ session('status') }}</div>
@@ -54,7 +50,6 @@
                 </div>
 
                 <div class="actions">
-                    <div class="action-note">提交后将进入审核状态，审核通过后可直接通过微信进入工资查询。</div>
                     <button class="button" type="submit" data-submit-button>{{ $employee && $employee->status === 'pending' ? '更新信息' : '提交信息' }}</button>
                 </div>
             </form>

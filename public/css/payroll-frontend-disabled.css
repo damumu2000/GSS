@@ -31,8 +31,10 @@ body { margin: 0; background: linear-gradient(180deg, #eff7ff 0%, #e8f2ff 100%);
     border-radius: 18px;
     background: rgba(77,162,255,0.10);
     color: var(--primary);
-    font-size: 28px;
-    font-weight: 700;
+}
+.icon svg {
+    width: 28px;
+    height: 28px;
 }
 .title { margin: 0; font-size: 24px; font-weight: 700; color: #111827; }
 .desc { margin-top: 14px; color: #667085; font-size: 15px; line-height: 1.9; }
