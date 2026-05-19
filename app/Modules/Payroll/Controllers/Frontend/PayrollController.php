@@ -783,7 +783,7 @@ class PayrollController extends SiteController
                     'site' => $site,
                     'settings' => $settings,
                     'siteQuery' => $siteQuery,
-                    'disabledTitle' => '注册通道已关闭',
+                    'disabledTitle' => '当前系统已关闭注册',
                     'disabledMessage' => '当前系统已关闭注册，如有疑问请联系管理员。',
                 ]);
             }

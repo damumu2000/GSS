@@ -118,7 +118,15 @@ button { font: inherit; }
     background: rgba(255, 255, 255, 0.72);
     border: 1px solid rgba(77, 162, 255, 0.10);
 }
-.month-name { color: #334155; font-size: 15px; font-weight: 600; }
+.month-name {
+    color: #334155;
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
 .month-link {
     display: inline-flex;
     align-items: center;
@@ -181,7 +189,7 @@ button { font: inherit; }
     align-items: center;
     justify-content: center;
     min-width: 0;
-    height: 34px;
+    height: 40px;
     padding: 0 10px;
     border-radius: 10px;
     border: 1px solid rgba(77, 162, 255, 0.14);

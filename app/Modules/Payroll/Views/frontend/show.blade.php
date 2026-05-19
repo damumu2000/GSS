@@ -11,7 +11,7 @@
         <section class="panel">
             <div class="headline">
                 <h1 class="title">{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $batch->month_key)->format('Y年n月') }} {{ $sheetType === 'salary' ? '工资条' : '绩效' }}详情</h1>
-                <a class="back-link" href="{{ route('site.payroll.index', $siteQuery) }}">返回列表</a>
+                <a class="button secondary" href="{{ route('site.payroll.index', $siteQuery) }}">返回列表</a>
             </div>
 
             <div class="table-head">

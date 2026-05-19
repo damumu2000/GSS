@@ -23,14 +23,14 @@
             <div class="section-title">我的薪资信息列表</div>
 
             <div class="month-head">
-                <span>请选择时间</span>
+                <span>时间</span>
                 <span class="month-head-cell">工资条</span>
                 <span class="month-head-cell">绩效</span>
             </div>
 
             @forelse ($batches as $batch)
                 <div class="month-row">
-                    <span class="month-name">{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $batch['month_key'])->format('Y年n月') }}</span>
+                    <span class="month-name">{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $batch['month_key'])->format('Y年m月') }}</span>
                     @if ($batch['has_salary'])
                         <a class="month-link" href="{{ route('site.payroll.show', ['batch' => $batch['batch_id'], 'type' => 'salary'] + $siteQuery) }}">工资条</a>
                     @else

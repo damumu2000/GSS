@@ -1,0 +1,39 @@
+public/css/payroll-frontend-register.css:18:.topbar { text-align: center; color: #111827; font-size: 22px; font-weight: 700; }
+public/css/payroll-frontend-register.css:19:.subbar { margin-top: 4px; text-align: center; color: var(--muted); font-size: 12px; }
+public/css/payroll-frontend-register.css:87:.action-note { color: #98a2b3; font-size: 12px; line-height: 1.7; }
+public/css/payroll-frontend-logout.css:22:.topbar {
+public/css/payroll-frontend-logout.css:28:.subbar {
+public/css/payroll-frontend-logout.css:44:.icon {
+public/css/payroll-frontend-logout.css:55:.icon svg {
+public/css/payroll-frontend-logout.css:71:.note {
+public/css/payroll-frontend-disabled.css:12:.topbar { text-align: center; color: #111827; font-size: 22px; font-weight: 700; }
+public/css/payroll-frontend-disabled.css:13:.subbar { margin-top: 4px; text-align: center; color: var(--muted); font-size: 12px; }
+public/css/payroll-frontend-disabled.css:24:.icon {
+public/css/payroll-frontend-disabled.css:35:.icon svg {
+public/css/payroll-frontend-disabled.css:41:.note {
+public/css/payroll-frontend-index.css:26:.topbar {
+public/css/payroll-frontend-index.css:32:.subbar {
+public/css/payroll-frontend-password.css:16:.topbar { text-align: center; color: #111827; font-size: 22px; font-weight: 700; }
+public/css/payroll-frontend-password.css:17:.subbar { margin-top: 4px; text-align: center; color: var(--muted); font-size: 12px; }
+public/css/payroll-frontend-show.css:13:.topbar { text-align:center; color:#111827; font-size:22px; font-weight:700; }
+public/css/payroll-frontend-show.css:14:.subbar { margin-top:4px; text-align:center; color:var(--muted); font-size:12px; }
+public/css/payroll-frontend-show.css:31:.back-link { color:#374151; font-size:14px; font-weight:700; white-space:nowrap; }
+app/Modules/Payroll/Views/admin/batches/edit.blade.php:39:                <div class="payroll-edit-topbar">
+app/Modules/Payroll/Views/admin/settings.blade.php:39:                            <span class="payroll-note">关闭后，该功能前端将停止使用。</span>
+app/Modules/Payroll/Views/admin/settings.blade.php:50:                            <span class="payroll-note">关闭后，微信首次打开页面将提示已禁止自动注册。</span>
+app/Modules/Payroll/Views/admin/settings.blade.php:80:                        <div class="payroll-note">已保存密钥时默认不回显，留空提交不会清除当前 APPSECRET。</div>
+app/Modules/Payroll/Views/admin/help.blade.php:56:                <ul class="payroll-help-notes">
+app/Modules/Payroll/Views/admin/help.blade.php:58:                        <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/admin/help.blade.php:62:                        <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/admin/help.blade.php:66:                        <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/admin/help.blade.php:70:                        <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/admin/help.blade.php:100:                <ul class="payroll-help-notes">
+app/Modules/Payroll/Views/admin/help.blade.php:102:                        <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/admin/help.blade.php:107:                            <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/admin/help.blade.php:111:                            <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/admin/help.blade.php:116:                            <span class="payroll-help-note-dot"></span>
+app/Modules/Payroll/Views/frontend/show.blade.php:14:                <a class="back-link" href="{{ route('site.payroll.index', $siteQuery) }}">返回列表</a>
+app/Modules/Payroll/Views/frontend/logout.blade.php:12:            <div class="icon" aria-hidden="true">
+app/Modules/Payroll/Views/frontend/logout.blade.php:20:            <div class="note">如需再次进入，请从微信入口重新打开工资查询页面。</div>
+app/Modules/Payroll/module.json:30:  "notes": [
+app/Modules/Payroll/Views/frontend/disabled.blade.php:13:            <div class="icon" aria-hidden="true">
