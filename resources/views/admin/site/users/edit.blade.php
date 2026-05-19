@@ -37,7 +37,9 @@
             <div class="page-header-desc">当前站点：{{ $currentSite->name }}。正在维护 {{ $user->name ?: $user->username }} 的账号信息、角色分配和联系方式。</div>
         </div>
         <div class="topbar-right">
-            <a class="button secondary" href="{{ route('admin.site-users.index') }}">返回操作员管理</a>
+            @if ($canReturnToSiteUsers)
+                <a class="button secondary" href="{{ route('admin.site-users.index') }}">返回操作员管理</a>
+            @endif
             <button class="button" type="submit" form="site-user-edit-form" data-loading-text="保存中...">保存操作员</button>
         </div>
     </section>

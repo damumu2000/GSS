@@ -217,7 +217,7 @@ class AdminLayoutData
                     ['label' => '模板管理', 'route' => 'admin.themes.index', 'active' => $request->routeIs('admin.themes.*'), 'icon' => 'theme', 'show' => in_array('theme.use', $sitePermissionCodes, true) || in_array('theme.edit', $sitePermissionCodes, true)],
                     ['label' => '安护盾', 'route' => 'admin.security.index', 'active' => $request->routeIs('admin.security.*'), 'icon' => 'shield', 'show' => in_array('security.view', $sitePermissionCodes, true)],
                     ['label' => '操作员管理', 'route' => 'admin.site-users.index', 'active' => $request->routeIs('admin.site-users.*'), 'icon' => 'user', 'show' => in_array('site.user.manage', $sitePermissionCodes, true)],
-                    ['label' => '操作角色管理', 'route' => 'admin.site-roles.index', 'active' => $request->routeIs('admin.site-roles.*'), 'icon' => 'setting', 'show' => in_array('site.user.manage', $sitePermissionCodes, true)],
+                    ['label' => '操作角色管理', 'route' => 'admin.site-roles.index', 'active' => $request->routeIs('admin.site-roles.*'), 'icon' => 'setting', 'show' => in_array('site.role.manage', $sitePermissionCodes, true)],
                     ['label' => '站点日志', 'route' => 'admin.site-logs.index', 'active' => $request->routeIs('admin.site-logs.*'), 'icon' => 'log', 'show' => in_array('log.view', $sitePermissionCodes, true)],
                 ], fn ($item) => $item['show'])),
             ],

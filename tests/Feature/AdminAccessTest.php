@@ -10165,6 +10165,157 @@ XML);
         );
     }
 
+    public function test_site_user_manageable_channels_follow_current_channel_tree_order(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('channel-order-site-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('channels')->where('site_id', $siteId)->delete();
+
+        $firstTopId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '第一栏目',
+            'slug' => 'first-channel',
+            'type' => 'list',
+            'path' => '/first-channel',
+            'depth' => 0,
+            'sort' => 2,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $siteAdmin->id,
+            'updated_by' => $siteAdmin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $secondTopId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '第二栏目',
+            'slug' => 'second-channel',
+            'type' => 'list',
+            'path' => '/second-channel',
+            'depth' => 0,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $siteAdmin->id,
+            'updated_by' => $siteAdmin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('channels')->insert([
+            [
+                'site_id' => $siteId,
+                'parent_id' => $firstTopId,
+                'name' => '第一栏目-子二',
+                'slug' => 'first-child-b',
+                'type' => 'list',
+                'path' => '/first-child-b',
+                'depth' => 1,
+                'sort' => 2,
+                'status' => 1,
+                'is_nav' => 1,
+                'created_by' => $siteAdmin->id,
+                'updated_by' => $siteAdmin->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $siteId,
+                'parent_id' => $firstTopId,
+                'name' => '第一栏目-子一',
+                'slug' => 'first-child-a',
+                'type' => 'list',
+                'path' => '/first-child-a',
+                'depth' => 1,
+                'sort' => 1,
+                'status' => 1,
+                'is_nav' => 1,
+                'created_by' => $siteAdmin->id,
+                'updated_by' => $siteAdmin->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $siteId,
+                'parent_id' => $secondTopId,
+                'name' => '第二栏目-子一',
+                'slug' => 'second-child-a',
+                'type' => 'list',
+                'path' => '/second-child-a',
+                'depth' => 1,
+                'sort' => 1,
+                'status' => 1,
+                'is_nav' => 1,
+                'created_by' => $siteAdmin->id,
+                'updated_by' => $siteAdmin->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $response = $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.site-users.create'))
+            ->assertOk();
+
+        $content = $response->getContent();
+
+        $secondTopPos = strpos($content, '第二栏目');
+        $secondChildPos = strpos($content, '第二栏目-子一');
+        $firstTopPos = strpos($content, '第一栏目');
+        $firstChildFirstPos = strpos($content, '第一栏目-子一');
+        $firstChildSecondPos = strpos($content, '第一栏目-子二');
+
+        $this->assertNotFalse($secondTopPos);
+        $this->assertNotFalse($secondChildPos);
+        $this->assertNotFalse($firstTopPos);
+        $this->assertNotFalse($firstChildFirstPos);
+        $this->assertNotFalse($firstChildSecondPos);
+
+        $this->assertTrue($secondTopPos < $secondChildPos);
+        $this->assertTrue($secondChildPos < $firstTopPos);
+        $this->assertTrue($firstTopPos < $firstChildFirstPos);
+        $this->assertTrue($firstChildFirstPos < $firstChildSecondPos);
+    }
+
+    public function test_regular_operator_editing_own_profile_does_not_see_return_to_operator_management(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('self-profile-operator', true, 'editor');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.site-users.edit', $operator->id))
+            ->assertOk()
+            ->assertDontSee('返回操作员管理');
+    }
+
+    public function test_site_role_management_requires_dedicated_permission(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $operator = $this->createCustomSiteOperator('site-user-only-manager', $siteId, ['site.user.manage']);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.site-users.index'))
+            ->assertOk();
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.site-roles.index'))
+            ->assertForbidden();
+    }
+
     public function test_site_admin_cannot_update_operator_with_platform_role_id(): void
     {
         $this->seed(DatabaseSeeder::class);

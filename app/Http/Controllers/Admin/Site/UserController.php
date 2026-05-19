@@ -56,12 +56,6 @@ class UserController extends Controller
         $this->syncRequestedSiteContext($request);
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
-        $channels = DB::table('channels')
-            ->where('site_id', $currentSite->id)
-            ->orderBy('sort')
-            ->orderBy('id')
-            ->get(['id', 'name', 'slug', 'type', 'parent_id', 'depth', 'sort']);
-
         $contentManageRoleIds = $this->siteRoleIdsWithPermission($currentSite->id, 'content.manage');
 
         $siteRoles = $this->siteRolesQuery($currentSite->id)
@@ -80,7 +74,7 @@ class UserController extends Controller
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
             'siteRoles' => $siteRoles,
-            'channels' => $this->flattenManagedChannels($channels),
+            'channels' => $this->manageableChannelOptions($currentSite->id),
             'selectedRoleId' => $selectedRoleId,
             'selectedChannelIds' => array_values(array_unique(array_filter(array_map('intval', is_array(old('channel_ids')) ? old('channel_ids') : [])))),
             'selectedRoleCanManageContent' => in_array($selectedRoleId, $contentManageRoleIds, true),
@@ -176,6 +170,7 @@ class UserController extends Controller
         $user = User::query()->find($userId);
         abort_unless($user, 404);
         $isSelfEditing = (int) $request->user()->id === (int) $user->id;
+        $canReturnToSiteUsers = $this->canManageSiteUsers((int) $request->user()->id, (int) $currentSite->id);
         $canManageGlobalAccountFields = $isSelfEditing
             || $this->isPlatformAdmin((int) $request->user()->id)
             || ! $this->hasOtherSiteBindings((int) $currentSite->id, (int) $user->id);
@@ -203,12 +198,6 @@ class UserController extends Controller
                 return $role;
             });
 
-        $channels = DB::table('channels')
-            ->where('site_id', $currentSite->id)
-            ->orderBy('sort')
-            ->orderBy('id')
-            ->get(['id', 'name', 'slug', 'type', 'parent_id', 'depth', 'sort']);
-
         $existingChannelIds = DB::table('site_user_channels')
             ->where('site_id', $currentSite->id)
             ->where('user_id', $user->id)
@@ -227,7 +216,7 @@ class UserController extends Controller
             'currentSite' => $currentSite,
             'user' => $user,
             'siteRoles' => $siteRoles,
-            'channels' => $this->flattenManagedChannels($channels),
+            'channels' => $this->manageableChannelOptions($currentSite->id),
             'selectedRoles' => $selectedRoles,
             'selectedRoleId' => (function () use ($selectedRoles) {
                 $oldRoleValue = request()->old('role_id');
@@ -244,6 +233,7 @@ class UserController extends Controller
             'avatarAttachmentWorkspaceAccess' => $this->canAccessAttachmentWorkspace((int) $request->user()->id, (int) $currentSite->id)
                 || $this->canManageSiteUsers((int) $request->user()->id, (int) $currentSite->id),
             'isSelfEditing' => $isSelfEditing,
+            'canReturnToSiteUsers' => $canReturnToSiteUsers,
             'canManageGlobalAccountFields' => $canManageGlobalAccountFields,
             'canManageRoleSelection' => ! $isSelfEditing,
             'canManageStatusSelection' => ! $isSelfEditing && $canManageGlobalAccountFields,
@@ -635,6 +625,21 @@ class UserController extends Controller
         };
 
         return collect($walk(0));
+    }
+
+    /**
+     * Load tree-ordered channel options for operator content permissions.
+     */
+    protected function manageableChannelOptions(int $siteId): Collection
+    {
+        $channels = DB::table('channels')
+            ->where('site_id', $siteId)
+            ->orderByRaw('COALESCE(parent_id, 0) asc')
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->get(['id', 'name', 'slug', 'type', 'parent_id', 'depth', 'sort']);
+
+        return $this->flattenManagedChannels($channels);
     }
 
     protected function syncSiteRoles(int $siteId, int $userId, ?int $roleId): void

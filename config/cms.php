@@ -161,6 +161,7 @@ return [
             'theme.edit',
             'setting.manage',
             'site.user.manage',
+            'site.role.manage',
             'log.view',
             'security.view',
         ],

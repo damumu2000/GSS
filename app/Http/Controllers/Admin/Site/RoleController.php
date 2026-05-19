@@ -42,7 +42,7 @@ class RoleController extends Controller
     public function create(Request $request): View
     {
         $currentSite = $this->currentSite($request);
-        $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
+        $this->authorizeSite($request, $currentSite->id, 'site.role.manage');
 
         return view('admin.site.roles.create', [
             'sites' => $this->adminSites(),
@@ -53,7 +53,7 @@ class RoleController extends Controller
     public function index(Request $request): View
     {
         $currentSite = $this->currentSite($request);
-        $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
+        $this->authorizeSite($request, $currentSite->id, 'site.role.manage');
         $currentUserRoleId = (int) DB::table('site_user_roles')
             ->where('site_id', $currentSite->id)
             ->where('user_id', $request->user()->id)
@@ -95,7 +95,7 @@ class RoleController extends Controller
     public function edit(Request $request, string $roleId): View
     {
         $currentSite = $this->currentSite($request);
-        $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
+        $this->authorizeSite($request, $currentSite->id, 'site.role.manage');
 
         $this->moduleManager->synchronize();
         $role = $this->findRole($currentSite->id, $roleId);
@@ -176,7 +176,7 @@ class RoleController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $currentSite = $this->currentSite($request);
-        $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
+        $this->authorizeSite($request, $currentSite->id, 'site.role.manage');
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
@@ -215,7 +215,7 @@ class RoleController extends Controller
     public function update(Request $request, string $roleId): RedirectResponse
     {
         $currentSite = $this->currentSite($request);
-        $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
+        $this->authorizeSite($request, $currentSite->id, 'site.role.manage');
 
         $role = $this->findRole($currentSite->id, $roleId);
         abort_unless($role, 404);
@@ -322,7 +322,7 @@ class RoleController extends Controller
     public function destroy(Request $request, string $roleId): RedirectResponse
     {
         $currentSite = $this->currentSite($request);
-        $this->authorizeSite($request, $currentSite->id, 'site.user.manage');
+        $this->authorizeSite($request, $currentSite->id, 'site.role.manage');
 
         $role = $this->findRole($currentSite->id, $roleId);
         abort_unless($role, 404);
