@@ -1222,9 +1222,9 @@
                                     <td><code>{% set notice = content(id=12)%}</code></td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">contentList type / status</td>
-                                    <td>按内容类型和状态筛选，默认文章会取已发布内容。</td>
-                                    <td><code>{% set pages = contentList(type='page', status='published', limit=6)%}</code></td>
+                                    <td class="mono">contentList type</td>
+                                    <td>按内容类型筛选。前台正式查询固定只返回已发布且未进入回收站的内容。</td>
+                                    <td><code>{% set pages = contentList(type='page', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contentPage page / per_page / page_name / window</td>
@@ -1903,11 +1903,11 @@
                     <div class="example-card">
                         <div class="example-head">
                             <strong>范例 5：单页列表和统一链接输出</strong>
-                            <span>这段调用用了 <code>type='page'</code>、<code>status='published'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来取最近更新的单页。输出链接时再配合 <code>linkTo(type='page', id=item.id, default='#')</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
+                            <span>这段调用用了 <code>type='page'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来取最近更新的单页。前台正式查询固定只返回已发布且未进入回收站的内容。输出链接时再配合 <code>linkTo(type='page', id=item.id, default='#')</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
-<pre>{% set pageItems = contentList(type='page', status='published', order='updated_at_desc', limit=6)%} <span class="code-comment">{# 读取已发布的单页面内容，并按最近更新时间排序，方便展示“最新更新” #}</span>
+<pre>{% set pageItems = contentList(type='page', order='updated_at_desc', limit=6)%} <span class="code-comment">{# 前台会自动过滤草稿、待审核、已驳回和回收站内容，这里按最近更新时间取单页面即可 #}</span>
 {% for item in pageItems %} <span class="code-comment">{# 逐条处理单页面数据，item 就是当前这一个单页 #}</span>
     &lt;a href="{{ linkTo(type='page', id=item.id, default='#')}}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 用 linkTo 统一生成单页地址，避免手写链接造成跳转错误 --&gt;</span>
 {% endfor %} <span class="code-comment">{# 单页列表循环结束，以上链接会根据单页数量重复输出 #}</span></pre>

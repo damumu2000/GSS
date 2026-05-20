@@ -18,13 +18,13 @@ class ThemeTemplateEngine
         'config' => ['key', 'default'],
         'linkTo' => ['type', 'id', 'channel_id', 'slug', 'target', 'default'],
         'contentList' => [
-            'type', 'status', 'channel', 'channel_id', 'channel_slug', 'is_top', 'is_recommend',
+            'type', 'channel', 'channel_id', 'channel_slug', 'is_top', 'is_recommend',
             'with_cover', 'has_image', 'author', 'source', 'include_ids', 'exclude_ids',
             'keyword', 'published_after', 'published_before', 'random', 'order', 'order_by',
             'order_dir', 'offset', 'limit', 'fields', 'site_wide',
         ],
         'contentPage' => [
-            'type', 'status', 'channel', 'channel_id', 'channel_slug', 'is_top', 'is_recommend',
+            'type', 'channel', 'channel_id', 'channel_slug', 'is_top', 'is_recommend',
             'with_cover', 'has_image', 'author', 'source', 'include_ids', 'exclude_ids',
             'keyword', 'published_after', 'published_before', 'random', 'order', 'order_by',
             'order_dir', 'fields', 'page', 'per_page', 'page_name', 'window', 'site_wide',

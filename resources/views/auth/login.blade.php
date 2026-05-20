@@ -18,8 +18,8 @@
     @if (! empty($loginSeoDescription))
         <meta name="description" content="{{ $loginSeoDescription }}">
     @endif
-    @if (! empty($loginSiteBrand?->favicon))
-        <link rel="icon" href="{{ $loginSiteBrand->favicon }}">
+    @if (! empty($adminBrandSettings['admin_favicon']))
+        <link rel="icon" href="{{ $adminBrandSettings['admin_favicon'] }}">
     @endif
     <link rel="stylesheet" href="/css/login.css">
 </head>

@@ -18,7 +18,10 @@ class PayrollImportService
      */
     public function import(int $siteId, int $batchId, UploadedFile $file, string $sheetType): array
     {
-        $payload = $this->parser->parse($file->getRealPath(), $sheetType);
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+        $isCsv = $extension === 'csv';
+
+        $payload = $this->parser->parse($file->getRealPath(), $sheetType, $isCsv);
 
         if (! empty($payload['duplicates'])) {
             $duplicateName = (string) ($payload['duplicates'][0] ?? '');
@@ -31,6 +34,10 @@ class PayrollImportService
         }
 
         if (count($payload['records']) === 0) {
+            if ($isCsv) {
+                throw new InvalidArgumentException('该 CSV 不符合模板格式，请改用 Excel 文件上传。');
+            }
+
             $sheetNames = collect($payload['sheets'] ?? [])
                 ->map(fn ($sheet) => trim((string) ($sheet['name'] ?? $sheet['title'] ?? '')))
                 ->filter()

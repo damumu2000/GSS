@@ -57,8 +57,8 @@
                             当前文件：<strong>{{ $batch->salary_file_name ?: '未上传' }}</strong>
                         </div>
                         <label class="payroll-edit-upload-input">
-                            <input type="file" name="salary_file" accept=".xls,.xlsx" data-upload-input>
-                            <span class="payroll-edit-upload-placeholder" data-upload-placeholder>选择新的工资表文件（xls / xlsx）</span>
+                            <input type="file" name="salary_file" accept=".xls,.xlsx,.csv" data-upload-input>
+                            <span class="payroll-edit-upload-placeholder" data-upload-placeholder>选择新的工资表文件（xls / xlsx / csv）</span>
                         </label>
                         <div class="payroll-edit-upload-selected is-empty" data-upload-selected>尚未选择新文件</div>
                         <div class="payroll-edit-upload-error">@error('salary_file'){{ $message }}@enderror</div>
@@ -68,7 +68,7 @@
                                     class="button secondary payroll-export-button"
                                     href="{{ route('admin.payroll.batches.export', ['batch' => $batch->id, 'type' => 'salary']) }}"
                                     data-loading-text="生成中…"
-                                >导出工资</a>
+                                >导出工资 CSV</a>
                             </div>
                         @endif
                     </section>
@@ -81,8 +81,8 @@
                             当前文件：<strong>{{ $batch->performance_file_name ?: '未上传' }}</strong>
                         </div>
                         <label class="payroll-edit-upload-input">
-                            <input type="file" name="performance_file" accept=".xls,.xlsx" data-upload-input>
-                            <span class="payroll-edit-upload-placeholder" data-upload-placeholder>选择新的绩效表文件（xls / xlsx）</span>
+                            <input type="file" name="performance_file" accept=".xls,.xlsx,.csv" data-upload-input>
+                            <span class="payroll-edit-upload-placeholder" data-upload-placeholder>选择新的绩效表文件（xls / xlsx / csv）</span>
                         </label>
                         <div class="payroll-edit-upload-selected is-empty" data-upload-selected>尚未选择新文件</div>
                         <div class="payroll-edit-upload-error">@error('performance_file'){{ $message }}@enderror</div>
@@ -92,7 +92,7 @@
                                     class="button secondary payroll-export-button"
                                     href="{{ route('admin.payroll.batches.export', ['batch' => $batch->id, 'type' => 'performance']) }}"
                                     data-loading-text="生成中…"
-                                >导出绩效</a>
+                                >导出绩效 CSV</a>
                             </div>
                         @endif
                     </section>

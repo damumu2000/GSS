@@ -141,7 +141,7 @@ class SiteSecurity
             'request_path' => $this->normalizedRequestPath($request),
             'request_method' => strtoupper((string) $request->method()),
             'client_ip' => $request->ip() ?: null,
-            'region_name' => $request->ip() ? $this->resolveAttackRegionLabelCached((string) $request->ip()) : null,
+            'region_name' => $request->ip() ? $this->resolveAttackRegionLabel((string) $request->ip()) : null,
             'ip_hash' => $request->ip() ? hash('sha256', (string) $request->ip()) : null,
             'created_at' => $now,
         ]);
@@ -260,10 +260,7 @@ class SiteSecurity
 
         $regionCounts = [];
         foreach ($regionRows as $row) {
-            $label = $this->normalizeAttackRegionDisplayLabel(
-                trim((string) ($row->region_name ?? '')),
-                (string) ($row->client_ip ?? '')
-            );
+            $label = trim((string) ($row->region_name ?? '')) ?: $this->resolveAttackRegionLabel((string) ($row->client_ip ?? ''));
             $regionCounts[$label] = ($regionCounts[$label] ?? 0) + 1;
         }
 
@@ -728,95 +725,7 @@ class SiteSecurity
             return '内网来源';
         }
 
-        if (function_exists('geoip_record_by_name')) {
-            try {
-                $record = @geoip_record_by_name($ip);
-                if (is_array($record)) {
-                    $region = trim((string) ($record['region'] ?? ''));
-                    $city = trim((string) ($record['city'] ?? ''));
-                    $country = trim((string) ($record['country_name'] ?? ''));
-                    $countryCode = strtoupper(trim((string) ($record['country_code'] ?? '')));
-
-                    if ($this->isDomesticAttackCountry($countryCode, $country)) {
-                        $label = $this->normalizeDomesticAttackRegionLabel($region, $city);
-
-                        if ($label !== '') {
-                            return $label;
-                        }
-
-                        return '国内网络';
-                    }
-
-                    if ($country !== '') {
-                        return $country;
-                    }
-                }
-            } catch (\Throwable) {
-            }
-
-            return '公网来源';
-        }
-
         return '公网来源';
-    }
-
-    protected function resolveAttackRegionLabelCached(string $ip): string
-    {
-        $ip = trim($ip);
-
-        if ($ip === '' || $ip === '127.0.0.1' || $ip === '::1') {
-            return $this->resolveAttackRegionLabel($ip);
-        }
-
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            return $this->resolveAttackRegionLabel($ip);
-        }
-
-        $cacheKey = 'site-security:geoip-region:'.hash('sha256', $ip);
-
-        return Cache::remember($cacheKey, now('Asia/Shanghai')->addDays(7), function () use ($ip): string {
-            return $this->resolveAttackRegionLabel($ip);
-        });
-    }
-
-    protected function normalizeAttackRegionDisplayLabel(string $storedLabel, string $ip): string
-    {
-        $storedLabel = trim($storedLabel);
-
-        if ($storedLabel !== '' && ! in_array($storedLabel, ['公网来源', '未知来源'], true)) {
-            if (in_array($storedLabel, ['本地测试环境', '内网来源', '国内网络', '国外网络'], true)) {
-                return $storedLabel;
-            }
-
-            return $storedLabel;
-        }
-
-        return $this->resolveAttackRegionLabelCached($ip);
-    }
-
-    protected function isDomesticAttackCountry(string $countryCode, string $country): bool
-    {
-        if ($countryCode === 'CN') {
-            return true;
-        }
-
-        return in_array(mb_strtolower($country), ['china', '中国', '中华人民共和国'], true);
-    }
-
-    protected function normalizeDomesticAttackRegionLabel(string $region, string $city): string
-    {
-        $region = trim($region);
-        $city = trim($city);
-
-        if ($region !== '') {
-            return $region;
-        }
-
-        if ($city !== '') {
-            return $city;
-        }
-
-        return '';
     }
 
     protected function pruneEvents(int $siteId): void

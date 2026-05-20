@@ -45,7 +45,6 @@ class ThemeQueryChain
             'channel' => $this->setChannel($positional[0] ?? $named['value'] ?? $named['slug'] ?? null),
             'channelId' => $this->option('channel_id', $positional[0] ?? $named['value'] ?? null),
             'type' => $this->option('type', $positional[0] ?? $named['value'] ?? null),
-            'status' => $this->option('status', $positional[0] ?? $named['value'] ?? null),
             'top' => $this->option('is_top', $this->toBool($positional[0] ?? $named['value'] ?? true)),
             'featured' => $this->option('is_recommend', $this->toBool($positional[0] ?? $named['value'] ?? true)),
             'hasImage' => $this->option('has_image', $this->toBool($positional[0] ?? $named['value'] ?? true)),

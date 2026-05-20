@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
+use App\Support\FrontendContent;
 use App\Support\SiteStorageUsage;
 use App\Support\SiteSecurity;
 use Illuminate\Contracts\View\View;
@@ -157,8 +158,6 @@ class DashboardController extends Controller
         $topArticlesQuery = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
             ->where('contents.site_id', $siteId)
-            ->where('contents.type', 'article')
-            ->whereNull('contents.deleted_at')
             ->where(function ($query) use ($today): void {
                 $cutoff = $today->copy()->subDays(30)->startOfDay()->toDateTimeString();
                 $query->where('contents.published_at', '>=', $cutoff)
@@ -167,6 +166,8 @@ class DashboardController extends Controller
                             ->where('contents.created_at', '>=', $cutoff);
                     });
             });
+
+        FrontendContent::applyVisibleScope($topArticlesQuery, 'contents', 'article');
 
         $topArticles = $topArticlesQuery
             ->orderByDesc('contents.view_count')

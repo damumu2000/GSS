@@ -509,8 +509,65 @@ class PayrollController extends SiteController
             'sheetType' => $type,
             'batch' => $batch,
             'employee' => $employee,
-            'items' => json_decode((string) $record->items_json, true) ?: [],
+            'items' => $this->normalizeDetailItems(json_decode((string) $record->items_json, true) ?: []),
         ]);
+    }
+
+    /**
+     * @param  mixed  $items
+     * @return array<int, array{label:string, value:string, is_total:bool}>
+     */
+    protected function normalizeDetailItems(mixed $items): array
+    {
+        if (! is_array($items)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $label = trim((string) ($item['label'] ?? ''));
+            $value = trim((string) ($item['value'] ?? ''));
+
+            if ($label === '' && $value === '') {
+                continue;
+            }
+
+            if ($this->isZeroAmountValue($value)) {
+                continue;
+            }
+
+            $normalized[] = [
+                'label' => $label,
+                'value' => $value,
+                'is_total' => in_array($label, ['实发合计', '实发工资合计'], true),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    protected function isZeroAmountValue(string $value): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        $normalized = str_replace([',', '，', '元', ' '], '', $value);
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (! preg_match('/^-?\d+(?:\.\d+)?$/', $normalized)) {
+            return false;
+        }
+
+        return (float) $normalized == 0.0;
     }
 
     /**

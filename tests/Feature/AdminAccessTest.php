@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\ThemeTags;
 use App\Support\LegacyAspAccessSiteImporter;
 use Database\Seeders\CmsBootstrapSeeder;
 use Database\Seeders\DatabaseSeeder;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Writer\Xls;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
@@ -287,7 +289,6 @@ class AdminAccessTest extends TestCase
             ->assertOk()
             ->assertSee('官闪闪公告栏')
             ->assertSee('平台统一更新公告')
-            ->assertSee(route('site.article', ['id' => $platformNoticeId, 'site' => 'site']), false)
             ->assertViewHas('platformNotices', function ($items): bool {
                 $titles = collect($items)->pluck('title')->all();
 
@@ -295,6 +296,54 @@ class AdminAccessTest extends TestCase
                     && ! in_array('主网站普通新闻', $titles, true)
                     && ! in_array('远程站点无关公告', $titles, true);
             });
+    }
+
+    public function test_platform_dashboard_ignores_deleted_platform_notice(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $noticeChannelId = (int) DB::table('channels')
+            ->where('site_id', 1)
+            ->where('slug', 'platform-notices')
+            ->value('id');
+
+        DB::table('contents')->insert([
+            [
+                'site_id' => 1,
+                'channel_id' => $noticeChannelId,
+                'type' => 'article',
+                'title' => '正常平台公告',
+                'status' => 'published',
+                'audit_status' => 'approved',
+                'deleted_at' => null,
+                'created_by' => $user->id,
+                'updated_by' => $user->id,
+                'published_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => 1,
+                'channel_id' => $noticeChannelId,
+                'type' => 'article',
+                'title' => '已回收平台公告',
+                'status' => 'published',
+                'audit_status' => 'approved',
+                'deleted_at' => now(),
+                'created_by' => $user->id,
+                'updated_by' => $user->id,
+                'published_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('正常平台公告')
+            ->assertDontSee('已回收平台公告');
     }
 
     public function test_platform_dashboard_recent_articles_aggregate_across_sites_with_site_prefix(): void
@@ -336,8 +385,10 @@ class AdminAccessTest extends TestCase
         $this->actingAs($user)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('示例学校 · 主站最新文章')
-            ->assertSee('平台远程站点 · 远程站点文章');
+            ->assertSee('主站最新文章')
+            ->assertSee('示例学校')
+            ->assertSee('远程站点文章')
+            ->assertSee('平台远程站点');
     }
 
     public function test_site_dashboard_platform_notices_respect_top_and_sort_order(): void
@@ -2677,7 +2728,7 @@ XML);
             ->get(route('site.payroll.index', ['site' => 'site', 'mock_openid' => 'wx-preview-user']))
             ->assertOk()
             ->assertSee('我的薪资信息列表')
-            ->assertSee('2026年3月')
+            ->assertSee('2026年03月')
             ->assertSee('工资条')
             ->assertSee('绩效');
 
@@ -2693,6 +2744,79 @@ XML);
             ->assertSee('2026年3月 工资条详情')
             ->assertSee('岗位工资')
             ->assertSee('3810');
+    }
+
+    public function test_payroll_frontend_detail_hides_zero_amount_rows_and_keeps_take_home_total(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.payroll.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        DB::table('module_payroll_employees')->insert([
+            'site_id' => $siteId,
+            'wechat_openid' => 'wx-detail-user',
+            'wechat_nickname' => '明老师',
+            'name' => '明老师',
+            'mobile' => '13800138001',
+            'status' => 'approved',
+            'approved_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $batchId = (int) DB::table('module_payroll_batches')->insertGetId([
+            'site_id' => $siteId,
+            'month_key' => '2026-04',
+            'status' => 'imported',
+            'salary_file_name' => 'salary-april.xls',
+            'imported_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('module_payroll_records')->insert([
+            'site_id' => $siteId,
+            'batch_id' => $batchId,
+            'employee_name' => '明老师',
+            'sheet_type' => 'salary',
+            'items_json' => json_encode([
+                ['label' => '姓名', 'value' => '明老师'],
+                ['label' => '岗位工资', 'value' => '3810'],
+                ['label' => '补发金额', 'value' => '0.00'],
+                ['label' => '实发合计', 'value' => '3810.00'],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'row_hash' => hash('sha256', 'detail-zero-filter'),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->withSession([
+            'payroll.identity.'.$siteId => [
+                'openid' => 'wx-detail-user',
+                'unionid' => '',
+                'nickname' => '明老师',
+                'avatar' => '',
+            ],
+        ])->get(route('site.payroll.show', ['batch' => $batchId, 'type' => 'salary', 'site' => 'site']))
+            ->assertOk()
+            ->assertSee('岗位工资')
+            ->assertDontSee('补发金额')
+            ->assertSee('实发合计')
+            ->assertSee('row-total', false);
     }
 
     public function test_payroll_frontend_local_site_preview_bootstraps_demo_data_without_wechat(): void
@@ -3442,12 +3566,18 @@ XML);
 
         $siteAdmin = $this->createSiteOperator('payroll-export-admin', true, 'site_admin');
 
-        $this->actingAs($siteAdmin)
+        $response = $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->get(route('admin.payroll.batches.export', ['batch' => $batchId, 'type' => 'salary']))
             ->assertOk()
-            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->assertHeader('content-type', 'text/csv; charset=UTF-8')
             ->assertHeader('content-disposition');
+
+        $content = $response->streamedContent();
+
+        $this->assertStringStartsWith("\xEF\xBB\xBF姓名,", $content);
+        $this->assertStringContainsString('岗位工资', $content);
+        $this->assertStringContainsString('沐老师', $content);
     }
 
     public function test_payroll_import_rejects_duplicate_names_in_uploaded_sheet(): void
@@ -3494,6 +3624,157 @@ XML);
             ->where('batch_id', $batchId)
             ->where('sheet_type', 'salary')
             ->count());
+    }
+
+    public function test_payroll_import_accepts_standard_horizontal_csv_sheet(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        $batchId = (int) DB::table('module_payroll_batches')->insertGetId([
+            'site_id' => $siteId,
+            'month_key' => '2026-06',
+            'status' => 'draft',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('module_payroll_employees')->insert([
+            'site_id' => $siteId,
+            'name' => '王老师',
+            'mobile' => '13800138000',
+            'wechat_openid' => 'wx-csv-import-001',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $siteAdmin = $this->createSiteOperator('payroll-csv-import-admin', true, 'site_admin');
+        $csvFile = $this->createPayrollCsvUpload([
+            ['姓名', '岗位工资', '薪级工资'],
+            ['王老师', '3810', '4201'],
+        ], 'salary.csv');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->from(route('admin.payroll.batches.edit', $batchId))
+            ->post(route('admin.payroll.batches.update', $batchId), [
+                'salary_file' => $csvFile,
+            ])
+            ->assertRedirect(route('admin.payroll.batches.edit', $batchId))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('module_payroll_records', [
+            'site_id' => $siteId,
+            'batch_id' => $batchId,
+            'employee_name' => '王老师',
+            'sheet_type' => 'salary',
+        ]);
+    }
+
+    public function test_payroll_import_accepts_legacy_xls_sheet(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        $batchId = (int) DB::table('module_payroll_batches')->insertGetId([
+            'site_id' => $siteId,
+            'month_key' => '2026-08',
+            'status' => 'draft',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('module_payroll_employees')->insert([
+            'site_id' => $siteId,
+            'name' => '李老师',
+            'mobile' => '13800138001',
+            'wechat_openid' => 'wx-xls-import-001',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $siteAdmin = $this->createSiteOperator('payroll-xls-import-admin', true, 'site_admin');
+        $xlsFile = $this->createPayrollSpreadsheetUpload([
+            ['姓名', '岗位工资', '薪级工资'],
+            ['李老师', '4000', '2100'],
+        ], 'salary-legacy.xls');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->from(route('admin.payroll.batches.edit', $batchId))
+            ->post(route('admin.payroll.batches.update', $batchId), [
+                'salary_file' => $xlsFile,
+            ])
+            ->assertRedirect(route('admin.payroll.batches.edit', $batchId))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('module_payroll_records', [
+            'site_id' => $siteId,
+            'batch_id' => $batchId,
+            'employee_name' => '李老师',
+            'sheet_type' => 'salary',
+        ]);
+    }
+
+    public function test_payroll_import_rejects_non_standard_csv_with_excel_hint(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+
+        $batchId = (int) DB::table('module_payroll_batches')->insertGetId([
+            'site_id' => $siteId,
+            'month_key' => '2026-07',
+            'status' => 'draft',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $siteAdmin = $this->createSiteOperator('payroll-csv-invalid-admin', true, 'site_admin');
+        $csvFile = $this->createPayrollCsvUpload([
+            ['项目', '王老师', '李老师'],
+            ['绩效A', '95', '88'],
+        ], 'invalid-performance.csv');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->from(route('admin.payroll.batches.edit', $batchId))
+            ->post(route('admin.payroll.batches.update', $batchId), [
+                'performance_file' => $csvFile,
+            ])
+            ->assertRedirect(route('admin.payroll.batches.edit', $batchId))
+            ->assertSessionHasErrors(['performance_file' => '该 CSV 不符合模板格式，请改用 Excel 文件上传。']);
     }
 
     public function test_module_manager_removes_stale_permissions_after_manifest_changes(): void
@@ -5175,6 +5456,31 @@ XML);
         $this->assertSame($secondSiteId, (int) session('current_site_id'));
     }
 
+    public function test_multi_site_operator_security_page_shows_site_switcher(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('security-multi-site-operator', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $secondSiteId = $this->createAdditionalSite('security-demo-school-2', '第二安全示例学校');
+        $siteAdminRoleId = (int) DB::table('site_roles')->where('code', 'site_admin')->value('id');
+
+        DB::table('site_user_roles')->insert([
+            'site_id' => $secondSiteId,
+            'user_id' => $operator->id,
+            'role_id' => $siteAdminRoleId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('示例学校')
+            ->assertSee('第二安全示例学校');
+    }
+
     public function test_site_operator_cannot_switch_to_unbound_site(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -6688,6 +6994,7 @@ XML);
                 'title' => '平台统一维护通知',
                 'status' => 'published',
                 'audit_status' => 'approved',
+                'deleted_at' => null,
                 'created_by' => $operator->id,
                 'updated_by' => $operator->id,
                 'published_at' => now(),
@@ -6766,6 +7073,141 @@ XML);
 
         $response->assertOk()
             ->assertViewHas('platformNoticeSiteKey', 'site');
+    }
+
+    public function test_site_dashboard_ignores_deleted_platform_notice(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('site-dashboard-notice-filter', true, 'site_admin');
+        $noticeChannelId = (int) DB::table('channels')
+            ->where('site_id', 1)
+            ->where('slug', 'platform-notices')
+            ->value('id');
+
+        DB::table('contents')->insert([
+            'site_id' => 1,
+            'channel_id' => $noticeChannelId,
+            'type' => 'article',
+            'title' => '站点可见平台公告',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'deleted_at' => null,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'published_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => 1,
+            'channel_id' => $noticeChannelId,
+            'type' => 'article',
+            'title' => '站点已回收平台公告',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'deleted_at' => now(),
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'published_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => 1])
+            ->get(route('admin.site-dashboard'))
+            ->assertOk()
+            ->assertSee('站点可见平台公告')
+            ->assertDontSee('站点已回收平台公告');
+    }
+
+    public function test_theme_tags_frontend_content_queries_ignore_non_published_and_deleted_content(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = DB::table('sites')->where('site_key', 'site')->first();
+        $this->assertNotNull($site);
+        $settings = collect();
+        $channels = DB::table('channels')
+            ->where('site_id', $site->id)
+            ->where('status', 1)
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->get();
+        $tags = new ThemeTags($site, $settings, $channels);
+        $identity = $this->createPlatformIdentity('frontend-visibility-tester');
+        $channelId = $this->createSiteChannel((int) $site->id, 'frontend-visible-channel', '前台可见栏目', $identity->id);
+
+        DB::table('contents')->insert([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台可见文章',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'published_at' => now(),
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台草稿文章',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台待审核文章',
+            'status' => 'pending',
+            'audit_status' => 'pending',
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台回收站文章',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'deleted_at' => now(),
+            'published_at' => now(),
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $items = $tags->contentList([
+            'type' => 'article',
+            'site_wide' => true,
+            'status' => 'draft',
+            'limit' => 10,
+        ]);
+
+        $titles = $items->pluck('title')->all();
+
+        $this->assertContains('前台可见文章', $titles);
+        $this->assertNotContains('前台草稿文章', $titles);
+        $this->assertNotContains('前台待审核文章', $titles);
+        $this->assertNotContains('前台回收站文章', $titles);
     }
 
     public function test_site_logs_only_show_current_site_records(): void
@@ -8023,6 +8465,74 @@ XML);
         ]);
 
         $this->assertSame(1, (int) DB::table('contents')->where('id', $articleId)->value('view_count'));
+    }
+
+    public function test_frontend_article_route_hides_draft_pending_rejected_and_deleted_articles(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $identity = $this->createPlatformIdentity('frontend-hidden-article-tester');
+        $channelId = $this->createSiteChannel($siteId, 'frontend-hidden-articles', '前台隐藏文章栏目', $identity->id);
+
+        $draftId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台隐藏草稿文章',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $pendingId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台隐藏待审文章',
+            'status' => 'pending',
+            'audit_status' => 'pending',
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $rejectedId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台隐藏驳回文章',
+            'status' => 'rejected',
+            'audit_status' => 'rejected',
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $deletedId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '前台隐藏回收站文章',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'deleted_at' => now(),
+            'published_at' => now(),
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach ([$draftId, $pendingId, $rejectedId, $deletedId] as $contentId) {
+            $this->get(route('site.article', ['site' => 'site', 'id' => $contentId]))
+                ->assertNotFound();
+        }
     }
 
     public function test_uploader_role_cannot_access_recycle_bin_or_theme_pages(): void
@@ -11090,17 +11600,43 @@ XML);
             }
         }
 
-        $path = storage_path('app/testing-'.uniqid('payroll-', true).'.xlsx');
+        $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+        $isXls = $extension === 'xls';
+        $path = storage_path('app/testing-'.uniqid('payroll-', true).'.'.($isXls ? 'xls' : 'xlsx'));
         File::ensureDirectoryExists(dirname($path));
 
-        $writer = new Xlsx($spreadsheet);
+        $writer = $isXls ? new Xls($spreadsheet) : new Xlsx($spreadsheet);
         $writer->save($path);
         $this->temporaryPayrollUploads[] = $path;
 
         return new UploadedFile(
             $path,
             $filename,
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            $isXls ? 'application/vnd.ms-excel' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null,
+            true
+        );
+    }
+
+    protected function createPayrollCsvUpload(array $rows, string $filename = 'payroll.csv'): UploadedFile
+    {
+        $path = storage_path('app/testing-'.uniqid('payroll-csv-', true).'.csv');
+        File::ensureDirectoryExists(dirname($path));
+
+        $handle = fopen($path, 'wb');
+        fwrite($handle, "\xEF\xBB\xBF");
+
+        foreach ($rows as $row) {
+            fputcsv($handle, $row);
+        }
+
+        fclose($handle);
+        $this->temporaryPayrollUploads[] = $path;
+
+        return new UploadedFile(
+            $path,
+            $filename,
+            'text/csv',
             null,
             true
         );

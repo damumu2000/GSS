@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Support\FrontendContent;
 use App\Support\PlatformSystemStatus;
 use App\Support\SiteStorageUsage;
 use App\Support\SiteSecurity;
@@ -116,11 +117,9 @@ class DashboardController extends Controller
 
         $securitySummary = $this->globalSecuritySummary($today);
 
-        $topArticlesRows = DB::table('contents')
+        $topArticlesQuery = DB::table('contents')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
             ->leftJoin('sites', 'sites.id', '=', 'contents.site_id')
-            ->where('contents.type', 'article')
-            ->whereNull('contents.deleted_at')
             ->where(function ($query) use ($today): void {
                 $cutoff = $today->copy()->subDays(30)->startOfDay()->toDateTimeString();
                 $query->where('contents.published_at', '>=', $cutoff)
@@ -128,7 +127,11 @@ class DashboardController extends Controller
                         $fallback->whereNull('contents.published_at')
                             ->where('contents.created_at', '>=', $cutoff);
                     });
-            })
+            });
+
+        FrontendContent::applyVisibleScope($topArticlesQuery, 'contents', 'article');
+
+        $topArticlesRows = $topArticlesQuery
             ->orderByDesc('contents.view_count')
             ->orderByDesc('contents.published_at')
             ->orderByDesc('contents.id')

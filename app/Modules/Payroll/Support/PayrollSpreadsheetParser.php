@@ -14,7 +14,7 @@ class PayrollSpreadsheetParser
     /**
      * @return array{records: array<int, array<string, mixed>>, sheets: array<int, array<string, mixed>>, duplicates: array<int, string>}
      */
-    public function parse(string $path, string $sheetType): array
+    public function parse(string $path, string $sheetType, bool $csvOnlyHorizontal = false): array
     {
         $reader = IOFactory::createReaderForFile($path);
         if (method_exists($reader, 'setReadDataOnly')) {
@@ -39,7 +39,7 @@ class PayrollSpreadsheetParser
                 }
 
                 $rows = $this->extractWorksheetRows($worksheet, $highestRow, $highestColumn);
-                $sheetPayload = $this->parseWorksheet($rows, $worksheet->getTitle(), $sheetType);
+                $sheetPayload = $this->parseWorksheet($rows, $worksheet->getTitle(), $sheetType, $csvOnlyHorizontal);
 
                 if ($sheetPayload['matched'] === 0) {
                     $sheets[] = [
@@ -147,12 +147,21 @@ class PayrollSpreadsheetParser
      * @param  array<int, array<string, mixed>>  $rows
      * @return array{mode: string, matched: int, records: array<string, array<int, array{label: string, value: string}>>, duplicates: array<int, string>}
      */
-    protected function parseWorksheet(array $rows, string $sheetTitle, string $sheetType): array
+    protected function parseWorksheet(array $rows, string $sheetTitle, string $sheetType, bool $csvOnlyHorizontal = false): array
     {
         if ($this->looksLikeHorizontalSheet($rows)) {
             return [
                 'mode' => 'horizontal',
                 ...$this->parseHorizontalSheet($rows),
+            ];
+        }
+
+        if ($csvOnlyHorizontal) {
+            return [
+                'mode' => 'unknown',
+                'matched' => 0,
+                'records' => [],
+                'duplicates' => [],
             ];
         }
 

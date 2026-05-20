@@ -21,6 +21,8 @@ class SecurityController extends Controller
 
         return view('admin.site.security.index', [
             'currentSite' => $currentSite,
+            'sites' => $this->adminSites(),
+            'showSiteSwitcher' => $this->shouldShowSiteSwitcher($request->user()->id),
             'security' => $this->siteSecurity->sitePagePayload((int) $currentSite->id),
         ]);
     }

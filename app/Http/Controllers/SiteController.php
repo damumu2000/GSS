@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\EmbeddedContentRenderer;
+use App\Support\FrontendContent;
 use App\Support\FrontendPageCache;
 use App\Support\FrontendDevice;
 use App\Support\Site as SitePath;
@@ -104,11 +105,7 @@ class SiteController extends Controller
         }
 
         if ($channel->type === 'page') {
-            $page = DB::table('contents')
-                ->where('site_id', $site->id)
-                ->where('type', 'page')
-                ->where('status', 'published')
-                ->whereNull('deleted_at')
+            $page = FrontendContent::visibleQuery((int) $site->id, 'page')
                 ->whereExists(function ($query) use ($channel): void {
                     $query->selectRaw('1')
                         ->from('content_channels')
@@ -149,11 +146,7 @@ class SiteController extends Controller
         $showAll = in_array(strtolower(trim((string) $request->query('all', '0'))), ['1', 'true', 'yes'], true);
         $pageTitle = $showAll ? '全部内容' : (string) $channel->name;
 
-        $items = DB::table('contents')
-            ->where('site_id', $site->id)
-            ->where('type', 'article')
-            ->where('status', 'published')
-            ->whereNull('deleted_at')
+        $items = FrontendContent::visibleQuery((int) $site->id, 'article')
             ->whereExists(function ($query) use ($channelIds): void {
                 $query->selectRaw('1')
                 ->from('content_channels')
@@ -204,13 +197,9 @@ class SiteController extends Controller
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
 
-        $article = DB::table('contents')
+        $article = FrontendContent::visibleQuery((int) $site->id, 'article')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
-            ->where('contents.site_id', $site->id)
             ->where('contents.id', $id)
-            ->where('contents.type', 'article')
-            ->where('contents.status', 'published')
-            ->whereNull('contents.deleted_at')
             ->first([
                 'contents.*',
                 'channels.name as channel_name',
@@ -294,13 +283,9 @@ class SiteController extends Controller
         $channels = $this->siteNavChannels($site->id);
         $tags = new ThemeTags($site, $settings, $channels);
 
-        $page = DB::table('contents')
+        $page = FrontendContent::visibleQuery((int) $site->id, 'page')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
-            ->where('contents.site_id', $site->id)
             ->where('contents.id', $id)
-            ->where('contents.type', 'page')
-            ->where('contents.status', 'published')
-            ->whereNull('contents.deleted_at')
             ->first([
                 'contents.*',
                 'channels.name as channel_name',
@@ -930,7 +915,7 @@ class SiteController extends Controller
             'name' => $site->name,
             'site_key' => $site->site_key,
             'logo' => SitePath::versionedMediaUrl($site->logo),
-            'favicon' => SitePath::versionedMediaUrl($site->favicon),
+            'favicon' => SitePath::versionedMediaUrl($site->favicon) ?: 'data:,',
             'contact_phone' => $site->contact_phone,
             'contact_email' => $site->contact_email,
             'address' => $site->address,

@@ -13,9 +13,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class PayrollBatchController extends Controller
 {
@@ -177,12 +174,12 @@ class PayrollBatchController extends Controller
         $batch = $this->findBatchOrAbort((int) $currentSite->id, $batchId);
 
         Validator::make($request->all(), [
-            'salary_file' => ['nullable', 'file', 'mimes:xls,xlsx', 'max:10240'],
-            'performance_file' => ['nullable', 'file', 'mimes:xls,xlsx', 'max:10240'],
+            'salary_file' => ['nullable', 'file', 'mimes:xls,xlsx,csv', 'max:10240'],
+            'performance_file' => ['nullable', 'file', 'mimes:xls,xlsx,csv', 'max:10240'],
         ], [
-            'salary_file.mimes' => '工资表仅支持 xls 或 xlsx 文件。',
+            'salary_file.mimes' => '工资表仅支持 xls、xlsx 或 csv 文件。',
             'salary_file.max' => '工资表不能超过 10MB。',
-            'performance_file.mimes' => '绩效表仅支持 xls 或 xlsx 文件。',
+            'performance_file.mimes' => '绩效表仅支持 xls、xlsx 或 csv 文件。',
             'performance_file.max' => '绩效表不能超过 10MB。',
         ])->validate();
 
@@ -280,40 +277,33 @@ class PayrollBatchController extends Controller
             ];
         }
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle($type === 'salary' ? '工资数据' : '绩效数据');
-
-        $sheet->setCellValue('A1', '姓名');
-        foreach ($columns as $index => $label) {
-            $columnLetter = Coordinate::stringFromColumnIndex($index + 2);
-            $sheet->setCellValue($columnLetter.'1', $label);
-        }
-
-        foreach ($normalizedRows as $rowIndex => $row) {
-            $excelRow = $rowIndex + 2;
-            $sheet->setCellValue('A'.$excelRow, $row['employee_name']);
-
-            foreach ($columns as $columnIndex => $label) {
-                $columnLetter = Coordinate::stringFromColumnIndex($columnIndex + 2);
-                $sheet->setCellValue($columnLetter.$excelRow, $row['items'][$label] ?? '');
-            }
-        }
-
-        foreach (range(1, count($columns) + 1) as $columnNumber) {
-            $sheet->getColumnDimensionByColumn($columnNumber)->setAutoSize(true);
-        }
-
         $monthLabel = \Illuminate\Support\Carbon::createFromFormat('Y-m', (string) $batch->month_key)->format('Y年n月');
         $typeLabel = $type === 'salary' ? '工资数据' : '绩效数据';
-        $fileName = $monthLabel.$typeLabel.'.xlsx';
+        $fileName = $monthLabel.$typeLabel.'.csv';
 
-        return response()->streamDownload(function () use ($spreadsheet): void {
-            $writer = new Xlsx($spreadsheet);
-            $writer->save('php://output');
-            $spreadsheet->disconnectWorksheets();
+        return response()->streamDownload(function () use ($columns, $normalizedRows): void {
+            $handle = fopen('php://output', 'wb');
+
+            if (! is_resource($handle)) {
+                return;
+            }
+
+            fwrite($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, array_merge(['姓名'], array_map(fn (string $label): string => $this->normalizeCsvCellValue($label), $columns)));
+
+            foreach ($normalizedRows as $row) {
+                $line = [$this->normalizeCsvCellValue($row['employee_name'])];
+
+                foreach ($columns as $label) {
+                    $line[] = $this->normalizeCsvCellValue((string) ($row['items'][$label] ?? ''));
+                }
+
+                fputcsv($handle, $line);
+            }
+
+            fclose($handle);
         }, $fileName, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 
@@ -359,6 +349,17 @@ class PayrollBatchController extends Controller
         abort_unless($batch, 404);
 
         return $batch;
+    }
+
+    protected function normalizeCsvCellValue(string $value): string
+    {
+        $trimmed = ltrim($value);
+
+        if ($trimmed !== '' && preg_match('/^[=+\-@]/', $trimmed) === 1) {
+            return "'".$value;
+        }
+
+        return $value;
     }
 
     /**

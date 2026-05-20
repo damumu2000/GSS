@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\FrontendContent;
 use App\Support\FrontendPageCache;
 use App\Support\SiteFrontendUrl;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -888,11 +889,13 @@ abstract class Controller
             return collect();
         }
 
-        return DB::table('contents')
+        $query = DB::table('contents')
             ->where('site_id', $this->platformSiteId())
-            ->where('type', 'article')
-            ->where('status', 'published')
-            ->where('channel_id', $noticeChannelId)
+            ->where('channel_id', $noticeChannelId);
+
+        FrontendContent::applyVisibleScope($query);
+
+        return $query
             ->orderByDesc('is_top')
             ->orderByDesc('sort')
             ->orderByDesc('published_at')
@@ -934,10 +937,12 @@ abstract class Controller
 
         $notice = DB::table('contents')
             ->where('site_id', $this->platformSiteId())
-            ->where('type', 'article')
-            ->where('status', 'published')
             ->where('channel_id', $noticeChannelId)
-            ->where('id', $noticeId)
+            ->where('id', $noticeId);
+
+        FrontendContent::applyVisibleScope($notice);
+
+        $notice = $notice
             ->first([
                 'id',
                 'title',

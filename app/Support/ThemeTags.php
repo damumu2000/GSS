@@ -71,7 +71,7 @@ class ThemeTags
             'id' => $this->site->id ?? null,
             'name' => $this->site->name ?? '',
             'logo' => Site::versionedMediaUrl($this->site->logo ?? ''),
-            'favicon' => Site::versionedMediaUrl($this->site->favicon ?? ''),
+            'favicon' => Site::versionedMediaUrl($this->site->favicon ?? '') ?: 'data:,',
             'contact_phone' => $this->site->contact_phone ?? '',
             'contact_email' => $this->site->contact_email ?? '',
             'address' => $this->site->address ?? '',
@@ -459,6 +459,7 @@ class ThemeTags
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
             ->where('contents.site_id', $this->site->id)
             ->where('contents.id', $contentId)
+            ->where('contents.status', 'published')
             ->whereNull('contents.deleted_at')
             ->first([
                 'contents.*',
@@ -966,17 +967,8 @@ class ThemeTags
     {
         return [
             'channels' => DB::table('channels')->where('site_id', $this->site->id)->where('status', 1)->count(),
-            'articles' => DB::table('contents')
-                ->where('site_id', $this->site->id)
-                ->where('type', 'article')
-                ->where('status', 'published')
-                ->whereNull('deleted_at')
-                ->count(),
-            'pages' => DB::table('contents')
-                ->where('site_id', $this->site->id)
-                ->where('type', 'page')
-                ->whereNull('deleted_at')
-                ->count(),
+            'articles' => FrontendContent::visibleQuery($this->site->id, 'article')->count(),
+            'pages' => FrontendContent::visibleQuery($this->site->id, 'page')->count(),
             'status' => ($this->site->status ?? 0) ? '正常' : '停用',
         ];
     }
@@ -989,12 +981,8 @@ class ThemeTags
             return null;
         }
 
-        $content = DB::table('contents')
-            ->where('site_id', $this->site->id)
+        $content = FrontendContent::visibleQuery($this->site->id, $context->type)
             ->where('channel_id', $context->channel_id)
-            ->where('type', $context->type)
-            ->where('status', 'published')
-            ->whereNull('deleted_at')
             ->where('id', '<', $context->id)
             ->orderByDesc('id')
             ->first(['id', 'title', 'title_color', 'title_bold', 'title_italic', 'is_recommend', 'type']);
@@ -1010,12 +998,8 @@ class ThemeTags
             return null;
         }
 
-        $content = DB::table('contents')
-            ->where('site_id', $this->site->id)
+        $content = FrontendContent::visibleQuery($this->site->id, $context->type)
             ->where('channel_id', $context->channel_id)
-            ->where('type', $context->type)
-            ->where('status', 'published')
-            ->whereNull('deleted_at')
             ->where('id', '>', $context->id)
             ->orderBy('id')
             ->first(['id', 'title', 'title_color', 'title_bold', 'title_italic', 'is_recommend', 'type']);
@@ -1031,12 +1015,8 @@ class ThemeTags
             return collect();
         }
 
-        return DB::table('contents')
-            ->where('site_id', $this->site->id)
+        return FrontendContent::visibleQuery($this->site->id, $context->type)
             ->where('channel_id', $context->channel_id)
-            ->where('type', $context->type)
-            ->where('status', 'published')
-            ->whereNull('deleted_at')
             ->where('id', '!=', $context->id)
             ->orderByDesc('published_at')
             ->limit($limit)
@@ -1091,19 +1071,8 @@ class ThemeTags
     {
         $type = (string) ($options['type'] ?? 'article');
 
-        $query = DB::table('contents')
-            ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
-            ->where('contents.site_id', $this->site->id)
-            ->where('contents.type', $type)
-            ->whereNull('contents.deleted_at');
-
-        if (array_key_exists('status', $options)) {
-            if ($options['status'] !== null) {
-                $query->where('contents.status', (string) $options['status']);
-            }
-        } elseif ($type === 'article') {
-            $query->where('contents.status', 'published');
-        }
+        $query = FrontendContent::visibleQuery($this->site->id, $type)
+            ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id');
 
         $channelId = $this->resolveChannelIdFromOptions([
             'id' => $options['channel_id'] ?? null,

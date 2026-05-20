@@ -394,7 +394,7 @@ class SystemSettings
             'system_name' => $this->string('system.name', (string) config('app.name')),
             'system_version' => $this->string('system.version', '1.0.0'),
             'admin_logo' => $this->string('admin.logo', '/logo.jpg'),
-            'admin_favicon' => $this->string('admin.favicon', '/Favicon.ico'),
+            'admin_favicon' => $this->string('admin.favicon', '/favicon.ico'),
             'attachment_allowed_extensions' => implode(',', $this->attachmentAllowedExtensions()),
             'attachment_max_size_mb' => $this->attachmentMaxSizeMb(),
             'attachment_image_max_size_mb' => $this->attachmentImageMaxSizeMb(),

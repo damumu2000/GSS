@@ -53,7 +53,7 @@ return new class extends Migration
             'system.name' => config('app.name'),
             'system.version' => '1.0.0',
             'admin.logo' => '/logo.jpg',
-            'admin.favicon' => '/Favicon.ico',
+            'admin.favicon' => '/favicon.ico',
             'attachment.allowed_extensions' => 'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,ppt,pptx,zip,rar',
             'attachment.max_size_mb' => '10',
             'attachment.image_max_size_mb' => '5',

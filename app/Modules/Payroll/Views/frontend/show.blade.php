@@ -20,7 +20,7 @@
             </div>
 
             @foreach ($items as $item)
-                <div class="row">
+                <div class="row{{ !empty($item['is_total']) ? ' row-total' : '' }}">
                     <span class="label-cell">{{ $item['label'] ?? '' }}</span>
                     <span class="value-cell">{{ $item['value'] ?? '' }}</span>
                 </div>

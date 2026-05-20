@@ -36,7 +36,7 @@
                         <span class="payroll-help-step-no">2</span>
                         <div>
                             <strong>上传工资表或绩效表</strong>
-                            重新上传会覆盖这个月原来的同类数据。
+                            支持上传 xls、xlsx、csv，重新上传会覆盖这个月原来的同类数据。
                         </div>
                     </div>
                     <div class="payroll-help-step">
@@ -65,6 +65,14 @@
                     <li>
                         <span class="payroll-help-note-dot"></span>
                         <span><strong>重新上传会直接覆盖。</strong> 不需要再建新的月份批次。</span>
+                    </li>
+                    <li>
+                        <span class="payroll-help-note-dot"></span>
+                        <span><strong>CSV 只支持标准横表。</strong> 第一行必须是表头，第一列必须是姓名。</span>
+                    </li>
+                    <li>
+                        <span class="payroll-help-note-dot"></span>
+                        <span><strong>CSV 解析失败时请改用 Excel。</strong> 如果提示“该 CSV 不符合模板格式，请改用 Excel 文件上传”，说明当前文件结构不适合按标准横表解析。</span>
                     </li>
                     <li>
                         <span class="payroll-help-note-dot"></span>
