@@ -229,11 +229,35 @@ class SiteSecurity
             ->values()
             ->all();
 
-        $events = DB::table('site_security_events')
-            ->where('site_id', $siteId)
-            ->orderByDesc('id')
-            ->limit(10)
-            ->get()
+        $highRiskRuleCodes = ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse'];
+
+        $events = collect()
+            ->concat(
+                DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->orderByDesc('id')
+                    ->limit(10)
+                    ->get()
+            )
+            ->concat(
+                DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->whereIn('rule_code', $highRiskRuleCodes)
+                    ->orderByDesc('id')
+                    ->limit(10)
+                    ->get()
+            )
+            ->concat(
+                DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->where('rule_code', 'probe_abuse')
+                    ->orderByDesc('id')
+                    ->limit(10)
+                    ->get()
+            )
+            ->unique(fn (object $event): int => (int) $event->id)
+            ->sortByDesc(fn (object $event): int => (int) $event->id)
+            ->values()
             ->map(function (object $event): array {
                 $profile = $this->eventProfile((string) $event->rule_code, (string) $event->rule_name);
 

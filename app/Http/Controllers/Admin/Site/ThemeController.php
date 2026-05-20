@@ -246,8 +246,10 @@ class ThemeController extends Controller
 
             $root = SitePath::siteTemplateRoot((string) $currentSite->site_key, (string) $siteTemplate->template_key);
 
-            if (File::isDirectory($root)) {
-                File::deleteDirectory($root);
+            if (File::isDirectory($root) && ! File::deleteDirectory($root)) {
+                throw ValidationException::withMessages([
+                    'template' => '模板目录删除失败，请检查线上目录权限或目录占用后重试。',
+                ]);
             }
         });
 
@@ -316,7 +318,11 @@ class ThemeController extends Controller
                 ->withErrors(['template' => '异常模版目录不存在或无法访问。']);
         }
 
-        File::deleteDirectory($resolvedTargetPath);
+        if (! File::deleteDirectory($resolvedTargetPath)) {
+            return redirect()
+                ->route('admin.themes.index')
+                ->withErrors(['template' => '异常模版目录删除失败，请检查线上目录权限或目录占用后重试。']);
+        }
 
         $this->logOperation(
             'site',
