@@ -840,9 +840,33 @@ class SiteController extends Controller
 
         $mobileTemplate = 'm-'.$template;
 
-        return file_exists(ThemeTemplateLocator::resolvePath($site->site_key, $themeCode, $mobileTemplate))
-            ? $mobileTemplate
-            : $template;
+        if ($this->siteThemeTemplateExists($site, $themeCode, $mobileTemplate)) {
+            return $mobileTemplate;
+        }
+
+        $defaultMobileTemplate = $this->defaultMobileTemplateFor($template);
+
+        if ($defaultMobileTemplate !== null && $this->siteThemeTemplateExists($site, $themeCode, $defaultMobileTemplate)) {
+            return $defaultMobileTemplate;
+        }
+
+        return $template;
+    }
+
+    protected function defaultMobileTemplateFor(string $template): ?string
+    {
+        return match (true) {
+            $template === 'home' => 'm-home',
+            $template === 'list', str_starts_with($template, 'list-') => 'm-list',
+            $template === 'detail', str_starts_with($template, 'detail-') => 'm-detail',
+            $template === 'page', str_starts_with($template, 'page-') => 'm-page',
+            default => null,
+        };
+    }
+
+    protected function siteThemeTemplateExists(object $site, string $themeCode, string $template): bool
+    {
+        return file_exists(ThemeTemplateLocator::resolvePath($site->site_key, $themeCode, $template));
     }
 
     protected function channelDetailTemplate(int $siteId, string $channelSlug): string
