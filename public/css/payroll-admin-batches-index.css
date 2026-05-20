@@ -48,12 +48,37 @@
 }
 .payroll-filter-form {
     display: grid;
-    grid-template-columns: auto minmax(160px, 190px) minmax(160px, 190px) auto;
+    grid-template-columns: auto minmax(160px, 190px) minmax(160px, 190px) auto minmax(0, 1fr) auto;
     gap: 14px;
     align-items: center;
-    justify-content: start;
+    justify-content: stretch;
 }
-.payroll-filter-actions { display: flex; gap: 10px; }
+.payroll-filter-actions {
+    display: flex;
+    gap: 10px;
+    grid-column: 4;
+}
+.payroll-filter-summary {
+    grid-column: 6;
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid #e8edf4;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #667085;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.payroll-filter-summary strong {
+    margin: 0 4px;
+    color: #111827;
+    font-size: 15px;
+    font-weight: 800;
+}
 .payroll-filter-item {
     display: grid;
     gap: 8px;

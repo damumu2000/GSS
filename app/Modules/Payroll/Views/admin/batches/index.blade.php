@@ -82,6 +82,9 @@
                 <button class="button" type="submit">筛选</button>
                 <a class="button secondary" href="{{ route('admin.payroll.batches.index') }}">重置</a>
             </div>
+            <div class="payroll-filter-summary" aria-live="polite">
+                共 <strong>{{ $batches->total() }}</strong> 份工资信息
+            </div>
         </form>
     </div>
 

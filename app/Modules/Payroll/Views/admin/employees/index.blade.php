@@ -49,6 +49,9 @@
                     <button class="button" type="submit">筛选</button>
                     <a class="button secondary" href="{{ route('admin.payroll.employees.index') }}">重置</a>
                 </div>
+                <div class="payroll-filter-summary" aria-live="polite">
+                    共 <strong>{{ $employees->total() }}</strong> 名员工
+                </div>
             </form>
         </section>
 
@@ -79,7 +82,7 @@
                                 </td>
                                 <td>
                                     <div class="payroll-wechat-name">{{ $employee->wechat_nickname ?: '未获取微信昵称' }}</div>
-                                    <span class="payroll-wechat-id" title="{{ $employee->wechat_openid ?: '未获取微信 ID' }}">{{ $employee->wechat_openid ?: '未获取微信 ID' }}</span>
+                                    <span class="payroll-wechat-id" title="{{ $employee->wechat_openid ?: '未获取微信 ID' }}">{{ $employee->wechat_openid ? \Illuminate\Support\Str::substr($employee->wechat_openid, 0, 10) . '***' : '未获取微信 ID' }}</span>
                                 </td>
                                 <td>
                                     <span class="payroll-status {{ $employee->status === 'approved' ? 'is-approved' : ($employee->status === 'disabled' ? 'is-disabled' : 'is-pending') }}">

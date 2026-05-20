@@ -27,6 +27,7 @@
         $showSourceBadge = $sourceType !== 'custom';
         $templateGroupMeta = [
             'templates' => ['title' => '模板文件'],
+            'mobile' => ['title' => '手机端模版'],
             'tags' => ['title' => '模版标签'],
             'styles' => ['title' => 'CSS 文件'],
             'scripts' => ['title' => 'JS 文件'],
@@ -64,7 +65,7 @@
                 @elseif ($workspacePanel === 'snapshots')
                     正在工作台中查看模板快照与历史对比，不会跳出当前模板上下文。
                 @else
-                    在左侧选择模板文件，再打开弹窗专注编辑源码。
+                    在左侧选择模板文件，再打开弹窗专注编辑源码。注意以“m-”命名的 tpl、css、js 文件为手机端专用识别名称，普通模版请勿采用。
                 @endif
             </div>
         </div>

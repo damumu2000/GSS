@@ -1224,6 +1224,7 @@ class ThemeController extends Controller
     {
         $groups = collect([
             ['key' => 'templates', 'title' => '模板文件', 'items' => collect()],
+            ['key' => 'mobile', 'title' => '手机端模版', 'items' => collect()],
             ['key' => 'tags', 'title' => '模版标签', 'items' => collect()],
             ['key' => 'styles', 'title' => 'CSS 文件', 'items' => collect()],
             ['key' => 'scripts', 'title' => 'JS 文件', 'items' => collect()],
@@ -1244,6 +1245,14 @@ class ThemeController extends Controller
                 ->sortBy(fn (array $template): string => (string) ($template['sort_key'] ?? $template['file'] ?? $template['key'] ?? ''))
                 ->values();
             $groups->put('templates', $templateGroup);
+        }
+
+        $mobileGroup = $groups->get('mobile');
+        if ($mobileGroup) {
+            $mobileGroup['items'] = $mobileGroup['items']
+                ->sortBy(fn (array $template): string => (string) ($template['sort_key'] ?? $template['file'] ?? $template['key'] ?? ''))
+                ->values();
+            $groups->put('mobile', $mobileGroup);
         }
 
         $tagGroup = $groups->get('tags');
@@ -1427,6 +1436,10 @@ class ThemeController extends Controller
 
     protected function templateWorkspaceGroupKey(string $file): string
     {
+        if (str_starts_with(ThemeTemplateLocator::editorStem($file), 'm-')) {
+            return 'mobile';
+        }
+
         if (str_ends_with($file, '.tpl') && str_starts_with(pathinfo($file, PATHINFO_FILENAME), 'tag-')) {
             return 'tags';
         }
