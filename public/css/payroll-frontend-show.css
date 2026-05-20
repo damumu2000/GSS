@@ -122,3 +122,17 @@ a { color: inherit; text-decoration: none; }
 }
 .label-cell { color:#334155; font-size:15px; line-height:1.7; }
 .value-cell { text-align:right; color:#111827; font-size:15px; font-weight:600; }
+.value-currency {
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    vertical-align: 2px;
+    opacity: 0.88;
+}
+.row-total .value-currency {
+    margin-right: 8px;
+    font-size: 15px;
+    color: #4a7fd6;
+    vertical-align: 3px;
+}

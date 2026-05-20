@@ -22,7 +22,12 @@
             @foreach ($items as $item)
                 <div class="row{{ !empty($item['is_total']) ? ' row-total' : '' }}">
                     <span class="label-cell">{{ $item['label'] ?? '' }}</span>
-                    <span class="value-cell">{{ $item['value'] ?? '' }}</span>
+                    <span class="value-cell">
+                        @if (!empty($item['is_total']))
+                            <span class="value-currency">¥</span>
+                        @endif
+                        {{ $item['value'] ?? '' }}
+                    </span>
                 </div>
             @endforeach
         </section>
