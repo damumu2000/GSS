@@ -845,23 +845,27 @@ class ThemeManagementTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->withSession(['current_site_id' => $site->id])
             ->post(route('admin.themes.editor.asset-upload'), [
+                'site_template_id' => $activeTemplateId,
                 'template' => 'home',
+                'open_assets_mode' => 'insert',
                 'asset' => UploadedFile::fake()->image('hero-banner.png', 1200, 800),
             ])
-            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1]));
+            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1, 'open_assets_mode' => 'insert']));
 
         $this->actingAs($this->superAdmin())
             ->withSession(['current_site_id' => $site->id])
-            ->get(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1]))
+            ->get(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1, 'open_assets_mode' => 'insert']))
             ->assertOk()
             ->assertSee('hero-banner.png');
 
         $this->actingAs($this->superAdmin())
             ->withSession(['current_site_id' => $site->id])
             ->post(route('admin.themes.editor.asset-delete'), [
+                'site_template_id' => $activeTemplateId,
                 'template' => 'home',
+                'open_assets_mode' => 'insert',
                 'asset_path' => 'assets/hero-banner.png',
             ])
-            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1]));
+            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1, 'open_assets_mode' => 'insert']));
     }
 }

@@ -889,6 +889,9 @@ class ThemeController extends Controller
         }
         $siteTemplateId = (int) $siteTemplate->id;
         $themeCode = trim((string) $siteTemplate->template_key);
+        $openAssetsMode = in_array((string) $request->input('open_assets_mode', 'manage'), ['manage', 'insert'], true)
+            ? (string) $request->input('open_assets_mode', 'manage')
+            : 'manage';
 
         $validated = $request->validateWithBag('themeAssets', [
             'asset' => ['required', 'file', 'max:10240'],
@@ -961,6 +964,7 @@ class ThemeController extends Controller
                 'site_template_id' => $siteTemplateId,
                 'template' => (string) $request->input('template', 'home'),
                 'open_assets' => 1,
+                'open_assets_mode' => $openAssetsMode,
             ])
             ->with('status', $logAction === 'replace_theme_asset' ? '模板资源已替换。' : '模板资源已上传。');
     }
@@ -975,6 +979,9 @@ class ThemeController extends Controller
         }
         $siteTemplateId = (int) $siteTemplate->id;
         $themeCode = trim((string) $siteTemplate->template_key);
+        $openAssetsMode = in_array((string) $request->input('open_assets_mode', 'manage'), ['manage', 'insert'], true)
+            ? (string) $request->input('open_assets_mode', 'manage')
+            : 'manage';
 
         $assetPath = ThemeTemplateLocator::normalizeAssetPath((string) $request->input('asset_path', ''));
         abort_unless($assetPath !== null && str_starts_with($assetPath, 'assets/'), 404);
@@ -1003,6 +1010,7 @@ class ThemeController extends Controller
                 'site_template_id' => $siteTemplateId,
                 'template' => (string) $request->input('template', 'home'),
                 'open_assets' => 1,
+                'open_assets_mode' => $openAssetsMode,
             ])
             ->with('status', '模板资源已删除。');
     }
