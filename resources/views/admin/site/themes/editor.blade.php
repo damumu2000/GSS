@@ -76,7 +76,7 @@
                 <input type="hidden" name="template" value="{{ $template }}">
                 <input type="hidden" name="panel" value="{{ $workspacePanel }}">
                 @if ($compareVersion)
-                    <input type="hidden" name="version" value="{{ $compareVersion->version }}">
+                    <input type="hidden" name="version" value="{{ $compareVersion->id }}">
                 @endif
                 <button class="button secondary" type="submit">刷新前台缓存</button>
             </form>
@@ -462,6 +462,7 @@
 
             <form id="theme-editor-form" class="editor-modal-form" method="POST" action="{{ route('admin.themes.editor.update') }}" novalidate>
                 @csrf
+                <input type="hidden" name="editor_site_id" value="{{ $currentSite->id }}">
                 <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
                 <input type="hidden" name="template" value="{{ $template }}">
                 <div class="editor-modal-body">

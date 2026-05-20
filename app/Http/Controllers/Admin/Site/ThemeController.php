@@ -507,6 +507,25 @@ class ThemeController extends Controller
     {
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'theme.edit');
+        $editorSiteId = max(0, (int) $request->input('editor_site_id', $currentSite->id));
+
+        if ($editorSiteId !== (int) $currentSite->id) {
+            $message = '当前站点已切换，请重新打开对应站点的模板编辑页后再保存。';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                    'errors' => [
+                        'theme' => [$message],
+                    ],
+                ], 409);
+            }
+
+            return back()
+                ->withInput()
+                ->withErrors(['theme' => $message]);
+        }
+
         $siteTemplate = $this->resolveEditableSiteTemplate($request, $currentSite);
         if ($siteTemplate instanceof RedirectResponse) {
             return $siteTemplate;

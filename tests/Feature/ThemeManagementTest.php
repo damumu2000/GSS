@@ -249,6 +249,95 @@ class ThemeManagementTest extends TestCase
             ->assertSessionHasErrors('template_source');
     }
 
+    public function test_theme_editor_rejects_save_when_site_context_changed_after_page_open(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $activeTemplateId = $this->activeTemplateId($site);
+
+        $otherSiteId = (int) DB::table('sites')->insertGetId([
+            'name' => '第二测试站点',
+            'site_key' => 'theme-context-switch-site',
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $otherSiteTemplateId = (int) DB::table('site_templates')->insertGetId([
+            'site_id' => $otherSiteId,
+            'name' => '第二测试模板',
+            'template_key' => 'other-theme',
+            'status' => 1,
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('sites')->where('id', $otherSiteId)->update([
+            'active_site_template_id' => $otherSiteTemplateId,
+        ]);
+
+        $homePath = SitePath::siteTemplateRoot($site->site_key, $themeCode).DIRECTORY_SEPARATOR.'home.tpl';
+        $before = File::exists($homePath) ? File::get($homePath) : null;
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $otherSiteId])
+            ->from(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home']))
+            ->post(route('admin.themes.editor.update'), [
+                'editor_site_id' => $site->id,
+                'site_template_id' => $activeTemplateId,
+                'template' => 'home',
+                'template_title' => '首页模板',
+                'template_source' => '<div>stale save should fail</div>',
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home']))
+            ->assertSessionHasErrors('theme');
+
+        $after = File::exists($homePath) ? File::get($homePath) : null;
+        $this->assertSame($before, $after);
+    }
+
+    public function test_theme_snapshots_compare_view_opens_successfully(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $activeTemplateId = $this->activeTemplateId($site);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->post(route('admin.themes.editor.update'), [
+                'editor_site_id' => $site->id,
+                'site_template_id' => $activeTemplateId,
+                'template' => 'home',
+                'template_title' => '首页模板',
+                'template_source' => '<div>compare version</div>',
+            ])
+            ->assertRedirect();
+
+        $latestSnapshotId = (int) DB::table('site_template_versions')
+            ->where('site_template_id', $activeTemplateId)
+            ->where('template_name', 'home')
+            ->orderByDesc('id')
+            ->value('id');
+
+        $this->assertTrue($latestSnapshotId > 0);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->get(route('admin.themes.snapshots', [
+                'site_template_id' => $activeTemplateId,
+                'template' => 'home',
+                'version' => $latestSnapshotId,
+            ]))
+            ->assertOk()
+            ->assertSee('模板对比');
+    }
+
     public function test_theme_asset_route_serves_assets_from_active_template(): void
     {
         $this->seed(DatabaseSeeder::class);
