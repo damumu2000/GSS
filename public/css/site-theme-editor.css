@@ -1005,8 +1005,7 @@
             align-items: center;
             gap: 8px;
             flex-wrap: wrap;
-            justify-content: flex-end;
-            margin-left: auto;
+            justify-content: flex-start;
         }
 
         .theme-asset-action-button {
@@ -1020,6 +1019,36 @@
         .theme-asset-replace-form {
             margin: 0;
         }
+
+        .theme-asset-replace-form {
+            margin-left: auto;
+        }
+
+        .theme-asset-action-button-insert {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border-color: #7c3aed;
+            color: #ffffff;
+            box-shadow: 0 10px 24px rgba(124, 58, 237, 0.22);
+        }
+
+        .theme-asset-action-button-insert:hover {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            border-color: #6d28d9;
+            color: #ffffff;
+        }
+
+        .theme-asset-action-button-replace {
+            border-color: #cbd5e1;
+            background: #ffffff;
+            color: #475467;
+        }
+
+        .theme-asset-action-button-replace:hover {
+            border-color: #94a3b8;
+            background: #f8fafc;
+            color: #344054;
+        }
+
 
         .theme-assets-pagination {
             display: flex;

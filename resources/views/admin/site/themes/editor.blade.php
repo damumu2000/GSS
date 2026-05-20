@@ -598,7 +598,7 @@
                                     </div>
                                 </div>
                                 <div class="theme-asset-actions">
-                                    <button class="button neutral-action editor-doc-button theme-asset-action-button" type="button" data-insert-theme-asset data-asset-path="{{ $asset['path'] }}">插入调用</button>
+                                    <button class="button theme-asset-action-button theme-asset-action-button-insert" type="button" data-insert-theme-asset data-asset-path="{{ $asset['path'] }}">插入模版</button>
                                     <form class="theme-asset-replace-form" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-replace-form>
                                         @csrf
                                         <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
@@ -606,7 +606,7 @@
                                         <input type="hidden" name="open_assets" value="1">
                                         <input type="hidden" name="replace_asset_path" value="{{ $asset['path'] }}">
                                         <input class="theme-asset-replace-input" type="file" name="asset" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.woff,.woff2,.json" hidden data-theme-asset-replace-input>
-                                        <button class="button neutral-action editor-doc-button theme-asset-action-button" type="button" data-theme-asset-replace-trigger>替换</button>
+                                        <button class="button secondary theme-asset-action-button theme-asset-action-button-replace" type="button" data-theme-asset-replace-trigger>替换</button>
                                     </form>
                                     @if ($asset['source'] === 'override')
                                         <form class="theme-asset-delete-form" method="POST" action="{{ route('admin.themes.editor.asset-delete') }}" data-theme-assets-delete-form>
@@ -615,7 +615,7 @@
                                             <input type="hidden" name="template" value="{{ $template }}">
                                             <input type="hidden" name="open_assets" value="1">
                                             <input type="hidden" name="asset_path" value="{{ $asset['path'] }}">
-                                            <button class="button secondary theme-asset-action-button" type="submit">删除</button>
+                                            <button class="button secondary theme-asset-action-button theme-asset-action-button-delete" type="submit">删除</button>
                                         </form>
                                     @endif
                                 </div>
