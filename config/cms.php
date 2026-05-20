@@ -116,6 +116,7 @@ return [
         'bulk_offline' => '批量下线',
         'switch_site_context' => '切换当前站点',
         'mail_test' => '发送测试邮件',
+        'resolve_offline' => '标记线下办理',
         'submit_ip_block_active' => '留言提交触发 IP 封禁中',
         'submit_ip_rate_limited' => '留言提交触发 IP 限流',
         'submit_phone_block_active' => '留言提交触发手机号封禁中',
