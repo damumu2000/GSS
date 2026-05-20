@@ -544,7 +544,7 @@ class PayrollController extends SiteController
             $normalized[] = [
                 'label' => $label,
                 'value' => $value,
-                'is_total' => in_array($label, ['实发合计', '实发工资合计'], true),
+                'is_total' => in_array($label, ['实发合计', '实发工资合计', '合计'], true),
             ];
         }
 
