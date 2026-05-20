@@ -55,7 +55,12 @@ class ThemeTemplateLocator
     public static function resolvePath(int|object|string $site, string $themeCode, string $template): string
     {
         $override = static::overridePath($site, $themeCode, $template);
-        return $override;
+
+        if (File::exists($override) && File::isFile($override)) {
+            return $override;
+        }
+
+        return static::defaultPath($themeCode, $template);
     }
 
     public static function existingOverridePath(int|object|string $site, string $themeCode, string $template): ?string
