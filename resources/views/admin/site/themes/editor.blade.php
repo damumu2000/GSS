@@ -508,11 +508,6 @@
     <section class="theme-assets-modal @if($themeAssetsModalOpen) is-open @endif @if($themeAssetsModalMode === 'manage') is-manage-mode @endif" data-theme-assets-modal data-mode="{{ $themeAssetsModalMode }}" data-theme-assets-ready="{{ $themeAssetsModalOpen ? '1' : '0' }}">
         <div class="theme-assets-modal-backdrop" data-close-theme-assets-modal></div>
         <div class="theme-assets-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-assets-modal-title">
-            <form class="theme-assets-upload" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-upload-form>
-                @csrf
-                <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
-                <input type="hidden" name="template" value="{{ $template }}">
-                <input type="hidden" name="open_assets" value="1">
             <div class="theme-assets-modal-head">
                 <div class="theme-assets-modal-head-copy">
                     <div class="theme-assets-modal-title" id="theme-assets-modal-title">模板资源</div>
@@ -530,7 +525,12 @@
                     </button>
                 </div>
             </div>
-                <div class="theme-assets-modal-body">
+            <div class="theme-assets-modal-body">
+                    <form class="theme-assets-upload" method="POST" action="{{ route('admin.themes.editor.asset-upload') }}" enctype="multipart/form-data" data-theme-assets-upload-form>
+                        @csrf
+                        <input type="hidden" name="site_template_id" value="{{ $siteTemplateId }}">
+                        <input type="hidden" name="template" value="{{ $template }}">
+                        <input type="hidden" name="open_assets" value="1">
                     <input class="theme-assets-file-input" type="file" name="asset" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.woff,.woff2,.json" hidden data-theme-assets-file-input>
                     <div class="theme-assets-toolbar">
                         <div class="theme-assets-toolbar-search">
@@ -557,6 +557,7 @@
                             <button class="button" type="button" data-theme-assets-upload-trigger>上传资源</button>
                         </div>
                     </div>
+                    </form>
                     @if ($themeAssetErrors->has('asset'))
                         <span class="form-error">{{ $themeAssetErrors->first('asset') }}</span>
                     @endif
@@ -652,7 +653,6 @@
                     @endif
                 @endif
             </div>
-            </form>
         </div>
     </section>
 
