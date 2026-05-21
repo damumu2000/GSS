@@ -772,10 +772,16 @@ class SiteSecurity
     protected function pruneEvents(int $siteId): void
     {
         $limit = $this->systemSettings->securityEventRetentionLimit();
+        $recentWindowStart = now('Asia/Shanghai')->startOfDay()->subDays(6)->toDateTimeString();
         $keepIds = DB::table('site_security_events')
             ->where('site_id', $siteId)
             ->orderByDesc('id')
             ->limit($limit)
+            ->pluck('id');
+
+        $recentKeepIds = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $recentWindowStart)
             ->pluck('id');
 
         $highRiskKeepIds = DB::table('site_security_events')
@@ -786,6 +792,7 @@ class SiteSecurity
             ->pluck('id');
 
         $preservedIds = $keepIds
+            ->concat($recentKeepIds)
             ->concat($highRiskKeepIds)
             ->unique()
             ->values();

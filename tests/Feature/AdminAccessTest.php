@@ -8498,6 +8498,16 @@ XML);
                 'ip_hash' => hash('sha256', '7.7.7.7'),
                 'created_at' => $now->copy()->subMinutes(38),
             ],
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'rate_limit',
+                'rule_name' => '频繁刷新拦截',
+                'request_path' => '/rate-old-outside-window',
+                'request_method' => 'GET',
+                'client_ip' => '4.4.4.4',
+                'ip_hash' => hash('sha256', '4.4.4.4'),
+                'created_at' => $now->copy()->subDays(9),
+            ],
         ]);
 
         $rows = [];
@@ -8543,7 +8553,77 @@ XML);
         $this->assertDatabaseMissing('site_security_events', [
             'site_id' => $mainSiteId,
             'rule_code' => 'rate_limit',
-            'request_path' => '/rate-0',
+            'request_path' => '/rate-old-outside-window',
+        ]);
+    }
+
+    public function test_site_security_pruning_preserves_recent_probe_abuse_records_within_seven_day_window(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.event_retention_limit'],
+            ['setting_value' => '20', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+        );
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'probe_abuse',
+                'rule_name' => '扫描试探超限',
+                'request_path' => '/probe-keep',
+                'request_method' => 'GET',
+                'client_ip' => '8.8.4.4',
+                'ip_hash' => hash('sha256', '8.8.4.4'),
+                'created_at' => $now->copy()->subDays(3),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'probe_abuse',
+                'rule_name' => '扫描试探超限',
+                'request_path' => '/probe-keep-2',
+                'request_method' => 'GET',
+                'client_ip' => '8.8.4.5',
+                'ip_hash' => hash('sha256', '8.8.4.5'),
+                'created_at' => $now->copy()->subDays(2),
+            ],
+        ]);
+
+        $rows = [];
+        for ($i = 0; $i < 40; $i++) {
+            $rows[] = [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'rate_limit',
+                'rule_name' => '频繁刷新拦截',
+                'request_path' => '/rate-window-'.$i,
+                'request_method' => 'GET',
+                'client_ip' => '5.5.5.'.($i + 1),
+                'ip_hash' => hash('sha256', '5.5.5.'.($i + 1)),
+                'created_at' => $now->copy()->subMinutes(40 - $i),
+            ];
+        }
+
+        DB::table('site_security_events')->insert($rows);
+
+        $siteSecurity = app(\App\Support\SiteSecurity::class);
+
+        \Closure::bind(function () use ($mainSiteId): void {
+            $this->pruneEvents($mainSiteId);
+        }, $siteSecurity, $siteSecurity)();
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'probe_abuse',
+            'request_path' => '/probe-keep',
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'probe_abuse',
+            'request_path' => '/probe-keep-2',
         ]);
     }
 
