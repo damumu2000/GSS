@@ -8401,6 +8401,152 @@ XML);
             ->assertSee('北京');
     }
 
+    public function test_site_security_recent_events_only_render_from_last_seven_days(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-events-window-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_daily_stats')->insert([
+            'site_id' => $mainSiteId,
+            'stat_date' => now()->subDays(2)->toDateString(),
+            'blocked_total' => 2,
+            'blocked_bad_path' => 0,
+            'blocked_sql_injection' => 1,
+            'blocked_xss' => 0,
+            'blocked_path_traversal' => 1,
+            'blocked_bad_upload' => 0,
+            'blocked_rate_limit' => 0,
+            'blocked_probe_abuse' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'sql_injection',
+                'rule_name' => 'SQL 注入拦截',
+                'request_path' => '/recent-sql',
+                'request_method' => 'GET',
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'created_at' => now()->subDays(2),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'path_traversal',
+                'rule_name' => '路径穿越拦截',
+                'request_path' => '/old-path',
+                'request_method' => 'GET',
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'created_at' => now()->subDays(9),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('/recent-sql')
+            ->assertDontSee('/old-path');
+    }
+
+    public function test_site_security_pruning_preserves_high_risk_records_beyond_rate_limit_noise(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $otherSiteId = $this->createAdditionalSite('security-prune-remote-site', '远程保留站点');
+        $now = now();
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.event_retention_limit'],
+            ['setting_value' => '20', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+        );
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'sql_injection',
+                'rule_name' => 'SQL 注入拦截',
+                'request_path' => '/keep-sql',
+                'request_method' => 'GET',
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'created_at' => $now->copy()->subMinutes(40),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'path_traversal',
+                'rule_name' => '路径穿越拦截',
+                'request_path' => '/keep-path',
+                'request_method' => 'GET',
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'created_at' => $now->copy()->subMinutes(39),
+            ],
+            [
+                'site_id' => $otherSiteId,
+                'rule_code' => 'sql_injection',
+                'rule_name' => 'SQL 注入拦截',
+                'request_path' => '/other-site',
+                'request_method' => 'GET',
+                'client_ip' => '7.7.7.7',
+                'ip_hash' => hash('sha256', '7.7.7.7'),
+                'created_at' => $now->copy()->subMinutes(38),
+            ],
+        ]);
+
+        $rows = [];
+        for ($i = 0; $i < 30; $i++) {
+            $rows[] = [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'rate_limit',
+                'rule_name' => '频繁刷新拦截',
+                'request_path' => '/rate-'.$i,
+                'request_method' => 'GET',
+                'client_ip' => '6.6.6.'.($i + 1),
+                'ip_hash' => hash('sha256', '6.6.6.'.($i + 1)),
+                'created_at' => $now->copy()->subMinutes(30 - $i),
+            ];
+        }
+
+        DB::table('site_security_events')->insert($rows);
+
+        $siteSecurity = app(\App\Support\SiteSecurity::class);
+
+        \Closure::bind(function () use ($mainSiteId): void {
+            $this->pruneEvents($mainSiteId);
+        }, $siteSecurity, $siteSecurity)();
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'sql_injection',
+            'request_path' => '/keep-sql',
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'path_traversal',
+            'request_path' => '/keep-path',
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $otherSiteId,
+            'rule_code' => 'sql_injection',
+            'request_path' => '/other-site',
+        ]);
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'rate_limit',
+            'request_path' => '/rate-0',
+        ]);
+    }
+
     public function test_site_dashboard_still_renders_for_expiring_site(): void
     {
         $this->seed(DatabaseSeeder::class);

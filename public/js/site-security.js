@@ -16,7 +16,8 @@
         items.forEach(function (item) {
             var match = filter === 'all'
                 || (filter === 'high-risk' && item.dataset.riskLevel === 'high')
-                || (filter === 'probe-abuse' && item.dataset.ruleCode === 'probe_abuse');
+                || (filter === 'probe-abuse' && item.dataset.ruleCode === 'probe_abuse')
+                || (filter === 'rate-limit' && item.dataset.ruleCode === 'rate_limit');
 
             item.hidden = !match;
             if (match) {

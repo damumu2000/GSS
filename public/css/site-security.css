@@ -527,6 +527,10 @@
             border: 1px solid rgba(227, 235, 244, 0.96);
         }
 
+        .security-region--standalone {
+            margin-top: 18px;
+        }
+
         .security-region-heading {
             margin: 0;
             color: #344054;
@@ -636,6 +640,11 @@
             border: 1px solid #edf2f7;
         }
 
+        .security-type-item.is-high-risk {
+            background: linear-gradient(180deg, rgba(255, 248, 248, 0.96) 0%, rgba(255, 255, 255, 0.94) 100%);
+            border-color: rgba(254, 205, 211, 0.95);
+        }
+
         .security-type-top {
             display: flex;
             justify-content: space-between;
@@ -653,6 +662,10 @@
             color: var(--primary);
             font-size: 18px;
             font-weight: 800;
+        }
+
+        .security-type-item.is-high-risk .security-type-value {
+            color: #b42318;
         }
 
         .security-type-track {

@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\RateLimiter;
 
 class SiteSecurity
 {
+    protected const HIGH_RISK_RULE_CODES = ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse'];
+
     public function __construct(
         protected SystemSettings $systemSettings,
     ) {
@@ -226,15 +228,26 @@ class SiteSecurity
                 'ratio' => $sevenDayTotal > 0 ? (int) round(($item['value'] / $sevenDayTotal) * 100) : 0,
                 'note' => $this->typeDistributionNote((string) $item['code']),
             ])
+            ->sortByDesc('value')
+            ->take(5)
             ->values()
             ->all();
 
-        $highRiskRuleCodes = ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse'];
+        $sevenDayHighRiskTotal = (int) (
+            ($typeTotals->sql_injection ?? 0)
+            + ($typeTotals->xss ?? 0)
+            + ($typeTotals->path_traversal ?? 0)
+            + ($typeTotals->bad_upload ?? 0)
+            + ($typeTotals->probe_abuse ?? 0)
+        );
+
+        $eventWindowStart = $sevenDaysAgo->toDateTimeString();
 
         $events = collect()
             ->concat(
                 DB::table('site_security_events')
                     ->where('site_id', $siteId)
+                    ->where('created_at', '>=', $eventWindowStart)
                     ->orderByDesc('id')
                     ->limit(10)
                     ->get()
@@ -242,7 +255,8 @@ class SiteSecurity
             ->concat(
                 DB::table('site_security_events')
                     ->where('site_id', $siteId)
-                    ->whereIn('rule_code', $highRiskRuleCodes)
+                    ->where('created_at', '>=', $eventWindowStart)
+                    ->whereIn('rule_code', static::HIGH_RISK_RULE_CODES)
                     ->orderByDesc('id')
                     ->limit(10)
                     ->get()
@@ -250,6 +264,7 @@ class SiteSecurity
             ->concat(
                 DB::table('site_security_events')
                     ->where('site_id', $siteId)
+                    ->where('created_at', '>=', $eventWindowStart)
                     ->where('rule_code', 'probe_abuse')
                     ->orderByDesc('id')
                     ->limit(10)
@@ -307,6 +322,8 @@ class SiteSecurity
             'status_label' => $this->protectionEnabled() ? '运行中' : '未启用',
             'status_tone' => $this->protectionEnabled() ? 'running' : 'disabled',
             'peak_blocked' => $peak,
+            'seven_day_blocked' => $sevenDayTotal,
+            'seven_day_high_risk' => $sevenDayHighRiskTotal,
             'trend' => $trend->all(),
             'types' => $types,
             'events' => $events,
@@ -755,16 +772,29 @@ class SiteSecurity
     protected function pruneEvents(int $siteId): void
     {
         $limit = $this->systemSettings->securityEventRetentionLimit();
-
-        $ids = DB::table('site_security_events')
+        $keepIds = DB::table('site_security_events')
             ->where('site_id', $siteId)
             ->orderByDesc('id')
-            ->skip($limit)
-            ->limit(500)
+            ->limit($limit)
             ->pluck('id');
 
-        if ($ids->isNotEmpty()) {
-            DB::table('site_security_events')->whereIn('id', $ids->all())->delete();
+        $highRiskKeepIds = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->whereIn('rule_code', static::HIGH_RISK_RULE_CODES)
+            ->orderByDesc('id')
+            ->limit(max(20, min(200, (int) floor($limit / 2))))
+            ->pluck('id');
+
+        $preservedIds = $keepIds
+            ->concat($highRiskKeepIds)
+            ->unique()
+            ->values();
+
+        if ($preservedIds->isNotEmpty()) {
+            DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->whereNotIn('id', $preservedIds->all())
+                ->delete();
         }
     }
 

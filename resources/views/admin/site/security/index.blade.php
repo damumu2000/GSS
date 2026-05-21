@@ -36,7 +36,7 @@
             </article>
             <article class="security-card">
                 <div class="security-card-top">
-                    <div class="security-card-label">累计拦截次数</div>
+                    <div class="security-card-label">近 7 天拦截总数</div>
                     <div class="security-card-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24">
                             <path d="M12 3 5.5 6v5.2c0 4.1 2.5 7.7 6.5 9.8 4-2.1 6.5-5.7 6.5-9.8V6L12 3Z"></path>
@@ -45,22 +45,22 @@
                         </svg>
                     </div>
                 </div>
-                <div class="security-card-value">{{ number_format($security['total_blocked']) }}</div>
-                <div class="security-card-note">当前站点累计拦截次数。</div>
+                <div class="security-card-value">{{ number_format($security['seven_day_blocked']) }}</div>
+                <div class="security-card-note">最近 7 天命中的总拦截次数。</div>
             </article>
             <article class="security-card">
                 <div class="security-card-top">
-                    <div class="security-card-label">近 7 天最高峰值</div>
+                    <div class="security-card-label">近 7 天高危次数</div>
                     <div class="security-card-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24">
-                            <path d="M4 18V6"></path>
-                            <path d="M4 18h16"></path>
-                            <path d="m7 14 3-3 3 2 4-5"></path>
+                            <path d="M12 3 5.5 6v5.2c0 4.1 2.5 7.7 6.5 9.8 4-2.1 6.5-5.7 6.5-9.8V6L12 3Z"></path>
+                            <path d="M12 8v5"></path>
+                            <path d="M12 16h.01"></path>
                         </svg>
                     </div>
                 </div>
-                <div class="security-card-value">{{ number_format($security['peak_blocked']) }}</div>
-                <div class="security-card-note">最近 7 天单日最高拦截值。</div>
+                <div class="security-card-value">{{ number_format($security['seven_day_high_risk']) }}</div>
+                <div class="security-card-note">近 7 天高危规则命中的总次数。</div>
             </article>
             <article class="security-card is-status">
                 <div class="security-status-showcase{{ ($security['status_tone'] ?? 'running') === 'disabled' ? ' is-disabled' : '' }}">
@@ -92,7 +92,6 @@
                     $yesterdayValue = (int) ($trendItems->slice(-2, 1)->first()['value'] ?? 0);
                     $delta = $todayValue - $yesterdayValue;
                     $leadType = collect($security['types'])->sortByDesc('value')->first();
-                    $regionItems = collect($security['regions'] ?? []);
                     $chartWidth = 760;
                     $chartHeight = 238;
                     $chartPaddingX = 22;
@@ -211,34 +210,15 @@
                             <div class="security-trend-stat-note">{{ $leadType ? ('主要类型：' . $leadType['label']) : '当前还没有主要拦截类型' }}</div>
                         </div>
                     </div>
-                    <div class="security-region">
-                        <h4 class="security-region-heading">攻击区域</h4>
-                        <div class="security-region-sub">近 7 天命中的拦截记录里，主要攻击来源区域如下。</div>
-                        <div class="security-region-list-items">
-                            @forelse ($regionItems as $region)
-                                <div class="security-region-item">
-                                    <div class="security-region-item-top">
-                                        <div class="security-region-item-name">{{ $region['label'] }}</div>
-                                        <div class="security-region-item-meta">{{ number_format($region['value']) }} 次 · {{ $region['ratio'] }}%</div>
-                                    </div>
-                                    <div class="security-region-track">
-                                        <div class="security-region-bar security-region-bar--r-{{ max(0, min(100, (int) round($region['ratio']))) }}"></div>
-                                    </div>
-                                </div>
-                            @empty
-                                <div class="security-empty">当前还没有足够的来源区域数据。</div>
-                            @endforelse
-                        </div>
-                    </div>
                 </div>
             </article>
 
             <article class="security-panel">
                 <h3 class="security-panel-title">拦截类型分布</h3>
-                <div class="security-panel-desc">看看近 7 天主要拦下了哪些异常请求。</div>
+                <div class="security-panel-desc">按近 7 天命中次数排序，优先看最主要的几类异常请求。</div>
                 <div class="security-types">
                     @forelse ($security['types'] as $item)
-                        <div class="security-type-item">
+                        <div class="security-type-item{{ in_array($item['code'], ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse'], true) ? ' is-high-risk' : '' }}">
                             <div class="security-type-top">
                                 <div class="security-type-name">{{ $item['label'] }}</div>
                                 <div class="security-type-value">{{ number_format($item['value']) }}</div>
@@ -258,11 +238,12 @@
 
         <section class="security-panel">
             <h3 class="security-panel-title">最近拦截记录</h3>
-            <div class="security-panel-desc">展示最近命中的拦截记录、访问 IP、处置方式和防护类型。</div>
+            <div class="security-panel-desc">展示近 7 天最近命中的拦截记录、访问 IP、处置方式和防护类型。</div>
             <div class="security-event-filters" data-security-event-filters>
                 <button class="security-event-filter is-active" type="button" data-filter="all">全部</button>
                 <button class="security-event-filter" type="button" data-filter="high-risk">只看高危</button>
                 <button class="security-event-filter" type="button" data-filter="probe-abuse">只看扫描试探超限</button>
+                <button class="security-event-filter" type="button" data-filter="rate-limit">只看频繁刷新</button>
             </div>
             <div class="security-events">
                 @forelse ($security['events'] as $event)
@@ -289,6 +270,31 @@
                 @if (! empty($security['events']))
                     <div class="security-empty security-empty-filtered" data-security-event-empty hidden>当前筛选条件下没有命中的拦截记录。</div>
                 @endif
+            </div>
+        </section>
+
+        <section class="security-panel">
+            <h3 class="security-panel-title">攻击区域</h3>
+            <div class="security-panel-desc">近 7 天命中的拦截记录里，主要攻击来源区域如下。</div>
+            @php
+                $regionItems = collect($security['regions'] ?? []);
+            @endphp
+            <div class="security-region security-region--standalone">
+                <div class="security-region-list-items">
+                    @forelse ($regionItems as $region)
+                        <div class="security-region-item">
+                            <div class="security-region-item-top">
+                                <div class="security-region-item-name">{{ $region['label'] }}</div>
+                                <div class="security-region-item-meta">{{ number_format($region['value']) }} 次 · {{ $region['ratio'] }}%</div>
+                            </div>
+                            <div class="security-region-track">
+                                <div class="security-region-bar security-region-bar--r-{{ max(0, min(100, (int) round($region['ratio']))) }}"></div>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="security-empty">当前还没有足够的来源区域数据。</div>
+                    @endforelse
+                </div>
             </div>
         </section>
     </div>
