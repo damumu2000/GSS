@@ -92,6 +92,7 @@
                     $yesterdayValue = (int) ($trendItems->slice(-2, 1)->first()['value'] ?? 0);
                     $delta = $todayValue - $yesterdayValue;
                     $leadType = collect($security['types'])->sortByDesc('value')->first();
+                    $regionItems = collect($security['regions'] ?? []);
                     $chartWidth = 760;
                     $chartHeight = 238;
                     $chartPaddingX = 22;
@@ -210,6 +211,25 @@
                             <div class="security-trend-stat-note">{{ $leadType ? ('主要类型：' . $leadType['label']) : '当前还没有主要拦截类型' }}</div>
                         </div>
                     </div>
+                    <div class="security-region">
+                        <h4 class="security-region-heading">攻击区域</h4>
+                        <div class="security-region-sub">近 7 天命中的拦截记录里，主要攻击来源区域如下。</div>
+                        <div class="security-region-list-items">
+                            @forelse ($regionItems as $region)
+                                <div class="security-region-item">
+                                    <div class="security-region-item-top">
+                                        <div class="security-region-item-name">{{ $region['label'] }}</div>
+                                        <div class="security-region-item-meta">{{ number_format($region['value']) }} 次 · {{ $region['ratio'] }}%</div>
+                                    </div>
+                                    <div class="security-region-track">
+                                        <div class="security-region-bar security-region-bar--r-{{ max(0, min(100, (int) round($region['ratio']))) }}"></div>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="security-empty">当前还没有足够的来源区域数据。</div>
+                            @endforelse
+                        </div>
+                    </div>
                 </div>
             </article>
 
@@ -270,31 +290,6 @@
                 @if (! empty($security['events']))
                     <div class="security-empty security-empty-filtered" data-security-event-empty hidden>当前筛选条件下没有命中的拦截记录。</div>
                 @endif
-            </div>
-        </section>
-
-        <section class="security-panel">
-            <h3 class="security-panel-title">攻击区域</h3>
-            <div class="security-panel-desc">近 7 天命中的拦截记录里，主要攻击来源区域如下。</div>
-            @php
-                $regionItems = collect($security['regions'] ?? []);
-            @endphp
-            <div class="security-region security-region--standalone">
-                <div class="security-region-list-items">
-                    @forelse ($regionItems as $region)
-                        <div class="security-region-item">
-                            <div class="security-region-item-top">
-                                <div class="security-region-item-name">{{ $region['label'] }}</div>
-                                <div class="security-region-item-meta">{{ number_format($region['value']) }} 次 · {{ $region['ratio'] }}%</div>
-                            </div>
-                            <div class="security-region-track">
-                                <div class="security-region-bar security-region-bar--r-{{ max(0, min(100, (int) round($region['ratio']))) }}"></div>
-                            </div>
-                        </div>
-                    @empty
-                        <div class="security-empty">当前还没有足够的来源区域数据。</div>
-                    @endforelse
-                </div>
             </div>
         </section>
     </div>
