@@ -1366,6 +1366,150 @@ XML);
         $this->assertContains('文章 101《异常栏目文章》未找到对应栏目 ID a22，已导入到“异常内容”。', $result['warnings']);
     }
 
+    public function test_legacy_asp_importer_articles_only_updates_existing_articles_and_imports_missing_without_touching_pages(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $sourceDir = storage_path('framework/testing-legacy-asp-articles-only-'.uniqid());
+        File::ensureDirectoryExists($sourceDir);
+        $this->temporaryLegacyImportDirs[] = $sourceDir;
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        $parentChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '已改父栏目',
+            'slug' => 'News',
+            'type' => 'list',
+            'path' => '/News',
+            'depth' => 0,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'list_template' => 'list',
+            'detail_template' => 'detail',
+            'link_url' => null,
+            'link_target' => '_self',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $articleChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => $parentChannelId,
+            'name' => '已改子栏目',
+            'slug' => 'Garden-News',
+            'type' => 'list',
+            'path' => '/Garden-News',
+            'depth' => 1,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'list_template' => 'list',
+            'detail_template' => 'detail',
+            'link_url' => null,
+            'link_target' => '_self',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('contents')->insert([
+            'site_id' => $siteId,
+            'channel_id' => $articleChannelId,
+            'type' => 'article',
+            'template_name' => 'detail',
+            'title' => '旧标题',
+            'slug' => 'legacy-news-100',
+            'summary' => '旧摘要',
+            'content' => '<p>旧内容</p>',
+            'cover_image' => null,
+            'author' => null,
+            'source' => '旧来源',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'is_recommend' => 0,
+            'sort' => 100,
+            'view_count' => 1,
+            'published_at' => $now->copy()->subDay(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type_D.xlsx', [
+            ['T_ID', 'T_Name', 'T_type', 'T_dlei', 'shunxu', 'en'],
+            [1, '最新动态', 2, '', 110, 'News'],
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type.xlsx', [
+            ['Type_ID', 'Type_Name', 'Type_type', 'dalei', 'shunxu', 'flag', 'en'],
+            ['a11', '园内新闻', 2, 1, 10, 1, 'Garden News'],
+        ]);
+
+        File::put($sourceDir.'/News.xml', <<<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<dataroot>
+  <News>
+    <News_ID>100</News_ID>
+    <News_Type>a11</News_Type>
+    <News_Title>更新后的文章</News_Title>
+    <News_Pic>/Up/new-demo.jpg</News_Pic>
+    <News_Content><p>更新后的正文</p></News_Content>
+    <News_Date>2026-05-20 10:20:30</News_Date>
+    <News_count>88</News_count>
+  </News>
+  <News>
+    <News_ID>102</News_ID>
+    <News_Type>a11</News_Type>
+    <News_Title>补导新文章</News_Title>
+    <News_Pic></News_Pic>
+    <News_Content><p>补导正文</p></News_Content>
+    <News_Date>2026-05-20 11:20:30</News_Date>
+    <News_count>9</News_count>
+  </News>
+</dataroot>
+XML);
+
+        $result = app(LegacyAspAccessSiteImporter::class)->import('site', '测试站点', $sourceDir, true, true);
+
+        $this->assertTrue((bool) $result['articles_only']);
+        $this->assertSame(0, (int) $result['imported']['pages_created']);
+        $this->assertSame(0, (int) $result['imported']['pages_updated']);
+        $this->assertSame(1, (int) $result['imported']['articles_updated']);
+        $this->assertSame(1, (int) $result['imported']['articles_created']);
+        $this->assertDatabaseHas('channels', [
+            'id' => $parentChannelId,
+            'name' => '已改父栏目',
+        ]);
+        $this->assertDatabaseHas('channels', [
+            'id' => $articleChannelId,
+            'name' => '已改子栏目',
+        ]);
+        $this->assertDatabaseMissing('channels', [
+            'site_id' => $siteId,
+            'slug' => 'legacy-pages',
+        ]);
+        $this->assertDatabaseMissing('contents', [
+            'site_id' => $siteId,
+            'slug' => 'legacy-page-content-1',
+        ]);
+        $this->assertDatabaseHas('contents', [
+            'site_id' => $siteId,
+            'slug' => 'legacy-news-100',
+            'title' => '更新后的文章',
+            'cover_image' => '/Up/new-demo.jpg',
+            'view_count' => 88,
+        ]);
+        $this->assertDatabaseHas('contents', [
+            'site_id' => $siteId,
+            'slug' => 'legacy-news-102',
+            'title' => '补导新文章',
+            'channel_id' => $articleChannelId,
+        ]);
+    }
+
     public function test_platform_module_permissions_are_granted_to_default_platform_roles(): void
     {
         $this->seed(DatabaseSeeder::class);

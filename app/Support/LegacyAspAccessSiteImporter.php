@@ -9,13 +9,13 @@ use RuntimeException;
 
 class LegacyAspAccessSiteImporter
 {
-    public function import(string $siteKey, string $siteName, string $sourceDir, bool $execute = false): array
+    public function import(string $siteKey, string $siteName, string $sourceDir, bool $execute = false, bool $articlesOnly = false): array
     {
         $site = DB::table('sites')
             ->where('site_key', trim($siteKey))
             ->first(['id', 'name', 'site_key']);
 
-        $source = $this->loadSource($sourceDir);
+        $source = $this->loadSource($sourceDir, $articlesOnly);
         $summary = [
             'site' => $site
                 ? [
@@ -32,6 +32,7 @@ class LegacyAspAccessSiteImporter
                 ],
             'source' => $sourceDir,
             'dry_run' => ! $execute,
+            'articles_only' => $articlesOnly,
             'counts' => [
                 'type_d' => count($source['type_d']),
                 'type' => count($source['type']),
@@ -53,10 +54,14 @@ class LegacyAspAccessSiteImporter
 
         if (! $execute) {
             if (! $site) {
-                $summary['warnings'][] = '目标站点当前不存在，正式执行时会自动创建新站点并初始化默认模板。';
-            }
+                    $summary['warnings'][] = '目标站点当前不存在，正式执行时会自动创建新站点并初始化默认模板。';
+                }
 
-            if ($summary['counts']['news_content'] === 0) {
+                if ($articlesOnly) {
+                    $summary['warnings'][] = '当前为仅文章模式：不会处理单页；栏目仅在缺失时补建，不覆盖已有 legacy 栏目。';
+                }
+
+                if ($summary['counts']['news_content'] === 0) {
                 $summary['warnings'][] = '当前数据目录未提供 News_Content.xml，导入时将仅使用 News.xml 中自带正文。';
             } elseif ($summary['counts']['news'] !== $summary['counts']['news_content']) {
                 $summary['warnings'][] = sprintf(
@@ -69,7 +74,7 @@ class LegacyAspAccessSiteImporter
             return $summary;
         }
 
-        return DB::transaction(function () use ($site, $siteKey, $siteName, $source, $sourceDir, $summary): array {
+        return DB::transaction(function () use ($site, $siteKey, $siteName, $source, $sourceDir, $summary, $articlesOnly): array {
             if (! $site) {
                 $site = $this->createSite(trim($siteKey), trim($siteName));
                 $summary['site'] = [
@@ -113,7 +118,8 @@ class LegacyAspAccessSiteImporter
                         'detail_template' => 'detail',
                         'link_url' => null,
                         'link_target' => '_self',
-                    ]
+                    ],
+                    ! $articlesOnly,
                 );
 
                 $parentChannelMap[$legacyId] = $channelId;
@@ -154,71 +160,74 @@ class LegacyAspAccessSiteImporter
                         'detail_template' => 'detail',
                         'link_url' => null,
                         'link_target' => '_self',
-                    ]
+                    ],
+                    ! $articlesOnly,
                 );
 
                 $articleChannelMap[$legacyId] = $channelId;
                 $summary['imported'][$created ? 'channels_created' : 'channels_updated']++;
             }
 
-            $pageParentChannelId = null;
+            if (! $articlesOnly) {
+                $pageParentChannelId = null;
 
-            foreach ($source['about'] as $row) {
-                $legacyId = $this->intValue($row['About_ID'] ?? null);
-                $name = trim((string) ($row['About_Name'] ?? ''));
-                $content = $this->extractImportedHtml((string) ($row['About_content'] ?? $row['About_Content'] ?? ''));
+                foreach ($source['about'] as $row) {
+                    $legacyId = $this->intValue($row['About_ID'] ?? null);
+                    $name = trim((string) ($row['About_Name'] ?? ''));
+                    $content = $this->extractImportedHtml((string) ($row['About_content'] ?? $row['About_Content'] ?? ''));
 
-                if ($legacyId <= 0 || $name === '') {
-                    continue;
-                }
+                    if ($legacyId <= 0 || $name === '') {
+                        continue;
+                    }
 
-                if ($pageParentChannelId === null) {
-                    [$pageParentChannelId, $pageParentCreated] = $this->upsertChannel(
+                    if ($pageParentChannelId === null) {
+                        [$pageParentChannelId, $pageParentCreated] = $this->upsertChannel(
+                            (int) $site->id,
+                            [
+                                'parent_id' => null,
+                                'name' => '单页内容',
+                                'slug' => 'legacy-pages',
+                                'type' => 'page',
+                                'path' => '/legacy-pages',
+                                'depth' => 0,
+                                'sort' => 0,
+                                'status' => 1,
+                                'is_nav' => 1,
+                                'list_template' => null,
+                                'detail_template' => 'page',
+                                'link_url' => null,
+                                'link_target' => '_self',
+                            ]
+                        );
+                        $summary['imported'][$pageParentCreated ? 'channels_created' : 'channels_updated']++;
+                    }
+
+                    [, $contentCreated] = $this->upsertContent(
                         (int) $site->id,
                         [
-                            'parent_id' => null,
-                            'name' => '单页内容',
-                            'slug' => 'legacy-pages',
+                            'channel_id' => $pageParentChannelId,
                             'type' => 'page',
-                            'path' => '/legacy-pages',
-                            'depth' => 0,
-                            'sort' => 0,
-                            'status' => 1,
-                            'is_nav' => 1,
-                            'list_template' => null,
-                            'detail_template' => 'page',
-                            'link_url' => null,
-                            'link_target' => '_self',
+                            'template_name' => 'page',
+                            'title' => $name,
+                            'slug' => 'legacy-page-content-'.$legacyId,
+                            'summary' => $this->buildSummary($content),
+                            'content' => $content,
+                            'cover_image' => null,
+                            'author' => null,
+                            'source' => (string) $site->name,
+                            'status' => 'published',
+                            'audit_status' => 'approved',
+                            'is_top' => 0,
+                            'is_recommend' => 0,
+                            'sort' => $legacyId,
+                            'view_count' => 0,
+                            'published_at' => null,
+                            'channel_ids' => [$pageParentChannelId],
                         ]
                     );
-                    $summary['imported'][$pageParentCreated ? 'channels_created' : 'channels_updated']++;
+
+                    $summary['imported'][$contentCreated ? 'pages_created' : 'pages_updated']++;
                 }
-
-                [, $contentCreated] = $this->upsertContent(
-                    (int) $site->id,
-                    [
-                        'channel_id' => $pageParentChannelId,
-                        'type' => 'page',
-                        'template_name' => 'page',
-                        'title' => $name,
-                        'slug' => 'legacy-page-content-'.$legacyId,
-                        'summary' => $this->buildSummary($content),
-                        'content' => $content,
-                        'cover_image' => null,
-                        'author' => null,
-                        'source' => (string) $site->name,
-                        'status' => 'published',
-                        'audit_status' => 'approved',
-                        'is_top' => 0,
-                        'is_recommend' => 0,
-                        'sort' => $legacyId,
-                        'view_count' => 0,
-                        'published_at' => null,
-                        'channel_ids' => [$pageParentChannelId],
-                    ]
-                );
-
-                $summary['imported'][$contentCreated ? 'pages_created' : 'pages_updated']++;
             }
 
             $fallbackArticleChannelId = null;
@@ -322,7 +331,7 @@ class LegacyAspAccessSiteImporter
         });
     }
 
-    protected function loadSource(string $sourceDir): array
+    protected function loadSource(string $sourceDir, bool $articlesOnly = false): array
     {
         $dir = rtrim($sourceDir, DIRECTORY_SEPARATOR);
 
@@ -332,7 +341,12 @@ class LegacyAspAccessSiteImporter
         $newsPath = $dir.DIRECTORY_SEPARATOR.'News.xml';
         $newsContentPath = $dir.DIRECTORY_SEPARATOR.'News_Content.xml';
 
-        foreach ([$typeDPath, $typePath, $aboutPath, $newsPath] as $path) {
+        $requiredFiles = [$typeDPath, $typePath, $newsPath];
+        if (! $articlesOnly) {
+            $requiredFiles[] = $aboutPath;
+        }
+
+        foreach ($requiredFiles as $path) {
             if (! is_file($path)) {
                 throw new RuntimeException('缺少导入文件：'.$path);
             }
@@ -341,7 +355,7 @@ class LegacyAspAccessSiteImporter
         return [
             'type_d' => $this->readSpreadsheetRows($typeDPath),
             'type' => $this->readSpreadsheetRows($typePath),
-            'about' => $this->readSpreadsheetRows($aboutPath),
+            'about' => ! $articlesOnly && is_file($aboutPath) ? $this->readSpreadsheetRows($aboutPath) : [],
             'news_path' => $newsPath,
             'news_content_path' => is_file($newsContentPath) ? $newsContentPath : null,
             'news_count' => $this->countXmlRecords($newsPath, 'News'),
@@ -536,7 +550,7 @@ class LegacyAspAccessSiteImporter
         return preg_replace('/_x000[dD]_/', "\r", $decoded) ?? $decoded;
     }
 
-    protected function upsertChannel(int $siteId, array $payload): array
+    protected function upsertChannel(int $siteId, array $payload, bool $updateExisting = true): array
     {
         $existing = DB::table('channels')
             ->where('site_id', $siteId)
@@ -546,12 +560,14 @@ class LegacyAspAccessSiteImporter
         $now = now();
 
         if ($existing) {
-            DB::table('channels')
-                ->where('id', $existing->id)
-                ->update([
-                    ...$payload,
-                    'updated_at' => $now,
-                ]);
+            if ($updateExisting) {
+                DB::table('channels')
+                    ->where('id', $existing->id)
+                    ->update([
+                        ...$payload,
+                        'updated_at' => $now,
+                    ]);
+            }
 
             return [(int) $existing->id, false];
         }
