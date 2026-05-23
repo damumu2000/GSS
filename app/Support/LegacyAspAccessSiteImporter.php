@@ -283,15 +283,21 @@ class LegacyAspAccessSiteImporter
                     );
                 }
 
+                $coverImage = $this->normalizeLegacyAssetPath((string) ($row['News_Pic'] ?? ''));
                 $rawContent = (string) ($row['News_Content'] ?? '');
                 if (trim($rawContent) === '') {
                     $rawContent = $this->newsContentFromLookup($newsContentLookupTable, $legacyId);
                 }
 
                 if (trim($rawContent) === '') {
-                    $summary['imported']['articles_skipped']++;
-                    $summary['warnings'][] = sprintf('文章 %d《%s》缺少正文，已跳过。', $legacyId, $title);
-                    continue;
+                    if ($coverImage !== null) {
+                        $rawContent = $this->buildLegacyImageOnlyContent($title, $coverImage);
+                        $summary['warnings'][] = sprintf('文章 %d《%s》缺少正文，已按封面图导入。', $legacyId, $title);
+                    } else {
+                        $summary['imported']['articles_skipped']++;
+                        $summary['warnings'][] = sprintf('文章 %d《%s》缺少正文，已跳过。', $legacyId, $title);
+                        continue;
+                    }
                 }
 
                 $content = $this->extractImportedHtml($rawContent);
@@ -307,7 +313,7 @@ class LegacyAspAccessSiteImporter
                         'slug' => 'legacy-news-'.$legacyId,
                         'summary' => $this->buildSummary($content),
                         'content' => $content,
-                        'cover_image' => $this->normalizeLegacyAssetPath((string) ($row['News_Pic'] ?? '')),
+                        'cover_image' => $coverImage,
                         'author' => null,
                         'source' => (string) $site->name,
                         'status' => 'published',
@@ -768,6 +774,15 @@ class LegacyAspAccessSiteImporter
         $plain = trim(preg_replace('/\s+/u', ' ', strip_tags(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'))) ?? '');
 
         return mb_substr($plain, 0, 140);
+    }
+
+    protected function buildLegacyImageOnlyContent(string $title, string $coverImage): string
+    {
+        return sprintf(
+            '<p><img src="%s" alt="%s"></p>',
+            htmlspecialchars($coverImage, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            htmlspecialchars($title, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        );
     }
 
     protected function parseLegacyDate(mixed $value): ?Carbon

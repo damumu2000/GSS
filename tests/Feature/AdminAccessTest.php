@@ -1510,6 +1510,97 @@ XML);
         ]);
     }
 
+    public function test_legacy_asp_importer_articles_only_imports_cover_only_article_without_body(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $sourceDir = storage_path('framework/testing-legacy-asp-cover-only-'.uniqid());
+        File::ensureDirectoryExists($sourceDir);
+        $this->temporaryLegacyImportDirs[] = $sourceDir;
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        $parentChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '新闻',
+            'slug' => 'News',
+            'type' => 'list',
+            'path' => '/News',
+            'depth' => 0,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'list_template' => 'list',
+            'detail_template' => 'detail',
+            'link_url' => null,
+            'link_target' => '_self',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $articleChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => $parentChannelId,
+            'name' => '园内新闻',
+            'slug' => 'Garden-News',
+            'type' => 'list',
+            'path' => '/Garden-News',
+            'depth' => 1,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'list_template' => 'list',
+            'detail_template' => 'detail',
+            'link_url' => null,
+            'link_target' => '_self',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type_D.xlsx', [
+            ['T_ID', 'T_Name', 'T_type', 'T_dlei', 'shunxu', 'en'],
+            [1, '新闻', 2, '', 110, 'News'],
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type.xlsx', [
+            ['Type_ID', 'Type_Name', 'Type_type', 'dalei', 'shunxu', 'flag', 'en'],
+            ['a11', '园内新闻', 2, 1, 10, 1, 'Garden News'],
+        ]);
+
+        File::put($sourceDir.'/News.xml', <<<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<dataroot>
+  <News>
+    <News_ID>2472</News_ID>
+    <News_Type>a11</News_Type>
+    <News_Title>六一儿童节花絮</News_Title>
+    <News_Pic>/Up/liuyi.jpg</News_Pic>
+    <News_Content></News_Content>
+    <News_Date>2026-05-20 10:20:30</News_Date>
+    <News_count>6</News_count>
+  </News>
+</dataroot>
+XML);
+
+        $result = app(LegacyAspAccessSiteImporter::class)->import('site', '测试站点', $sourceDir, true, true);
+
+        $content = DB::table('contents')
+            ->where('site_id', $siteId)
+            ->where('slug', 'legacy-news-2472')
+            ->first(['title', 'cover_image', 'content', 'channel_id']);
+
+        $this->assertSame(0, (int) $result['imported']['articles_skipped']);
+        $this->assertSame(1, (int) $result['imported']['articles_created']);
+        $this->assertContains('文章 2472《六一儿童节花絮》缺少正文，已按封面图导入。', $result['warnings']);
+        $this->assertNotNull($content);
+        $this->assertSame('六一儿童节花絮', $content->title);
+        $this->assertSame('/Up/liuyi.jpg', $content->cover_image);
+        $this->assertSame($articleChannelId, (int) $content->channel_id);
+        $this->assertStringContainsString('<img src="/Up/liuyi.jpg"', (string) $content->content);
+    }
+
     public function test_platform_module_permissions_are_granted_to_default_platform_roles(): void
     {
         $this->seed(DatabaseSeeder::class);
