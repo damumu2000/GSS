@@ -31,6 +31,10 @@ class SiteSecurityGuard
         if ($rule !== null) {
             $this->siteSecurity->recordBlocked($site, $rule, $request);
 
+            if (! $this->siteSecurity->shouldBlock($rule)) {
+                return $next($request);
+            }
+
             return response()->view('errors.security-blocked', [
                 'blockedRule' => $rule,
                 'blockedPath' => '/'.trim((string) $request->path(), '/'),

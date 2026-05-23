@@ -817,6 +817,148 @@
             color: #475467;
         }
 
+        .security-event-chip.is-ip-policy {
+            background: rgba(239, 246, 255, 0.95);
+            border-color: rgba(191, 219, 254, 0.95);
+            color: #1d4ed8;
+        }
+
+        .security-ip-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 22px;
+        }
+
+        .security-ip-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto auto;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: #ffffff;
+            border: 1px solid #edf2f7;
+        }
+
+        .security-ip-main {
+            min-width: 0;
+        }
+
+        .security-ip-address {
+            color: #111827;
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        .security-ip-path {
+            margin-top: 6px;
+            color: #667085;
+            font-size: 12px;
+            line-height: 1.6;
+            word-break: break-all;
+        }
+
+        .security-ip-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+            color: #475467;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .security-ip-metrics span {
+            padding: 7px 9px;
+            border-radius: 999px;
+            background: #f8fbff;
+            border: 1px solid #edf2f7;
+        }
+
+        .security-ip-status {
+            display: grid;
+            justify-items: end;
+            gap: 7px;
+            min-width: 120px;
+        }
+
+        .security-ip-time {
+            color: #98a2b3;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .security-ip-detail-link-wrap {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .security-ip-detail-link {
+            display: inline-flex;
+            align-items: center;
+            color: #3659d9;
+            font-size: 12px;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .security-ip-detail-link:hover {
+            color: #2446c4;
+        }
+
+        .security-ip-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .security-ip-actions form {
+            margin: 0;
+        }
+
+        .security-ip-action {
+            height: 32px;
+            padding: 0 12px;
+            border-radius: 999px;
+            border: 1px solid #d7e3f1;
+            background: #ffffff;
+            color: #475467;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 800;
+            cursor: pointer;
+            transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+        }
+
+        .security-ip-action.is-allow {
+            color: #047857;
+            border-color: rgba(167, 243, 208, 0.95);
+            background: rgba(236, 253, 245, 0.9);
+        }
+
+        .security-ip-action.is-block {
+            color: #b91c1c;
+            border-color: rgba(254, 202, 202, 0.95);
+            background: rgba(254, 242, 242, 0.9);
+        }
+
+        .security-ip-action.is-remove {
+            color: #475467;
+            border-color: #d7e3f1;
+            background: #ffffff;
+        }
+
+        .security-ip-action.is-release {
+            color: #0f766e;
+            border-color: rgba(153, 246, 228, 0.95);
+            background: rgba(240, 253, 250, 0.95);
+        }
+
+        .security-ip-action:hover {
+            border-color: #94a3b8;
+            background: #f8fafc;
+        }
+
         .security-empty {
             padding: 24px 18px;
             border-radius: 18px;
@@ -832,6 +974,92 @@
             margin-top: 0;
         }
 
+        .security-card-value--ip {
+            font-size: 24px;
+        }
+
+        .security-detail-panel {
+            display: grid;
+            gap: 18px;
+        }
+
+        .security-detail-summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .security-detail-summary-item {
+            padding: 18px 20px;
+            border-radius: 18px;
+            border: 1px solid #edf2f7;
+            background: #ffffff;
+        }
+
+        .security-detail-label {
+            color: #98a2b3;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .security-detail-value {
+            color: #172033;
+            font-size: 18px;
+            font-weight: 800;
+            word-break: break-all;
+        }
+
+        .security-detail-events {
+            display: grid;
+            gap: 12px;
+        }
+
+        .security-detail-event {
+            display: grid;
+            gap: 10px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: #ffffff;
+            border: 1px solid #edf2f7;
+        }
+
+        .security-detail-event-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .security-detail-event-title {
+            color: #344054;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .security-detail-event-time {
+            color: #98a2b3;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .security-detail-event-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            color: #475467;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .security-detail-event-extra {
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.6;
+            word-break: break-all;
+        }
+
         @media (max-width: 1180px) {
             .page-header {
                 align-items: flex-start;
@@ -842,6 +1070,26 @@
             }
 
             .security-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .security-ip-item {
+                grid-template-columns: 1fr;
+                align-items: start;
+            }
+
+            .security-ip-metrics,
+            .security-ip-status,
+            .security-ip-actions {
+                justify-content: flex-start;
+                justify-items: start;
+            }
+
+            .security-ip-detail-link-wrap {
+                justify-content: flex-start;
+            }
+
+            .security-detail-summary {
                 grid-template-columns: 1fr;
             }
         }
@@ -866,6 +1114,7 @@
             .security-region-list-items {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
         }
 
         @media (max-width: 640px) {

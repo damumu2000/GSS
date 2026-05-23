@@ -186,6 +186,31 @@ class SystemSettings
         return $this->bool('security.block_bad_upload_enabled', true);
     }
 
+    public function securityBlockBadClientEnabled(): bool
+    {
+        return $this->bool('security.block_bad_client_enabled', true);
+    }
+
+    public function securityBlockBadMethodEnabled(): bool
+    {
+        return $this->bool('security.block_bad_method_enabled', true);
+    }
+
+    public function securityBlockBadPayloadEnabled(): bool
+    {
+        return $this->bool('security.block_bad_payload_enabled', true);
+    }
+
+    public function securityPayloadMaxFields(): int
+    {
+        return max(10, min(1000, $this->int('security.payload_max_fields', 80)));
+    }
+
+    public function securityPayloadMaxValueLength(): int
+    {
+        return max(256, min(20000, $this->int('security.payload_max_value_length', 2000)));
+    }
+
     public function securityRateLimitEnabled(): bool
     {
         return $this->bool('security.rate_limit_enabled', true);
@@ -224,6 +249,22 @@ class SystemSettings
     public function securityScanProbeThreshold(): int
     {
         return max(1, min(100, $this->int('security.scan_probe_threshold', 3)));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function securityIpAllowlist(): array
+    {
+        return $this->securityIpList('security.ip_allowlist');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function securityIpBlocklist(): array
+    {
+        return $this->securityIpList('security.ip_blocklist');
     }
 
     public function securityEventRetentionLimit(): int
@@ -411,6 +452,11 @@ class SystemSettings
             'security_block_xss_enabled' => $this->securityBlockXssEnabled(),
             'security_block_path_traversal_enabled' => $this->securityBlockPathTraversalEnabled(),
             'security_block_bad_upload_enabled' => $this->securityBlockBadUploadEnabled(),
+            'security_block_bad_client_enabled' => $this->securityBlockBadClientEnabled(),
+            'security_block_bad_method_enabled' => $this->securityBlockBadMethodEnabled(),
+            'security_block_bad_payload_enabled' => $this->securityBlockBadPayloadEnabled(),
+            'security_payload_max_fields' => $this->securityPayloadMaxFields(),
+            'security_payload_max_value_length' => $this->securityPayloadMaxValueLength(),
             'security_rate_limit_enabled' => $this->securityRateLimitEnabled(),
             'security_rate_limit_window_seconds' => $this->securityRateLimitWindowSeconds(),
             'security_rate_limit_max_requests' => $this->securityRateLimitMaxRequests(),
@@ -419,6 +465,8 @@ class SystemSettings
             'security_scan_probe_enabled' => $this->securityScanProbeEnabled(),
             'security_scan_probe_window_seconds' => $this->securityScanProbeWindowSeconds(),
             'security_scan_probe_threshold' => $this->securityScanProbeThreshold(),
+            'security_ip_allowlist' => implode("\n", $this->securityIpAllowlist()),
+            'security_ip_blocklist' => implode("\n", $this->securityIpBlocklist()),
             'security_event_retention_limit' => $this->securityEventRetentionLimit(),
             'security_stats_retention_days' => $this->securityStatsRetentionDays(),
             'mail_enabled' => $this->mailEnabled(),
@@ -441,5 +489,20 @@ class SystemSettings
             'mail_rate_limit_recipient_max' => $this->mailRateLimitRecipientMax(),
             'login_service_agreement_content' => $this->loginServiceAgreementContent(),
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function securityIpList(string $key): array
+    {
+        $raw = $this->string($key, '');
+
+        return collect(preg_split('/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [])
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 }

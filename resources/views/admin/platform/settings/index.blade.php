@@ -160,6 +160,9 @@
         <section class="settings-panel" id="security" data-settings-tab-panel="security" role="tabpanel">
             <h3 class="settings-panel-title">安护盾</h3>
             <div class="settings-panel-desc">平台统一控制站点基础拦截规则。站点端只查看统计和最近拦截记录，不提供设置入口。</div>
+            <div class="settings-actions" style="margin-top: 16px; margin-bottom: 20px;">
+                <a class="button neutral-action" href="{{ route('admin.platform.security.index') }}">查看站点总览</a>
+            </div>
 
             <div class="settings-grid">
                 <div class="settings-toggle-grid">
@@ -253,8 +256,62 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="settings-field setting-toggle-field">
+                            <div class="setting-toggle-row">
+                                <div class="setting-toggle-control">
+                                    <input class="setting-toggle-input" id="security_block_bad_client_enabled" type="checkbox" name="security_block_bad_client_enabled" value="1" @checked(old('security_block_bad_client_enabled', $settings['security_block_bad_client_enabled']))>
+                                    <span class="setting-toggle-track" aria-hidden="true"></span>
+                                </div>
+                                <div class="setting-toggle-copy" aria-hidden="true">
+                                    <span class="setting-toggle-text">脚本扫描器识别</span>
+                                    <span class="setting-toggle-state" id="security_block_bad_client_enabled_label">{{ old('security_block_bad_client_enabled', $settings['security_block_bad_client_enabled']) ? '已开启' : '未开启' }}</span>
+                                    <span class="setting-toggle-desc">识别 sqlmap、nuclei、nikto、curl、python-requests 等明显脚本扫描客户端。</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-field setting-toggle-field">
+                            <div class="setting-toggle-row">
+                                <div class="setting-toggle-control">
+                                    <input class="setting-toggle-input" id="security_block_bad_method_enabled" type="checkbox" name="security_block_bad_method_enabled" value="1" @checked(old('security_block_bad_method_enabled', $settings['security_block_bad_method_enabled']))>
+                                    <span class="setting-toggle-track" aria-hidden="true"></span>
+                                </div>
+                                <div class="setting-toggle-copy" aria-hidden="true">
+                                    <span class="setting-toggle-text">异常请求方法拦截</span>
+                                    <span class="setting-toggle-state" id="security_block_bad_method_enabled_label">{{ old('security_block_bad_method_enabled', $settings['security_block_bad_method_enabled']) ? '已开启' : '未开启' }}</span>
+                                    <span class="setting-toggle-desc">拦截 TRACE、TRACK、CONNECT、DEBUG 这类常见扫描探测方法。</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-field setting-toggle-field">
+                            <div class="setting-toggle-row">
+                                <div class="setting-toggle-control">
+                                    <input class="setting-toggle-input" id="security_block_bad_payload_enabled" type="checkbox" name="security_block_bad_payload_enabled" value="1" @checked(old('security_block_bad_payload_enabled', $settings['security_block_bad_payload_enabled']))>
+                                    <span class="setting-toggle-track" aria-hidden="true"></span>
+                                </div>
+                                <div class="setting-toggle-copy" aria-hidden="true">
+                                    <span class="setting-toggle-text">异常参数防护</span>
+                                    <span class="setting-toggle-state" id="security_block_bad_payload_enabled_label">{{ old('security_block_bad_payload_enabled', $settings['security_block_bad_payload_enabled']) ? '已开启' : '未开启' }}</span>
+                                    <span class="setting-toggle-desc">拦截参数数量异常、单个参数超长等脚本探测和 payload 灌入。</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <label class="settings-field">
+                    <span class="settings-label">最大参数数量</span>
+                    <input class="field" type="number" name="security_payload_max_fields" min="10" max="1000" value="{{ old('security_payload_max_fields', $settings['security_payload_max_fields']) }}">
+                    <span class="settings-note">单次请求参数数量超过该值时触发异常参数拦截。</span>
+                </label>
+
+                <label class="settings-field">
+                    <span class="settings-label">单参数最大长度</span>
+                    <input class="field" type="number" name="security_payload_max_value_length" min="256" max="20000" value="{{ old('security_payload_max_value_length', $settings['security_payload_max_value_length']) }}">
+                    <span class="settings-note">单个参数值过长时触发拦截，单位为字符。</span>
+                </label>
 
                 <div class="settings-toggle-grid">
                     <span class="settings-label">频繁刷新防护</span>
@@ -328,6 +385,18 @@
                     <span class="settings-label">扫描触发阈值（次）</span>
                     <input class="field" type="number" name="security_scan_probe_threshold" min="1" max="100" value="{{ old('security_scan_probe_threshold', $settings['security_scan_probe_threshold']) }}">
                     <span class="settings-note">同一 IP 在统计窗口内多次命中扫描类规则，达到这个次数后会进入限制状态。</span>
+                </label>
+
+                <label class="settings-field">
+                    <span class="settings-label">IP 白名单</span>
+                    <textarea class="field textarea" name="security_ip_allowlist" rows="4" placeholder="每行一个 IP 或 IPv4 网段，例如 192.168.1.10">{{ old('security_ip_allowlist', $settings['security_ip_allowlist']) }}</textarea>
+                    <span class="settings-note">白名单来源会跳过安护盾拦截，建议只填写可信办公出口或监测服务 IP。</span>
+                </label>
+
+                <label class="settings-field">
+                    <span class="settings-label">IP 黑名单</span>
+                    <textarea class="field textarea" name="security_ip_blocklist" rows="4" placeholder="每行一个 IP 或 IPv4 网段，例如 203.0.113.0/24">{{ old('security_ip_blocklist', $settings['security_ip_blocklist']) }}</textarea>
+                    <span class="settings-note">黑名单来源会优先拦截，并在站点安护盾记录为黑名单 IP 拦截。</span>
                 </label>
 
                 <label class="settings-field">

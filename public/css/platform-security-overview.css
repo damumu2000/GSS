@@ -1,0 +1,171 @@
+.platform-security-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    margin-bottom: 20px;
+}
+
+.platform-security-card,
+.platform-security-panel {
+    background: #fff;
+    border: 1px solid #e9eef5;
+    border-radius: 20px;
+    padding: 22px 24px;
+}
+
+.platform-security-label {
+    color: #8b95a7;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.platform-security-value {
+    margin-top: 10px;
+    color: #182132;
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.platform-security-note {
+    margin-top: 10px;
+    color: #667085;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.platform-security-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.platform-security-panel-title {
+    margin: 0;
+    color: #182132;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.platform-security-panel-meta {
+    color: #667085;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.platform-security-table-wrap {
+    overflow-x: auto;
+}
+
+.platform-security-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 840px;
+}
+
+.platform-security-table th,
+.platform-security-table td {
+    padding: 16px 14px;
+    border-top: 1px solid #edf2f7;
+    text-align: left;
+    font-size: 14px;
+}
+
+.platform-security-table thead th {
+    border-top: 0;
+    color: #8b95a7;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.platform-security-table td {
+    color: #344054;
+    font-weight: 700;
+}
+
+.platform-security-site-name {
+    color: #182132;
+    font-weight: 800;
+}
+
+.platform-security-site-key {
+    margin-top: 4px;
+    color: #98a2b3;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.platform-security-empty {
+    text-align: center;
+    color: #98a2b3;
+}
+
+.platform-security-events {
+    display: grid;
+    gap: 12px;
+}
+
+.platform-security-event {
+    padding: 16px 18px;
+    border: 1px solid #edf2f7;
+    border-radius: 18px;
+    background: #fff;
+}
+
+.platform-security-event-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.platform-security-event-title {
+    color: #182132;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.platform-security-event-time {
+    color: #98a2b3;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.platform-security-event-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+    color: #667085;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.platform-security-event-link {
+    color: #3659d9;
+    text-decoration: none;
+}
+
+.platform-security-event-link:hover {
+    color: #2446c4;
+}
+
+.platform-security-policy-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+@media (max-width: 1200px) {
+    .platform-security-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .platform-security-metrics {
+        grid-template-columns: 1fr;
+    }
+}

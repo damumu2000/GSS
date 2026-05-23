@@ -1283,7 +1283,7 @@ abstract class Controller
             return null;
         }
 
-        foreach (['title', 'name', 'username', 'site_name', 'channel_name', 'role_name', 'module_name', 'code', 'domain', 'month_key'] as $key) {
+        foreach (['title', 'name', 'username', 'site_name', 'channel_name', 'role_name', 'module_name', 'code', 'domain', 'month_key', 'client_ip'] as $key) {
             $value = $payload[$key] ?? null;
 
             if (is_string($value) && trim($value) !== '') {
@@ -1317,6 +1317,7 @@ abstract class Controller
             'module' => '模块',
             'site_module_binding' => '站点模块绑定',
             'site_media' => '站点媒体',
+            'site_security_ip' => '安护盾 IP',
             'system_setting' => '系统设置',
             'cache_action' => '缓存操作',
             'promo_position' => '广告位',

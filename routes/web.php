@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Platform\DatabaseController as PlatformDatabaseCo
 use App\Http\Controllers\Admin\Platform\ModuleController as PlatformModuleController;
 use App\Http\Controllers\Admin\Platform\OperationLogController as PlatformOperationLogController;
 use App\Http\Controllers\Admin\Platform\PlatformRoleController;
+use App\Http\Controllers\Admin\Platform\SecurityOverviewController as PlatformSecurityOverviewController;
 use App\Http\Controllers\Admin\Platform\PlatformSiteController;
 use App\Http\Controllers\Admin\Platform\PlatformUserController;
 use App\Http\Controllers\Admin\Platform\SystemCheckController;
@@ -95,6 +96,9 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/database', [PlatformDatabaseController::class, 'index'])->name('database.index');
             Route::get('/database/{table}', [PlatformDatabaseController::class, 'show'])->name('database.show');
             Route::get('/settings', [SystemSettingController::class, 'index'])->name('settings.index');
+            Route::get('/security', PlatformSecurityOverviewController::class)->name('security.index');
+            Route::get('/security/ip-detail', [PlatformSecurityOverviewController::class, 'ipDetail'])->name('security.ip-detail');
+            Route::post('/security/ip-policy', [PlatformSecurityOverviewController::class, 'storeIpPolicy'])->name('security.ip-policy.store');
             Route::post('/settings', [SystemSettingController::class, 'update'])->name('settings.update');
             Route::post('/settings/mail-test', [SystemSettingController::class, 'sendTestMail'])->name('settings.mail-test');
             Route::get('/system-checks', [SystemCheckController::class, 'index'])->name('system-checks.index');
@@ -201,6 +205,8 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::post('/settings', [SiteSettingController::class, 'update'])->name('settings.update');
             Route::post('/settings/media-upload', [SiteSettingController::class, 'mediaUpload'])->name('settings.media-upload');
             Route::get('/security', [SiteSecurityController::class, 'index'])->name('security.index');
+            Route::get('/security/ip-detail', [SiteSecurityController::class, 'ipDetail'])->name('security.ip-detail');
+            Route::post('/security/ip-policy', [SiteSecurityController::class, 'storeIpPolicy'])->name('security.ip-policy.store');
             Route::get('/users', [SiteUserController::class, 'index'])->name('site-users.index');
             Route::get('/users/create', [SiteUserController::class, 'create'])->name('site-users.create');
             Route::post('/users', [SiteUserController::class, 'store'])->name('site-users.store');

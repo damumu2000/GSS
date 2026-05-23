@@ -185,6 +185,38 @@ class PlatformSiteController extends Controller
             ->where('site_id', $siteId)
             ->where('setting_key', 'attachment.storage_limit_mb')
             ->value('setting_value') ?? '0');
+        $securityMode = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.mode')
+            ->value('setting_value') ?? 'standard');
+        $securityCustomRateLimitMaxRequests = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.custom_rate_limit_max_requests')
+            ->value('setting_value') ?? '');
+        $securityCustomRateLimitSensitiveMaxRequests = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.custom_rate_limit_sensitive_max_requests')
+            ->value('setting_value') ?? '');
+        $securityCustomScanProbeThreshold = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.custom_scan_probe_threshold')
+            ->value('setting_value') ?? '');
+        $securityIpAllowlist = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.ip_allowlist')
+            ->value('setting_value') ?? '');
+        $securityIpBlocklist = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.ip_blocklist')
+            ->value('setting_value') ?? '');
+        $securityPathAllowlist = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.path_allowlist')
+            ->value('setting_value') ?? '');
+        $securityRuleExceptions = (string) (DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.rule_exceptions')
+            ->value('setting_value') ?? '');
         $legacyAttachmentStats = LegacyAttachmentStats::stats($site);
         $attachmentUsage = [
             'managed_count' => SiteStorageUsage::attachmentCount((int) $siteId),
@@ -233,6 +265,14 @@ class PlatformSiteController extends Controller
             'boundModules' => $boundModules,
             'availableModules' => $availableModules,
             'attachmentStorageLimitMb' => (string) old('attachment_storage_limit_mb', $attachmentStorageLimitMb),
+            'securityMode' => (string) old('security_mode', $this->normalizeSiteSecurityMode($securityMode)),
+            'securityCustomRateLimitMaxRequests' => (string) old('security_custom_rate_limit_max_requests', $securityCustomRateLimitMaxRequests),
+            'securityCustomRateLimitSensitiveMaxRequests' => (string) old('security_custom_rate_limit_sensitive_max_requests', $securityCustomRateLimitSensitiveMaxRequests),
+            'securityCustomScanProbeThreshold' => (string) old('security_custom_scan_probe_threshold', $securityCustomScanProbeThreshold),
+            'securityIpAllowlist' => (string) old('security_ip_allowlist', $securityIpAllowlist),
+            'securityIpBlocklist' => (string) old('security_ip_blocklist', $securityIpBlocklist),
+            'securityPathAllowlist' => (string) old('security_path_allowlist', $securityPathAllowlist),
+            'securityRuleExceptions' => (string) old('security_rule_exceptions', $securityRuleExceptions),
             'attachmentUsage' => $attachmentUsage,
             'selectedSiteAdminIds' => collect(old('site_admin_ids', $selectedSiteAdminIds))->map(fn ($id) => (int) $id)->all(),
         ]);
@@ -300,6 +340,14 @@ class PlatformSiteController extends Controller
             $this->syncSiteAdmins($siteId, $validated['site_admin_ids'] ?? []);
             $this->syncSiteSettings((int) $siteId, [
                 'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
+                'security.mode' => $this->normalizeSiteSecurityMode((string) ($validated['security_mode'] ?? 'standard')),
+                'security.custom_rate_limit_max_requests' => $this->normalizeNullablePositiveString((string) ($validated['security_custom_rate_limit_max_requests'] ?? '')),
+                'security.custom_rate_limit_sensitive_max_requests' => $this->normalizeNullablePositiveString((string) ($validated['security_custom_rate_limit_sensitive_max_requests'] ?? '')),
+                'security.custom_scan_probe_threshold' => $this->normalizeNullablePositiveString((string) ($validated['security_custom_scan_probe_threshold'] ?? '')),
+                'security.ip_allowlist' => implode("\n", $this->normalizeSiteSecurityIpList((string) ($validated['security_ip_allowlist'] ?? ''))),
+                'security.ip_blocklist' => implode("\n", $this->normalizeSiteSecurityIpList((string) ($validated['security_ip_blocklist'] ?? ''))),
+                'security.path_allowlist' => $this->normalizeSiteSecurityPaths((string) ($validated['security_path_allowlist'] ?? '')),
+                'security.rule_exceptions' => implode("\n", $this->normalizeSiteSecurityRuleExceptions((string) ($validated['security_rule_exceptions'] ?? ''))),
             ], (int) $request->user()->id);
 
             return (int) $siteId;
@@ -361,6 +409,14 @@ class PlatformSiteController extends Controller
             }
             $this->syncSiteSettings((int) $siteId, [
                 'attachment.storage_limit_mb' => (string) ($validated['attachment_storage_limit_mb'] ?? 0),
+                'security.mode' => $this->normalizeSiteSecurityMode((string) ($validated['security_mode'] ?? 'standard')),
+                'security.custom_rate_limit_max_requests' => $this->normalizeNullablePositiveString((string) ($validated['security_custom_rate_limit_max_requests'] ?? '')),
+                'security.custom_rate_limit_sensitive_max_requests' => $this->normalizeNullablePositiveString((string) ($validated['security_custom_rate_limit_sensitive_max_requests'] ?? '')),
+                'security.custom_scan_probe_threshold' => $this->normalizeNullablePositiveString((string) ($validated['security_custom_scan_probe_threshold'] ?? '')),
+                'security.ip_allowlist' => implode("\n", $this->normalizeSiteSecurityIpList((string) ($validated['security_ip_allowlist'] ?? ''))),
+                'security.ip_blocklist' => implode("\n", $this->normalizeSiteSecurityIpList((string) ($validated['security_ip_blocklist'] ?? ''))),
+                'security.path_allowlist' => $this->normalizeSiteSecurityPaths((string) ($validated['security_path_allowlist'] ?? '')),
+                'security.rule_exceptions' => implode("\n", $this->normalizeSiteSecurityRuleExceptions((string) ($validated['security_rule_exceptions'] ?? ''))),
             ], (int) $request->user()->id);
         });
 
@@ -687,6 +743,14 @@ class PlatformSiteController extends Controller
             'contact_email' => ['nullable', 'email:filter', 'max:100'],
             'address' => ['nullable', 'string', 'max:255'],
             'attachment_storage_limit_mb' => ['nullable', 'integer', 'min:0', 'max:1048576'],
+            'security_mode' => ['nullable', 'string', 'in:observe,standard,strict,custom'],
+            'security_custom_rate_limit_max_requests' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'security_custom_rate_limit_sensitive_max_requests' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'security_custom_scan_probe_threshold' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'security_ip_allowlist' => ['nullable', 'string', 'max:5000'],
+            'security_ip_blocklist' => ['nullable', 'string', 'max:5000'],
+            'security_path_allowlist' => ['nullable', 'string', 'max:5000'],
+            'security_rule_exceptions' => ['nullable', 'string', 'max:2000'],
             'module_ids' => ['nullable', 'array'],
             'module_ids.*' => ['integer', 'exists:modules,id'],
             'seo_title' => ['nullable', 'string', 'max:255'],
@@ -764,6 +828,70 @@ class PlatformSiteController extends Controller
 
                 if ($platformIdentityIds->isNotEmpty()) {
                     $validator->errors()->add('site_admin_ids', '平台管理员与操作员为两套独立体系，不能直接绑定为站点管理员。');
+                }
+            }
+
+            foreach ([
+                'security_ip_allowlist' => '站点 IP 白名单',
+                'security_ip_blocklist' => '站点 IP 黑名单',
+            ] as $field => $label) {
+                foreach ($this->normalizeSiteSecurityIpList((string) $request->input($field, '')) as $item) {
+                    if (! $this->isValidSiteSecurityIpPattern($item)) {
+                        $validator->errors()->add($field, $label.'仅支持单个 IP 或 IPv4 CIDR 网段。');
+                        break;
+                    }
+                }
+            }
+
+            if ($this->normalizeSiteSecurityMode((string) $request->input('security_mode', 'standard')) === 'custom') {
+                $customRate = $request->input('security_custom_rate_limit_max_requests');
+                $customSensitiveRate = $request->input('security_custom_rate_limit_sensitive_max_requests');
+                $customProbeThreshold = $request->input('security_custom_scan_probe_threshold');
+
+                if ($customRate === null || $customRate === '') {
+                    $validator->errors()->add('security_custom_rate_limit_max_requests', '自定义模式下必须填写普通页面频率阈值。');
+                }
+
+                if ($customSensitiveRate === null || $customSensitiveRate === '') {
+                    $validator->errors()->add('security_custom_rate_limit_sensitive_max_requests', '自定义模式下必须填写敏感页面频率阈值。');
+                }
+
+                if ($customProbeThreshold === null || $customProbeThreshold === '') {
+                    $validator->errors()->add('security_custom_scan_probe_threshold', '自定义模式下必须填写扫描试探阈值。');
+                }
+
+                if (is_numeric((string) $customRate) && is_numeric((string) $customSensitiveRate) && (int) $customSensitiveRate > (int) $customRate) {
+                    $validator->errors()->add('security_custom_rate_limit_sensitive_max_requests', '敏感页面频率阈值不能高于普通页面频率阈值。');
+                }
+            }
+
+            foreach (preg_split('/\r\n|\r|\n/', $this->normalizeSiteSecurityPaths((string) $request->input('security_path_allowlist', ''))) ?: [] as $path) {
+                if (! str_starts_with($path, '/')) {
+                    $validator->errors()->add('security_path_allowlist', '路径白名单仅支持以 / 开头的站内路径。');
+                    break;
+                }
+            }
+
+            $validSecurityRuleCodes = [
+                'bad_path',
+                'sql_injection',
+                'xss',
+                'path_traversal',
+                'bad_upload',
+                'rate_limit',
+                'probe_abuse',
+                'ip_blocklist',
+                'bad_client',
+                'bad_method',
+                'bad_payload',
+            ];
+
+            foreach (preg_split('/[\r\n,]+/', (string) $request->input('security_rule_exceptions', '')) ?: [] as $ruleCode) {
+                $ruleCode = trim(mb_strtolower((string) $ruleCode));
+
+                if ($ruleCode !== '' && ! in_array($ruleCode, $validSecurityRuleCodes, true)) {
+                    $validator->errors()->add('security_rule_exceptions', '规则例外仅支持已定义的安护盾规则码。');
+                    break;
                 }
             }
 
@@ -1290,6 +1418,100 @@ class PlatformSiteController extends Controller
                 ],
             );
         }
+
+        Cache::forget('site-security:site-policy:'.$siteId);
+    }
+
+    protected function normalizeSiteSecurityPaths(string $value): string
+    {
+        return collect(preg_split('/\r\n|\r|\n/', $value) ?: [])
+            ->map(fn ($item): string => trim((string) $item))
+            ->filter(fn (string $item): bool => $item !== '')
+            ->map(function (string $item): string {
+                $path = '/'.ltrim(parse_url($item, PHP_URL_PATH) ?: $item, '/');
+                $path = rtrim($path, '/');
+
+                return $path !== '' ? $path : '/';
+            })
+            ->unique()
+            ->values()
+            ->implode("\n");
+    }
+
+    protected function normalizeSiteSecurityMode(string $mode): string
+    {
+        $mode = trim(mb_strtolower($mode));
+
+        return in_array($mode, ['observe', 'standard', 'strict', 'custom'], true) ? $mode : 'standard';
+    }
+
+    protected function normalizeNullablePositiveString(string $value): string
+    {
+        $value = trim($value);
+
+        if ($value === '' || ! is_numeric($value) || (int) $value <= 0) {
+            return '';
+        }
+
+        return (string) ((int) $value);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function normalizeSiteSecurityIpList(string $value): array
+    {
+        return collect(preg_split('/[\s,]+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [])
+            ->map(fn ($item): string => trim((string) $item))
+            ->filter(fn (string $item): bool => $item !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function isValidSiteSecurityIpPattern(string $value): bool
+    {
+        if (filter_var($value, FILTER_VALIDATE_IP) !== false) {
+            return true;
+        }
+
+        if (! str_contains($value, '/')) {
+            return false;
+        }
+
+        [$subnet, $mask] = array_pad(explode('/', $value, 2), 2, null);
+
+        return filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false
+            && is_numeric($mask)
+            && (int) $mask >= 0
+            && (int) $mask <= 32;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function normalizeSiteSecurityRuleExceptions(string $value): array
+    {
+        $allowed = collect([
+            'bad_path',
+            'sql_injection',
+            'xss',
+            'path_traversal',
+            'bad_upload',
+            'rate_limit',
+            'probe_abuse',
+            'ip_blocklist',
+            'bad_client',
+            'bad_method',
+            'bad_payload',
+        ]);
+
+        return collect(preg_split('/[\r\n,]+/', $value) ?: [])
+            ->map(fn ($item): string => trim(mb_strtolower((string) $item)))
+            ->filter(fn (string $item): bool => $item !== '' && $allowed->contains($item))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function candidateSiteAdmins()

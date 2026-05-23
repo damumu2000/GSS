@@ -59,6 +59,11 @@ class SystemSettingController extends Controller
             'security_block_xss_enabled' => ['nullable', 'boolean'],
             'security_block_path_traversal_enabled' => ['nullable', 'boolean'],
             'security_block_bad_upload_enabled' => ['nullable', 'boolean'],
+            'security_block_bad_client_enabled' => ['nullable', 'boolean'],
+            'security_block_bad_method_enabled' => ['nullable', 'boolean'],
+            'security_block_bad_payload_enabled' => ['nullable', 'boolean'],
+            'security_payload_max_fields' => ['nullable', 'integer', 'min:10', 'max:1000'],
+            'security_payload_max_value_length' => ['nullable', 'integer', 'min:256', 'max:20000'],
             'security_rate_limit_enabled' => ['nullable', 'boolean'],
             'security_rate_limit_window_seconds' => ['nullable', 'integer', 'min:1', 'max:300'],
             'security_rate_limit_max_requests' => ['nullable', 'integer', 'min:1', 'max:1000'],
@@ -67,6 +72,8 @@ class SystemSettingController extends Controller
             'security_scan_probe_enabled' => ['nullable', 'boolean'],
             'security_scan_probe_window_seconds' => ['nullable', 'integer', 'min:10', 'max:86400'],
             'security_scan_probe_threshold' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'security_ip_allowlist' => ['nullable', 'string', 'max:5000'],
+            'security_ip_blocklist' => ['nullable', 'string', 'max:5000'],
             'security_event_retention_limit' => ['nullable', 'integer', 'min:20', 'max:1000'],
             'security_stats_retention_days' => ['nullable', 'integer', 'min:7', 'max:3650'],
             'admin_logo_file' => ['nullable', 'file', 'image', 'max:3072'],
@@ -127,6 +134,18 @@ class SystemSettingController extends Controller
 
             if ($sensitiveMaxRequests > $maxRequests) {
                 $validator->errors()->add('security_rate_limit_sensitive_max_requests', '敏感页面阈值不能高于普通页面阈值。');
+            }
+
+            foreach ([
+                'security_ip_allowlist' => 'IP 白名单',
+                'security_ip_blocklist' => 'IP 黑名单',
+            ] as $field => $label) {
+                foreach ($this->normalizeSecurityIpList((string) $request->input($field, '')) as $item) {
+                    if (! $this->isValidSecurityIpPattern($item)) {
+                        $validator->errors()->add($field, $label.'仅支持单个 IP 或 IPv4 CIDR 网段。');
+                        break;
+                    }
+                }
             }
 
             $mailDriver = strtolower(trim((string) $request->input('mail_driver', 'log')));
@@ -211,6 +230,11 @@ class SystemSettingController extends Controller
             'security.block_xss_enabled' => $request->boolean('security_block_xss_enabled') ? '1' : '0',
             'security.block_path_traversal_enabled' => $request->boolean('security_block_path_traversal_enabled') ? '1' : '0',
             'security.block_bad_upload_enabled' => $request->boolean('security_block_bad_upload_enabled') ? '1' : '0',
+            'security.block_bad_client_enabled' => $request->boolean('security_block_bad_client_enabled') ? '1' : '0',
+            'security.block_bad_method_enabled' => $request->boolean('security_block_bad_method_enabled') ? '1' : '0',
+            'security.block_bad_payload_enabled' => $request->boolean('security_block_bad_payload_enabled') ? '1' : '0',
+            'security.payload_max_fields' => (string) ($validated['security_payload_max_fields'] ?? $this->systemSettings->securityPayloadMaxFields()),
+            'security.payload_max_value_length' => (string) ($validated['security_payload_max_value_length'] ?? $this->systemSettings->securityPayloadMaxValueLength()),
             'security.rate_limit_enabled' => $request->boolean('security_rate_limit_enabled') ? '1' : '0',
             'security.rate_limit_window_seconds' => (string) ($validated['security_rate_limit_window_seconds'] ?? $this->systemSettings->securityRateLimitWindowSeconds()),
             'security.rate_limit_max_requests' => (string) ($validated['security_rate_limit_max_requests'] ?? $this->systemSettings->securityRateLimitMaxRequests()),
@@ -219,6 +243,8 @@ class SystemSettingController extends Controller
             'security.scan_probe_enabled' => $request->boolean('security_scan_probe_enabled') ? '1' : '0',
             'security.scan_probe_window_seconds' => (string) ($validated['security_scan_probe_window_seconds'] ?? $this->systemSettings->securityScanProbeWindowSeconds()),
             'security.scan_probe_threshold' => (string) ($validated['security_scan_probe_threshold'] ?? $this->systemSettings->securityScanProbeThreshold()),
+            'security.ip_allowlist' => implode("\n", $this->normalizeSecurityIpList((string) ($validated['security_ip_allowlist'] ?? ''))),
+            'security.ip_blocklist' => implode("\n", $this->normalizeSecurityIpList((string) ($validated['security_ip_blocklist'] ?? ''))),
             'security.event_retention_limit' => (string) ($validated['security_event_retention_limit'] ?? $this->systemSettings->securityEventRetentionLimit()),
             'security.stats_retention_days' => (string) ($validated['security_stats_retention_days'] ?? $this->systemSettings->securityStatsRetentionDays()),
             'mail.enabled' => $request->boolean('mail_enabled') ? '1' : '0',
@@ -396,6 +422,37 @@ class SystemSettingController extends Controller
         $sanitized = trim($sanitized);
 
         return Str::limit($sanitized, $maxLength, '');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function normalizeSecurityIpList(string $value): array
+    {
+        return collect(preg_split('/[\s,]+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function isValidSecurityIpPattern(string $value): bool
+    {
+        if (filter_var($value, FILTER_VALIDATE_IP) !== false) {
+            return true;
+        }
+
+        if (! str_contains($value, '/')) {
+            return false;
+        }
+
+        [$subnet, $mask] = array_pad(explode('/', $value, 2), 2, null);
+
+        return filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false
+            && is_numeric($mask)
+            && (int) $mask >= 0
+            && (int) $mask <= 32;
     }
 
     protected function normalizeBrandExtension(UploadedFile $file, string $prefix): string

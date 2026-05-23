@@ -95,6 +95,7 @@ class CmsBootstrapSeeder extends Seeder
             ['module' => 'theme', 'name' => '使用主题', 'code' => 'theme.use'],
             ['module' => 'theme', 'name' => '编辑模板', 'code' => 'theme.edit'],
             ['module' => 'security', 'name' => '查看安全防护', 'code' => 'security.view'],
+            ['module' => 'security', 'name' => '处置安全防护', 'code' => 'security.manage'],
             ['module' => 'setting', 'name' => '管理站点设置', 'code' => 'setting.manage'],
             ['module' => 'user', 'name' => '管理操作员', 'code' => 'site.user.manage'],
             ['module' => 'user', 'name' => '管理操作角色', 'code' => 'site.role.manage'],

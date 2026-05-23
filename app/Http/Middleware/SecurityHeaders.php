@@ -2,16 +2,58 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\SiteSecurity;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
+    public function __construct(
+        protected SiteSecurity $siteSecurity,
+    ) {
+    }
+
     public function handle(Request $request, Closure $next): Response
     {
+        if ($response = $this->blockedBadMethodResponse($request)) {
+            return $this->applyHeaders($request, $response);
+        }
+
         /** @var Response $response */
         $response = $next($request);
+
+        return $this->applyHeaders($request, $response);
+    }
+
+    protected function blockedBadMethodResponse(Request $request): ?Response
+    {
+        $site = $this->siteSecurity->resolveSite($request);
+
+        if (! $site) {
+            return null;
+        }
+
+        $rule = $this->siteSecurity->inspectBadMethod($request);
+
+        if ($rule === null) {
+            return null;
+        }
+
+        $this->siteSecurity->recordBlocked($site, $rule, $request);
+
+        if (! $this->siteSecurity->shouldBlock($rule)) {
+            return null;
+        }
+
+        return response()->view('errors.security-blocked', [
+            'blockedRule' => $rule,
+            'blockedPath' => '/'.trim((string) $request->path(), '/'),
+        ], 403);
+    }
+
+    protected function applyHeaders(Request $request, Response $response): Response
+    {
         $contentType = (string) $response->headers->get('Content-Type', '');
         $isDebugExceptionPage = config('app.debug')
             && $response->getStatusCode() >= 500

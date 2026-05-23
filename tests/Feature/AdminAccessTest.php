@@ -139,6 +139,36 @@ class AdminAccessTest extends TestCase
         return 'site-security-rate:'.$siteId.':site:'.sha1('127.0.0.1');
     }
 
+    protected function siteSecurityFormWideRateKey(): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-rate:'.$siteId.':form:'.sha1('127.0.0.1');
+    }
+
+    protected function siteSecurityMediaWideRateKey(): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-rate:'.$siteId.':media:'.sha1('127.0.0.1');
+    }
+
+    protected function siteSecurityPathScanKey(): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-path-scan:'.$siteId.':'.sha1('127.0.0.1');
+    }
+
     protected function siteSecurityRateLimitBlockKey(): string
     {
         $siteId = (int) DB::table('sites')
@@ -3949,6 +3979,11 @@ XML);
                 'security_block_xss_enabled' => '1',
                 'security_block_path_traversal_enabled' => '1',
                 'security_block_bad_upload_enabled' => '1',
+                'security_block_bad_client_enabled' => '1',
+                'security_block_bad_method_enabled' => '1',
+                'security_block_bad_payload_enabled' => '1',
+                'security_payload_max_fields' => '80',
+                'security_payload_max_value_length' => '2000',
                 'security_rate_limit_enabled' => '1',
                 'security_rate_limit_window_seconds' => '12',
                 'security_rate_limit_max_requests' => '33',
@@ -3988,6 +4023,11 @@ XML);
                 'security_block_xss_enabled' => '1',
                 'security_block_path_traversal_enabled' => '1',
                 'security_block_bad_upload_enabled' => '1',
+                'security_block_bad_client_enabled' => '1',
+                'security_block_bad_method_enabled' => '1',
+                'security_block_bad_payload_enabled' => '1',
+                'security_payload_max_fields' => '80',
+                'security_payload_max_value_length' => '2000',
                 'security_rate_limit_enabled' => '1',
                 'security_rate_limit_window_seconds' => '12',
                 'security_rate_limit_max_requests' => '33',
@@ -4005,6 +4045,61 @@ XML);
         $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'security.scan_probe_enabled')->value('setting_value'));
         $this->assertSame('600', DB::table('system_settings')->where('setting_key', 'security.scan_probe_window_seconds')->value('setting_value'));
         $this->assertSame('4', DB::table('system_settings')->where('setting_key', 'security.scan_probe_threshold')->value('setting_value'));
+    }
+
+    public function test_platform_admin_can_save_security_ip_lists(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.settings.update'), [
+                'system_name' => '站群后台',
+                'system_version' => '2.1.0',
+                'current_tab' => 'security',
+                'attachment_allowed_extensions' => 'jpg,jpeg,png,webp,pdf,zip',
+                'attachment_max_size_mb' => 18,
+                'attachment_image_max_size_mb' => 6,
+                'attachment_image_max_width' => 3200,
+                'attachment_image_max_height' => 2400,
+                'attachment_image_auto_resize' => '1',
+                'attachment_image_auto_compress' => '1',
+                'attachment_image_quality' => 76,
+                'admin_enabled' => '1',
+                'admin_disabled_message' => '后台暂时关闭，请联系管理员。',
+                'security_site_protection_enabled' => '1',
+                'security_block_bad_path_enabled' => '1',
+                'security_block_sql_injection_enabled' => '1',
+                'security_block_xss_enabled' => '1',
+                'security_block_path_traversal_enabled' => '1',
+                'security_block_bad_upload_enabled' => '1',
+                'security_block_bad_client_enabled' => '1',
+                'security_block_bad_method_enabled' => '1',
+                'security_block_bad_payload_enabled' => '1',
+                'security_payload_max_fields' => '42',
+                'security_payload_max_value_length' => '1200',
+                'security_rate_limit_enabled' => '1',
+                'security_rate_limit_window_seconds' => '12',
+                'security_rate_limit_max_requests' => '33',
+                'security_rate_limit_sensitive_max_requests' => '9',
+                'security_rate_limit_block_seconds' => '90',
+                'security_scan_probe_enabled' => '1',
+                'security_scan_probe_window_seconds' => '600',
+                'security_scan_probe_threshold' => '4',
+                'security_ip_allowlist' => "192.168.1.10\n10.10.0.0/24",
+                'security_ip_blocklist' => "203.0.113.7\n198.51.100.0/24",
+                'security_event_retention_limit' => '260',
+                'security_stats_retention_days' => '365',
+            ])
+            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'security']))
+            ->assertSessionHas('status', '系统设置已更新。');
+
+        $this->assertSame("192.168.1.10\n10.10.0.0/24", DB::table('system_settings')->where('setting_key', 'security.ip_allowlist')->value('setting_value'));
+        $this->assertSame("203.0.113.7\n198.51.100.0/24", DB::table('system_settings')->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'security.block_bad_client_enabled')->value('setting_value'));
+        $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'security.block_bad_method_enabled')->value('setting_value'));
+        $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'security.block_bad_payload_enabled')->value('setting_value'));
+        $this->assertSame('42', DB::table('system_settings')->where('setting_key', 'security.payload_max_fields')->value('setting_value'));
+        $this->assertSame('1200', DB::table('system_settings')->where('setting_key', 'security.payload_max_value_length')->value('setting_value'));
     }
 
     public function test_platform_admin_can_clear_uploaded_brand_assets(): void
@@ -7844,9 +7939,523 @@ XML);
             'site_id' => $siteId,
             'rule_code' => 'sql_injection',
             'rule_name' => 'SQL 注入拦截',
+            'risk_level' => 'high',
+            'action' => 'block',
             'request_path' => '/',
             'request_method' => 'GET',
         ]);
+
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => '127.0.0.1',
+            'last_rule_code' => 'sql_injection',
+            'hit_count' => 1,
+            'high_risk_count' => 1,
+            'status' => 'monitored',
+        ]);
+    }
+
+    public function test_site_security_records_bound_domain_event_on_matching_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-domain-site', '域名安全站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-domain.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->get('http://security-domain.test/?keyword='.urlencode('union select 1'))
+            ->assertForbidden()
+            ->assertSee('SQL 注入拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $remoteSiteId,
+            'blocked_total' => 1,
+            'blocked_sql_injection' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $remoteSiteId,
+            'rule_code' => 'sql_injection',
+            'rule_name' => 'SQL 注入拦截',
+        ]);
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'sql_injection',
+            'rule_name' => 'SQL 注入拦截',
+        ]);
+    }
+
+    public function test_site_security_records_forwarded_host_event_on_matching_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-forwarded-site', '转发域名安全站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-forwarded.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->withServerVariables([
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_HOST' => '127.0.0.1:8000',
+            'HTTP_X_FORWARDED_HOST' => 'security-forwarded.test',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+            'HTTP_X_FORWARDED_PORT' => '443',
+        ])->get('/?keyword='.urlencode('union select 1'))
+            ->assertForbidden()
+            ->assertSee('SQL 注入拦截');
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $remoteSiteId,
+            'rule_code' => 'sql_injection',
+            'rule_name' => 'SQL 注入拦截',
+        ]);
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'sql_injection',
+            'rule_name' => 'SQL 注入拦截',
+        ]);
+    }
+
+    public function test_platform_admin_can_save_site_security_exceptions(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($user)
+            ->post(route('admin.platform.sites.update', $siteId), [
+                'name' => '示例学校',
+                'site_key' => 'site',
+                'status' => '1',
+                'domains' => 'site.test',
+                'contact_phone' => '010-12345678',
+                'contact_email' => 'school@openai.com',
+                'address' => '示例地址 1 号',
+                'attachment_storage_limit_mb' => 512,
+                'security_mode' => 'custom',
+                'security_custom_rate_limit_max_requests' => '22',
+                'security_custom_rate_limit_sensitive_max_requests' => '11',
+                'security_custom_scan_probe_threshold' => '2',
+                'security_ip_allowlist' => "192.168.1.10\n10.10.0.0/24",
+                'security_ip_blocklist' => "203.0.113.7\n198.51.100.0/24",
+                'security_path_allowlist' => "/trusted-webhook\n/callback/status",
+                'security_rule_exceptions' => "bad_payload\nrate_limit",
+                'theme_ids' => [],
+                'module_ids' => [],
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'opened_at' => now()->format('Y-m-d'),
+                'expires_at' => '',
+                'remark' => '站点备注',
+                'site_admin_ids' => [],
+            ])
+            ->assertRedirect(route('admin.platform.sites.edit', $siteId))
+            ->assertSessionHas('status', '站点信息已更新。');
+
+        $this->assertSame('custom', DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.mode')->value('setting_value'));
+        $this->assertSame('22', DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.custom_rate_limit_max_requests')->value('setting_value'));
+        $this->assertSame('11', DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.custom_rate_limit_sensitive_max_requests')->value('setting_value'));
+        $this->assertSame('2', DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.custom_scan_probe_threshold')->value('setting_value'));
+        $this->assertSame("192.168.1.10\n10.10.0.0/24", DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.ip_allowlist')->value('setting_value'));
+        $this->assertSame("203.0.113.7\n198.51.100.0/24", DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertSame("/trusted-webhook\n/callback/status", DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.path_allowlist')->value('setting_value'));
+        $this->assertSame("bad_payload\nrate_limit", DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.rule_exceptions')->value('setting_value'));
+    }
+
+    public function test_platform_security_overview_aggregates_recent_site_security_data(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $otherSiteId = $this->createAdditionalSite('platform-security-overview-site', '平台安护盾总览站点');
+
+        DB::table('site_security_daily_stats')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'stat_date' => now('Asia/Shanghai')->toDateString(),
+                'blocked_total' => 10,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'stat_date' => now('Asia/Shanghai')->subDays(2)->toDateString(),
+                'blocked_total' => 5,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $otherSiteId,
+                'stat_date' => now('Asia/Shanghai')->subDay()->toDateString(),
+                'blocked_total' => 3,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $otherSiteId,
+                'stat_date' => now('Asia/Shanghai')->subDays(10)->toDateString(),
+                'blocked_total' => 99,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        DB::table('site_security_ip_reputations')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'hit_count' => 4,
+                'high_risk_count' => 2,
+                'last_rule_code' => 'probe_abuse',
+                'last_request_path' => '/wp-admin',
+                'status' => 'blocked',
+                'blocked_until' => now()->addMinutes(10),
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $otherSiteId,
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'hit_count' => 2,
+                'high_risk_count' => 1,
+                'last_rule_code' => 'sql_injection',
+                'last_request_path' => '/search',
+                'status' => 'monitored',
+                'blocked_until' => null,
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'probe_abuse',
+                'rule_name' => '扫描试探超限',
+                'request_path' => '/wp-admin',
+                'request_method' => 'GET',
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'risk_level' => 'critical',
+                'action' => 'temporary_block',
+                'created_at' => now()->subMinutes(5),
+            ],
+            [
+                'site_id' => $otherSiteId,
+                'rule_code' => 'sql_injection',
+                'rule_name' => 'SQL 注入',
+                'request_path' => '/search',
+                'request_method' => 'GET',
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'risk_level' => 'high',
+                'action' => 'block',
+                'created_at' => now()->subMinutes(2),
+            ],
+            [
+                'site_id' => $otherSiteId,
+                'rule_code' => 'rate_limit',
+                'rule_name' => '频繁刷新',
+                'request_path' => '/list',
+                'request_method' => 'GET',
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'risk_level' => 'medium',
+                'action' => 'rate_limited',
+                'created_at' => now()->subDays(10),
+            ],
+        ]);
+
+        DB::table('site_settings')->insert([
+            'site_id' => $otherSiteId,
+            'setting_key' => 'security.mode',
+            'setting_value' => 'strict',
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.platform.security.index'))
+            ->assertOk()
+            ->assertSee('安护盾总览')
+            ->assertSee('18')
+            ->assertSee('2')
+            ->assertSee('扫描试探超限')
+            ->assertSee('SQL 注入')
+            ->assertSee('8.8.8.8')
+            ->assertSee('9.9.9.9')
+            ->assertSee(str_replace('&', '&amp;', route('admin.platform.security.ip-detail', ['site_id' => $otherSiteId, 'client_ip' => '9.9.9.9'])), false)
+            ->assertSee('严格模式')
+            ->assertDontSee('99');
+    }
+
+    public function test_platform_security_overview_can_open_site_ip_detail(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.8.8';
+        $ipHash = hash('sha256', $ip);
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+            'ip_hash' => $ipHash,
+            'hit_count' => 3,
+            'high_risk_count' => 2,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/wp-admin',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_security_events')->insert([
+            'site_id' => $siteId,
+            'rule_code' => 'probe_abuse',
+            'rule_name' => '扫描试探超限',
+            'request_path' => '/wp-admin',
+            'request_method' => 'GET',
+            'client_ip' => $ip,
+            'ip_hash' => $ipHash,
+            'risk_level' => 'critical',
+            'action' => 'temporary_block',
+            'user_agent' => 'PlatformSecurityAgent/1.0',
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.platform.security.ip-detail', ['site_id' => $siteId, 'client_ip' => $ip]))
+            ->assertOk()
+            ->assertSee('平台安护盾 IP 详情')
+            ->assertSee($ip)
+            ->assertSee('扫描试探超限')
+            ->assertSee('PlatformSecurityAgent/1.0');
+    }
+
+    public function test_platform_security_overview_can_update_site_ip_policy(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.4.4';
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 2,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['current_site_id' => 1])
+            ->post(route('admin.platform.security.ip-policy.store'), [
+                'site_id' => $siteId,
+                'client_ip' => $ip,
+                'action' => 'block',
+            ])
+            ->assertRedirect(route('admin.platform.security.ip-detail', ['site_id' => $siteId, 'client_ip' => $ip]))
+            ->assertSessionHas('status', '已加入站点 IP 黑名单。');
+
+        $this->assertSame($ip, DB::table('site_settings')->where('site_id', $siteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'platform',
+            'module' => 'security',
+            'action' => 'security_block_ip',
+            'user_id' => $user->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_site_ip_allowlist_only_bypasses_matching_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-ip-allow-remote-site', 'IP 白名单远程站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-ip-allow.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $mainSiteId, 'setting_key' => 'security.ip_allowlist'],
+            ['setting_value' => '127.0.0.1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertOk();
+        $this->get('http://security-ip-allow.test/?keyword='.urlencode('union select 1'))->assertForbidden()->assertSee('SQL 注入拦截');
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'sql_injection',
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $remoteSiteId,
+            'rule_code' => 'sql_injection',
+        ]);
+    }
+
+    public function test_site_security_site_ip_blocklist_only_blocks_matching_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-ip-block-remote-site', 'IP 黑名单远程站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-ip-block.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $mainSiteId, 'setting_key' => 'security.ip_blocklist'],
+            ['setting_value' => '127.0.0.1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->get('/?site=site')->assertForbidden()->assertSee('站点黑名单 IP 拦截');
+        $this->assertNotSame(403, $this->get('http://security-ip-block.test/')->getStatusCode());
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'ip_blocklist',
+            'rule_name' => '站点黑名单 IP 拦截',
+        ]);
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $remoteSiteId,
+            'rule_code' => 'ip_blocklist',
+        ]);
+    }
+
+    public function test_site_security_observe_mode_records_without_blocking(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'security.mode'],
+            ['setting_value' => 'observe', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()]
+        );
+
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))
+            ->assertOk();
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'sql_injection',
+            'rule_name' => 'SQL 注入拦截',
+            'action' => 'record',
+        ]);
+    }
+
+    public function test_site_security_observe_mode_does_not_create_runtime_or_ip_blocks(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'security.mode'],
+            ['setting_value' => 'observe', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+        );
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.rate_limit_block_seconds'],
+            ['setting_value' => '60', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+        );
+
+        RateLimiter::clear($this->siteSecurityProbeBlockKey());
+
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertOk();
+        $this->get('/?site=site&keyword='.urlencode('sleep(1)'))->assertOk();
+        $this->get('/?site=site&keyword='.urlencode('information_schema'))->assertOk();
+        $this->get('/?site=site')->assertOk();
+
+        $this->assertFalse(RateLimiter::tooManyAttempts($this->siteSecurityProbeBlockKey(), 1));
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => '127.0.0.1',
+            'status' => 'monitored',
+            'blocked_until' => null,
+        ]);
+    }
+
+    public function test_site_security_event_records_request_context_safely(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->withHeaders([
+            'User-Agent' => 'sqlmap/1.7',
+            'Referer' => 'https://example.test/source',
+        ])->get('/?site=site&keyword='.urlencode('union select 1').'&token=secret-value')
+            ->assertForbidden();
+
+        $event = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('rule_code', 'bad_client')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame('sqlmap/1.7', $event->user_agent);
+        $this->assertSame('https://example.test/source', $event->referer);
+        $this->assertStringContainsString('"keyword":"union select 1"', (string) $event->request_query);
+        $this->assertStringContainsString('"token":"[filtered]"', (string) $event->request_query);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', (string) $event->fingerprint);
     }
 
     public function test_site_security_blocks_xss_and_records_stats(): void
@@ -7889,6 +8498,183 @@ XML);
 
         $this->get('/?site=site&keyword='.urlencode('javascript framework overview and svg icons'))
             ->assertOk();
+    }
+
+    public function test_site_security_ip_allowlist_skips_rule_checks(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.ip_allowlist'],
+            ['setting_value' => '127.0.0.1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertOk();
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'rule_code' => 'sql_injection',
+            'client_ip' => '127.0.0.1',
+        ]);
+    }
+
+    public function test_site_security_ip_blocklist_blocks_before_rule_checks(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.ip_blocklist'],
+            ['setting_value' => '127.0.0.1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->get('/?site=site')->assertForbidden()->assertSee('黑名单 IP 拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_ip_blocklist' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'ip_blocklist',
+            'rule_name' => '黑名单 IP 拦截',
+            'risk_level' => 'critical',
+            'action' => 'temporary_block',
+            'client_ip' => '127.0.0.1',
+        ]);
+    }
+
+    public function test_site_security_blocks_script_scanner_user_agent(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->withHeader('User-Agent', 'sqlmap/1.7')
+            ->get('/?site=site')
+            ->assertForbidden()
+            ->assertSee('脚本扫描器拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_bad_client' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'bad_client',
+            'rule_name' => '脚本扫描器拦截',
+            'risk_level' => 'high',
+            'action' => 'block',
+            'client_ip' => '127.0.0.1',
+        ]);
+    }
+
+    public function test_site_security_blocks_dangerous_http_method(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->call('TRACE', '/?site=site')
+            ->assertForbidden()
+            ->assertSee('异常请求方法拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_bad_method' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'bad_method',
+            'rule_name' => '异常请求方法拦截',
+            'risk_level' => 'medium',
+            'action' => 'block',
+            'client_ip' => '127.0.0.1',
+        ]);
+    }
+
+    public function test_site_security_blocks_too_many_request_parameters(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $query = ['site' => 'site'];
+
+        foreach (range(1, 85) as $index) {
+            $query['p'.$index] = 'x';
+        }
+
+        $this->get('/?'.http_build_query($query))
+            ->assertForbidden()
+            ->assertSee('异常请求参数拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_total' => 1,
+            'blocked_bad_payload' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'bad_payload',
+            'rule_name' => '异常请求参数拦截',
+            'risk_level' => 'high',
+            'action' => 'block',
+            'client_ip' => '127.0.0.1',
+        ]);
+    }
+
+    public function test_site_security_blocks_oversized_request_parameter(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->get('/?site=site&payload='.str_repeat('a', 2001))
+            ->assertForbidden()
+            ->assertSee('异常请求参数拦截');
+    }
+
+    public function test_site_security_rule_exception_only_skips_matching_site_rule(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-exception-remote-site', '例外远程站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-exception.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $mainSiteId, 'setting_key' => 'security.rule_exceptions'],
+            ['setting_value' => 'bad_payload', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $query = ['site' => 'site'];
+        foreach (range(1, 85) as $index) {
+            $query['p'.$index] = 'x';
+        }
+
+        $this->get('/?'.http_build_query($query))->assertOk();
+
+        $remoteQuery = [];
+        foreach (range(1, 85) as $index) {
+            $remoteQuery['p'.$index] = 'x';
+        }
+
+        $this->get('http://security-exception.test/?'.http_build_query($remoteQuery))
+            ->assertForbidden()
+            ->assertSee('异常请求参数拦截');
     }
 
     public function test_site_security_blocks_path_traversal_and_records_stats(): void
@@ -7943,6 +8729,33 @@ XML);
             'request_path' => '/wp-admin',
             'request_method' => 'GET',
         ]);
+    }
+
+    public function test_site_security_path_allowlist_only_bypasses_matching_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-allowlist-remote-site', '白名单远程站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-allowlist.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $mainSiteId, 'setting_key' => 'security.path_allowlist'],
+            ['setting_value' => '/wp-admin', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
+
+        $this->get('/wp-admin?site=site')->assertOk();
+        $this->get('http://security-allowlist.test/wp-admin')->assertForbidden()->assertSee('恶意扫描路径');
     }
 
     public function test_site_security_blocks_common_compliance_scan_paths(): void
@@ -8071,6 +8884,41 @@ XML);
         $this->get('/?site=site')->assertOk();
     }
 
+    public function test_site_security_custom_mode_uses_site_probe_threshold(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            ['setting_key' => 'security.mode', 'setting_value' => 'custom'],
+            ['setting_key' => 'security.custom_scan_probe_threshold', 'setting_value' => '2'],
+        ] as $setting) {
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => $setting['setting_key']],
+                ['setting_value' => $setting['setting_value'], 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        foreach ([
+            'security.scan_probe_enabled' => '1',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '5',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
+
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('恶意扫描路径');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('扫描试探超限');
+    }
+
     public function test_site_security_blocks_frequent_refresh_requests(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -8105,6 +8953,74 @@ XML);
             'rule_code' => 'rate_limit',
             'rule_name' => '频繁刷新拦截',
         ]);
+    }
+
+    public function test_site_security_strict_mode_tightens_rate_limit_threshold(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'security.mode'],
+            ['setting_value' => 'strict', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+        );
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '3',
+            'security.rate_limit_sensitive_max_requests' => '3',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertForbidden();
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'rate_limit',
+            'rule_name' => '频繁刷新拦截',
+        ]);
+    }
+
+    public function test_site_security_custom_mode_uses_site_rate_limit_thresholds(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            ['setting_key' => 'security.mode', 'setting_value' => 'custom'],
+            ['setting_key' => 'security.custom_rate_limit_max_requests', 'setting_value' => '1'],
+            ['setting_key' => 'security.custom_rate_limit_sensitive_max_requests', 'setting_value' => '1'],
+        ] as $setting) {
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => $setting['setting_key']],
+                ['setting_value' => $setting['setting_value'], 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '5',
+            'security.rate_limit_sensitive_max_requests' => '5',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertForbidden();
     }
 
     public function test_site_security_rate_limit_block_persists_for_configured_seconds(): void
@@ -8187,6 +9103,144 @@ XML);
         ]);
     }
 
+    public function test_site_security_rate_limit_block_is_scoped_per_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $remoteSiteId = $this->createAdditionalSite('security-rate-remote-site', '限流远程站点');
+        $now = now();
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-rate-remote.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertOk();
+        $this->get('/?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+
+        $this->assertNotSame(403, $this->get('http://security-rate-remote.test/')->getStatusCode());
+    }
+
+    public function test_site_security_blocks_fast_post_requests_across_multiple_paths(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '5',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        Route::middleware('web')->post('/security-form-a', fn () => response('ok'));
+        Route::middleware('web')->post('/security-form-b', fn () => response('ok'));
+
+        RateLimiter::clear($this->siteSecurityRateLimitBlockKey());
+        RateLimiter::clear($this->siteSecurityFormWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/security-form-a'));
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/security-form-b'));
+
+        $this->post('/security-form-a?site=site')->assertOk();
+        $this->post('/security-form-b?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_rate_limit' => 1,
+        ]);
+    }
+
+    public function test_site_security_temporarily_blocks_ip_after_repeated_high_risk_hits(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.scan_probe_enabled' => '0',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertForbidden();
+        $this->get('/?site=site&keyword='.urlencode('sleep(1)'))->assertForbidden();
+        $this->get('/?site=site&keyword='.urlencode('information_schema'))->assertForbidden();
+
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => '127.0.0.1',
+            'status' => 'blocked',
+            'high_risk_count' => 3,
+        ]);
+
+        $this->get('/?site=site')
+            ->assertForbidden()
+            ->assertSee('IP 临时封禁拦截');
+    }
+
+    public function test_site_security_temporary_ip_block_is_scoped_per_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $remoteSiteId = $this->createAdditionalSite('security-block-remote-site', '封禁远程站点');
+        $now = now();
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'security-block-remote.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        foreach ([
+            'security.scan_probe_enabled' => '0',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertForbidden();
+        $this->get('/?site=site&keyword='.urlencode('sleep(1)'))->assertForbidden();
+        $this->get('/?site=site&keyword='.urlencode('information_schema'))->assertForbidden();
+        $this->get('/?site=site')->assertForbidden()->assertSee('IP 临时封禁拦截');
+
+        $this->assertNotSame(403, $this->get('http://security-block-remote.test/')->getStatusCode());
+    }
+
     public function test_site_media_frequent_refresh_is_counted_by_lightweight_security_guard(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -8224,6 +9278,198 @@ XML);
             'rule_code' => 'rate_limit',
             'request_path' => '/site-media/site/attachments/2026/04/security-rate-limit.jpg',
             'request_method' => 'GET',
+        ]);
+    }
+
+    public function test_site_media_rate_limit_accumulates_across_multiple_assets(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '1',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $firstPath = storage_path('app/web/site/media/attachments/2026/04/security-rate-limit-a.jpg');
+        $secondPath = storage_path('app/web/site/media/attachments/2026/04/security-rate-limit-b.jpg');
+        File::ensureDirectoryExists(dirname($firstPath));
+        File::put($firstPath, 'security-media-a');
+        File::put($secondPath, 'security-media-b');
+
+        RateLimiter::clear($this->siteSecurityRateLimitBlockKey());
+        RateLimiter::clear($this->siteSecurityMediaWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/site-media/site/attachments/2026/04/security-rate-limit-a.jpg'));
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg'));
+
+        $this->get('/site-media/site/attachments/2026/04/security-rate-limit-a.jpg')->assertOk();
+        $this->get('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg')->assertForbidden()->assertSee('频繁刷新拦截');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_rate_limit' => 1,
+        ]);
+    }
+
+    public function test_site_security_blocks_rapid_multi_path_scan_requests(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.scan_probe_enabled' => '1',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '3',
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '20',
+            'security.rate_limit_sensitive_max_requests' => '10',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        Route::middleware('web')->get('/scan-step-a', fn () => response('ok-a'));
+        Route::middleware('web')->get('/scan-step-b', fn () => response('ok-b'));
+        Route::middleware('web')->get('/scan-step-c', fn () => response('ok-c'));
+
+        Cache::forget($this->siteSecurityPathScanKey());
+        RateLimiter::clear($this->siteSecurityProbeBlockKey());
+
+        $this->get('/scan-step-a?site=site')->assertOk();
+        $this->get('/scan-step-b?site=site')->assertOk();
+        $this->get('/scan-step-c?site=site')->assertForbidden()->assertSee('扫描试探超限');
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'blocked_probe_abuse' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'probe_abuse',
+            'request_path' => '/scan-step-c',
+        ]);
+    }
+
+    public function test_site_security_disabled_scan_probe_does_not_block_rapid_multi_path_scan_requests(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $now = now();
+
+        foreach ([
+            'security.scan_probe_enabled' => '0',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '3',
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '20',
+            'security.rate_limit_sensitive_max_requests' => '10',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        Route::middleware('web')->get('/scan-disabled-a', fn () => response('ok-a'));
+        Route::middleware('web')->get('/scan-disabled-b', fn () => response('ok-b'));
+        Route::middleware('web')->get('/scan-disabled-c', fn () => response('ok-c'));
+
+        Cache::forget($this->siteSecurityPathScanKey());
+        RateLimiter::clear($this->siteSecurityProbeBlockKey());
+
+        $this->get('/scan-disabled-a?site=site')->assertOk();
+        $this->get('/scan-disabled-b?site=site')->assertOk();
+        $this->get('/scan-disabled-c?site=site')->assertOk();
+    }
+
+    public function test_site_security_rapid_path_scan_drops_legacy_path_list_cache_format(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.scan_probe_enabled' => '1',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '99',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        Cache::put($this->siteSecurityPathScanKey(), ['/legacy-a', '/legacy-b'], now()->addMinute());
+
+        $request = \Illuminate\Http\Request::create('/scan-fresh', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $method = new \ReflectionMethod($siteSecurity, 'matchRapidPathScan');
+        $method->setAccessible(true);
+
+        $this->assertNull($method->invoke($siteSecurity, $request, $siteId));
+        $this->assertSame(['/scan-fresh'], array_keys(Cache::get($this->siteSecurityPathScanKey(), [])));
+    }
+
+    public function test_site_media_frequent_refresh_uses_route_site_key_for_local_preview_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-media-remote-site', '媒体限流远程站点');
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $mediaPath = storage_path('app/web/security-media-remote-site/media/attachments/2026/04/security-rate-limit.jpg');
+        File::ensureDirectoryExists(dirname($mediaPath));
+        File::put($mediaPath, 'security-media-remote');
+
+        $this->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertForbidden();
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $remoteSiteId,
+            'blocked_total' => 1,
+            'blocked_rate_limit' => 1,
+        ]);
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $remoteSiteId,
+            'rule_code' => 'rate_limit',
+            'request_path' => '/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg',
+            'request_method' => 'GET',
+        ]);
+
+        $this->assertDatabaseMissing('site_security_daily_stats', [
+            'site_id' => $mainSiteId,
+            'blocked_rate_limit' => 1,
         ]);
     }
 
@@ -8295,6 +9541,1008 @@ XML);
             ->assertSee('12')
             ->assertSee('恶意扫描路径')
             ->assertDontSee('127.0.0.2');
+    }
+
+    public function test_site_security_page_shows_suspicious_ip_reputation_without_policy_panels(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-posture-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_daily_stats')->insert([
+            'site_id' => $mainSiteId,
+            'stat_date' => now()->toDateString(),
+            'blocked_total' => 5,
+            'blocked_bad_path' => 1,
+            'blocked_sql_injection' => 2,
+            'blocked_xss' => 0,
+            'blocked_path_traversal' => 1,
+            'blocked_bad_upload' => 0,
+            'blocked_rate_limit' => 0,
+            'blocked_probe_abuse' => 1,
+            'blocked_ip_blocklist' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '8.8.8.8',
+            'ip_hash' => hash('sha256', '8.8.8.8'),
+            'hit_count' => 5,
+            'high_risk_count' => 4,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/wp-admin',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(5),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_blocklist',
+            'setting_value' => '8.8.8.8',
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertDontSee('当前风险态势')
+            ->assertDontSee('黑白名单策略')
+            ->assertSee('可疑 IP 排行')
+            ->assertSee('8.8.8.8')
+            ->assertSee('已封禁')
+            ->assertSee('已拉黑')
+            ->assertDontSee('解封');
+    }
+
+    public function test_site_security_page_reflects_cidr_site_policy_labels_for_suspicious_ip(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-cidr-policy-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '192.168.1.88',
+            'ip_hash' => hash('sha256', '192.168.1.88'),
+            'hit_count' => 3,
+            'high_risk_count' => 2,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_blocklist',
+            'setting_value' => '192.168.1.0/24',
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('192.168.1.88')
+            ->assertSee('已封禁')
+            ->assertSee('已拉黑');
+    }
+
+    public function test_site_security_page_reflects_global_blocklist_label_for_suspicious_ip(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-global-policy-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '203.0.113.88',
+            'ip_hash' => hash('sha256', '203.0.113.88'),
+            'hit_count' => 2,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.ip_blocklist'],
+            ['setting_value' => '203.0.113.0/24', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('203.0.113.88')
+            ->assertSee('已封禁')
+            ->assertSee('平台已拉黑')
+            ->assertDontSee('>加白<', false)
+            ->assertDontSee('>拉黑<', false)
+            ->assertDontSee('解封');
+    }
+
+    public function test_site_security_page_reflects_global_allowlist_label_for_suspicious_ip(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-global-allow-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '198.51.100.88',
+            'ip_hash' => hash('sha256', '198.51.100.88'),
+            'hit_count' => 2,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.ip_allowlist'],
+            ['setting_value' => '198.51.100.0/24', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('198.51.100.88')
+            ->assertSee('观察中')
+            ->assertSee('平台已加白')
+            ->assertDontSee('>加白<', false)
+            ->assertDontSee('>拉黑<', false)
+            ->assertDontSee('解封');
+    }
+
+    public function test_site_security_page_prefers_global_blocklist_over_site_allowlist(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-global-block-priority-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '203.0.113.99',
+            'ip_hash' => hash('sha256', '203.0.113.99'),
+            'hit_count' => 1,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.ip_blocklist'],
+            ['setting_value' => '203.0.113.0/24', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_allowlist',
+            'setting_value' => '203.0.113.99',
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('203.0.113.99')
+            ->assertSee('已封禁')
+            ->assertSee('平台已拉黑')
+            ->assertDontSee('已加白');
+    }
+
+    public function test_site_security_site_admin_cannot_change_site_ip_policy_when_global_policy_matches(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-global-override-action-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.ip_blocklist'],
+            ['setting_value' => '203.0.113.0/24', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_blocklist',
+            'setting_value' => '203.0.113.88',
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '203.0.113.88',
+            'ip_hash' => hash('sha256', '203.0.113.88'),
+            'hit_count' => 2,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/wp-admin',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->from(route('admin.security.index'))
+            ->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '203.0.113.88',
+                'action' => 'allow',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHasErrors([
+                'client_ip' => '该 IP 当前受平台全局黑白名单控制，请先在平台安全设置中调整。',
+            ]);
+
+        $this->from(route('admin.security.index'))
+            ->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '203.0.113.88',
+                'action' => 'release_block',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHasErrors([
+                'client_ip' => '该 IP 当前受平台全局黑白名单控制，请先在平台安全设置中调整。',
+            ]);
+
+        $this->assertNull(DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_allowlist')->value('setting_value'));
+        $this->assertSame('203.0.113.88', DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $mainSiteId,
+            'client_ip' => '203.0.113.88',
+            'status' => 'blocked',
+        ]);
+    }
+
+    public function test_site_security_viewer_cannot_change_site_ip_policy(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $reviewer = $this->createSiteOperator('security-viewer-policy-reviewer', true, 'reviewer');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '8.8.8.8',
+            'ip_hash' => hash('sha256', '8.8.8.8'),
+            'hit_count' => 1,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($reviewer)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertDontSee('>加白<', false)
+            ->assertDontSee('>拉黑<', false)
+            ->assertDontSee('>移白<', false)
+            ->assertDontSee('>移黑<', false)
+            ->assertDontSee('>解封<', false);
+
+        $this->actingAs($reviewer)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '8.8.8.8',
+                'action' => 'block',
+            ])
+            ->assertForbidden();
+
+        $this->assertNull(DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+    }
+
+    public function test_site_security_page_prefers_allowlist_label_when_ip_matches_both_site_policies(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-overlap-policy-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '192.168.1.88',
+            'ip_hash' => hash('sha256', '192.168.1.88'),
+            'hit_count' => 3,
+            'high_risk_count' => 2,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_settings')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_allowlist',
+                'setting_value' => '192.168.1.0/24',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_blocklist',
+                'setting_value' => '192.168.1.0/24',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('192.168.1.88')
+            ->assertSee('已加白')
+            ->assertSee('观察中')
+            ->assertDontSee('已拉黑')
+            ->assertDontSee('解封');
+    }
+
+    public function test_site_security_suspicious_ip_ranking_prioritizes_blocked_status(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-ranking-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'hit_count' => 2,
+                'high_risk_count' => 1,
+                'last_rule_code' => 'probe_abuse',
+                'last_request_path' => '/blocked-first',
+                'status' => 'blocked',
+                'blocked_until' => now()->addMinutes(5),
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'hit_count' => 20,
+                'high_risk_count' => 10,
+                'last_rule_code' => 'bad_path',
+                'last_request_path' => '/monitored-later',
+                'status' => 'monitored',
+                'blocked_until' => null,
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '8.8.8.8',
+                '9.9.9.9',
+            ], false);
+    }
+
+    public function test_site_security_suspicious_ip_ranking_uses_effective_allowlist_status(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-effective-ranking-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'hit_count' => 2,
+                'high_risk_count' => 1,
+                'last_rule_code' => 'probe_abuse',
+                'last_request_path' => '/allowlisted-history-blocked',
+                'status' => 'blocked',
+                'blocked_until' => now()->addMinutes(5),
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'hit_count' => 1,
+                'high_risk_count' => 1,
+                'last_rule_code' => 'probe_abuse',
+                'last_request_path' => '/still-blocked',
+                'status' => 'blocked',
+                'blocked_until' => now()->addMinutes(5),
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_allowlist',
+            'setting_value' => '8.8.8.8',
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '9.9.9.9',
+                '8.8.8.8',
+            ], false);
+    }
+
+    public function test_site_security_suspicious_ip_ranking_prefers_more_recent_record_on_same_weight(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-ranking-recent-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'hit_count' => 2,
+                'high_risk_count' => 1,
+                'last_rule_code' => 'bad_path',
+                'last_request_path' => '/older',
+                'status' => 'monitored',
+                'blocked_until' => null,
+                'last_seen_at' => now()->subMinutes(5),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'hit_count' => 2,
+                'high_risk_count' => 1,
+                'last_rule_code' => 'bad_path',
+                'last_request_path' => '/newer',
+                'status' => 'monitored',
+                'blocked_until' => null,
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '9.9.9.9',
+                '8.8.8.8',
+            ], false);
+    }
+
+    public function test_site_security_site_admin_can_add_suspicious_ip_to_site_blocklist(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-action-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('security-ip-action-remote-site', 'IP 处置远程站点');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '8.8.8.8',
+            'ip_hash' => hash('sha256', '8.8.8.8'),
+            'hit_count' => 2,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '8.8.8.8',
+                'action' => 'block',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已加入站点 IP 黑名单。');
+
+        $this->assertSame('8.8.8.8', DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertNull(DB::table('site_settings')->where('site_id', $remoteSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $mainSiteId,
+            'client_ip' => '8.8.8.8',
+            'status' => 'blocked',
+            'blocked_until' => null,
+        ]);
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'site',
+            'module' => 'security',
+            'action' => 'security_block_ip',
+            'site_id' => $mainSiteId,
+            'user_id' => $siteAdmin->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_site_admin_can_add_suspicious_ip_to_site_allowlist_and_remove_blocklist_conflict(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-allow-action-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.8.8';
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_blocklist',
+            'setting_value' => "8.8.8.8\n1.1.1.1",
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 2,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => $ip,
+                'action' => 'allow',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已加入站点 IP 白名单。');
+
+        $this->assertSame('8.8.8.8', DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_allowlist')->value('setting_value'));
+        $this->assertSame('1.1.1.1', DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'status' => 'monitored',
+            'blocked_until' => null,
+        ]);
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'site',
+            'module' => 'security',
+            'action' => 'security_allow_ip',
+            'site_id' => $mainSiteId,
+            'user_id' => $siteAdmin->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_site_admin_can_remove_suspicious_ip_from_site_allowlist(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-remove-allow-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_allowlist',
+            'setting_value' => "8.8.8.8\n1.1.1.1",
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '8.8.8.8',
+                'action' => 'remove_allow',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已移出站点 IP 白名单。');
+
+        $this->assertSame('1.1.1.1', DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_allowlist')->value('setting_value'));
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'site',
+            'module' => 'security',
+            'action' => 'security_remove_allow_ip',
+            'site_id' => $mainSiteId,
+            'user_id' => $siteAdmin->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_site_admin_can_remove_suspicious_ip_from_site_blocklist(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-remove-block-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.8.8';
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_blocklist',
+            'setting_value' => "8.8.8.8\n1.1.1.1",
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 3,
+            'high_risk_count' => 2,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/wp-admin',
+            'status' => 'blocked',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => $ip,
+                'action' => 'remove_block',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已移出站点 IP 黑名单。');
+
+        $this->assertSame('1.1.1.1', DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'status' => 'monitored',
+            'blocked_until' => null,
+        ]);
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'site',
+            'module' => 'security',
+            'action' => 'security_remove_block_ip',
+            'site_id' => $mainSiteId,
+            'user_id' => $siteAdmin->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_site_admin_can_release_temporary_ip_block(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-release-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '8.8.8.8',
+            'ip_hash' => hash('sha256', '8.8.8.8'),
+            'hit_count' => 5,
+            'high_risk_count' => 4,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/wp-admin',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '8.8.8.8',
+                'action' => 'release_block',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已解除临时封禁。');
+
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $mainSiteId,
+            'client_ip' => '8.8.8.8',
+            'status' => 'monitored',
+            'blocked_until' => null,
+        ]);
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'site',
+            'module' => 'security',
+            'action' => 'security_release_ip_block',
+            'site_id' => $mainSiteId,
+            'user_id' => $siteAdmin->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_release_temporary_ip_block_clears_runtime_block_keys(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-release-runtime-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.8.8';
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 5,
+            'high_risk_count' => 4,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':'.sha1($ip.'|/'), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe:'.$mainSiteId.':'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe:'.$mainSiteId.':probe_abuse:'.sha1($ip), 60);
+        Cache::put('site-security-path-scan:'.$mainSiteId.':'.sha1($ip), ['/scan-a', '/scan-b', '/scan-c'], now()->addMinute());
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => $ip,
+                'action' => 'release_block',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已解除临时封禁。');
+
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':'.sha1($ip.'|/'), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe:'.$mainSiteId.':probe_abuse:'.sha1($ip), 1));
+        $this->assertNull(Cache::get('site-security-path-scan:'.$mainSiteId.':'.sha1($ip)));
+    }
+
+    public function test_site_security_site_admin_can_view_suspicious_ip_detail_for_current_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-detail-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $otherSiteId = $this->createAdditionalSite('security-ip-detail-remote-site', 'IP 详情远程站点');
+        $ip = '8.8.8.8';
+        $ipHash = hash('sha256', $ip);
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'ip_hash' => $ipHash,
+            'hit_count' => 5,
+            'high_risk_count' => 3,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/wp-admin',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'probe_abuse',
+                'rule_name' => '扫描试探超限',
+                'request_path' => '/wp-admin',
+                'request_method' => 'GET',
+                'client_ip' => $ip,
+                'ip_hash' => $ipHash,
+                'risk_level' => 'critical',
+                'action' => 'temporary_block',
+                'request_query' => '{"path":"wp-admin"}',
+                'referer' => 'https://example.test/',
+                'user_agent' => 'SecurityTestAgent/1.0',
+                'created_at' => now()->subMinute(),
+            ],
+            [
+                'site_id' => $otherSiteId,
+                'rule_code' => 'sql_injection',
+                'rule_name' => 'SQL 注入',
+                'request_path' => '/remote-only',
+                'request_method' => 'GET',
+                'client_ip' => $ip,
+                'ip_hash' => $ipHash,
+                'risk_level' => 'high',
+                'action' => 'block',
+                'request_query' => '{"q":"remote"}',
+                'referer' => 'https://remote.test/',
+                'user_agent' => 'RemoteAgent/1.0',
+                'created_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.ip-detail', ['client_ip' => $ip]))
+            ->assertOk()
+            ->assertSee('IP 详情')
+            ->assertSee($ip)
+            ->assertSee('扫描试探超限')
+            ->assertSee('/wp-admin')
+            ->assertSee('SecurityTestAgent/1.0')
+            ->assertDontSee('/remote-only');
+    }
+
+    public function test_site_security_ip_detail_is_scoped_to_current_site(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-detail-scope-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $otherSiteId = $this->createAdditionalSite('security-ip-detail-only-remote-site', '仅外站命中');
+        $ip = '8.8.4.4';
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $otherSiteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 2,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_path',
+            'last_request_path' => '/.env',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.ip-detail', ['client_ip' => $ip]))
+            ->assertNotFound();
+    }
+
+    public function test_site_logs_show_readable_site_security_ip_policy_action(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-log-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.8.8';
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => $ip,
+                'action' => 'block',
+            ])
+            ->assertRedirect(route('admin.security.index'));
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.site-logs.index'))
+            ->assertOk()
+            ->assertSee('安护盾拉黑 IP')
+            ->assertSee('安护盾 IP · '.$ip);
+    }
+
+    public function test_site_security_high_risk_total_follows_rule_risk_level(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_daily_stats')->insert([
+            'site_id' => $mainSiteId,
+            'stat_date' => now()->toDateString(),
+            'blocked_total' => 2,
+            'blocked_bad_path' => 0,
+            'blocked_sql_injection' => 1,
+            'blocked_xss' => 0,
+            'blocked_path_traversal' => 0,
+            'blocked_bad_upload' => 0,
+            'blocked_rate_limit' => 0,
+            'blocked_probe_abuse' => 0,
+            'blocked_ip_blocklist' => 0,
+            'blocked_bad_client' => 0,
+            'blocked_bad_method' => 1,
+            'blocked_bad_payload' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $payload = app(\App\Support\SiteSecurity::class)->sitePagePayload($mainSiteId);
+        $badMethodType = collect($payload['types'])->firstWhere('code', 'bad_method');
+
+        $this->assertSame(1, $payload['seven_day_high_risk']);
+        $this->assertSame(false, $badMethodType['is_high_risk'] ?? null);
     }
 
     public function test_site_security_page_reflects_disabled_protection_state(): void
@@ -8452,6 +10700,174 @@ XML);
             ->assertOk()
             ->assertSee('/recent-sql')
             ->assertDontSee('/old-path');
+    }
+
+    public function test_site_security_recent_events_include_records_for_all_visible_filter_types(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-events-filter-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $rows = [];
+
+        for ($i = 0; $i < 12; $i++) {
+            $rows[] = [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'bad_path',
+                'rule_name' => '恶意扫描路径',
+                'request_path' => '/latest-noise-'.$i,
+                'request_method' => 'GET',
+                'client_ip' => '10.0.0.'.($i + 1),
+                'ip_hash' => hash('sha256', '10.0.0.'.($i + 1)),
+                'region_name' => null,
+                'action' => 'block',
+                'risk_level' => 'medium',
+                'created_at' => now()->subHours(1)->subSeconds($i),
+            ];
+        }
+
+        $rows[] = [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'rate_limit',
+            'rule_name' => '频繁刷新拦截',
+            'request_path' => '/only-rate-limit-filter',
+            'request_method' => 'GET',
+            'client_ip' => '8.8.4.4',
+            'ip_hash' => hash('sha256', '8.8.4.4'),
+            'region_name' => null,
+            'action' => 'rate_limited',
+            'risk_level' => 'medium',
+            'created_at' => now()->subDays(2),
+        ];
+
+        $rows[] = [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'bad_payload',
+            'rule_name' => '异常请求参数拦截',
+            'request_path' => '/only-bad-payload-filter',
+            'request_method' => 'GET',
+            'client_ip' => '8.8.8.9',
+            'ip_hash' => hash('sha256', '8.8.8.9'),
+            'region_name' => null,
+            'action' => 'block',
+            'risk_level' => 'high',
+            'created_at' => now()->subDays(3),
+        ];
+
+        $rows[] = [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'sql_injection',
+            'rule_name' => 'SQL 注入拦截',
+            'request_path' => '/only-sql-filter',
+            'request_method' => 'GET',
+            'client_ip' => '8.8.8.10',
+            'ip_hash' => hash('sha256', '8.8.8.10'),
+            'region_name' => null,
+            'action' => 'block',
+            'risk_level' => 'high',
+            'created_at' => now()->subDays(4),
+        ];
+
+        $rows[] = [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'xss',
+            'rule_name' => 'XSS 攻击拦截',
+            'request_path' => '/only-xss-filter',
+            'request_method' => 'GET',
+            'client_ip' => '8.8.8.11',
+            'ip_hash' => hash('sha256', '8.8.8.11'),
+            'region_name' => null,
+            'action' => 'block',
+            'risk_level' => 'high',
+            'created_at' => now()->subDays(4)->subMinute(),
+        ];
+
+        $rows[] = [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'path_traversal',
+            'rule_name' => '路径穿越拦截',
+            'request_path' => '/only-traversal-filter',
+            'request_method' => 'GET',
+            'client_ip' => '8.8.8.12',
+            'ip_hash' => hash('sha256', '8.8.8.12'),
+            'region_name' => null,
+            'action' => 'block',
+            'risk_level' => 'high',
+            'created_at' => now()->subDays(4)->subMinutes(2),
+        ];
+
+        $rows[] = [
+            'site_id' => $mainSiteId,
+            'rule_code' => 'bad_upload',
+            'rule_name' => '可疑上传拦截',
+            'request_path' => '/only-upload-filter',
+            'request_method' => 'POST',
+            'client_ip' => '8.8.8.13',
+            'ip_hash' => hash('sha256', '8.8.8.13'),
+            'region_name' => null,
+            'action' => 'block',
+            'risk_level' => 'high',
+            'created_at' => now()->subDays(4)->subMinutes(3),
+        ];
+
+        DB::table('site_security_events')->insert($rows);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('/only-rate-limit-filter')
+            ->assertSee('/only-bad-payload-filter')
+            ->assertSee('/only-sql-filter')
+            ->assertSee('/only-xss-filter')
+            ->assertSee('/only-traversal-filter')
+            ->assertSee('/only-upload-filter');
+    }
+
+    public function test_site_security_recent_events_prioritize_risk_level_before_recency(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-events-priority-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'bad_path',
+                'rule_name' => '恶意扫描路径',
+                'request_path' => '/latest-medium-event',
+                'request_method' => 'GET',
+                'client_ip' => '10.10.10.10',
+                'ip_hash' => hash('sha256', '10.10.10.10'),
+                'region_name' => null,
+                'action' => 'block',
+                'risk_level' => 'medium',
+                'created_at' => now()->subMinutes(1),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'sql_injection',
+                'rule_name' => 'SQL 注入拦截',
+                'request_path' => '/older-high-risk-event',
+                'request_method' => 'GET',
+                'client_ip' => '10.10.10.11',
+                'ip_hash' => hash('sha256', '10.10.10.11'),
+                'region_name' => null,
+                'action' => 'block',
+                'risk_level' => 'high',
+                'created_at' => now()->subMinutes(5),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '/older-high-risk-event',
+                '/latest-medium-event',
+            ], false);
     }
 
     public function test_site_security_pruning_preserves_high_risk_records_beyond_rate_limit_noise(): void

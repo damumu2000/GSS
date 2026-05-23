@@ -82,6 +82,10 @@
             </article>
         </section>
 
+        @php
+            $suspiciousIps = collect($security['suspicious_ips'] ?? []);
+        @endphp
+
         <section class="security-grid">
             <article class="security-panel">
                 <h3 class="security-panel-title">近 7 天拦截趋势</h3>
@@ -238,7 +242,7 @@
                 <div class="security-panel-desc">按近 7 天命中次数排序，优先看最主要的几类异常请求。</div>
                 <div class="security-types">
                     @forelse ($security['types'] as $item)
-                        <div class="security-type-item{{ in_array($item['code'], ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse'], true) ? ' is-high-risk' : '' }}">
+                        <div class="security-type-item{{ ! empty($item['is_high_risk']) ? ' is-high-risk' : '' }}">
                             <div class="security-type-top">
                                 <div class="security-type-name">{{ $item['label'] }}</div>
                                 <div class="security-type-value">{{ number_format($item['value']) }}</div>
@@ -262,15 +266,25 @@
             <div class="security-event-filters" data-security-event-filters>
                 <button class="security-event-filter is-active" type="button" data-filter="all">全部</button>
                 <button class="security-event-filter" type="button" data-filter="high-risk">只看高危</button>
+                <button class="security-event-filter" type="button" data-filter="sql-injection">只看 SQL 注入</button>
+                <button class="security-event-filter" type="button" data-filter="xss">只看 XSS</button>
+                <button class="security-event-filter" type="button" data-filter="path-traversal">只看路径穿越</button>
+                <button class="security-event-filter" type="button" data-filter="bad-upload">只看可疑上传</button>
                 <button class="security-event-filter" type="button" data-filter="probe-abuse">只看扫描试探超限</button>
                 <button class="security-event-filter" type="button" data-filter="rate-limit">只看频繁刷新</button>
+                <button class="security-event-filter" type="button" data-filter="temporary-block">只看已封禁</button>
+                <button class="security-event-filter" type="button" data-filter="ip-blocklist">只看黑名单</button>
+                <button class="security-event-filter" type="button" data-filter="bad-client">只看脚本扫描器</button>
+                <button class="security-event-filter" type="button" data-filter="bad-method">只看异常方法</button>
+                <button class="security-event-filter" type="button" data-filter="bad-payload">只看异常参数</button>
             </div>
             <div class="security-events">
                 @forelse ($security['events'] as $event)
                     <article
                         class="security-event"
                         data-rule-code="{{ $event['rule_code'] }}"
-                        data-risk-level="{{ $event['risk_label'] === '高危' ? 'high' : 'medium' }}"
+                        data-risk-level="{{ $event['risk_level'] }}"
+                        data-action="{{ $event['action'] }}"
                     >
                         <div class="security-event-top">
                             <div class="security-event-rule">{{ $event['rule_name'] }}</div>
@@ -278,7 +292,7 @@
                         </div>
                         <div class="security-event-meta">
                             <span class="security-event-chip">{{ $event['category_label'] }}</span>
-                            <span class="security-event-chip {{ $event['risk_label'] === '高危' ? 'is-risk-high' : 'is-risk-medium' }}">{{ $event['risk_label'] }}</span>
+                            <span class="security-event-chip {{ in_array($event['risk_level'], ['critical', 'high'], true) ? 'is-risk-high' : 'is-risk-medium' }}">{{ $event['risk_label'] }}</span>
                             <span class="security-event-chip">{{ $event['action_label'] }}</span>
                             <span class="security-event-chip is-ip">IP {{ $event['client_ip'] }}</span>
                         </div>
@@ -290,6 +304,72 @@
                 @if (! empty($security['events']))
                     <div class="security-empty security-empty-filtered" data-security-event-empty hidden>当前筛选条件下没有命中的拦截记录。</div>
                 @endif
+            </div>
+        </section>
+
+        <section class="security-panel">
+            <h3 class="security-panel-title">可疑 IP 排行</h3>
+            <div class="security-panel-desc">按近 7 天高危次数和命中次数排序，辅助判断异常来源。</div>
+            <div class="security-ip-list">
+                @forelse ($suspiciousIps as $ip)
+                    @php
+                        $clientIp = (string) ($ip['client_ip'] ?? '');
+                        $canManageIp = filter_var($clientIp, FILTER_VALIDATE_IP) !== false && ! in_array($clientIp, ['127.0.0.1', '::1'], true);
+                    @endphp
+                    <article class="security-ip-item">
+                        <div class="security-ip-main">
+                            <div class="security-ip-address">{{ $ip['client_ip'] }}</div>
+                            <div class="security-ip-path">{{ $ip['last_request_path'] ?: '暂无路径记录' }}</div>
+                        </div>
+                        <div class="security-ip-metrics">
+                            <span>命中 {{ number_format($ip['hit_count']) }}</span>
+                            <span>高危 {{ number_format($ip['high_risk_count']) }}</span>
+                        </div>
+                        <div class="security-ip-status">
+                            <span class="security-event-chip {{ $ip['status'] === 'blocked' ? 'is-risk-high' : 'is-risk-medium' }}">{{ $ip['status_label'] }}</span>
+                            @if (!empty($ip['site_policy_label']))
+                                <span class="security-event-chip is-ip-policy">{{ $ip['site_policy_label'] }}</span>
+                            @endif
+                            <span class="security-ip-time">{{ $ip['status'] === 'blocked' && $ip['blocked_until_label'] !== '' ? ('至 ' . $ip['blocked_until_label']) : ('最近 ' . $ip['last_seen_label']) }}</span>
+                        </div>
+                        <div class="security-ip-detail-link-wrap">
+                            <a class="security-ip-detail-link" href="{{ route('admin.security.ip-detail', ['client_ip' => $clientIp]) }}">查看详情</a>
+                        </div>
+                        @if ($canManageIp && !empty($canManageIpPolicy))
+                            <div class="security-ip-actions">
+                                @if (empty($ip['is_global_allowlisted']) && empty($ip['is_global_blocklisted']))
+                                    <form method="POST" action="{{ route('admin.security.ip-policy.store') }}">
+                                        @csrf
+                                        <input type="hidden" name="client_ip" value="{{ $clientIp }}">
+                                        <input type="hidden" name="action" value="{{ !empty($ip['is_site_allowlisted']) ? 'remove_allow' : 'allow' }}">
+                                        <button class="security-ip-action {{ !empty($ip['is_site_allowlisted']) ? 'is-remove' : 'is-allow' }}" type="submit">{{ !empty($ip['is_site_allowlisted']) ? '移白' : '加白' }}</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.security.ip-policy.store') }}">
+                                        @csrf
+                                        <input type="hidden" name="client_ip" value="{{ $clientIp }}">
+                                        <input type="hidden" name="action" value="{{ !empty($ip['is_site_blocklisted']) ? 'remove_block' : 'block' }}">
+                                        <button class="security-ip-action {{ !empty($ip['is_site_blocklisted']) ? 'is-remove' : 'is-block' }}" type="submit">{{ !empty($ip['is_site_blocklisted']) ? '移黑' : '拉黑' }}</button>
+                                    </form>
+                                @endif
+                                @if (($ip['status'] ?? '') === 'blocked'
+                                    && !empty($ip['blocked_until_label'])
+                                    && empty($ip['is_global_allowlisted'])
+                                    && empty($ip['is_global_blocklisted'])
+                                    && empty($ip['is_site_blocklisted'])
+                                    && empty($ip['is_site_allowlisted']))
+                                    <form method="POST" action="{{ route('admin.security.ip-policy.store') }}">
+                                        @csrf
+                                        <input type="hidden" name="client_ip" value="{{ $clientIp }}">
+                                        <input type="hidden" name="action" value="release_block">
+                                        <button class="security-ip-action is-release" type="submit">解封</button>
+                                    </form>
+                                @endif
+                            </div>
+                        @endif
+                    </article>
+                @empty
+                    <div class="security-empty">当前还没有可疑 IP 画像。命中拦截后会自动沉淀到这里。</div>
+                @endforelse
             </div>
         </section>
     </div>

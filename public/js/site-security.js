@@ -15,9 +15,18 @@
 
         items.forEach(function (item) {
             var match = filter === 'all'
-                || (filter === 'high-risk' && item.dataset.riskLevel === 'high')
+                || (filter === 'high-risk' && (item.dataset.riskLevel === 'high' || item.dataset.riskLevel === 'critical'))
+                || (filter === 'sql-injection' && item.dataset.ruleCode === 'sql_injection')
+                || (filter === 'xss' && item.dataset.ruleCode === 'xss')
+                || (filter === 'path-traversal' && item.dataset.ruleCode === 'path_traversal')
+                || (filter === 'bad-upload' && item.dataset.ruleCode === 'bad_upload')
                 || (filter === 'probe-abuse' && item.dataset.ruleCode === 'probe_abuse')
-                || (filter === 'rate-limit' && item.dataset.ruleCode === 'rate_limit');
+                || (filter === 'rate-limit' && item.dataset.ruleCode === 'rate_limit')
+                || (filter === 'temporary-block' && item.dataset.action === 'temporary_block')
+                || (filter === 'ip-blocklist' && item.dataset.ruleCode === 'ip_blocklist')
+                || (filter === 'bad-client' && item.dataset.ruleCode === 'bad_client')
+                || (filter === 'bad-method' && item.dataset.ruleCode === 'bad_method')
+                || (filter === 'bad-payload' && item.dataset.ruleCode === 'bad_payload');
 
             item.hidden = !match;
             if (match) {
