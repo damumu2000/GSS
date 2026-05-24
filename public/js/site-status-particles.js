@@ -17,6 +17,8 @@
   var height = 0;
   var pixelRatio = Math.min(window.devicePixelRatio || 1, 1.25);
   var visible = true;
+  var frameDelay = 1000 / 15;
+  var lastTickTime = 0;
 
   function particleCount() {
     var base = window.innerWidth < 640 ? 14 : 28;
@@ -73,7 +75,16 @@
     context.restore();
   }
 
-  function tick() {
+  function tick(timestamp) {
+    if (timestamp && timestamp - lastTickTime < frameDelay) {
+      if (visible) {
+        window.requestAnimationFrame(tick);
+      }
+
+      return;
+    }
+
+    lastTickTime = timestamp || 0;
     context.clearRect(0, 0, width, height);
 
     particles.forEach(function (particle) {
@@ -99,6 +110,7 @@
     visible = !document.hidden;
 
     if (visible) {
+      lastTickTime = 0;
       tick();
     }
   });
