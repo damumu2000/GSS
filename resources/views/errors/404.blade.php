@@ -18,7 +18,6 @@
                     <path d="M30 18L18 30" stroke-width="4" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="theme-status-badge is-muted">404 Not Found</span>
             <h1 class="theme-status-title">未找到页面</h1>
             <div class="theme-status-desc">
                 你访问的地址当前无法找到，可能已被删除、移动，或链接本身不正确。
