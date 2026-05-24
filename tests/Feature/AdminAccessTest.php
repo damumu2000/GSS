@@ -9662,6 +9662,25 @@ XML);
         $this->assertSame(['/scan-fresh'], array_keys(Cache::get($this->siteSecurityPathScanKey(), [])));
     }
 
+    public function test_site_security_rapid_path_scan_ignores_theme_and_legacy_asset_requests(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $method = new \ReflectionMethod($siteSecurity, 'matchRapidPathScan');
+        $method->setAccessible(true);
+
+        Cache::forget($this->siteSecurityPathScanKey());
+
+        $themeAssetRequest = \Illuminate\Http\Request::create('/theme-assets/default/assets/app.css', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $legacyAssetRequest = \Illuminate\Http\Request::create('/Up/liuyi.jpg', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+
+        $this->assertNull($method->invoke($siteSecurity, $themeAssetRequest, $siteId));
+        $this->assertNull($method->invoke($siteSecurity, $legacyAssetRequest, $siteId));
+        $this->assertSame([], Cache::get($this->siteSecurityPathScanKey(), []));
+    }
+
     public function test_site_media_frequent_refresh_uses_route_site_key_for_local_preview_site(): void
     {
         $this->seed(DatabaseSeeder::class);

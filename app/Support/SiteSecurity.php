@@ -1941,11 +1941,35 @@ class SiteSecurity
     protected function isMediaRequest(Request $request): bool
     {
         $path = trim((string) $request->path(), '/');
+        $normalizedPath = mb_strtolower($path);
 
-        return $path === 'site-media'
-            || str_starts_with($path, 'site-media/')
-            || $path === 'atts'
-            || str_starts_with($path, 'atts/');
+        return $normalizedPath === 'site-media'
+            || str_starts_with($normalizedPath, 'site-media/')
+            || $normalizedPath === 'atts'
+            || str_starts_with($normalizedPath, 'atts/')
+            || $normalizedPath === 'theme-assets'
+            || str_starts_with($normalizedPath, 'theme-assets/')
+            || $normalizedPath === 'up'
+            || str_starts_with($normalizedPath, 'up/')
+            || $this->isStaticAssetPath($normalizedPath);
+    }
+
+    protected function isStaticAssetPath(string $path): bool
+    {
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+        $extension = mb_strtolower((string) $extension);
+
+        if ($extension === '') {
+            return false;
+        }
+
+        return in_array($extension, [
+            'css', 'js', 'mjs', 'map',
+            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif',
+            'woff', 'woff2', 'ttf', 'otf', 'eot',
+            'mp3', 'wav', 'ogg', 'mp4', 'webm',
+            'pdf', 'txt', 'xml', 'json',
+        ], true);
     }
 
     protected function requestFingerprintText(Request $request): string
