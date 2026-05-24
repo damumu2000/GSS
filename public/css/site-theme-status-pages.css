@@ -40,15 +40,6 @@ body {
         #fbfcff;
 }
 
-.theme-status-particles {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-}
-
 .theme-status-card.is-closed {
     position: relative;
     overflow: hidden;
@@ -76,7 +67,6 @@ body {
 
 .theme-status-card.is-closed .theme-status-icon {
     color: #333333;
-    animation: statusIconFloat 4.6s ease-in-out infinite;
 }
 
 .theme-status-icon {
@@ -119,23 +109,6 @@ body {
     justify-content: center;
     flex-wrap: wrap;
     gap: 10px;
-}
-
-@keyframes statusIconFloat {
-    0%,
-    100% {
-        transform: translateY(0) rotate(0deg);
-    }
-
-    50% {
-        transform: translateY(-5px) rotate(-2deg);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .theme-status-card.is-closed .theme-status-icon {
-        animation: none;
-    }
 }
 
 .theme-status-expired-page {

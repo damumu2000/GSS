@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="{{ asset('css/site-theme-status-pages.css') }}">
 </head>
 <body class="theme-status-closed-page">
-    <canvas class="theme-status-particles" data-status-particles aria-hidden="true"></canvas>
     <div class="theme-status-shell">
         <main class="theme-status-card is-closed">
             <div class="theme-status-icon" aria-hidden="true">
@@ -21,7 +20,6 @@
             <h1 class="theme-status-title">未找到页面</h1>
             <div class="theme-status-desc">
                 你访问的地址当前无法找到，可能已被删除、移动，或链接本身不正确。
-                请返回上一页重新进入，或联系管理员确认页面路径是否已调整。
             </div>
 
             <section class="theme-status-meta">
@@ -32,6 +30,5 @@
             </section>
         </main>
     </div>
-    <script src="{{ asset('js/site-status-particles.js') }}" defer></script>
 </body>
 </html>

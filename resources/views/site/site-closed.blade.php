@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="{{ asset('css/site-theme-status-pages.css') }}">
 </head>
 <body class="theme-status-closed-page">
-    <canvas class="theme-status-particles" data-status-particles aria-hidden="true"></canvas>
     <div class="theme-status-shell">
         <main class="theme-status-card is-closed">
             <div class="theme-status-icon" aria-hidden="true">
@@ -24,6 +23,5 @@
             </section>
         </main>
     </div>
-    <script src="{{ asset('js/site-status-particles.js') }}" defer></script>
 </body>
 </html>
