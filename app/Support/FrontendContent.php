@@ -18,7 +18,16 @@ class FrontendContent
     public static function applyVisibleScope(Builder $query, string $tableAlias = 'contents', ?string $type = null): Builder
     {
         $query->whereNull("{$tableAlias}.deleted_at")
-            ->where("{$tableAlias}.status", 'published');
+            ->where("{$tableAlias}.status", 'published')
+            ->where(function (Builder $channelScope) use ($tableAlias): void {
+                $channelScope->whereNull("{$tableAlias}.channel_id")
+                    ->orWhereExists(function (Builder $channelQuery) use ($tableAlias): void {
+                        $channelQuery->selectRaw('1')
+                            ->from('channels')
+                            ->whereColumn('channels.id', "{$tableAlias}.channel_id")
+                            ->where('channels.status', 1);
+                    });
+            });
 
         if ($type !== null && $type !== '') {
             $query->where("{$tableAlias}.type", $type);

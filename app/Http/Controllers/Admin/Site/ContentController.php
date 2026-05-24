@@ -1116,8 +1116,14 @@ class ContentController extends Controller
         $selectableChannelIds = $leafOnly
             ? $this->selectableContentChannelIds($siteId, $manageableChannelIds)
             : ($manageableChannelIds === []
-                ? DB::table('channels')->where('site_id', $siteId)->pluck('id')->map(fn ($id) => (int) $id)->all()
-                : array_values(array_unique(array_map('intval', $manageableChannelIds))));
+                ? DB::table('channels')->where('site_id', $siteId)->where('status', 1)->pluck('id')->map(fn ($id) => (int) $id)->all()
+                : DB::table('channels')
+                    ->where('site_id', $siteId)
+                    ->where('status', 1)
+                    ->whereIn('id', array_values(array_unique(array_map('intval', $manageableChannelIds))))
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all());
 
         abort_unless(
             collect($channelIds)->every(fn (int $channelId): bool => in_array($channelId, $selectableChannelIds, true)),
@@ -1195,14 +1201,25 @@ class ContentController extends Controller
         int $currentPrimaryChannelId = 0
     ): array {
         if ($this->canViewAllSiteContent($userId, $siteId)) {
+            $existingChannelIds = $this->selectedContentChannelIds($contentId, $currentPrimaryChannelId);
+            $activeChannelIds = DB::table('channels')
+                ->where('site_id', $siteId)
+                ->where('status', 1)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $preservedDisabledChannelIds = array_values(array_diff($existingChannelIds, $activeChannelIds));
+            $finalChannelIds = array_values(array_unique(array_merge($submittedChannelIds, $preservedDisabledChannelIds)));
+
             return [
-                'channel_ids' => $submittedChannelIds,
-                'primary_channel_id' => $submittedChannelIds[0] ?? null,
+                'channel_ids' => $finalChannelIds,
+                'primary_channel_id' => $finalChannelIds[0] ?? null,
             ];
         }
 
         $allChannels = DB::table('channels')
             ->where('site_id', $siteId)
+            ->where('status', 1)
             ->orderBy('sort')
             ->orderBy('id')
             ->get(['id', 'type', 'parent_id']);
@@ -1262,6 +1279,7 @@ class ContentController extends Controller
     {
         $allChannels = DB::table('channels')
             ->where('site_id', $siteId)
+            ->where('status', 1)
             ->orderBy('sort')
             ->orderBy('id')
             ->get(['id', 'name', 'type', 'parent_id']);
@@ -1438,6 +1456,7 @@ class ContentController extends Controller
     {
         $channels = DB::table('channels')
             ->where('site_id', $siteId)
+            ->where('status', 1)
             ->get(['id', 'parent_id']);
 
         return $this->selectableContentChannelIdsFromCollection($channels, $manageableChannelIds);

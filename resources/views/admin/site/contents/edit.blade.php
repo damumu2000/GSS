@@ -278,7 +278,7 @@
                                             </span>
                                             @if(($lockedSelectedChannels ?? collect())->isNotEmpty())
                                                 <div class="content-channel-locked-note">
-                                                    <div class="content-channel-locked-title">以下栏目已关联，但当前账号无权调整，本次保存会自动保留：</div>
+                                                    <div class="content-channel-locked-title">以下栏目已关联，但当前不可直接调整，本次保存会自动保留：</div>
                                                     <div class="content-channel-locked-tags">
                                                         @foreach($lockedSelectedChannels as $lockedChannel)
                                                             <span class="content-channel-locked-tag">{{ $lockedChannel->name }}</span>

@@ -200,6 +200,10 @@ class SiteController extends Controller
         $article = FrontendContent::visibleQuery((int) $site->id, 'article')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
             ->where('contents.id', $id)
+            ->where(function ($query): void {
+                $query->whereNull('contents.channel_id')
+                    ->orWhere('channels.status', 1);
+            })
             ->first([
                 'contents.*',
                 'channels.name as channel_name',
@@ -286,6 +290,10 @@ class SiteController extends Controller
         $page = FrontendContent::visibleQuery((int) $site->id, 'page')
             ->leftJoin('channels', 'channels.id', '=', 'contents.channel_id')
             ->where('contents.id', $id)
+            ->where(function ($query): void {
+                $query->whereNull('contents.channel_id')
+                    ->orWhere('channels.status', 1);
+            })
             ->first([
                 'contents.*',
                 'channels.name as channel_name',
@@ -907,6 +915,7 @@ class SiteController extends Controller
     {
         $channels = DB::table('channels')
             ->where('site_id', $siteId)
+            ->where('status', 1)
             ->orderBy('sort')
             ->orderBy('id')
             ->get(['id', 'parent_id']);

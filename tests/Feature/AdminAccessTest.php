@@ -7924,6 +7924,183 @@ XML);
             ->assertJsonPath('slug', 'shangdafen');
     }
 
+    public function test_site_admin_can_disable_channel_from_edit_form(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('channel-status-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'name' => '栏目开关测试',
+            'slug' => 'channel-status-check',
+            'type' => 'list',
+            'path' => '/channel-status-check',
+            'depth' => 0,
+            'sort' => 999,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.channels.update', $channelId), [
+                'name' => '栏目开关测试',
+                'slug' => 'channel-status-check',
+                'type' => 'list',
+                'parent_id' => '',
+                'is_nav' => '1',
+                'list_template' => '',
+                'detail_template' => '',
+            ])
+            ->assertRedirect(route('admin.channels.index'))
+            ->assertSessionHas('status', '栏目已更新。');
+
+        $this->assertDatabaseHas('channels', [
+            'id' => $channelId,
+            'site_id' => $siteId,
+            'status' => 0,
+        ]);
+    }
+
+    public function test_content_create_channel_options_hide_disabled_channels(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('channel-hidden-content-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('channels')->insert([
+            [
+                'site_id' => $siteId,
+                'name' => '可选栏目A',
+                'slug' => 'enabled-channel-a',
+                'type' => 'list',
+                'path' => '/enabled-channel-a',
+                'depth' => 0,
+                'sort' => 1001,
+                'status' => 1,
+                'is_nav' => 1,
+                'created_by' => $operator->id,
+                'updated_by' => $operator->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $siteId,
+                'name' => '关闭栏目B',
+                'slug' => 'disabled-channel-b',
+                'type' => 'list',
+                'path' => '/disabled-channel-b',
+                'depth' => 0,
+                'sort' => 1002,
+                'status' => 0,
+                'is_nav' => 1,
+                'created_by' => $operator->id,
+                'updated_by' => $operator->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.articles.create'))
+            ->assertOk()
+            ->assertSee('可选栏目A')
+            ->assertDontSee('关闭栏目B');
+    }
+
+    public function test_frontend_blocks_disabled_channel_and_its_article(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('channel-frontend-status-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'name' => '前台关闭栏目',
+            'slug' => 'frontend-disabled-channel',
+            'type' => 'list',
+            'path' => '/frontend-disabled-channel',
+            'depth' => 0,
+            'sort' => 1003,
+            'status' => 0,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $articleId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '关闭栏目文章',
+            'slug' => 'disabled-channel-article',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'published_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $articleId,
+            'channel_id' => $channelId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->get('/cat/frontend-disabled-channel')
+            ->assertNotFound();
+
+        $this->get('/article/'.$articleId)
+            ->assertNotFound();
+    }
+
+    public function test_page_create_rejects_disabled_channel_submission(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('disabled-page-channel-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'name' => '关闭单页栏目',
+            'slug' => 'disabled-page-channel',
+            'type' => 'page',
+            'path' => '/disabled-page-channel',
+            'depth' => 0,
+            'sort' => 1004,
+            'status' => 0,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.pages.store'), [
+                'channel_ids' => [$channelId],
+                'title' => '关闭栏目单页',
+                'template_name' => '',
+                'summary' => 'summary',
+                'content' => '<p>content</p>',
+                'status' => 'draft',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_editor_role_cannot_access_site_logs_or_settings_or_theme_editor(): void
     {
         $this->seed(DatabaseSeeder::class);

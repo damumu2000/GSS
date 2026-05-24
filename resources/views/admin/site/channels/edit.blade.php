@@ -223,6 +223,15 @@
                             <input type="checkbox" name="is_nav" value="1" @checked(old('is_nav', $channel->is_nav))>
                         </label>
                     </div>
+                    <div class="channel-toggle-card">
+                        <div>
+                            <div class="channel-toggle-title">栏目启用</div>
+                            <div class="channel-toggle-desc">关闭后，前台不可访问，后台新增内容时不会出现在栏目选择中。</div>
+                        </div>
+                        <label class="channel-switch">
+                            <input type="checkbox" name="status" value="1" @checked((string) old('status', $channel->status ?? 1) === '1')>
+                        </label>
+                    </div>
                 </aside>
             </div>
         </form>

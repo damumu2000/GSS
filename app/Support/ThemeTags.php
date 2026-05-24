@@ -1604,6 +1604,7 @@ class ThemeTags
         if ($this->siteChannelsCache === null) {
             $this->siteChannelsCache = DB::table('channels')
                 ->where('site_id', $this->site->id)
+                ->where('status', 1)
                 ->get();
         }
 
