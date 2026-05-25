@@ -2,7 +2,7 @@
     var initSecurityTypeHeightSync = function () {
         var sync = function () {
             var mediaQuery = window.matchMedia('(min-width: 1181px)');
-            var leftPanel = document.querySelector('.security-grid > .security-panel');
+            var leftPanel = document.querySelector('.security-grid > .security-panel:not(.security-panel--types)');
             var typePanel = document.querySelector('.security-panel--types');
             var typeList = typePanel ? typePanel.querySelector('.security-types') : null;
 
@@ -28,8 +28,27 @@
             }
         };
 
-        sync();
+        var scheduleSync = function () {
+            window.requestAnimationFrame(sync);
+        };
+
+        scheduleSync();
+        window.addEventListener('load', scheduleSync, { once: true });
         window.addEventListener('resize', sync);
+
+        if ('ResizeObserver' in window) {
+            var leftPanel = document.querySelector('.security-grid > .security-panel:not(.security-panel--types)');
+            var typePanel = document.querySelector('.security-panel--types');
+            var observer = new window.ResizeObserver(scheduleSync);
+
+            if (leftPanel instanceof HTMLElement) {
+                observer.observe(leftPanel);
+            }
+
+            if (typePanel instanceof HTMLElement) {
+                observer.observe(typePanel);
+            }
+        }
     };
 
     var initSecurityModals = function () {

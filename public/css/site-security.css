@@ -651,10 +651,12 @@
         .security-types {
             display: grid;
             gap: 12px;
+            align-content: start;
+            align-items: start;
             margin-top: 22px;
             flex: 1;
             min-height: 0;
-            overflow-y: auto;
+            overflow-y: scroll;
             padding-right: 6px;
             scrollbar-width: thin;
             scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
