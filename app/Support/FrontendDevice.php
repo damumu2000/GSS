@@ -18,6 +18,10 @@ class FrontendDevice
             return 'pc';
         }
 
+        if (self::isDesktopWechat($userAgent)) {
+            return 'mobile';
+        }
+
         return preg_match('/Mobile|Android|iPhone|iPod|iPad|Windows Phone|BlackBerry|IEMobile|Opera Mini|Mobi/i', $userAgent) === 1
             ? 'mobile'
             : 'pc';
@@ -32,5 +36,18 @@ class FrontendDevice
             'pc', 'desktop' => 'pc',
             default => null,
         };
+    }
+
+    protected static function isDesktopWechat(string $userAgent): bool
+    {
+        if (stripos($userAgent, 'MicroMessenger') === false) {
+            return false;
+        }
+
+        if (preg_match('/Mobile|Android|iPhone|iPod|iPad|Windows Phone|BlackBerry|IEMobile|Opera Mini|Mobi/i', $userAgent) === 1) {
+            return false;
+        }
+
+        return preg_match('/WindowsWechat|MacWechat|Windows NT|Macintosh|Mac OS X/i', $userAgent) === 1;
     }
 }
