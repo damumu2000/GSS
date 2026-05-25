@@ -66,10 +66,7 @@ class IpRegionResolver
         }
 
         $raw = preg_replace('/^中国/u', '', $raw) ?? $raw;
-        preg_match('/^(?<province>.*?(?:省|市|自治区|特别行政区))(?<city>.*?(?:市|州|地区|盟))?/u', $raw, $matches);
-
-        $province = $this->normalizeDomesticPart((string) ($matches['province'] ?? ''));
-        $city = $this->normalizeDomesticPart((string) ($matches['city'] ?? ''));
+        [$province, $city] = $this->splitDomesticRegionParts($raw);
 
         if ($province === '' && $city === '') {
             return '公网来源';
@@ -80,6 +77,36 @@ class IpRegionResolver
         }
 
         return $province.'·'.$city;
+    }
+
+    protected function splitDomesticRegionParts(string $raw): array
+    {
+        $normalized = trim($raw);
+
+        if ($normalized === '') {
+            return ['', ''];
+        }
+
+        $province = '';
+        $city = '';
+
+        if (preg_match('/^(?<province>.*?(?:省|自治区|特别行政区))(?<city>.*)$/u', $normalized, $matches) === 1) {
+            $province = $this->normalizeDomesticPart((string) ($matches['province'] ?? ''));
+            $city = $this->normalizeDomesticPart((string) ($matches['city'] ?? ''));
+
+            return [$province, $city];
+        }
+
+        if (preg_match('/^(?<province>北京|天津|上海|重庆)市?(?<city>.*)$/u', $normalized, $matches) === 1) {
+            $province = (string) ($matches['province'] ?? '');
+            $city = $this->normalizeDomesticPart((string) ($matches['city'] ?? ''));
+
+            return [$province, $city];
+        }
+
+        $fallback = $this->normalizeDomesticPart($normalized);
+
+        return [$fallback, ''];
     }
 
     protected function normalizeDomesticPart(string $value): string
