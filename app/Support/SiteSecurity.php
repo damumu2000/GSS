@@ -931,13 +931,19 @@ class SiteSecurity
         $isGlobalBlocklisted = $this->ipMatchesList($clientIp, $globalBlocklist);
         $isSiteAllowlisted = $this->ipMatchesList($clientIp, $siteAllowlist);
         $isSiteBlocklisted = $this->ipMatchesList($clientIp, $siteBlocklist);
+        $blockedUntilTs = $row->blocked_until ? strtotime((string) $row->blocked_until) : false;
+        $hasActiveTemporaryBlock = $blockedUntilTs !== false && $blockedUntilTs > now('Asia/Shanghai')->getTimestamp();
+        $rowStatus = (string) ($row->status ?? 'monitored');
+        $effectiveRowStatus = $rowStatus === 'blocked' && ! $hasActiveTemporaryBlock
+            ? 'monitored'
+            : $rowStatus;
         $effectiveStatus = $isGlobalAllowlisted
             ? 'monitored'
             : ($isGlobalBlocklisted
                 ? 'blocked'
                 : ($isSiteAllowlisted
                     ? 'monitored'
-                    : ($isSiteBlocklisted ? 'blocked' : (string) ($row->status ?? 'monitored'))));
+                    : ($isSiteBlocklisted ? 'blocked' : $effectiveRowStatus)));
         $policyLabel = $isGlobalAllowlisted
             ? '平台已加白'
             : ($isGlobalBlocklisted
@@ -954,7 +960,7 @@ class SiteSecurity
             'last_request_path' => (string) ($row->last_request_path ?? ''),
             'status' => $effectiveStatus,
             'status_label' => $this->ipReputationStatusLabel($effectiveStatus),
-            'blocked_until_label' => ($isGlobalAllowlisted || $isGlobalBlocklisted || $isSiteAllowlisted || $isSiteBlocklisted) ? '' : ($row->blocked_until ? date('m-d H:i', strtotime((string) $row->blocked_until)) : ''),
+            'blocked_until_label' => ($isGlobalAllowlisted || $isGlobalBlocklisted || $isSiteAllowlisted || $isSiteBlocklisted || ! $hasActiveTemporaryBlock) ? '' : date('m-d H:i', $blockedUntilTs),
             'last_seen_label' => $row->last_seen_at ? date('m-d H:i', strtotime((string) $row->last_seen_at)) : '--',
             'last_seen_at_ts' => $row->last_seen_at ? strtotime((string) $row->last_seen_at) : 0,
             'is_global_allowlisted' => $isGlobalAllowlisted,
@@ -1142,7 +1148,7 @@ class SiteSecurity
     {
         return match ($status) {
             'blocked' => '已封禁',
-            'limited' => '限速中',
+            'limited' => '访问受限',
             default => '观察中',
         };
     }

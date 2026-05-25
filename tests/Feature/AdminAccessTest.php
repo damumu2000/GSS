@@ -10509,6 +10509,70 @@ XML);
             ->assertDontSee('解封');
     }
 
+    public function test_site_security_page_treats_expired_temporary_block_as_monitored(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-expired-block-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '203.0.113.77',
+            'ip_hash' => hash('sha256', '203.0.113.77'),
+            'hit_count' => 3,
+            'high_risk_count' => 2,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/payroll/password/unlock',
+            'status' => 'blocked',
+            'blocked_until' => now()->subMinutes(10),
+            'last_seen_at' => now()->subMinutes(9),
+            'created_at' => now()->subMinutes(10),
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('203.0.113.77')
+            ->assertSee('观察中')
+            ->assertSee('最近 ')
+            ->assertDontSee('至 ')
+            ->assertDontSee('解封');
+    }
+
+    public function test_site_security_page_labels_limited_status_as_access_restricted(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-limited-status-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => '198.51.100.66',
+            'ip_hash' => hash('sha256', '198.51.100.66'),
+            'hit_count' => 5,
+            'high_risk_count' => 0,
+            'last_rule_code' => 'rate_limit',
+            'last_request_path' => '/guestbook',
+            'status' => 'limited',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('198.51.100.66')
+            ->assertSee('访问受限')
+            ->assertDontSee('限速中');
+    }
+
     public function test_site_security_suspicious_ip_ranking_prioritizes_blocked_status(): void
     {
         $this->seed(DatabaseSeeder::class);
