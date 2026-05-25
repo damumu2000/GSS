@@ -16,18 +16,15 @@
                 return;
             }
 
-            var leftPanelHeight = Math.floor(leftPanel.getBoundingClientRect().height);
+            var panelFixedHeight = 750;
             var panelRect = typePanel.getBoundingClientRect();
             var listRect = typeList.getBoundingClientRect();
             var panelStyles = window.getComputedStyle(typePanel);
             var bottomPadding = parseFloat(panelStyles.paddingBottom || '0') || 0;
-            var viewportBottomGap = 24;
-            var viewportAvailableHeight = Math.floor(window.innerHeight - panelRect.top - viewportBottomGap);
-            var panelTargetHeight = Math.min(leftPanelHeight, viewportAvailableHeight);
-            var targetHeight = Math.floor(panelTargetHeight - (listRect.top - panelRect.top) - bottomPadding);
+            var targetHeight = Math.floor(panelFixedHeight - (listRect.top - panelRect.top) - bottomPadding);
 
-            if (panelTargetHeight > 0) {
-                typePanel.style.height = panelTargetHeight + 'px';
+            if (panelFixedHeight > 0) {
+                typePanel.style.height = panelFixedHeight + 'px';
             } else {
                 typePanel.style.height = '';
             }

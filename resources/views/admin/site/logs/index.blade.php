@@ -24,6 +24,7 @@
         'guestbook' => '留言板',
         'article_review' => '文章审核',
         'module' => '模块管理',
+        'security' => '安护盾',
     ];
 
     $actionMap = config('cms.operation_log_action_labels', []);

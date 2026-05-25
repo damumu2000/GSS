@@ -128,6 +128,10 @@ return [
         'security_remove_allow_ip' => '安护盾移白 IP',
         'security_remove_block_ip' => '安护盾移黑 IP',
         'security_release_ip_block' => '安护盾解除封禁',
+        'security_delete_event_record' => '安护盾删除拦截记录',
+        'security_clear_event_records' => '安护盾清空拦截记录',
+        'security_delete_ip_record' => '安护盾清除 IP 画像',
+        'security_clear_ip_records' => '安护盾清空 IP 画像',
     ],
 
     'default_platform_role_permissions' => [

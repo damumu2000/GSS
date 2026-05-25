@@ -249,7 +249,7 @@
                             data-security-modal-open="ips"
                         >
                             <span class="security-insight-action-label">可疑 IP 排行</span>
-                            <span class="security-insight-action-meta">查看来源画像与处置状态</span>
+                            <span class="security-insight-action-meta">查看近 7 天活跃的来源画像与处置状态</span>
                         </button>
                     </div>
                 </div>
@@ -400,7 +400,7 @@
                                     @endif
                                     <div class="security-modal-meta">
                                         <span class="security-modal-chip">来源画像</span>
-                                        <span>按近 7 天高危次数和命中次数排序</span>
+                                        <span>按累计高危次数和命中次数排序，仅展示近 7 天活跃来源</span>
                                     </div>
                                 </div>
                             </div>
