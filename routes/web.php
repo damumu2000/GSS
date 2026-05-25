@@ -207,6 +207,10 @@ Route::middleware(['auth', 'admin.access'])->group(function (): void {
             Route::get('/security', [SiteSecurityController::class, 'index'])->name('security.index');
             Route::get('/security/ip-detail', [SiteSecurityController::class, 'ipDetail'])->name('security.ip-detail');
             Route::post('/security/ip-policy', [SiteSecurityController::class, 'storeIpPolicy'])->name('security.ip-policy.store');
+            Route::post('/security/events/delete', [SiteSecurityController::class, 'deleteEvent'])->name('security.events.delete');
+            Route::post('/security/events/clear', [SiteSecurityController::class, 'clearEvents'])->name('security.events.clear');
+            Route::post('/security/ips/delete', [SiteSecurityController::class, 'deleteSuspiciousIp'])->name('security.ips.delete');
+            Route::post('/security/ips/clear', [SiteSecurityController::class, 'clearSuspiciousIps'])->name('security.ips.clear');
             Route::get('/users', [SiteUserController::class, 'index'])->name('site-users.index');
             Route::get('/users/create', [SiteUserController::class, 'create'])->name('site-users.create');
             Route::post('/users', [SiteUserController::class, 'store'])->name('site-users.store');

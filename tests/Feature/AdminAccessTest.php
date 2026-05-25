@@ -11532,7 +11532,10 @@ XML);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $mainSiteId])
-            ->get(route('admin.security.index'))
+            ->get(route('admin.security.index', [
+                'security_modal' => 'events',
+                'security_event_filter' => 'all',
+            ]))
             ->assertOk()
             ->assertSeeInOrder([
                 '/older-high-risk-event',
@@ -14841,6 +14844,184 @@ XML);
             ->assertOk()
             ->assertDontSee('文章审核')
             ->assertDontSee(route('admin.article-reviews.index'), false);
+    }
+
+    public function test_site_security_site_admin_can_delete_single_event_record_and_release_runtime_block(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-event-delete-site-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.8.8';
+
+        $eventId = (int) DB::table('site_security_events')->insertGetId([
+            'site_id' => $siteId,
+            'rule_code' => 'probe_abuse',
+            'rule_name' => '扫描试探超限',
+            'request_path' => '/scan-test',
+            'request_method' => 'GET',
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'risk_level' => 'critical',
+            'action' => 'temporary_block',
+            'created_at' => now(),
+        ]);
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 1,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/scan-test',
+            'status' => 'blocked',
+            'blocked_until' => now()->addMinutes(10),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$siteId.':'.sha1($ip), 60);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 60);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.security.events.delete'), [
+                'event_id' => $eventId,
+                'security_event_filter' => 'all',
+                'security_event_page' => 1,
+            ])
+            ->assertRedirect(route('admin.security.index', [
+                'security_modal' => 'events',
+                'security_event_filter' => 'all',
+                'security_event_page' => 1,
+            ]))
+            ->assertSessionHas('status', '已删除该条拦截记录，并同步清理对应自动封禁状态。');
+
+        $this->assertDatabaseMissing('site_security_events', ['id' => $eventId]);
+        $this->assertDatabaseMissing('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+        ]);
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$siteId.':'.sha1($ip), 1));
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 1));
+    }
+
+    public function test_site_security_site_admin_can_clear_filtered_event_records(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-event-clear-site-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $siteId,
+                'rule_code' => 'sql_injection',
+                'rule_name' => 'SQL 注入拦截',
+                'request_path' => '/delete-high',
+                'request_method' => 'GET',
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'risk_level' => 'high',
+                'action' => 'block',
+                'created_at' => now(),
+            ],
+            [
+                'site_id' => $siteId,
+                'rule_code' => 'bad_path',
+                'rule_name' => '恶意扫描路径',
+                'request_path' => '/keep-medium',
+                'request_method' => 'GET',
+                'client_ip' => '8.8.4.4',
+                'ip_hash' => hash('sha256', '8.8.4.4'),
+                'risk_level' => 'medium',
+                'action' => 'block',
+                'created_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.security.events.clear'), [
+                'security_event_filter' => 'high',
+            ])
+            ->assertRedirect(route('admin.security.index', [
+                'security_modal' => 'events',
+                'security_event_filter' => 'high',
+                'security_event_page' => 1,
+            ]));
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $siteId,
+            'request_path' => '/delete-high',
+        ]);
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'request_path' => '/keep-medium',
+        ]);
+    }
+
+    public function test_site_security_site_admin_can_delete_single_suspicious_ip_record(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-delete-site-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '9.9.9.9';
+
+        DB::table('site_security_events')->insert([
+            'site_id' => $siteId,
+            'rule_code' => 'bad_client',
+            'rule_name' => '脚本扫描器拦截',
+            'request_path' => '/ua-test',
+            'request_method' => 'GET',
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'risk_level' => 'high',
+            'action' => 'block',
+            'created_at' => now(),
+        ]);
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 1,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_client',
+            'last_request_path' => '/ua-test',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$siteId.':'.sha1($ip), 60);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.security.ips.delete'), [
+                'client_ip' => $ip,
+                'security_ip_page' => 1,
+            ])
+            ->assertRedirect(route('admin.security.index', [
+                'security_modal' => 'ips',
+                'security_ip_page' => 1,
+            ]))
+            ->assertSessionHas('status', '已清除该 IP 的自动记录，并解除对应自动临时限制。');
+
+        $this->assertDatabaseMissing('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+        ]);
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+        ]);
+        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$siteId.':'.sha1($ip), 1));
     }
 
     protected function createAdditionalSite(string $siteKey, string $name): int

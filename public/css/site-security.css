@@ -308,6 +308,12 @@
             backdrop-filter: blur(18px);
         }
 
+        .security-panel--types {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
         .security-panel-title {
             margin: 0;
             color: #111827;
@@ -646,7 +652,8 @@
             display: grid;
             gap: 12px;
             margin-top: 22px;
-            max-height: 566px;
+            flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding-right: 6px;
             scrollbar-width: thin;
@@ -864,23 +871,33 @@
 
         .security-ip-list {
             display: grid;
-            gap: 12px;
+            gap: 14px;
             margin-top: 22px;
         }
 
         .security-ip-item {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto auto auto;
-            align-items: center;
-            gap: 16px;
-            padding: 16px 18px;
-            border-radius: 18px;
-            background: #ffffff;
-            border: 1px solid #edf2f7;
+            grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+            align-items: start;
+            gap: 24px;
+            padding: 20px 22px;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            border: 1px solid #e7edf4;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
 
-        .security-ip-main {
+        .security-ip-primary {
             min-width: 0;
+            display: grid;
+            gap: 14px;
+        }
+
+        .security-ip-address-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
         }
 
         .security-ip-address {
@@ -890,11 +907,52 @@
         }
 
         .security-ip-path {
-            margin-top: 6px;
-            color: #667085;
-            font-size: 12px;
+            color: #475467;
+            font-size: 13px;
+            font-weight: 700;
             line-height: 1.6;
             word-break: break-all;
+        }
+
+        .security-ip-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .security-ip-detail-block {
+            min-width: 0;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid #edf2f7;
+            background: #f8fbff;
+        }
+
+        .security-ip-detail-label {
+            margin-bottom: 6px;
+            color: #98a2b3;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .security-ip-detail-value {
+            color: #344054;
+            font-size: 12px;
+            line-height: 1.7;
+            word-break: break-all;
+        }
+
+        .security-ip-aside {
+            display: grid;
+            gap: 18px;
+            min-width: 0;
+        }
+
+        .security-ip-summary {
+            display: grid;
+            gap: 14px;
+            justify-items: end;
         }
 
         .security-ip-metrics {
@@ -927,18 +985,21 @@
             font-weight: 700;
         }
 
-        .security-ip-detail-link-wrap {
+        .security-ip-footer {
             display: flex;
-            justify-content: flex-end;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
         }
 
         .security-ip-detail-link {
             display: inline-flex;
             align-items: center;
             color: #3659d9;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 800;
             text-decoration: none;
+            white-space: nowrap;
         }
 
         .security-ip-detail-link:hover {
@@ -947,6 +1008,7 @@
 
         .security-ip-actions {
             display: flex;
+            flex-wrap: wrap;
             justify-content: flex-end;
             gap: 8px;
         }
@@ -1114,18 +1176,28 @@
 
             .security-ip-item {
                 grid-template-columns: 1fr;
-                align-items: start;
             }
 
-            .security-ip-metrics,
-            .security-ip-status,
-            .security-ip-actions {
-                justify-content: flex-start;
+            .security-ip-detail-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .security-ip-summary {
                 justify-items: start;
             }
 
-            .security-ip-detail-link-wrap {
+            .security-ip-metrics,
+            .security-ip-actions {
                 justify-content: flex-start;
+            }
+
+            .security-ip-status {
+                justify-items: start;
+            }
+
+            .security-ip-footer {
+                flex-direction: column;
+                align-items: flex-start;
             }
 
             .security-detail-summary {
@@ -1184,6 +1256,15 @@
 
             .security-region-list-items {
                 grid-template-columns: 1fr;
+            }
+
+            .security-modal-heading-row {
+                align-items: flex-start;
+            }
+
+            .security-modal-toolbar {
+                flex-direction: column;
+                align-items: flex-start;
             }
         }
 
@@ -1531,18 +1612,21 @@
         }
 
         .security-modal-topbar {
-            position: relative;
-            display: flex;
-            justify-content: center;
             margin-bottom: 22px;
-            padding-top: 4px;
         }
 
         .security-modal-heading {
             width: 100%;
             box-sizing: border-box;
-            padding: 0 58px;
-            text-align: center;
+        }
+
+        .security-modal-heading-row {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding-right: 54px;
         }
 
         .security-modal-title {
@@ -1552,6 +1636,16 @@
             line-height: 1.4;
             font-weight: 800;
             overflow-wrap: anywhere;
+            text-align: left;
+        }
+
+        .security-modal-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 14px;
+            margin-top: 12px;
+            min-height: 38px;
         }
 
         .security-modal-meta {
@@ -1559,8 +1653,7 @@
             flex-wrap: wrap;
             gap: 10px;
             align-items: center;
-            justify-content: center;
-            margin-top: 12px;
+            justify-content: flex-start;
             color: #8b94a7;
             font-size: 13px;
             line-height: 1.7;
@@ -1582,8 +1675,8 @@
 
         .security-modal-close {
             position: absolute;
-            top: 0;
-            right: 0;
+            top: -2px;
+            right: -4px;
             width: 42px;
             height: 42px;
             border-radius: 14px;
@@ -1621,7 +1714,154 @@
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
         }
 
+        .security-modal-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .security-modal-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            padding: 0 16px;
+            border-radius: 999px;
+            border: 1px solid #d7e3f1;
+            background: rgba(255, 255, 255, 0.92);
+            color: #475467;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+
+        .security-modal-action:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            transform: translateY(-1px);
+        }
+
+        .security-row-delete {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 34px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid #d7e3f1;
+            background: #ffffff;
+            color: #475467;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+
+        .security-row-delete:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            transform: translateY(-1px);
+        }
+
         .security-events--modal,
         .security-ip-list--modal {
             margin-top: 18px;
+        }
+
+        .security-event-top--modal {
+            gap: 18px;
+            align-items: flex-start;
+        }
+
+        .security-modal-pagination {
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .security-modal-pagination nav {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        .security-modal-pagination .pagination-shell {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .security-modal-pagination .pagination-pages {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .security-modal-pagination .pagination-button,
+        .security-modal-pagination .pagination-page,
+        .security-modal-pagination .pagination-ellipsis {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-width: 38px;
+            height: 38px;
+            padding: 0 14px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #475467;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .security-modal-pagination .pagination-page {
+            min-width: 38px;
+            padding: 0;
+        }
+
+        .security-modal-pagination .pagination-button:hover,
+        .security-modal-pagination .pagination-page:hover {
+            border-color: #cbd5e1;
+            background: #f8fafc;
+            color: #1f2937;
+            transform: translateY(-1px);
+        }
+
+        .security-modal-pagination .pagination-page.is-active,
+        .security-modal-pagination .pagination-page.is-active:visited {
+            border-color: #344054 !important;
+            background: #344054 !important;
+            color: #ffffff !important;
+            transform: none;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+        }
+
+        .security-modal-pagination .pagination-button.is-disabled,
+        .security-modal-pagination .pagination-page.is-disabled,
+        .security-modal-pagination .pagination-ellipsis {
+            color: #c0c7d2;
+            border-color: #e8edf3;
+            background: #ffffff;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .security-modal-pagination .pagination-icon {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
         }

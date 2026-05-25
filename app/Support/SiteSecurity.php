@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -921,6 +922,449 @@ class SiteSecurity
         ];
     }
 
+    public function siteEventsModalPaginator(int $siteId, string $riskFilter = 'all', int $page = 1, int $perPage = 20): LengthAwarePaginator
+    {
+        $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
+        $normalizedFilter = in_array($riskFilter, ['all', 'critical', 'high', 'medium'], true) ? $riskFilter : 'all';
+
+        $items = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (object $event): array {
+                $profile = $this->eventProfile((string) ($event->rule_code ?? ''), (string) ($event->rule_name ?? ''));
+                $riskLevel = trim((string) ($event->risk_level ?? '')) ?: $this->defaultRiskLevel((string) ($event->rule_code ?? ''));
+                $action = trim((string) ($event->action ?? '')) ?: $this->defaultAction((string) ($event->rule_code ?? ''));
+
+                return [
+                    'id' => (int) $event->id,
+                    'rule_name' => (string) ($event->rule_name ?? ''),
+                    'rule_code' => (string) ($event->rule_code ?? ''),
+                    'risk_level' => $riskLevel,
+                    'action' => $action,
+                    'request_path' => (string) ($event->request_path ?? ''),
+                    'request_method' => strtoupper((string) ($event->request_method ?? 'GET')),
+                    'client_ip' => (string) ($event->client_ip ?? '--'),
+                    'created_at_label' => $event->created_at ? date('m-d H:i', strtotime((string) $event->created_at)) : '--',
+                    'created_at_ts' => $event->created_at ? strtotime((string) $event->created_at) : 0,
+                    'category_label' => (string) ($profile['category_label'] ?? '异常请求'),
+                    'action_label' => $this->actionLabel($action),
+                    'risk_label' => $this->riskLevelLabel($riskLevel),
+                ];
+            })
+            ->filter(fn (array $event): bool => $normalizedFilter === 'all' || $event['risk_level'] === $normalizedFilter)
+            ->sort(function (array $left, array $right): int {
+                return [
+                    $this->riskLevelPriority((string) ($right['risk_level'] ?? 'medium')),
+                    (int) ($right['created_at_ts'] ?? 0),
+                    (int) ($right['id'] ?? 0),
+                ] <=> [
+                    $this->riskLevelPriority((string) ($left['risk_level'] ?? 'medium')),
+                    (int) ($left['created_at_ts'] ?? 0),
+                    (int) ($left['id'] ?? 0),
+                ];
+            })
+            ->values();
+
+        return $this->paginateArray($items, $page, $perPage, 'security_event_page');
+    }
+
+    public function siteSuspiciousIpsModalPaginator(int $siteId, int $page = 1, int $perPage = 15): LengthAwarePaginator
+    {
+        $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
+
+        if (! $this->ipReputationTableReady()) {
+            return $this->paginateArray(collect(), $page, $perPage, 'security_ip_page');
+        }
+
+        $globalAllowlist = $this->systemSettings->securityIpAllowlist();
+        $globalBlocklist = $this->systemSettings->securityIpBlocklist();
+        $siteAllowlist = $this->siteIpAllowlist($siteId);
+        $siteBlocklist = $this->siteIpBlocklist($siteId);
+        $rows = DB::table('site_security_ip_reputations')
+            ->where('site_id', $siteId)
+            ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
+            ->get();
+
+        $latestEventsByHash = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
+            ->whereIn('ip_hash', $rows->pluck('ip_hash')->filter()->unique()->values()->all())
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get(['ip_hash', 'request_method', 'request_query', 'user_agent', 'referer', 'created_at'])
+            ->groupBy('ip_hash')
+            ->map(fn (Collection $events): object => $events->first())
+            ->all();
+
+        $items = $rows
+            ->map(fn (object $row): array => $this->mapSuspiciousIpRow(
+                $row,
+                $globalAllowlist,
+                $globalBlocklist,
+                $siteAllowlist,
+                $siteBlocklist,
+                $latestEventsByHash[(string) ($row->ip_hash ?? '')] ?? null,
+            ))
+            ->sort(function (array $left, array $right): int {
+                $statusWeight = static fn (string $status): int => match ($status) {
+                    'blocked' => 3,
+                    'limited' => 2,
+                    default => 1,
+                };
+
+                return [
+                    $statusWeight((string) ($right['status'] ?? 'monitored')),
+                    (int) ($right['high_risk_count'] ?? 0),
+                    (int) ($right['hit_count'] ?? 0),
+                    (int) ($right['last_seen_at_ts'] ?? 0),
+                    (string) ($right['client_ip'] ?? ''),
+                ] <=> [
+                    $statusWeight((string) ($left['status'] ?? 'monitored')),
+                    (int) ($left['high_risk_count'] ?? 0),
+                    (int) ($left['hit_count'] ?? 0),
+                    (int) ($left['last_seen_at_ts'] ?? 0),
+                    (string) ($left['client_ip'] ?? ''),
+                ];
+            })
+            ->values();
+
+        return $this->paginateArray($items, $page, $perPage, 'security_ip_page');
+    }
+
+    public function deleteSiteSecurityEventRecord(int $siteId, int $eventId): bool
+    {
+        $event = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('id', $eventId)
+            ->first(['id', 'client_ip']);
+
+        if (! $event) {
+            return false;
+        }
+
+        DB::transaction(function () use ($siteId, $event): void {
+            DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->where('id', (int) $event->id)
+                ->delete();
+
+            $ip = trim((string) ($event->client_ip ?? ''));
+            if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+                $this->rebuildIpReputationFromEvents($siteId, $ip);
+            }
+        });
+
+        return true;
+    }
+
+    public function clearSiteSecurityEventRecords(int $siteId, string $riskFilter = 'all'): array
+    {
+        $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
+        $normalizedFilter = in_array($riskFilter, ['all', 'critical', 'high', 'medium'], true) ? $riskFilter : 'all';
+
+        $events = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
+            ->orderByDesc('id')
+            ->get(['id', 'client_ip', 'rule_code', 'risk_level'])
+            ->filter(function (object $event) use ($normalizedFilter): bool {
+                $riskLevel = trim((string) ($event->risk_level ?? '')) ?: $this->defaultRiskLevel((string) ($event->rule_code ?? ''));
+
+                return $normalizedFilter === 'all' || $riskLevel === $normalizedFilter;
+            })
+            ->values();
+
+        if ($events->isEmpty()) {
+            return ['deleted_events' => 0, 'affected_ips' => 0];
+        }
+
+        $eventIds = $events->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $ips = $events->pluck('client_ip')
+            ->filter(fn ($ip): bool => is_string($ip) && trim($ip) !== '' && filter_var(trim($ip), FILTER_VALIDATE_IP) !== false)
+            ->map(fn ($ip): string => trim((string) $ip))
+            ->unique()
+            ->values()
+            ->all();
+
+        DB::transaction(function () use ($siteId, $eventIds, $ips): void {
+            DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->whereIn('id', $eventIds)
+                ->delete();
+
+            foreach ($ips as $ip) {
+                $this->rebuildIpReputationFromEvents($siteId, $ip);
+            }
+        });
+
+        return [
+            'deleted_events' => count($eventIds),
+            'affected_ips' => count($ips),
+        ];
+    }
+
+    public function deleteSiteSuspiciousIpRecord(int $siteId, string $clientIp): bool
+    {
+        $ip = trim($clientIp);
+        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
+
+        $reputation = DB::table('site_security_ip_reputations')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', hash('sha256', $ip))
+            ->first(['last_request_path', 'last_rule_code']);
+
+        $eventIds = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', hash('sha256', $ip))
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if (! $reputation && $eventIds === []) {
+            return false;
+        }
+
+        DB::transaction(function () use ($siteId, $ip, $eventIds, $reputation): void {
+            if ($eventIds !== []) {
+                DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->whereIn('id', $eventIds)
+                    ->delete();
+            }
+
+            DB::table('site_security_ip_reputations')
+                ->where('site_id', $siteId)
+                ->where('ip_hash', hash('sha256', $ip))
+                ->delete();
+
+            $this->clearRuntimeBlocksForIp(
+                $siteId,
+                $ip,
+                (string) ($reputation?->last_request_path ?? ''),
+                (string) ($reputation?->last_rule_code ?? ''),
+            );
+        });
+
+        return true;
+    }
+
+    public function clearSiteSuspiciousIpRecords(int $siteId): array
+    {
+        $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
+
+        if (! $this->ipReputationTableReady()) {
+            return ['deleted_ips' => 0, 'deleted_events' => 0];
+        }
+
+        $rows = DB::table('site_security_ip_reputations')
+            ->where('site_id', $siteId)
+            ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
+            ->get(['client_ip', 'last_request_path', 'last_rule_code']);
+
+        $ipRows = $rows->filter(fn (object $row): bool => is_string($row->client_ip) && trim((string) $row->client_ip) !== '' && filter_var(trim((string) $row->client_ip), FILTER_VALIDATE_IP) !== false)
+            ->map(function (object $row): array {
+                return [
+                    'client_ip' => trim((string) $row->client_ip),
+                    'last_request_path' => (string) ($row->last_request_path ?? ''),
+                    'last_rule_code' => (string) ($row->last_rule_code ?? ''),
+                ];
+            })
+            ->unique('client_ip')
+            ->values();
+
+        $ips = $ipRows->pluck('client_ip')
+            ->filter(fn ($ip): bool => is_string($ip) && trim($ip) !== '' && filter_var(trim($ip), FILTER_VALIDATE_IP) !== false)
+            ->map(fn ($ip): string => trim((string) $ip))
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($ips === []) {
+            return ['deleted_ips' => 0, 'deleted_events' => 0];
+        }
+
+        $ipHashes = array_map(fn (string $ip): string => hash('sha256', $ip), $ips);
+        $eventIds = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->whereIn('ip_hash', $ipHashes)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        DB::transaction(function () use ($siteId, $ipRows, $ipHashes, $eventIds): void {
+            if ($eventIds !== []) {
+                DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->whereIn('id', $eventIds)
+                    ->delete();
+            }
+
+            DB::table('site_security_ip_reputations')
+                ->where('site_id', $siteId)
+                ->whereIn('ip_hash', $ipHashes)
+                ->delete();
+
+            foreach ($ipRows as $row) {
+                $this->clearRuntimeBlocksForIp(
+                    $siteId,
+                    (string) $row['client_ip'],
+                    (string) $row['last_request_path'],
+                    (string) $row['last_rule_code'],
+                );
+            }
+        });
+
+        return [
+            'deleted_ips' => count($ips),
+            'deleted_events' => count($eventIds),
+        ];
+    }
+
+    protected function rebuildIpReputationFromEvents(int $siteId, string $clientIp): void
+    {
+        if (! $this->ipReputationTableReady() || filter_var($clientIp, FILTER_VALIDATE_IP) === false) {
+            return;
+        }
+
+        $ipHash = hash('sha256', $clientIp);
+        $existingRow = DB::table('site_security_ip_reputations')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', $ipHash)
+            ->first(['last_request_path', 'last_rule_code', 'last_seen_at']);
+
+        $latestEvent = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', $ipHash)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first(['rule_code', 'request_path', 'created_at']);
+
+        if (! $latestEvent) {
+            if ($this->shouldPersistPolicyOnlyReputation($siteId, $clientIp)) {
+                $payload = [
+                    'client_ip' => $clientIp,
+                    'hit_count' => 0,
+                    'high_risk_count' => 0,
+                    'last_rule_code' => '',
+                    'last_request_path' => '',
+                    'status' => $this->policyOnlyStatus($siteId, $clientIp),
+                    'blocked_until' => null,
+                    'last_seen_at' => $existingRow?->last_seen_at ?? now(),
+                    'updated_at' => now(),
+                ];
+
+                if ($existingRow) {
+                    DB::table('site_security_ip_reputations')
+                        ->where('site_id', $siteId)
+                        ->where('ip_hash', $ipHash)
+                        ->update($payload);
+                } else {
+                    DB::table('site_security_ip_reputations')->insert($payload + [
+                        'site_id' => $siteId,
+                        'ip_hash' => $ipHash,
+                        'created_at' => now(),
+                    ]);
+                }
+            } else {
+                DB::table('site_security_ip_reputations')
+                    ->where('site_id', $siteId)
+                    ->where('ip_hash', $ipHash)
+                    ->delete();
+            }
+
+            $this->clearRuntimeBlocksForIp(
+                $siteId,
+                $clientIp,
+                (string) ($existingRow?->last_request_path ?? ''),
+                (string) ($existingRow?->last_rule_code ?? ''),
+            );
+
+            return;
+        }
+
+        $hitCount = (int) DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', $ipHash)
+            ->count();
+
+        $highRiskCount = (int) DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', $ipHash)
+            ->whereIn('rule_code', static::HIGH_RISK_RULE_CODES)
+            ->count();
+
+        $payload = [
+            'client_ip' => $clientIp,
+            'hit_count' => $hitCount,
+            'high_risk_count' => $highRiskCount,
+            'last_rule_code' => (string) ($latestEvent->rule_code ?? ''),
+            'last_request_path' => (string) ($latestEvent->request_path ?? ''),
+            'status' => $this->policyOnlyStatus($siteId, $clientIp),
+            'blocked_until' => null,
+            'last_seen_at' => $latestEvent->created_at ?? now(),
+            'updated_at' => now(),
+        ];
+
+        if ($existingRow) {
+            DB::table('site_security_ip_reputations')
+                ->where('site_id', $siteId)
+                ->where('ip_hash', $ipHash)
+                ->update($payload);
+        } else {
+            DB::table('site_security_ip_reputations')->insert($payload + [
+                'site_id' => $siteId,
+                'ip_hash' => $ipHash,
+                'created_at' => now(),
+            ]);
+        }
+
+        $this->clearRuntimeBlocksForIp(
+            $siteId,
+            $clientIp,
+            (string) ($existingRow?->last_request_path ?? (string) ($latestEvent->request_path ?? '')),
+            (string) ($existingRow?->last_rule_code ?? (string) ($latestEvent->rule_code ?? '')),
+        );
+    }
+
+    protected function shouldPersistPolicyOnlyReputation(int $siteId, string $clientIp): bool
+    {
+        return $this->isGlobalAllowlisted($clientIp)
+            || $this->isGlobalBlocklisted($clientIp)
+            || $this->ipMatchesList($clientIp, $this->siteIpAllowlist($siteId))
+            || $this->ipMatchesList($clientIp, $this->siteIpBlocklist($siteId));
+    }
+
+    protected function policyOnlyStatus(int $siteId, string $clientIp): string
+    {
+        return ($this->isGlobalBlocklisted($clientIp) || $this->ipMatchesList($clientIp, $this->siteIpBlocklist($siteId)))
+            ? 'blocked'
+            : 'monitored';
+    }
+
+    protected function paginateArray(Collection $items, int $page, int $perPage, string $pageName): LengthAwarePaginator
+    {
+        $safePage = max(1, $page);
+        $safePerPage = max(1, $perPage);
+        $total = $items->count();
+        $slice = $items->slice(($safePage - 1) * $safePerPage, $safePerPage)->values();
+
+        return new LengthAwarePaginator(
+            $slice,
+            $total,
+            $safePerPage,
+            $safePage,
+            [
+                'path' => route('admin.security.index'),
+                'pageName' => $pageName,
+            ]
+        );
+    }
+
     /**
      * @param array<int, string> $globalAllowlist
      * @param array<int, string> $globalBlocklist
@@ -928,7 +1372,7 @@ class SiteSecurity
      * @param array<int, string> $siteBlocklist
      * @return array<string, mixed>
      */
-    protected function mapSuspiciousIpRow(object $row, array $globalAllowlist, array $globalBlocklist, array $siteAllowlist, array $siteBlocklist): array
+    protected function mapSuspiciousIpRow(object $row, array $globalAllowlist, array $globalBlocklist, array $siteAllowlist, array $siteBlocklist, ?object $latestEvent = null): array
     {
         $clientIp = (string) ($row->client_ip ?? '');
         $isGlobalAllowlisted = $this->ipMatchesList($clientIp, $globalAllowlist);
@@ -955,13 +1399,24 @@ class SiteSecurity
                 : ($isSiteAllowlisted
                     ? '已加白'
                     : ($isSiteBlocklisted ? '已拉黑' : '')));
+        $lastRuleCode = (string) ($row->last_rule_code ?? '');
+        $lastRuleProfile = $this->eventProfile($lastRuleCode, '');
+        $requestQuery = trim((string) ($latestEvent?->request_query ?? ''));
+        $userAgent = trim((string) ($latestEvent?->user_agent ?? ''));
+        $referer = trim((string) ($latestEvent?->referer ?? ''));
 
         return [
             'client_ip' => $clientIp !== '' ? $clientIp : '--',
             'hit_count' => (int) ($row->hit_count ?? 0),
             'high_risk_count' => (int) ($row->high_risk_count ?? 0),
-            'last_rule_code' => (string) ($row->last_rule_code ?? ''),
+            'last_rule_code' => $lastRuleCode,
+            'last_rule_label' => (string) ($lastRuleProfile['category_label'] ?? '异常请求'),
             'last_request_path' => (string) ($row->last_request_path ?? ''),
+            'last_request_method' => strtoupper((string) ($latestEvent?->request_method ?? 'GET')),
+            'last_request_query' => $requestQuery,
+            'last_request_query_preview' => $this->compactSecurityText($requestQuery, 120, '无明显参数'),
+            'last_user_agent_preview' => $this->compactSecurityText($userAgent, 96, '无 UA 记录'),
+            'last_referer_preview' => $this->compactSecurityText($referer, 96, '无来源记录'),
             'status' => $effectiveStatus,
             'status_label' => $this->ipReputationStatusLabel($effectiveStatus),
             'blocked_until_label' => ($isGlobalAllowlisted || $isGlobalBlocklisted || $isSiteAllowlisted || $isSiteBlocklisted || ! $hasActiveTemporaryBlock) ? '' : date('m-d H:i', $blockedUntilTs),
@@ -973,6 +1428,18 @@ class SiteSecurity
             'is_site_blocklisted' => $isSiteBlocklisted,
             'site_policy_label' => $policyLabel,
         ];
+    }
+
+    protected function compactSecurityText(string $value, int $limit, string $fallback): string
+    {
+        $plain = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+        if ($plain === '') {
+            return $fallback;
+        }
+
+        return mb_strlen($plain) > $limit
+            ? mb_substr($plain, 0, $limit - 1).'…'
+            : $plain;
     }
 
     protected function enrichRule(array $rule): array

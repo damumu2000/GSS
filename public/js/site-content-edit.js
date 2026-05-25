@@ -1946,6 +1946,13 @@ function createWordImportInput(editor) {
             return;
         }
 
+        const name = typeof file.name === 'string' ? file.name.trim() : '';
+        const extension = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+        if (extension !== 'docx') {
+            openEditorNotice(editor, '仅支持导入 docx 文件，请先在 Word 或 WPS 中另存为 docx 后重试。', 'warning', 5000);
+            return;
+        }
+
         const formData = new FormData();
         formData.append('file', file);
 
@@ -2153,7 +2160,7 @@ tinymce.init({
         editor.ui.registry.addButton('wordImportCn', {
             icon: 'word-import',
             text: 'Word！',
-            tooltip: '导入 Word/WPS 内容（图文）',
+            tooltip: '导入 Word/docx 内容（图文）',
             onAction: () => wordImportInput.click(),
         });
         editor.ui.registry.addToggleButton('visualBlocksCn', {
