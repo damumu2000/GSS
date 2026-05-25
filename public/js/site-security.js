@@ -21,10 +21,13 @@
             var listRect = typeList.getBoundingClientRect();
             var panelStyles = window.getComputedStyle(typePanel);
             var bottomPadding = parseFloat(panelStyles.paddingBottom || '0') || 0;
-            var targetHeight = Math.floor(leftPanelHeight - (listRect.top - panelRect.top) - bottomPadding);
+            var viewportBottomGap = 24;
+            var viewportAvailableHeight = Math.floor(window.innerHeight - panelRect.top - viewportBottomGap);
+            var panelTargetHeight = Math.min(leftPanelHeight, viewportAvailableHeight);
+            var targetHeight = Math.floor(panelTargetHeight - (listRect.top - panelRect.top) - bottomPadding);
 
-            if (leftPanelHeight > 0) {
-                typePanel.style.height = leftPanelHeight + 'px';
+            if (panelTargetHeight > 0) {
+                typePanel.style.height = panelTargetHeight + 'px';
             } else {
                 typePanel.style.height = '';
             }
