@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
 use App\Support\FrontendContent;
+use App\Support\SiteFrontendUrl;
 use App\Support\SiteStorageUsage;
 use App\Support\SiteSecurity;
 use Illuminate\Contracts\View\View;
@@ -53,7 +54,7 @@ class DashboardController extends Controller
         $platformNoticeSiteKey = $this->platformSiteKey();
         $platformNoticeChannelUrl = $this->platformNoticeChannelUrl();
         $securitySummary = $this->siteSecurity->dashboardSummary((int) $currentSite->id);
-        $insights = $this->siteInsights((int) $currentSite->id, (int) $request->user()->id, $securitySummary);
+        $insights = $this->siteInsights($currentSite, (int) $request->user()->id, $securitySummary);
 
         $quickLinks = collect([
             ['code' => 'content.manage', 'label' => '文章管理', 'route' => 'admin.articles.index'],
@@ -105,8 +106,9 @@ class DashboardController extends Controller
         return response()->json($payload);
     }
 
-    private function siteInsights(int $siteId, int $userId, array $securitySummary): array
+    private function siteInsights(object $site, int $userId, array $securitySummary): array
     {
+        $siteId = (int) $site->id;
         $today = now('Asia/Shanghai')->startOfDay();
         $yesterday = $today->copy()->subDay();
         $sevenDaysAgo = $today->copy()->subDays(6);
@@ -189,6 +191,7 @@ class DashboardController extends Controller
             'channel_name' => (string) ($article->channel_name ?? '未分栏'),
             'status' => (string) $article->status,
             'view_count' => (int) $article->view_count,
+            'frontend_url' => SiteFrontendUrl::articleUrl($site, (int) $article->id),
             'bar_width' => max(10, (int) round(((int) $article->view_count / $articleMaxViews) * 100)),
         ])->all();
 
@@ -217,11 +220,36 @@ class DashboardController extends Controller
                 DB::raw("SUM(CASE WHEN contents.status = 'published' THEN 1 ELSE 0 END) AS published_count"),
             ]);
 
+        $authorIds = $topAuthorsRows
+            ->pluck('created_by')
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->values()
+            ->all();
+
+        $siteOperatorIds = empty($authorIds)
+            ? []
+            : DB::table('site_user_roles')
+                ->where('site_id', $siteId)
+                ->whereIn('user_id', $authorIds)
+                ->whereNotExists(function ($query): void {
+                    $query->selectRaw('1')
+                        ->from('platform_user_roles')
+                        ->whereColumn('platform_user_roles.user_id', 'site_user_roles.user_id');
+                })
+                ->pluck('user_id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+
         $authorMaxCount = max(1, (int) ($topAuthorsRows->max('total_count') ?? 0));
         $topAuthors = $topAuthorsRows->map(fn (object $author): array => [
+            'id' => (int) $author->created_by,
             'name' => (string) $author->author_name,
             'total_count' => (int) $author->total_count,
             'published_count' => (int) $author->published_count,
+            'edit_url' => in_array((int) $author->created_by, $siteOperatorIds, true)
+                ? route('admin.site-users.edit', ['user' => (int) $author->created_by])
+                : null,
             'bar_width' => max(10, (int) round(((int) $author->total_count / $authorMaxCount) * 100)),
         ])->all();
 

@@ -211,7 +211,7 @@
                         <div class="insight-rank-item">
                             <div class="insight-rank-no">{{ $index + 1 }}</div>
                             <div class="insight-rank-main" data-tooltip="{{ $article['title'] }}">
-                                <div class="insight-rank-title">{{ $article['title'] }}</div>
+                                <a class="insight-rank-title" href="{{ $article['frontend_url'] }}" target="_blank" rel="noopener">{{ $article['title'] }}</a>
                                 <div class="insight-rank-subtitle">{{ $article['channel_name'] }}</div>
                                 <div class="insight-rank-bar-track">
                                     <div class="insight-rank-bar insight-rank-bar--w-{{ max(10, min(100, (int) round($article['bar_width']))) }}"></div>
@@ -235,7 +235,11 @@
                         <div class="insight-rank-item">
                             <div class="insight-rank-no">{{ $index + 1 }}</div>
                             <div class="insight-rank-main">
-                                <div class="insight-rank-title">{{ $author['name'] }}</div>
+                                @if (! empty($author['edit_url']))
+                                    <a class="insight-rank-title" href="{{ $author['edit_url'] }}">{{ $author['name'] }}</a>
+                                @else
+                                    <div class="insight-rank-title">{{ $author['name'] }}</div>
+                                @endif
                                 <div class="insight-rank-subtitle">已发布 {{ $author['published_count'] }} 篇</div>
                                 <div class="insight-rank-bar-track">
                                     <div class="insight-rank-bar insight-rank-bar--w-{{ max(10, min(100, (int) round($author['bar_width']))) }}"></div>

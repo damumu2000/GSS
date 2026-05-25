@@ -18,7 +18,7 @@
             </div>
             <h1 class="theme-status-title">当前请求已被安全防护拦截</h1>
             <div class="theme-status-desc">
-                安护盾检测到当前请求命中了安全规则，为保护系统与数据安全，已阻止本次访问。
+                安护盾检测到当前请求存在异常，为保护系统与数据安全，已阻止本次访问。
             </div>
 
             <section class="theme-status-meta">
@@ -27,14 +27,8 @@
                         <span class="theme-status-meta-label">状态代码</span>
                         <span class="theme-status-meta-value">403</span>
                     </span>
-                    <span>
-                        <span class="theme-status-meta-label">拦截规则</span>
-                        <span class="theme-status-meta-value">{{ $blockedRule['name'] ?? '安护盾拦截' }}</span>
-                    </span>
-                </div>
-                <div class="theme-status-meta-item">
-                    <span class="theme-status-meta-label">请求路径</span>
-                    <span class="theme-status-meta-value">{{ $blockedPath ?? '/' }}</span>
+                    <span class="theme-status-meta-label">访问状态</span>
+                    <span class="theme-status-meta-value">已拦截</span>
                 </div>
             </section>
         </main>
