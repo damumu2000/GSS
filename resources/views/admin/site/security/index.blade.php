@@ -349,6 +349,7 @@
                                             <span class="security-event-chip {{ $event['risk_level'] === 'critical' ? 'is-risk-high' : (in_array($event['risk_level'], ['high'], true) ? 'is-risk-high' : 'is-risk-medium') }}">{{ $event['risk_label'] }}</span>
                                             <span class="security-event-chip">{{ $event['action_label'] }}</span>
                                             <span class="security-event-chip is-ip">IP {{ $event['client_ip'] }}</span>
+                                            <span class="security-event-chip">{{ $event['region_name'] ?? '未知来源' }}</span>
                                         </div>
                                         <div class="security-event-path">{{ $event['request_method'] }} · {{ $event['request_path'] }}</div>
                                     </article>
@@ -418,6 +419,7 @@
                                                 <div class="security-ip-address">{{ $ip['client_ip'] }}</div>
                                                 <span class="security-event-chip">{{ $ip['last_rule_label'] }}</span>
                                             </div>
+                                            <div class="security-ip-path">{{ $ip['region_name'] ?? '未知来源' }}</div>
                                             <div class="security-ip-path">{{ $ip['last_request_method'] }} · {{ $ip['last_request_path'] ?: '暂无路径记录' }}</div>
                                             <div class="security-ip-detail-grid">
                                                 <div class="security-ip-detail-block">

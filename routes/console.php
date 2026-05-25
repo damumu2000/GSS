@@ -2,6 +2,7 @@
 
 use App\Support\AttachmentUsageTracker;
 use App\Support\FrontendPageCache;
+use App\Support\IpRegionResolver;
 use App\Support\LegacyAspAccessSiteImporter;
 use App\Support\PromoItemExpiryManager;
 use Illuminate\Foundation\Inspiring;
@@ -126,6 +127,70 @@ Artisan::command('cms:import-legacy-asp {sourceDir : 旧站导出目录} {siteKe
 
     $this->info($execute ? '旧站导入完成。' : '旧站导入预检查完成。');
 })->purpose('将 ASP + Access 老站导出文件导入为当前系统的新站点');
+
+Artisan::command('cms:backfill-site-security-regions {--site= : 仅补指定站点ID} {--limit=500 : 每批处理数量}', function () {
+    $siteId = $this->option('site');
+    $resolvedSiteId = is_numeric($siteId) ? (int) $siteId : null;
+    $limit = max(50, (int) $this->option('limit'));
+    /** @var IpRegionResolver $resolver */
+    $resolver = app(IpRegionResolver::class);
+
+    $this->info('开始补齐安护盾 IP 归属地...');
+
+    $updatedEvents = 0;
+    do {
+        $query = DB::table('site_security_events')
+            ->where(function ($builder): void {
+                $builder->whereNull('region_name')
+                    ->orWhere('region_name', '');
+            })
+            ->whereNotNull('client_ip')
+            ->orderBy('id')
+            ->limit($limit);
+
+        if ($resolvedSiteId !== null) {
+            $query->where('site_id', $resolvedSiteId);
+        }
+
+        $rows = $query->get(['id', 'client_ip']);
+        foreach ($rows as $row) {
+            $regionName = $resolver->resolve((string) $row->client_ip);
+            DB::table('site_security_events')
+                ->where('id', (int) $row->id)
+                ->update(['region_name' => $regionName]);
+            $updatedEvents++;
+        }
+    } while ($rows->isNotEmpty());
+
+    $updatedIps = 0;
+    do {
+        $query = DB::table('site_security_ip_reputations')
+            ->where(function ($builder): void {
+                $builder->whereNull('region_name')
+                    ->orWhere('region_name', '');
+            })
+            ->whereNotNull('client_ip')
+            ->orderBy('id')
+            ->limit($limit);
+
+        if ($resolvedSiteId !== null) {
+            $query->where('site_id', $resolvedSiteId);
+        }
+
+        $rows = $query->get(['id', 'client_ip']);
+        foreach ($rows as $row) {
+            $regionName = $resolver->resolve((string) $row->client_ip);
+            DB::table('site_security_ip_reputations')
+                ->where('id', (int) $row->id)
+                ->update(['region_name' => $regionName]);
+            $updatedIps++;
+        }
+    } while ($rows->isNotEmpty());
+
+    $this->line('事件补齐：'.$updatedEvents.' 条');
+    $this->line('画像补齐：'.$updatedIps.' 条');
+    $this->info('安护盾 IP 归属地补齐完成。');
+})->purpose('补齐安护盾历史事件和 IP 画像的归属地');
 
 Schedule::command('cms:deactivate-expired-promos')
     ->everyMinute()

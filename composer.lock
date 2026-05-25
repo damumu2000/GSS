@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "332c6d29cafef585ed5f9aa44ad0d117",
+    "content-hash": "bf3651f7509631363f0f5b04009007e2",
     "packages": [
         {
             "name": "brick/math",
@@ -6249,6 +6249,42 @@
                 "source": "https://github.com/tinymce/tinymce-dist/tree/8.5.0"
             },
             "time": "2026-04-29T05:18:45+00:00"
+        },
+        {
+            "name": "topextend/ip2region",
+            "version": "1.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://gitee.com/topextend/ip2region.git",
+                "reference": "ac1e7eb8986f7602495384872d4e255a781a5852"
+            },
+            "require": {
+                "php": ">=5.4"
+            },
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "Ip2Region.php",
+                    "XdbSearcher.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Jarmin",
+                    "email": "edshop@qq.com",
+                    "homepage": "http://www.ladmin.cn"
+                }
+            ],
+            "description": "Ip2Region for PHP",
+            "homepage": "https://github.com/topextend/ip2region",
+            "keywords": [
+                "Ip2Region"
+            ],
+            "time": "2025-04-20T01:24:09+00:00"
         },
         {
             "name": "vlucas/phpdotenv",

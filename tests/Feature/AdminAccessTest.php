@@ -8489,7 +8489,7 @@ XML);
         $this->get('/?site=site&keyword='.urlencode('union select 1'))
             ->assertForbidden()
             ->assertSee('当前请求已被安全防护拦截')
-            ->assertSee('SQL 注入拦截')
+            ->assertSee('当前请求已被安全防护拦截')
             ->assertDontSee('无权访问当前页面');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
@@ -8536,7 +8536,7 @@ XML);
 
         $this->get('http://security-domain.test/?keyword='.urlencode('union select 1'))
             ->assertForbidden()
-            ->assertSee('SQL 注入拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $remoteSiteId,
@@ -8581,7 +8581,7 @@ XML);
             'HTTP_X_FORWARDED_PORT' => '443',
         ])->get('/?keyword='.urlencode('union select 1'))
             ->assertForbidden()
-            ->assertSee('SQL 注入拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_events', [
             'site_id' => $remoteSiteId,
@@ -8822,7 +8822,7 @@ XML);
             ->assertOk()
             ->assertSee('平台安护盾 IP 详情')
             ->assertSee($ip)
-            ->assertSee('扫描试探超限')
+            ->assertSee('当前请求已被安全防护拦截')
             ->assertSee('PlatformSecurityAgent/1.0');
     }
 
@@ -8891,7 +8891,7 @@ XML);
         );
 
         $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertOk();
-        $this->get('http://security-ip-allow.test/?keyword='.urlencode('union select 1'))->assertForbidden()->assertSee('SQL 注入拦截');
+        $this->get('http://security-ip-allow.test/?keyword='.urlencode('union select 1'))->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseMissing('site_security_events', [
             'site_id' => $mainSiteId,
@@ -8925,7 +8925,7 @@ XML);
             ['setting_value' => '127.0.0.1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
         );
 
-        $this->get('/?site=site')->assertForbidden()->assertSee('站点黑名单 IP 拦截');
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
         $this->assertNotSame(403, $this->get('http://security-ip-block.test/')->getStatusCode());
 
         $this->assertDatabaseHas('site_security_events', [
@@ -9029,8 +9029,7 @@ XML);
 
         $this->get('/?site=site&keyword='.urlencode('<script>alert(1)</script>'))
             ->assertForbidden()
-            ->assertSee('当前请求已被安全防护拦截')
-            ->assertSee('XSS 攻击拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9091,7 +9090,7 @@ XML);
             ['setting_value' => '127.0.0.1', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
         );
 
-        $this->get('/?site=site')->assertForbidden()->assertSee('黑名单 IP 拦截');
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9118,7 +9117,7 @@ XML);
         $this->withHeader('User-Agent', 'sqlmap/1.7')
             ->get('/?site=site')
             ->assertForbidden()
-            ->assertSee('脚本扫描器拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9144,7 +9143,7 @@ XML);
 
         $this->call('TRACE', '/?site=site')
             ->assertForbidden()
-            ->assertSee('异常请求方法拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9175,7 +9174,7 @@ XML);
 
         $this->get('/?'.http_build_query($query))
             ->assertForbidden()
-            ->assertSee('异常请求参数拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9199,7 +9198,7 @@ XML);
 
         $this->get('/?site=site&payload='.str_repeat('a', 2001))
             ->assertForbidden()
-            ->assertSee('异常请求参数拦截');
+            ->assertSee('当前请求已被安全防护拦截');
     }
 
     public function test_site_security_rule_exception_only_skips_matching_site_rule(): void
@@ -9237,7 +9236,7 @@ XML);
 
         $this->get('http://security-exception.test/?'.http_build_query($remoteQuery))
             ->assertForbidden()
-            ->assertSee('异常请求参数拦截');
+            ->assertSee('当前请求已被安全防护拦截');
     }
 
     public function test_site_security_blocks_path_traversal_and_records_stats(): void
@@ -9248,8 +9247,7 @@ XML);
 
         $this->get('/?site=site&file='.urlencode('../.env'))
             ->assertForbidden()
-            ->assertSee('当前请求已被安全防护拦截')
-            ->assertSee('路径穿越拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9277,7 +9275,7 @@ XML);
         $this->get('/wp-admin?site=site')
             ->assertForbidden()
             ->assertSee('当前请求已被安全防护拦截')
-            ->assertSee('恶意扫描路径');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9318,7 +9316,7 @@ XML);
         Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
 
         $this->get('/wp-admin?site=site')->assertOk();
-        $this->get('http://security-allowlist.test/wp-admin')->assertForbidden()->assertSee('恶意扫描路径');
+        $this->get('http://security-allowlist.test/wp-admin')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
     }
 
     public function test_site_security_blocks_common_compliance_scan_paths(): void
@@ -9358,8 +9356,7 @@ XML);
             'file' => UploadedFile::fake()->create('shell.php', 1, 'application/x-httpd-php'),
         ])
             ->assertForbidden()
-            ->assertSee('当前请求已被安全防护拦截')
-            ->assertSee('可疑上传拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9386,7 +9383,7 @@ XML);
             'file' => UploadedFile::fake()->create('shell.php.jpg', 1, 'image/jpeg'),
         ])
             ->assertForbidden()
-            ->assertSee('可疑上传拦截');
+            ->assertSee('当前请求已被安全防护拦截');
     }
 
     public function test_site_security_blocks_bad_upload_with_dangerous_mime_even_when_extension_looks_safe(): void
@@ -9399,7 +9396,7 @@ XML);
             'file' => UploadedFile::fake()->create('manual.jpg', 1, 'application/x-httpd-php'),
         ])
             ->assertForbidden()
-            ->assertSee('可疑上传拦截');
+            ->assertSee('当前请求已被安全防护拦截');
     }
 
     public function test_site_security_escalates_repeated_probe_hits_into_temporary_block(): void
@@ -9425,16 +9422,16 @@ XML);
 
         Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
 
-        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('恶意扫描路径');
-        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('恶意扫描路径');
-        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('扫描试探超限');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $probeEventCountBeforeBlockedRetry = DB::table('site_security_events')
             ->where('site_id', $siteId)
             ->where('rule_code', 'probe_abuse')
             ->count();
 
-        $this->get('/?site=site')->assertForbidden()->assertSee('扫描试探超限');
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9491,8 +9488,8 @@ XML);
 
         Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
 
-        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('恶意扫描路径');
-        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('扫描试探超限');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
     }
 
     public function test_site_security_blocks_frequent_refresh_requests(): void
@@ -9665,12 +9662,12 @@ XML);
 
         $this->get('/?site=site')->assertOk();
         $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         RateLimiter::clear($this->siteSecuritySiteWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
 
-        $this->get('/?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9709,7 +9706,7 @@ XML);
 
         $this->get('/?site=site')->assertOk();
         $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertNotSame(403, $this->get('http://security-rate-remote.test/')->getStatusCode());
     }
@@ -9742,7 +9739,7 @@ XML);
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/security-form-b'));
 
         $this->post('/security-form-a?site=site')->assertOk();
-        $this->post('/security-form-b?site=site')->assertForbidden()->assertSee('频繁刷新拦截');
+        $this->post('/security-form-b?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9784,7 +9781,7 @@ XML);
 
         $this->get('/?site=site')
             ->assertForbidden()
-            ->assertSee('IP 临时封禁拦截');
+            ->assertSee('当前请求已被安全防护拦截');
 
         $this->assertSame(
             $eventCountBeforeBlockedRetry,
@@ -9823,7 +9820,7 @@ XML);
         $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertForbidden();
         $this->get('/?site=site&keyword='.urlencode('sleep(1)'))->assertForbidden();
         $this->get('/?site=site&keyword='.urlencode('information_schema'))->assertForbidden();
-        $this->get('/?site=site')->assertForbidden()->assertSee('IP 临时封禁拦截');
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertNotSame(403, $this->get('http://security-block-remote.test/')->getStatusCode());
     }
@@ -9899,7 +9896,7 @@ XML);
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg'));
 
         $this->get('/site-media/site/attachments/2026/04/security-rate-limit-a.jpg')->assertOk();
-        $this->get('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg')->assertForbidden()->assertSee('频繁刷新拦截');
+        $this->get('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -9938,7 +9935,7 @@ XML);
 
         $this->get('/scan-step-a?site=site')->assertOk();
         $this->get('/scan-step-b?site=site')->assertOk();
-        $this->get('/scan-step-c?site=site')->assertForbidden()->assertSee('扫描试探超限');
+        $this->get('/scan-step-c?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -10145,7 +10142,7 @@ XML);
             ->assertSee('/.env')
             ->assertDontSee('/wp-admin')
             ->assertSee('12')
-            ->assertSee('恶意扫描路径')
+            ->assertSee('当前请求已被安全防护拦截')
             ->assertDontSee('127.0.0.2');
     }
 

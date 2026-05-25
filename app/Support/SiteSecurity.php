@@ -17,7 +17,11 @@ class SiteSecurity
 
     public function __construct(
         protected SystemSettings $systemSettings,
+        protected ?IpRegionResolver $ipRegionResolver = null,
     ) {
+        $this->ipRegionResolver ??= class_exists(IpRegionResolver::class)
+            ? app(IpRegionResolver::class)
+            : new IpRegionResolver();
     }
 
     public function protectionEnabled(): bool
@@ -344,6 +348,7 @@ class SiteSecurity
                 'site_security_events.rule_code',
                 'site_security_events.rule_name',
                 'site_security_events.client_ip',
+                'site_security_events.region_name',
                 'site_security_events.request_path',
                 'site_security_events.created_at',
             ])
@@ -355,6 +360,7 @@ class SiteSecurity
                     'site_name' => (string) ($row->site_name ?? ''),
                     'rule_label' => (string) ($profile['category_label'] ?? '异常请求'),
                     'client_ip' => (string) ($row->client_ip ?? '--'),
+                    'region_name' => trim((string) ($row->region_name ?? '')) ?: $this->resolveAttackRegionLabel((string) ($row->client_ip ?? '')),
                     'request_path' => (string) ($row->request_path ?? '/'),
                     'created_at_label' => $row->created_at ? date('m-d H:i', strtotime((string) $row->created_at)) : '--',
                 ];
@@ -870,7 +876,7 @@ class SiteSecurity
             ->orderByDesc('created_at')
             ->limit(20)
             ->get()
-            ->map(function (object $event): array {
+            ->map(function (object $event) use ($clientIp): array {
                 $profile = $this->eventProfile((string) ($event->rule_code ?? ''), (string) ($event->rule_name ?? ''));
 
                 return [
@@ -881,6 +887,7 @@ class SiteSecurity
                     'rule_label' => (string) ($profile['category_label'] ?? '异常请求'),
                     'risk_level_label' => $this->riskLevelLabel((string) ($event->risk_level ?? 'medium')),
                     'action_label' => $this->actionLabel((string) ($event->action ?? 'block')),
+                    'region_name' => trim((string) ($event->region_name ?? '')) ?: $this->resolveAttackRegionLabel($clientIp),
                     'request_query' => (string) ($event->request_query ?? ''),
                     'referer' => (string) ($event->referer ?? ''),
                     'user_agent' => (string) ($event->user_agent ?? ''),
@@ -897,6 +904,7 @@ class SiteSecurity
             ? $this->mapSuspiciousIpRow($row, $globalAllowlist, $globalBlocklist, $siteAllowlist, $siteBlocklist)
             : [
                 'client_ip' => $clientIp,
+                'region_name' => $this->resolveAttackRegionLabel($clientIp),
                 'hit_count' => count($recentEvents),
                 'high_risk_count' => collect($recentEvents)->whereIn('risk_level_label', ['高危', '严重'])->count(),
                 'last_rule_code' => (string) ($recentEvents[0]['rule_code'] ?? ''),
@@ -947,6 +955,7 @@ class SiteSecurity
                     'request_path' => (string) ($event->request_path ?? ''),
                     'request_method' => strtoupper((string) ($event->request_method ?? 'GET')),
                     'client_ip' => (string) ($event->client_ip ?? '--'),
+                    'region_name' => trim((string) ($event->region_name ?? '')) ?: $this->resolveAttackRegionLabel((string) ($event->client_ip ?? '')),
                     'created_at_label' => $event->created_at ? date('m-d H:i', strtotime((string) $event->created_at)) : '--',
                     'created_at_ts' => $event->created_at ? strtotime((string) $event->created_at) : 0,
                     'category_label' => (string) ($profile['category_label'] ?? '异常请求'),
@@ -994,7 +1003,7 @@ class SiteSecurity
             ->whereIn('ip_hash', $rows->pluck('ip_hash')->filter()->unique()->values()->all())
             ->orderByDesc('created_at')
             ->orderByDesc('id')
-            ->get(['ip_hash', 'request_method', 'request_query', 'user_agent', 'referer', 'created_at'])
+            ->get(['ip_hash', 'request_method', 'request_query', 'user_agent', 'referer', 'region_name', 'created_at'])
             ->groupBy('ip_hash')
             ->map(fn (Collection $events): object => $events->first())
             ->all();
@@ -1235,19 +1244,20 @@ class SiteSecurity
         $existingRow = DB::table('site_security_ip_reputations')
             ->where('site_id', $siteId)
             ->where('ip_hash', $ipHash)
-            ->first(['last_request_path', 'last_rule_code', 'last_seen_at']);
+            ->first(['last_request_path', 'last_rule_code', 'last_seen_at', 'region_name']);
 
         $latestEvent = DB::table('site_security_events')
             ->where('site_id', $siteId)
             ->where('ip_hash', $ipHash)
             ->orderByDesc('created_at')
             ->orderByDesc('id')
-            ->first(['rule_code', 'request_path', 'created_at']);
+            ->first(['rule_code', 'request_path', 'created_at', 'region_name']);
 
         if (! $latestEvent) {
             if ($this->shouldPersistPolicyOnlyReputation($siteId, $clientIp)) {
                 $payload = [
                     'client_ip' => $clientIp,
+                    'region_name' => trim((string) ($existingRow?->region_name ?? '')) ?: $this->resolveAttackRegionLabel($clientIp),
                     'hit_count' => 0,
                     'high_risk_count' => 0,
                     'last_rule_code' => '',
@@ -1300,6 +1310,7 @@ class SiteSecurity
 
         $payload = [
             'client_ip' => $clientIp,
+            'region_name' => trim((string) ($latestEvent->region_name ?? '')) ?: $this->resolveAttackRegionLabel($clientIp),
             'hit_count' => $hitCount,
             'high_risk_count' => $highRiskCount,
             'last_rule_code' => (string) ($latestEvent->rule_code ?? ''),
@@ -1407,6 +1418,7 @@ class SiteSecurity
 
         return [
             'client_ip' => $clientIp !== '' ? $clientIp : '--',
+            'region_name' => trim((string) ($row->region_name ?? '')) ?: trim((string) ($latestEvent?->region_name ?? '')) ?: $this->resolveAttackRegionLabel($clientIp),
             'hit_count' => (int) ($row->hit_count ?? 0),
             'high_risk_count' => (int) ($row->high_risk_count ?? 0),
             'last_rule_code' => $lastRuleCode,
@@ -1585,6 +1597,7 @@ class SiteSecurity
 
         $values = [
             'client_ip' => (string) $ip,
+            'region_name' => $this->resolveAttackRegionLabel((string) $ip),
             'hit_count' => ((int) ($existing->hit_count ?? 0)) + 1,
             'high_risk_count' => ((int) ($existing->high_risk_count ?? 0)) + ($isHighRisk ? 1 : 0),
             'last_rule_code' => $code,
@@ -2613,21 +2626,7 @@ class SiteSecurity
 
     protected function resolveAttackRegionLabel(string $ip): string
     {
-        $ip = trim($ip);
-
-        if ($ip === '') {
-            return '未知来源';
-        }
-
-        if ($ip === '127.0.0.1' || $ip === '::1') {
-            return '本地测试环境';
-        }
-
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            return '内网来源';
-        }
-
-        return '公网来源';
+        return $this->ipRegionResolver->resolve($ip);
     }
 
     protected function pruneEvents(int $siteId): void

@@ -22,7 +22,7 @@
                     <div class="security-card-label">来源 IP</div>
                 </div>
                 <div class="security-card-value security-card-value--ip">{{ $detail['client_ip'] }}</div>
-                <div class="security-card-note">当前查看的异常来源。</div>
+                <div class="security-card-note">{{ $detail['region_name'] ?? '未知来源' }}</div>
             </article>
             <article class="security-card">
                 <div class="security-card-top">
@@ -49,6 +49,10 @@
 
         <section class="security-panel security-detail-panel">
             <div class="security-detail-summary">
+                <div class="security-detail-summary-item">
+                    <div class="security-detail-label">IP 位置</div>
+                    <div class="security-detail-value">{{ $detail['region_name'] ?? '未知来源' }}</div>
+                </div>
                 <div class="security-detail-summary-item">
                     <div class="security-detail-label">最近命中规则</div>
                     <div class="security-detail-value">{{ $detail['last_rule_label'] }}</div>
@@ -77,6 +81,7 @@
                         <div class="security-detail-event-meta">
                             <span class="security-event-chip {{ in_array($event['risk_level_label'], ['高危', '严重'], true) ? 'is-risk-high' : 'is-risk-medium' }}">{{ $event['risk_level_label'] }}</span>
                             <span class="security-event-chip">{{ $event['action_label'] }}</span>
+                            <span class="security-event-chip">{{ $event['region_name'] ?? '未知来源' }}</span>
                             <span>{{ $event['request_method'] ?: 'GET' }}</span>
                             <span>{{ $event['request_path'] ?: '/' }}</span>
                         </div>

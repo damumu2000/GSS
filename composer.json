@@ -10,7 +10,8 @@
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
         "phpoffice/phpspreadsheet": "^5.7",
-        "tinymce/tinymce": "^8.4"
+        "tinymce/tinymce": "^8.4",
+        "topextend/ip2region": "^1.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

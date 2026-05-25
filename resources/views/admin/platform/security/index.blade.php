@@ -97,6 +97,7 @@
                     <div class="platform-security-event-meta">
                         <span>{{ $event['site_name'] }}</span>
                         <a class="platform-security-event-link" href="{{ route('admin.platform.security.ip-detail', ['site_id' => $event['site_id'], 'client_ip' => $event['client_ip']]) }}">{{ $event['client_ip'] }}</a>
+                        <span>{{ $event['region_name'] ?? '未知来源' }}</span>
                         <span>{{ $event['request_path'] }}</span>
                     </div>
                 </article>
