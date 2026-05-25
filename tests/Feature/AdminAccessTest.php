@@ -3357,6 +3357,72 @@ XML);
         ]);
     }
 
+    public function test_guestbook_frontend_routes_are_not_treated_as_rapid_path_scan(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => $now]);
+        $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => $now, 'updated_at' => $now],
+        );
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.guestbook.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now],
+        );
+
+        foreach ([
+            'security.scan_probe_enabled' => '1',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '3',
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '100',
+            'security.rate_limit_sensitive_max_requests' => '20',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        DB::table('module_guestbook_messages')->insert([
+            'site_id' => $siteId,
+            'display_no' => 100001,
+            'name' => '留言老师',
+            'phone' => '13800138000',
+            'content' => '留言内容测试',
+            'status' => 'replied',
+            'is_read' => 1,
+            'reply_content' => '留言回复测试',
+            'replied_at' => $now,
+            'replied_by' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        Cache::forget($this->siteSecurityPathScanKey());
+        RateLimiter::clear($this->siteSecurityProbeBlockKey());
+
+        $this->get(route('site.guestbook.index', ['site' => 'site']))->assertOk();
+        $this->get(route('site.guestbook.create', ['site' => 'site']))->assertOk();
+        $this->get(route('site.guestbook.captcha', ['site' => 'site']))->assertOk();
+        $this->get(route('site.guestbook.show', ['site' => 'site', 'displayNo' => 100001]))->assertOk();
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'probe_abuse',
+        ]);
+    }
+
     public function test_payroll_settings_can_be_updated_without_callback_url(): void
     {
         $this->seed(DatabaseSeeder::class);

@@ -1908,14 +1908,20 @@ class SiteSecurity
             return false;
         }
 
+        $routeName = $request->route()?->getName();
+
+        if (is_string($routeName) && $routeName !== '') {
+            if (str_starts_with($routeName, 'site.') || in_array($routeName, ['login', 'login.captcha'], true)) {
+                return true;
+            }
+        }
+
         $path = trim((string) $request->path(), '/');
 
         return $path === ''
             || str_starts_with($path, 'cat/')
             || str_starts_with($path, 'article/')
-            || str_starts_with($path, 'page/')
-            || $path === 'payroll'
-            || str_starts_with($path, 'payroll/');
+            || str_starts_with($path, 'page/');
     }
 
     protected function isSensitiveRequest(Request $request): bool
