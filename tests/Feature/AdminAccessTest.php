@@ -3272,6 +3272,91 @@ XML);
             ->assertSee('工资条');
     }
 
+    public function test_payroll_password_flow_is_not_treated_as_rapid_path_scan(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+
+        DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => $now]);
+        $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        DB::table('site_module_bindings')->updateOrInsert(
+            ['site_id' => $siteId, 'module_id' => $moduleId],
+            ['created_at' => $now, 'updated_at' => $now],
+        );
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'module.payroll.enabled'],
+            ['setting_value' => '1', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now],
+        );
+
+        foreach ([
+            'security.scan_probe_enabled' => '1',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '3',
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '100',
+            'security.rate_limit_sensitive_max_requests' => '20',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        DB::table('module_payroll_employees')->insert([
+            'site_id' => $siteId,
+            'wechat_openid' => 'wx-payroll-scan-user',
+            'wechat_unionid' => '',
+            'wechat_nickname' => '工资测试用户',
+            'wechat_avatar' => '',
+            'name' => '工资测试老师',
+            'mobile' => '13800138112',
+            'status' => 'approved',
+            'password_enabled' => 1,
+            'password_hash' => Hash::make('123456'),
+            'approved_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        Cache::forget($this->siteSecurityPathScanKey());
+        RateLimiter::clear($this->siteSecurityProbeBlockKey());
+
+        $session = [
+            'payroll.identity.'.$siteId => [
+                'openid' => 'wx-payroll-scan-user',
+                'unionid' => '',
+                'nickname' => '工资测试用户',
+                'avatar' => '',
+            ],
+        ];
+
+        $this->withSession($session)
+            ->get(route('site.payroll.index', ['site' => 'site']))
+            ->assertRedirect(route('site.payroll.password', ['site' => 'site']));
+
+        $this->withSession($session)
+            ->get(route('site.payroll.password', ['site' => 'site']))
+            ->assertOk()
+            ->assertSee('请输入密码');
+
+        $this->withSession($session)
+            ->post(route('site.payroll.password.unlock', ['site' => 'site']), ['password' => '123456'])
+            ->assertRedirect(route('site.payroll.index', ['site' => 'site']));
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'probe_abuse',
+            'request_path' => '/payroll/password/unlock',
+        ]);
+    }
+
     public function test_payroll_settings_can_be_updated_without_callback_url(): void
     {
         $this->seed(DatabaseSeeder::class);

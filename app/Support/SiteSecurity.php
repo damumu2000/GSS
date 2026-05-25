@@ -1913,7 +1913,9 @@ class SiteSecurity
         return $path === ''
             || str_starts_with($path, 'cat/')
             || str_starts_with($path, 'article/')
-            || str_starts_with($path, 'page/');
+            || str_starts_with($path, 'page/')
+            || $path === 'payroll'
+            || str_starts_with($path, 'payroll/');
     }
 
     protected function isSensitiveRequest(Request $request): bool
