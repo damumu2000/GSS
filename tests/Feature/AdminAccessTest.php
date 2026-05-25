@@ -9429,11 +9429,16 @@ XML);
         $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('恶意扫描路径');
         $this->get('/wp-admin?site=site')->assertForbidden()->assertSee('扫描试探超限');
 
+        $probeEventCountBeforeBlockedRetry = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('rule_code', 'probe_abuse')
+            ->count();
+
         $this->get('/?site=site')->assertForbidden()->assertSee('扫描试探超限');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
-            'blocked_probe_abuse' => 2,
+            'blocked_probe_abuse' => 1,
         ]);
 
         $this->assertDatabaseHas('site_security_events', [
@@ -9441,6 +9446,14 @@ XML);
             'rule_code' => 'probe_abuse',
             'rule_name' => '扫描试探超限',
         ]);
+
+        $this->assertSame(
+            $probeEventCountBeforeBlockedRetry,
+            DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->where('rule_code', 'probe_abuse')
+                ->count()
+        );
 
         $this->travel(61)->seconds();
 
@@ -9765,9 +9778,20 @@ XML);
             'high_risk_count' => 3,
         ]);
 
+        $eventCountBeforeBlockedRetry = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->count();
+
         $this->get('/?site=site')
             ->assertForbidden()
             ->assertSee('IP 临时封禁拦截');
+
+        $this->assertSame(
+            $eventCountBeforeBlockedRetry,
+            DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->count()
+        );
     }
 
     public function test_site_security_temporary_ip_block_is_scoped_per_site(): void

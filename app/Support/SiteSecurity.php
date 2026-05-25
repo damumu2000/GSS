@@ -215,6 +215,10 @@ class SiteSecurity
 
     public function recordBlocked(object $site, array $rule, Request $request): void
     {
+        if (($rule['_skip_record'] ?? false) === true) {
+            return;
+        }
+
         $siteId = (int) $site->id;
         $now = now('Asia/Shanghai');
         $date = $now->toDateString();
@@ -1068,6 +1072,7 @@ class SiteSecurity
             'name' => 'IP 临时封禁拦截',
             'risk_level' => 'critical',
             'action' => 'temporary_block',
+            '_skip_record' => true,
         ];
     }
 
@@ -1862,7 +1867,7 @@ class SiteSecurity
         $blockKey = $this->probeBlockKey($siteId, $request);
 
         if (RateLimiter::tooManyAttempts($blockKey, 1)) {
-            return ['code' => 'probe_abuse', 'name' => '扫描试探超限'];
+            return ['code' => 'probe_abuse', 'name' => '扫描试探超限', '_skip_record' => true];
         }
 
         return null;
