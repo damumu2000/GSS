@@ -11,20 +11,28 @@
             }
 
             if (!mediaQuery.matches) {
-                typeList.style.maxHeight = '';
+                typePanel.style.height = '';
+                typeList.style.height = '';
                 return;
             }
 
+            var leftPanelHeight = Math.floor(leftPanel.getBoundingClientRect().height);
             var panelRect = typePanel.getBoundingClientRect();
             var listRect = typeList.getBoundingClientRect();
             var panelStyles = window.getComputedStyle(typePanel);
             var bottomPadding = parseFloat(panelStyles.paddingBottom || '0') || 0;
-            var targetHeight = Math.floor(leftPanel.getBoundingClientRect().height - (listRect.top - panelRect.top) - bottomPadding);
+            var targetHeight = Math.floor(leftPanelHeight - (listRect.top - panelRect.top) - bottomPadding);
+
+            if (leftPanelHeight > 0) {
+                typePanel.style.height = leftPanelHeight + 'px';
+            } else {
+                typePanel.style.height = '';
+            }
 
             if (targetHeight > 160) {
-                typeList.style.maxHeight = targetHeight + 'px';
+                typeList.style.height = targetHeight + 'px';
             } else {
-                typeList.style.maxHeight = '';
+                typeList.style.height = '';
             }
         };
 
