@@ -1612,9 +1612,9 @@ class ContentController extends Controller
 
         if ($hasFile) {
             $extension = strtolower((string) ($validated['file']->getClientOriginalExtension() ?: $validated['file']->extension() ?: ''));
-            if (! in_array($extension, ['docx', 'doc', 'wps'], true)) {
+            if ($extension !== 'docx') {
                 return response()->json([
-                    'message' => '仅支持导入 docx、doc、wps 文件。',
+                    'message' => '仅支持导入 docx 文件，请先在 Word 或 WPS 中另存为 docx 后重试。',
                 ], 422);
             }
         }

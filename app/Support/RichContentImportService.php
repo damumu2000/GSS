@@ -6,9 +6,7 @@ use DOMDocument;
 use DOMElement;
 use DOMXPath;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Str;
 use RuntimeException;
-use Symfony\Component\Process\Process;
 
 class RichContentImportService
 {
@@ -54,39 +52,17 @@ class RichContentImportService
     public function importFromOfficeFile(UploadedFile $file): array
     {
         $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension() ?: ''));
-        if (! in_array($extension, ['docx', 'doc', 'wps'], true)) {
-            throw new RuntimeException('仅支持导入 docx、doc、wps 文件。');
+        if ($extension !== 'docx') {
+            throw new RuntimeException('仅支持导入 docx 文件，请先在 Word 或 WPS 中另存为 docx 后重试。');
         }
 
-        $warnings = [];
         $sourcePath = (string) $file->getRealPath();
         if ($sourcePath === '' || ! is_file($sourcePath)) {
             throw new RuntimeException('读取上传文件失败，请重新选择文件。');
         }
 
-        $cleanupPaths = [];
-        $cleanupDirs = [];
-        $docxPath = $sourcePath;
-
-        if ($extension !== 'docx') {
-            [$convertedPath, $convertedDir] = $this->convertOfficeFileToDocx($sourcePath, $extension);
-            $cleanupPaths[] = $convertedPath;
-            $cleanupDirs[] = $convertedDir;
-            $docxPath = $convertedPath;
-            $warnings[] = '当前文件已通过兼容模式转换为 docx 后导入，复杂格式可能有细微差异。';
-        }
-
-        try {
-            $this->resetDocxImageCounters();
-            $html = $this->buildHtmlFromDocx($docxPath);
-        } finally {
-            foreach ($cleanupPaths as $path) {
-                @unlink($path);
-            }
-            foreach ($cleanupDirs as $dir) {
-                $this->deleteDirectory($dir);
-            }
-        }
+        $this->resetDocxImageCounters();
+        $html = $this->buildHtmlFromDocx($sourcePath);
 
         $sanitized = ContentHtmlSanitizer::sanitize($html);
         $imageCount = $this->countImageNodes($sanitized);
@@ -97,7 +73,7 @@ class RichContentImportService
 
         return [
             'html' => $sanitized,
-            'warnings' => $warnings,
+            'warnings' => [],
             'image_count' => $imageCount,
             'image_limit' => self::MAX_IMAGE_COUNT,
         ];
@@ -130,71 +106,6 @@ class RichContentImportService
         }
 
         return $root->getElementsByTagName('img')->length;
-    }
-
-    /**
-     * @return array{0:string,1:string}
-     */
-    protected function convertOfficeFileToDocx(string $sourcePath, string $sourceExt): array
-    {
-        $officeBinary = $this->detectLibreOfficeBinary();
-        if ($officeBinary === null) {
-            throw new RuntimeException('服务器未安装 LibreOffice，当前仅可直接导入 docx。请先将文件另存为 docx 后重试。');
-        }
-
-        $tempDir = storage_path('app/tmp/office-import-'.Str::uuid()->toString());
-        if (! is_dir($tempDir) && ! @mkdir($tempDir, 0775, true) && ! is_dir($tempDir)) {
-            throw new RuntimeException('创建临时目录失败，无法导入该文件。');
-        }
-
-        $targetStem = pathinfo((string) basename($sourcePath), PATHINFO_FILENAME);
-        $targetPath = $tempDir.DIRECTORY_SEPARATOR.$targetStem.'.docx';
-
-        $process = new Process([
-            $officeBinary,
-            '--headless',
-            '--convert-to',
-            'docx',
-            '--outdir',
-            $tempDir,
-            $sourcePath,
-        ]);
-        $process->setTimeout(25);
-        $process->run();
-
-        if (! $process->isSuccessful() || ! is_file($targetPath)) {
-            $this->deleteDirectory($tempDir);
-
-            throw new RuntimeException(sprintf(
-                '%s 文件转换失败，请优先另存为 docx 后重试。',
-                strtoupper($sourceExt)
-            ));
-        }
-
-        return [$targetPath, $tempDir];
-    }
-
-    protected function detectLibreOfficeBinary(): ?string
-    {
-        foreach (['soffice', '/usr/bin/soffice', '/usr/local/bin/soffice'] as $candidate) {
-            if (str_starts_with($candidate, '/')) {
-                if (is_file($candidate) && is_executable($candidate)) {
-                    return $candidate;
-                }
-                continue;
-            }
-
-            if (! function_exists('shell_exec')) {
-                continue;
-            }
-
-            $resolved = trim((string) @\shell_exec('command -v '.escapeshellarg($candidate).' 2>/dev/null'));
-            if ($resolved !== '' && is_file($resolved) && is_executable($resolved)) {
-                return $resolved;
-            }
-        }
-
-        return null;
     }
 
     protected function buildHtmlFromDocx(string $docxPath): string

@@ -1936,7 +1936,7 @@ async function importRichContent(editor, payload) {
 function createWordImportInput(editor) {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.docx,.doc,.wps';
+    input.accept = '.docx';
     input.hidden = true;
     input.addEventListener('change', async () => {
         const file = input.files?.[0];
