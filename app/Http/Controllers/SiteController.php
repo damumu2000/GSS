@@ -539,7 +539,16 @@ class SiteController extends Controller
 
         if ($host !== '' && ! in_array($host, ['127.0.0.1', 'localhost'], true)) {
             $cacheKey = $this->themeAssetBaseCacheKey($host);
-            $cachedBase = Cache::get($cacheKey);
+            $cachedBase = null;
+
+            try {
+                $cachedBase = Cache::get($cacheKey);
+            } catch (\Throwable $exception) {
+                Log::warning('Theme asset base cache read failed.', [
+                    'host' => $host,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             if (is_string($cachedBase) && $cachedBase !== '') {
                 return $cachedBase;
@@ -557,7 +566,16 @@ class SiteController extends Controller
             }
 
             $assetBase = SitePath::rootRelative(trim($siteKey)).'/theme';
-            Cache::put($cacheKey, $assetBase, now()->addSeconds(self::THEME_ASSET_BASE_CACHE_TTL_SECONDS));
+
+            try {
+                Cache::put($cacheKey, $assetBase, now()->addSeconds(self::THEME_ASSET_BASE_CACHE_TTL_SECONDS));
+            } catch (\Throwable $exception) {
+                Log::warning('Theme asset base cache write failed.', [
+                    'host' => $host,
+                    'site_key' => trim($siteKey),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             return $assetBase;
         }
@@ -572,7 +590,17 @@ class SiteController extends Controller
         }
 
         $cacheKey = $this->themeAssetBaseCacheKey('local', $siteKey);
-        $cachedBase = Cache::get($cacheKey);
+        $cachedBase = null;
+
+        try {
+            $cachedBase = Cache::get($cacheKey);
+        } catch (\Throwable $exception) {
+            Log::warning('Theme asset base cache read failed.', [
+                'host' => 'local',
+                'site_key' => $siteKey,
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
         if (is_string($cachedBase) && $cachedBase !== '') {
             return $cachedBase;
@@ -588,7 +616,16 @@ class SiteController extends Controller
         }
 
         $assetBase = SitePath::rootRelative(trim($resolvedSiteKey)).'/theme';
-        Cache::put($cacheKey, $assetBase, now()->addSeconds(self::THEME_ASSET_BASE_CACHE_TTL_SECONDS));
+
+        try {
+            Cache::put($cacheKey, $assetBase, now()->addSeconds(self::THEME_ASSET_BASE_CACHE_TTL_SECONDS));
+        } catch (\Throwable $exception) {
+            Log::warning('Theme asset base cache write failed.', [
+                'host' => 'local',
+                'site_key' => trim($resolvedSiteKey),
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
         return $assetBase;
     }

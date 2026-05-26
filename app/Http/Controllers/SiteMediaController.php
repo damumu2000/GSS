@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SiteMediaController extends Controller
@@ -68,7 +69,16 @@ class SiteMediaController extends Controller
 
         if ($host !== '' && ! in_array($host, ['127.0.0.1', 'localhost'], true)) {
             $cacheKey = $this->attachmentBaseCacheKey($host);
-            $cachedBase = Cache::get($cacheKey);
+            $cachedBase = null;
+
+            try {
+                $cachedBase = Cache::get($cacheKey);
+            } catch (\Throwable $exception) {
+                Log::warning('Attachment base cache read failed.', [
+                    'host' => $host,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             if (is_string($cachedBase) && $cachedBase !== '') {
                 return $cachedBase;
@@ -83,7 +93,16 @@ class SiteMediaController extends Controller
 
             if (is_string($siteKey) && trim($siteKey) !== '') {
                 $attachmentBase = SitePath::mediaRelative(trim($siteKey), 'attachments');
-                Cache::put($cacheKey, $attachmentBase, now()->addSeconds(self::ATTACHMENT_BASE_CACHE_TTL_SECONDS));
+
+                try {
+                    Cache::put($cacheKey, $attachmentBase, now()->addSeconds(self::ATTACHMENT_BASE_CACHE_TTL_SECONDS));
+                } catch (\Throwable $exception) {
+                    Log::warning('Attachment base cache write failed.', [
+                        'host' => $host,
+                        'site_key' => trim($siteKey),
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
 
                 return $attachmentBase;
             }
@@ -100,7 +119,17 @@ class SiteMediaController extends Controller
         }
 
         $cacheKey = $this->attachmentBaseCacheKey('local', $siteKey);
-        $cachedBase = Cache::get($cacheKey);
+        $cachedBase = null;
+
+        try {
+            $cachedBase = Cache::get($cacheKey);
+        } catch (\Throwable $exception) {
+            Log::warning('Attachment base cache read failed.', [
+                'host' => 'local',
+                'site_key' => $siteKey,
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
         if (is_string($cachedBase) && $cachedBase !== '') {
             return $cachedBase;
@@ -116,7 +145,16 @@ class SiteMediaController extends Controller
         }
 
         $attachmentBase = SitePath::mediaRelative($siteKey, 'attachments');
-        Cache::put($cacheKey, $attachmentBase, now()->addSeconds(self::ATTACHMENT_BASE_CACHE_TTL_SECONDS));
+
+        try {
+            Cache::put($cacheKey, $attachmentBase, now()->addSeconds(self::ATTACHMENT_BASE_CACHE_TTL_SECONDS));
+        } catch (\Throwable $exception) {
+            Log::warning('Attachment base cache write failed.', [
+                'host' => 'local',
+                'site_key' => $siteKey,
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
         return $attachmentBase;
     }
