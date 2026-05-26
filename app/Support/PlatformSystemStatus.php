@@ -3,15 +3,16 @@
 namespace App\Support;
 
 use App\Support\SystemChecks\MailQueueHealthCheck;
+use App\Support\SystemChecks\PerformanceCacheHealthCheck;
 use App\Support\SystemChecks\StaticVendorHealthCheck;
 use App\Support\SystemChecks\StaticVendorManager;
-use Illuminate\Support\Facades\Cache;
 
 class PlatformSystemStatus
 {
     public function __construct(
         protected SystemSettings $systemSettings,
         protected MailQueueHealthCheck $mailQueueHealthCheck,
+        protected PerformanceCacheHealthCheck $performanceCacheHealthCheck,
         protected StaticVendorHealthCheck $staticVendorHealthCheck,
         protected StaticVendorManager $staticVendorManager,
     ) {
@@ -29,7 +30,7 @@ class PlatformSystemStatus
                 $this->laravelVersionStatusItem(),
                 $this->jqueryVersionStatusItem(),
                 $this->opcacheStatusItem(),
-                $this->frontendPageCacheStatusItem(),
+                $this->redisCacheStatusItem(),
                 $this->imageProcessingStatusItem(),
             ],
         ];
@@ -198,57 +199,23 @@ class PlatformSystemStatus
     /**
      * @return array<string, string>
      */
-    protected function frontendPageCacheStatusItem(): array
+    protected function redisCacheStatusItem(): array
     {
-        $enabled = FrontendPageCache::enabled();
-        $ttl = FrontendPageCache::ttl();
-        $store = (string) config('cache.default', 'file');
-        $driver = (string) config("cache.stores.{$store}.driver", $store);
-
-        if (! $enabled || $ttl <= 0) {
-            return [
-                'title' => '前台整页缓存',
-                'state' => '未启用',
-                'status_class' => 'draft',
-                'meta' => '缓存驱动：'.$driver."\n".'TTL：'.$ttl.' 秒',
-                'detail' => '当前不会缓存前台页面。需要启用时请配置 FRONTEND_PAGE_CACHE_ENABLED=true。',
-                'action_url' => route('admin.platform.system-checks.index'),
-            ];
-        }
-
-        try {
-            Cache::put('frontend-page-cache:health-check', 'ok', 30);
-            $writable = Cache::get('frontend-page-cache:health-check') === 'ok';
-        } catch (\Throwable $exception) {
-            $writable = false;
-            $message = $exception->getMessage();
-        }
-
-        $fileCachePath = $driver === 'file'
-            ? (string) config("cache.stores.{$store}.path", storage_path('framework/cache/data'))
-            : '';
-
-        if (! $writable) {
-            return [
-                'title' => '前台整页缓存',
-                'state' => '异常',
-                'status_class' => 'draft',
-                'meta' => '缓存驱动：'.$driver."\n".'TTL：'.$ttl.' 秒',
-                'detail' => $driver === 'file'
-                    ? '缓存写入失败，请检查目录权限：'.$fileCachePath
-                    : '缓存写入失败：'.($message ?? '请检查缓存服务配置。'),
-                'action_url' => route('admin.platform.system-checks.index'),
-            ];
-        }
+        $item = collect($this->performanceCacheHealthCheck->inspect()['items'])
+            ->firstWhere('label', 'Redis 应用缓存') ?? [];
+        $frontendPageCacheEnabled = FrontendPageCache::enabled() && FrontendPageCache::ttl() > 0;
 
         return [
-            'title' => '前台整页缓存',
-            'state' => '正常',
-            'status_class' => 'published',
-            'meta' => '缓存驱动：'.$driver."\n".'TTL：'.$ttl.' 秒',
-            'detail' => $driver === 'file'
-                ? '缓存目录可写，前台公开 GET 页面可正常写入整页缓存。'
-                : '缓存服务可写，前台公开 GET 页面可正常写入整页缓存。',
+            'title' => 'Redis 应用缓存',
+            'state' => (string) ($item['value'] ?? '检查失败'),
+            'status_class' => match ($item['status'] ?? 'error') {
+                'ok' => 'published',
+                'warning' => 'pending',
+                default => 'draft',
+            },
+            'meta' => 'Redis：'.(($item['status'] ?? 'error') === 'ok' ? '运行' : '关闭')
+                ."\n".'整页缓存：'.($frontendPageCacheEnabled ? '开启' : '关闭'),
+            'detail' => (string) ($item['message'] ?? '当前无法获取 Redis 应用缓存状态。'),
             'action_url' => route('admin.platform.system-checks.index'),
         ];
     }

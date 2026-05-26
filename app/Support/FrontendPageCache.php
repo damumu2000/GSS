@@ -90,7 +90,7 @@ class FrontendPageCache
         }
 
         try {
-            Cache::forever(self::siteVersionKey($siteId), self::siteVersion($siteId) + 1);
+            Cache::store('database')->forever(self::siteVersionKey($siteId), self::siteVersion($siteId) + 1);
         } catch (\Throwable $exception) {
             self::reportCacheFailure('flush', $exception);
         }
@@ -99,7 +99,7 @@ class FrontendPageCache
     protected static function siteVersion(int $siteId): int
     {
         try {
-            return max(1, (int) Cache::get(self::siteVersionKey($siteId), 1));
+            return max(1, (int) Cache::store('database')->get(self::siteVersionKey($siteId), 1));
         } catch (\Throwable $exception) {
             self::reportCacheFailure('version', $exception);
 

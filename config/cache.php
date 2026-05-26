@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    'default' => env('CACHE_STORE', 'failover'),
 
     /*
     |--------------------------------------------------------------------------
@@ -47,11 +47,8 @@ return [
             'lock_table' => env('DB_CACHE_LOCK_TABLE'),
         ],
 
-        'file' => [
-            'driver' => 'file',
-            'path' => storage_path('framework/cache/data'),
-            'lock_path' => storage_path('framework/cache/data'),
-        ],
+        // Laravel merges its default stores; null prevents the removed file store from remaining selectable.
+        'file' => null,
 
         'memcached' => [
             'driver' => 'memcached',
@@ -94,6 +91,7 @@ return [
         'failover' => [
             'driver' => 'failover',
             'stores' => [
+                'redis',
                 'database',
                 'array',
             ],

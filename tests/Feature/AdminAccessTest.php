@@ -610,6 +610,65 @@ class AdminAccessTest extends TestCase
             ->assertSee('系统检查');
     }
 
+    public function test_system_checks_reports_redis_failover_when_redis_is_unavailable(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        config([
+            'cms.frontend_page_cache.enabled' => true,
+            'cache.default' => 'failover',
+            'cache.stores.failover.stores' => ['redis', 'array'],
+            'database.redis.cache.port' => 1,
+        ]);
+
+        Cache::forgetDriver('redis');
+        Cache::forgetDriver('failover');
+
+        Http::fake([
+            'registry.npmjs.org/*' => Http::response(['version' => '1.15.7']),
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('admin.platform.system-checks.index'))
+            ->assertOk()
+            ->assertSee('Redis 应用缓存')
+            ->assertSee('已降级')
+            ->assertSee('Redis 不可用')
+            ->assertSee('符合条件的前台公开页面将使用整页缓存')
+            ->assertDontSee('前台整页缓存当前由后备缓存接管');
+    }
+
+    public function test_legacy_file_cache_store_is_disabled(): void
+    {
+        $this->assertNull(config('cache.stores.file'));
+    }
+
+    public function test_redis_cache_connection_has_bounded_failover_timeouts(): void
+    {
+        $this->assertSame(1.0, config('database.redis.cache.timeout'));
+        $this->assertSame(1.0, config('database.redis.cache.read_timeout'));
+        $this->assertSame(100, config('database.redis.cache.retry_interval'));
+        $this->assertSame(1, config('database.redis.cache.max_retries'));
+        $this->assertSame(500, config('database.redis.cache.backoff_cap'));
+    }
+
+    public function test_system_checks_reports_unavailable_direct_redis_store(): void
+    {
+        config([
+            'cache.default' => 'redis',
+            'database.redis.cache.port' => 1,
+        ]);
+
+        Cache::forgetDriver('redis');
+
+        $items = app(\App\Support\SystemChecks\PerformanceCacheHealthCheck::class)->inspect()['items'];
+        $redisItem = collect($items)->firstWhere('label', 'Redis 应用缓存');
+
+        $this->assertSame('error', $redisItem['status'] ?? null);
+        $this->assertSame('不可用', $redisItem['value'] ?? null);
+        $this->assertSame('Redis 应用缓存读写失败。', $redisItem['message'] ?? null);
+    }
+
     public function test_platform_admin_can_upgrade_static_vendor_from_system_checks_page(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -658,8 +717,19 @@ class AdminAccessTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
+        config([
+            'cache.default' => 'failover',
+            'cache.stores.failover.stores' => ['array', 'database'],
+        ]);
+
+        Cache::forgetDriver('array');
+        Cache::forgetDriver('database');
+        Cache::forgetDriver('failover');
+
         Cache::put('admin-access-test-cache-key', 'cached-value', 600);
+        Cache::store('database')->put('admin-access-test-fallback-cache-key', 'fallback-value', 600);
         $this->assertSame('cached-value', Cache::get('admin-access-test-cache-key'));
+        $this->assertSame('fallback-value', Cache::store('database')->get('admin-access-test-fallback-cache-key'));
 
         $user = $this->superAdmin();
 
@@ -669,6 +739,7 @@ class AdminAccessTest extends TestCase
             ->assertSessionHas('status', '应用缓存已清理。');
 
         $this->assertNull(Cache::get('admin-access-test-cache-key'));
+        $this->assertNull(Cache::store('database')->get('admin-access-test-fallback-cache-key'));
     }
 
     public function test_non_super_platform_admin_cannot_clear_platform_cache(): void
@@ -684,6 +755,31 @@ class AdminAccessTest extends TestCase
             ->assertSessionHas('status', '只有总管理员可以执行缓存清理。');
 
         $this->assertSame('cached-value', Cache::get('admin-access-test-cache-key'));
+    }
+
+    public function test_super_admin_can_clear_all_platform_cache_stores(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        config([
+            'cache.default' => 'failover',
+            'cache.stores.failover.stores' => ['array', 'database'],
+        ]);
+
+        Cache::forgetDriver('array');
+        Cache::forgetDriver('database');
+        Cache::forgetDriver('failover');
+
+        Cache::put('admin-clear-all-primary-key', 'primary-value', 600);
+        Cache::store('database')->put('admin-clear-all-fallback-key', 'fallback-value', 600);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.system-checks.cache.clear-all'))
+            ->assertRedirect(route('admin.platform.system-checks.index', ['tab' => 'cache']))
+            ->assertSessionHas('status', '已完成一键清除。');
+
+        $this->assertNull(Cache::get('admin-clear-all-primary-key'));
+        $this->assertNull(Cache::store('database')->get('admin-clear-all-fallback-key'));
     }
 
     public function test_platform_admin_can_open_database_management_pages(): void
@@ -4762,6 +4858,47 @@ XML);
             ]);
     }
 
+    public function test_platform_dashboard_combines_redis_and_frontend_cache_status_in_one_card(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        config([
+            'cms.frontend_page_cache.enabled' => true,
+            'cache.default' => 'failover',
+            'cache.stores.failover.stores' => ['redis', 'array'],
+            'database.redis.cache.port' => 1,
+        ]);
+
+        Cache::forgetDriver('redis');
+        Cache::forgetDriver('failover');
+
+        Http::fake([
+            'https://repo.packagist.org/p2/laravel/framework.json' => Http::response([
+                'packages' => [
+                    'laravel/framework' => [
+                        ['version' => 'v13.8.0'],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $response = $this->actingAs($this->superAdmin())
+            ->getJson(route('admin.platform.dashboard.system-status'))
+            ->assertOk()
+            ->assertJsonFragment([
+                'title' => 'Redis 应用缓存',
+                'state' => '已降级',
+                'status_class' => 'pending',
+                'meta' => "Redis：关闭\n整页缓存：开启",
+            ]);
+
+        $redisItem = collect($response->json('items'))->firstWhere('title', 'Redis 应用缓存');
+        $frontendItem = collect($response->json('items'))->firstWhere('title', '前台整页缓存');
+
+        $this->assertNotNull($redisItem);
+        $this->assertNull($frontendItem);
+    }
+
     public function test_platform_admin_mail_service_test_message_is_rate_limited(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -8322,13 +8459,13 @@ XML);
 
         $otherSiteId = $this->createAdditionalSite('refresh-cache-foreign-site', '缓存隔离测试站点');
 
-        Cache::forever('frontend-page-cache:site:'.$siteId.':version', 7);
+        Cache::store('database')->forever('frontend-page-cache:site:'.$siteId.':version', 7);
         Cache::forever('theme-asset-base:local:site', 'web/site/theme');
         Cache::forever('attachment-base:local:site', 'web/site/media/attachments');
         Cache::forever('theme-asset-base:www.refresh-cache.test', 'web/site/theme');
         Cache::forever('attachment-base:www.refresh-cache.test', 'web/site/media/attachments');
 
-        Cache::forever('frontend-page-cache:site:'.$otherSiteId.':version', 11);
+        Cache::store('database')->forever('frontend-page-cache:site:'.$otherSiteId.':version', 11);
         Cache::forever('theme-asset-base:local:refresh-cache-foreign-site', 'web/refresh-cache-foreign-site/theme');
         Cache::forever('attachment-base:local:refresh-cache-foreign-site', 'web/refresh-cache-foreign-site/media/attachments');
         Cache::forever('theme-asset-base:foreign.refresh-cache.test', 'web/refresh-cache-foreign-site/theme');
@@ -8354,13 +8491,13 @@ XML);
             ]))
             ->assertSessionHas('status', '当前站点前台缓存已刷新。');
 
-        $this->assertSame(8, (int) Cache::get('frontend-page-cache:site:'.$siteId.':version'));
+        $this->assertSame(8, (int) Cache::store('database')->get('frontend-page-cache:site:'.$siteId.':version'));
         $this->assertNull(Cache::get('theme-asset-base:local:site'));
         $this->assertNull(Cache::get('attachment-base:local:site'));
         $this->assertNull(Cache::get('theme-asset-base:www.refresh-cache.test'));
         $this->assertNull(Cache::get('attachment-base:www.refresh-cache.test'));
 
-        $this->assertSame(11, (int) Cache::get('frontend-page-cache:site:'.$otherSiteId.':version'));
+        $this->assertSame(11, (int) Cache::store('database')->get('frontend-page-cache:site:'.$otherSiteId.':version'));
         $this->assertSame('web/refresh-cache-foreign-site/theme', Cache::get('theme-asset-base:local:refresh-cache-foreign-site'));
         $this->assertSame('web/refresh-cache-foreign-site/media/attachments', Cache::get('attachment-base:local:refresh-cache-foreign-site'));
         $this->assertSame('web/refresh-cache-foreign-site/theme', Cache::get('theme-asset-base:foreign.refresh-cache.test'));

@@ -148,7 +148,9 @@ class SystemCheckController extends Controller
                 ->with('status', '不支持的缓存清理操作。');
         }
 
-        $lock = Cache::lock('system-checks:cache-action:'.$action, 30);
+        $lock = $action === 'app'
+            ? Cache::store('database')->lock('system-checks:cache-action:'.$action, 30)
+            : Cache::lock('system-checks:cache-action:'.$action, 30);
 
         if (! $lock->get()) {
             return redirect()
@@ -157,8 +159,9 @@ class SystemCheckController extends Controller
         }
 
         try {
-            Artisan::call($definition['command']);
-            $output = trim((string) Artisan::output());
+            $output = $action === 'app'
+                ? $this->clearApplicationCacheStores()
+                : $this->callArtisan($definition['command']);
 
             $this->logOperation(
                 'platform',
@@ -199,7 +202,7 @@ class SystemCheckController extends Controller
                 ->with('status', '只有总管理员可以执行缓存清理。');
         }
 
-        $lock = Cache::lock('system-checks:cache-action:all', 45);
+        $lock = Cache::store('database')->lock('system-checks:cache-action:all', 45);
 
         if (! $lock->get()) {
             return redirect()
@@ -208,8 +211,8 @@ class SystemCheckController extends Controller
         }
 
         try {
-            Artisan::call('optimize:clear');
-            $output = trim((string) Artisan::output());
+            Artisan::call('optimize:clear', ['--except' => 'cache']);
+            $output = trim((string) Artisan::output())."\n".$this->clearApplicationCacheStores();
 
             $this->logOperation(
                 'platform',
@@ -238,6 +241,44 @@ class SystemCheckController extends Controller
         } finally {
             optional($lock)->release();
         }
+    }
+
+    protected function callArtisan(string $command): string
+    {
+        Artisan::call($command);
+
+        return trim((string) Artisan::output());
+    }
+
+    protected function clearApplicationCacheStores(): string
+    {
+        $defaultStore = (string) config('cache.default', '');
+        $defaultDriver = (string) config("cache.stores.{$defaultStore}.driver", $defaultStore);
+        $stores = $defaultDriver === 'failover'
+            ? (array) config("cache.stores.{$defaultStore}.stores", [])
+            : [$defaultStore];
+
+        if (config('cache.stores.database') !== null) {
+            $stores[] = 'database';
+        }
+
+        $cleared = [];
+        $failed = [];
+
+        foreach (array_values(array_unique(array_filter($stores, fn ($store): bool => is_string($store) && $store !== ''))) as $store) {
+            try {
+                Cache::store($store)->flush();
+                $cleared[] = $store;
+            } catch (Throwable $exception) {
+                $failed[] = $store.'（'.$exception->getMessage().'）';
+            }
+        }
+
+        if ($failed !== []) {
+            throw new \RuntimeException('未能清理全部缓存存储：'.implode('；', $failed).'。已清理：'.implode('、', $cleared).'。');
+        }
+
+        return '已清理缓存存储：'.implode('、', $cleared).'。';
     }
 
     /**

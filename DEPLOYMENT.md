@@ -79,6 +79,14 @@ cp .env.example .env
 - `DB_USERNAME`
 - `DB_PASSWORD`
 - `FILESYSTEM_DISK`
+- `CACHE_STORE=failover`
+- `REDIS_CLIENT=phpredis`
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD`
+- `REDIS_CACHE_DB`，必须使用当前应用独占的 Redis 数据库编号
+- 如通过 URL 配置 Redis，缓存连接必须单独使用 `REDIS_CACHE_URL`，且数据库编号与 `REDIS_CACHE_DB` 规划一致
+- `REDIS_TIMEOUT=1.0` / `REDIS_READ_TIMEOUT=1.0` / `REDIS_MAX_RETRIES=1`，确保故障时快速进入后备缓存
+- `FRONTEND_PAGE_CACHE_ENABLED=true`
+- `FRONTEND_PAGE_CACHE_TTL`
 - 邮件、短信、对象存储等第三方配置
 
 如果 `APP_KEY` 为空，再执行：
@@ -86,6 +94,19 @@ cp .env.example .env
 ```bash
 php artisan key:generate
 ```
+
+当前缓存链路为 `redis -> database -> array`：Redis 正常时承载应用缓存；Redis 不可用时会降级到数据库缓存表，最后才使用当前进程内存。队列与会话仍默认使用 database，不随缓存切换到 Redis。
+
+上线前需确认：
+
+- PHP 已启用 `redis` 扩展，服务器已安装并启动 Redis。
+- `REDIS_CACHE_DB` 仅供当前应用缓存使用；后台清理应用缓存会清空该 Redis 数据库。
+- 不要仅设置带数据库编号的 `REDIS_URL` 来承载缓存连接；应使用 `REDIS_CACHE_URL`，避免缓存落入默认 Redis 库。
+- 已执行迁移并存在 `cache`、`cache_locks` 表，否则 Redis 故障时无法使用 database 后备缓存。
+- 从旧 `file` 缓存切换到 Redis 时，需清理 `storage/framework/cache/data` 下的旧缓存文件；保留该目录及 `.gitignore`。
+- 执行部署脚本的缓存刷新步骤会清空专用 `REDIS_CACHE_DB` 与数据库 `cache` 表中的缓存数据，不会删除站点、用户、内容等业务表记录。
+- 多站点或多环境共用同一个 Redis 服务时，应分配不同 `REDIS_CACHE_DB`，或至少设置不同 `CACHE_PREFIX`；数据库独占更稳妥。
+- 如果后台状态曾显示 Redis“已降级”，修复 Redis 后应在 `系统检查 -> 清除缓存` 执行一次“应用缓存”，清除故障期间各层可能留下的旧缓存数据。
 
 ## 五、准备目录权限
 
@@ -126,6 +147,8 @@ bash deploy.sh
 - `composer install --no-dev`
 - `php artisan migrate --force`
 - `php artisan optimize:clear`
+- 清除 `storage/framework/cache/data` 下旧 `file` 缓存文件（保留目录与 `.gitignore`）
+- `php artisan cache:clear database`
 - `php artisan config:cache`
 - `php artisan view:cache`
 - `php artisan storage:link`
@@ -180,6 +203,9 @@ git pull --ff-only origin main
 composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 php artisan migrate --force
 php artisan optimize:clear
+find storage/framework/cache/data -type f ! -name '.gitignore' -delete
+find storage/framework/cache/data -mindepth 1 -type d -empty -delete
+php artisan cache:clear database
 php artisan config:cache
 php artisan view:cache
 ```
@@ -227,10 +253,21 @@ php artisan migrate:status
 再检查：
 
 - 后台能否登录
+- 平台后台 `系统检查 -> 性能缓存检查` 中的 `Redis 应用缓存` 是否显示运行中
+- 平台仪表盘中的 `Redis 应用缓存` 是否显示 `Redis：运行` 与 `整页缓存：开启`
 - 上传附件是否正常
 - 站点前台是否可访问
 - 留言板、图宣、模板是否正常
 - `storage/app/web` 是否正常保留
+
+可在服务器执行以下只读/临时写入验证；临时键会立即删除：
+
+```bash
+php artisan tinker --execute='$key="deploy-redis-check-".uniqid(); Cache::store("redis")->put($key, "ok", 30); dump(Cache::store("redis")->get($key)); Cache::store("redis")->forget($key);'
+php artisan tinker --execute='dump(config("cache.default")); dump(config("cache.stores.failover.stores")); dump(config("cache.stores.file"));'
+```
+
+预期结果分别包含 `"ok"`、`"failover"`、`["redis", "database", "array"]` 和 `null`。
 
 如需检查或升级本地静态第三方资源，请直接在平台后台进入“系统检查”页面操作。
 

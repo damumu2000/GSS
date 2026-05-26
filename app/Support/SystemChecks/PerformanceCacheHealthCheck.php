@@ -15,6 +15,7 @@ class PerformanceCacheHealthCheck
     {
         $items = [
             $this->opcacheItem(),
+            $this->redisCacheItem(),
             $this->frontendPageCacheItem(),
         ];
 
@@ -22,7 +23,7 @@ class PerformanceCacheHealthCheck
             'key' => 'performance-cache',
             'title' => '性能缓存检查',
             'status' => $this->overallStatus($items),
-            'summary' => '检查 OPcache 与前台整页缓存的启用状态、写入能力和关键运行指标。',
+            'summary' => '检查 OPcache、Redis 应用缓存与前台整页缓存的运行状态。',
             'items' => $items,
         ];
     }
@@ -96,12 +97,68 @@ class PerformanceCacheHealthCheck
     /**
      * @return array<string, mixed>
      */
+    protected function redisCacheItem(): array
+    {
+        [$store, $driver, $driverLabel] = $this->cacheStoreSummary();
+        $usesRedis = $driver === 'redis'
+            || ($driver === 'failover' && in_array('redis', (array) config("cache.stores.{$store}.stores", []), true));
+
+        if (! $usesRedis) {
+            return [
+                'label' => 'Redis 应用缓存',
+                'status' => 'warning',
+                'value' => '未接入',
+                'message' => '当前默认应用缓存链路未使用 Redis。',
+                'suggestion' => '如需以 Redis 承载应用缓存，请将 CACHE_STORE 配置为包含 redis 的缓存链路。',
+                'details' => '当前缓存驱动：'.$driverLabel,
+            ];
+        }
+
+        $message = $this->redisFailureMessage($store, $driver);
+
+        if ($message !== null) {
+            $fallbackFailure = $driver === 'failover' ? $this->defaultCacheFailureMessage() : null;
+
+            if ($fallbackFailure !== null) {
+                return [
+                    'label' => 'Redis 应用缓存',
+                    'status' => 'error',
+                    'value' => '不可用',
+                    'message' => 'Redis 与后备缓存均无法正常读写。',
+                    'suggestion' => '请检查 Redis 服务状态，以及 database 后备缓存的表结构、连接和权限。',
+                    'details' => $message.'；后备缓存：'.$fallbackFailure,
+                ];
+            }
+
+            return [
+                'label' => 'Redis 应用缓存',
+                'status' => $driver === 'failover' ? 'warning' : 'error',
+                'value' => $driver === 'failover' ? '已降级' : '不可用',
+                'message' => $driver === 'failover'
+                    ? 'Redis 不可用，应用缓存当前将由后备存储接管。'
+                    : 'Redis 应用缓存读写失败。',
+                'suggestion' => '请检查 Redis 服务状态、连接配置、认证信息和访问权限。',
+                'details' => $message,
+            ];
+        }
+
+        return [
+            'label' => 'Redis 应用缓存',
+            'status' => 'ok',
+            'value' => '运行中',
+            'message' => 'Redis 应用缓存连接和读写正常。',
+            'suggestion' => '',
+            'details' => '默认缓存链路：'.$driverLabel,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     protected function frontendPageCacheItem(): array
     {
         $enabled = FrontendPageCache::enabled();
         $ttl = FrontendPageCache::ttl();
-        $store = (string) config('cache.default', 'file');
-        $driver = (string) config("cache.stores.{$store}.driver", $store);
 
         if (! $enabled || $ttl <= 0) {
             return [
@@ -110,32 +167,7 @@ class PerformanceCacheHealthCheck
                 'value' => '未启用',
                 'message' => '当前不会缓存前台页面。',
                 'suggestion' => '如需提升前台访问速度，请配置 FRONTEND_PAGE_CACHE_ENABLED=true 且 TTL 大于 0。',
-                'details' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
-            ];
-        }
-
-        try {
-            Cache::put('frontend-page-cache:system-check', 'ok', 30);
-            $writable = Cache::get('frontend-page-cache:system-check') === 'ok';
-        } catch (\Throwable $exception) {
-            $writable = false;
-            $message = $exception->getMessage();
-        }
-
-        if (! $writable) {
-            $path = $driver === 'file'
-                ? (string) config("cache.stores.{$store}.path", storage_path('framework/cache/data'))
-                : '';
-
-            return [
-                'label' => '前台整页缓存',
-                'status' => 'error',
-                'value' => '写入失败',
-                'message' => '整页缓存依赖的缓存存储不可写。',
-                'suggestion' => $driver === 'file'
-                    ? '请检查 storage/framework/cache/data 目录是否存在，并确认 Web 服务用户有写权限。'
-                    : '请检查当前缓存服务连接和权限。',
-                'details' => $path !== '' ? $path : ($message ?? ''),
+                'details' => 'TTL：'.$ttl.' 秒',
             ];
         }
 
@@ -143,10 +175,75 @@ class PerformanceCacheHealthCheck
             'label' => '前台整页缓存',
             'status' => 'ok',
             'value' => '已启用',
-            'message' => '前台整页缓存可正常写入。',
+            'message' => '符合条件的前台公开页面将使用整页缓存。',
             'suggestion' => '',
-            'details' => '缓存驱动：'.$driver.' · TTL：'.$ttl.' 秒',
+            'details' => 'TTL：'.$ttl.' 秒 · 存储状态见“Redis 应用缓存”',
         ];
+    }
+
+    /**
+     * @return array{0:string,1:string,2:string}
+     */
+    protected function cacheStoreSummary(): array
+    {
+        $store = (string) config('cache.default', 'failover');
+        $driver = (string) config("cache.stores.{$store}.driver", $store);
+
+        if ($driver !== 'failover') {
+            return [$store, $driver, $driver];
+        }
+
+        $stores = array_values(array_filter((array) config("cache.stores.{$store}.stores", []), fn ($value): bool => is_string($value) && $value !== ''));
+        $labels = [];
+
+        foreach ($stores as $fallbackStore) {
+            $labels[] = (string) config("cache.stores.{$fallbackStore}.driver", $fallbackStore);
+        }
+
+        $label = implode(' -> ', $labels);
+
+        return [$store, $driver, $label !== '' ? $label.'（故障切换）' : 'failover（故障切换）'];
+    }
+
+    protected function redisFailureMessage(string $store, string $driver): ?string
+    {
+        $usesRedis = $driver === 'redis'
+            || ($driver === 'failover' && in_array('redis', (array) config("cache.stores.{$store}.stores", []), true));
+
+        if (! $usesRedis) {
+            return null;
+        }
+
+        try {
+            Cache::store('redis')->put('frontend-page-cache:redis-system-check', 'ok', 30);
+
+            if (Cache::store('redis')->get('frontend-page-cache:redis-system-check') !== 'ok') {
+                return 'Redis 读写校验失败。';
+            }
+
+            Cache::store('redis')->forget('frontend-page-cache:redis-system-check');
+
+            return null;
+        } catch (\Throwable $exception) {
+            return $exception->getMessage();
+        }
+    }
+
+    protected function defaultCacheFailureMessage(): ?string
+    {
+        try {
+            Cache::put('application-cache:fallback-system-check', 'ok', 30);
+
+            if (Cache::get('application-cache:fallback-system-check') !== 'ok') {
+                return '后备缓存读写校验失败。';
+            }
+
+            Cache::forget('application-cache:fallback-system-check');
+
+            return null;
+        } catch (\Throwable $exception) {
+            return $exception->getMessage();
+        }
     }
 
     protected function iniBool(string $key): bool
