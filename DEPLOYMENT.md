@@ -152,7 +152,7 @@ bash deploy.sh
 - `php artisan cache:clear database`
 - `php artisan config:cache`
 - `php artisan view:cache`
-- `php artisan storage:link`
+- 确保 `public/storage` 指向 `storage/app/public`
 
 ## 八、Nginx / Apache 注意事项
 
@@ -205,10 +205,11 @@ composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 php artisan migrate --force
 php artisan optimize:clear
 find storage/framework/cache/data -type f ! -name '.gitignore' -delete
-find storage/framework/cache/data -mindepth 1 -type d -empty -delete
 php artisan cache:clear database
 php artisan config:cache
 php artisan view:cache
+php artisan queue:restart
+supervisorctl restart 'laravel-queue:*'
 ```
 
 ## 十、哪些数据不会被 Git 覆盖

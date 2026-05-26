@@ -67,7 +67,6 @@ php artisan migrate --force
 echo "[deploy] refreshing caches..."
 php artisan optimize:clear
 find storage/framework/cache/data -type f ! -name '.gitignore' -delete
-find storage/framework/cache/data -mindepth 1 -type d -empty -delete
 php artisan cache:clear database
 php artisan config:cache
 php artisan route:cache
@@ -75,10 +74,20 @@ php artisan view:cache
 
 if [[ ! -L "public/storage" ]]; then
   echo "[deploy] ensuring storage symlink..."
-  php artisan storage:link
+  mkdir -p storage/app/public
+  php artisan storage:link || ln -sfn "$ROOT_DIR/storage/app/public" "$ROOT_DIR/public/storage"
 fi
 
 echo "[deploy] restarting queue workers..."
 php artisan queue:restart
+if command -v supervisorctl >/dev/null 2>&1; then
+  if supervisorctl status 'laravel-queue:*' >/dev/null 2>&1; then
+    supervisorctl restart 'laravel-queue:*'
+  else
+    echo "[deploy] supervisor group laravel-queue:* not found, skipped."
+  fi
+else
+  echo "[deploy] supervisorctl not found, skipped."
+fi
 
 echo "[deploy] done."
