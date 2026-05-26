@@ -47,8 +47,11 @@ return [
             'lock_table' => env('DB_CACHE_LOCK_TABLE'),
         ],
 
-        // Laravel merges its default stores; null prevents the removed file store from remaining selectable.
-        'file' => null,
+        'file' => [
+            'driver' => 'file',
+            'path' => storage_path('framework/cache/data'),
+            'lock_path' => storage_path('framework/cache/data'),
+        ],
 
         'memcached' => [
             'driver' => 'memcached',

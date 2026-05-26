@@ -100,6 +100,7 @@ php artisan key:generate
 上线前需确认：
 
 - PHP 已启用 `redis` 扩展，服务器已安装并启动 Redis。
+- 线上 `.env` 必须同步为 `CACHE_STORE=failover`；如果仍是 `CACHE_STORE=file`，系统会继续使用旧文件缓存，不会启用 Redis。
 - `REDIS_CACHE_DB` 仅供当前应用缓存使用；后台清理应用缓存会清空该 Redis 数据库。
 - 不要仅设置带数据库编号的 `REDIS_URL` 来承载缓存连接；应使用 `REDIS_CACHE_URL`，避免缓存落入默认 Redis 库。
 - 已执行迁移并存在 `cache`、`cache_locks` 表，否则 Redis 故障时无法使用 database 后备缓存。
@@ -264,10 +265,10 @@ php artisan migrate:status
 
 ```bash
 php artisan tinker --execute='$key="deploy-redis-check-".uniqid(); Cache::store("redis")->put($key, "ok", 30); dump(Cache::store("redis")->get($key)); Cache::store("redis")->forget($key);'
-php artisan tinker --execute='dump(config("cache.default")); dump(config("cache.stores.failover.stores")); dump(config("cache.stores.file"));'
+php artisan tinker --execute='dump(config("cache.default")); dump(config("cache.stores.failover.stores"));'
 ```
 
-预期结果分别包含 `"ok"`、`"failover"`、`["redis", "database", "array"]` 和 `null`。
+预期结果分别包含 `"ok"`、`"failover"` 和 `["redis", "database", "array"]`。
 
 如需检查或升级本地静态第三方资源，请直接在平台后台进入“系统检查”页面操作。
 

@@ -638,9 +638,10 @@ class AdminAccessTest extends TestCase
             ->assertDontSee('前台整页缓存当前由后备缓存接管');
     }
 
-    public function test_legacy_file_cache_store_is_disabled(): void
+    public function test_cache_configuration_keeps_redis_failover_and_file_compatibility(): void
     {
-        $this->assertNull(config('cache.stores.file'));
+        $this->assertSame(['redis', 'database', 'array'], config('cache.stores.failover.stores'));
+        $this->assertSame('file', config('cache.stores.file.driver'));
     }
 
     public function test_redis_cache_connection_has_bounded_failover_timeouts(): void
