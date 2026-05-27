@@ -66,6 +66,7 @@ php artisan migrate --force
 
 echo "[deploy] refreshing caches..."
 php artisan optimize:clear
+mkdir -p storage/framework/cache/data
 find storage/framework/cache/data -type f ! -name '.gitignore' -delete
 php artisan cache:clear database
 php artisan config:cache

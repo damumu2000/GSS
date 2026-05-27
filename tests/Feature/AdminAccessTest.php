@@ -644,6 +644,36 @@ class AdminAccessTest extends TestCase
         $this->assertSame('file', config('cache.stores.file.driver'));
     }
 
+    public function test_frontend_page_cache_serves_public_pages_and_flushes_by_site_version(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        config([
+            'cms.frontend_page_cache.enabled' => true,
+            'cms.frontend_page_cache.ttl' => 300,
+            'cache.default' => 'array',
+        ]);
+
+        Cache::forgetDriver('array');
+        Cache::forgetDriver('database');
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->get('/?site=site')
+            ->assertOk()
+            ->assertHeader('X-Frontend-Page-Cache', 'MISS');
+
+        $this->get('/?site=site')
+            ->assertOk()
+            ->assertHeader('X-Frontend-Page-Cache', 'HIT');
+
+        \App\Support\FrontendPageCache::flushSite($siteId);
+
+        $this->get('/?site=site')
+            ->assertOk()
+            ->assertHeader('X-Frontend-Page-Cache', 'MISS');
+    }
+
     public function test_redis_cache_connection_has_bounded_failover_timeouts(): void
     {
         $this->assertSame(1.0, config('database.redis.cache.timeout'));
