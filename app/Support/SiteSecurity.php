@@ -2201,8 +2201,13 @@ class SiteSecurity
 
             if ($this->isFrontendPageRequest($request)) {
                 $siteWideKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
+                $siteWideMaxAttempts = $this->rateLimitMaxAttemptsForMode(
+                    $siteId,
+                    $this->systemSettings->securityRateLimitMaxRequests(),
+                    false
+                );
 
-                if (RateLimiter::tooManyAttempts($siteWideKey, $maxAttempts)) {
+                if (RateLimiter::tooManyAttempts($siteWideKey, $siteWideMaxAttempts)) {
                     if (! $isObserveMode && $blockSeconds > 0) {
                         RateLimiter::hit($blockKey, $blockSeconds);
                     }
@@ -2396,6 +2401,10 @@ class SiteSecurity
     protected function isFrontendPageRequest(Request $request): bool
     {
         if (! in_array(strtoupper((string) $request->method()), ['GET', 'HEAD'], true)) {
+            return false;
+        }
+
+        if ($this->isMediaRequest($request)) {
             return false;
         }
 

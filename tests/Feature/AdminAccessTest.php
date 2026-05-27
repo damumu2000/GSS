@@ -9666,6 +9666,82 @@ XML);
         ]);
     }
 
+    public function test_site_security_guestbook_page_refresh_uses_normal_site_wide_threshold(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '100',
+            'security.rate_limit_sensitive_max_requests' => '10',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        RateLimiter::clear($this->siteSecurityRateLimitBlockKey());
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/guestbook/create'));
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/guestbook/captcha'));
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $method = new \ReflectionMethod($siteSecurity, 'matchRateLimit');
+        $method->setAccessible(true);
+        $makeRequest = function (string $path, string $routeName): \Illuminate\Http\Request {
+            $request = \Illuminate\Http\Request::create($path, 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+            $route = new \Illuminate\Routing\Route(['GET', 'HEAD'], ltrim($path, '/'), ['as' => $routeName, 'uses' => fn () => null]);
+            $request->setRouteResolver(fn () => $route);
+
+            return $request;
+        };
+
+        for ($i = 0; $i < 7; $i++) {
+            $this->assertNull($method->invoke($siteSecurity, $makeRequest('/guestbook/create', 'site.guestbook.create'), $siteId));
+            $this->assertNull($method->invoke($siteSecurity, $makeRequest('/guestbook/captcha', 'site.guestbook.captcha'), $siteId));
+        }
+    }
+
+    public function test_site_security_media_route_does_not_count_as_frontend_page_refresh(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '100',
+            'security.rate_limit_sensitive_max_requests' => '10',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        RateLimiter::clear($this->siteSecuritySiteWideRateKey());
+        RateLimiter::clear($this->siteSecurityMediaWideRateKey());
+        RateLimiter::clear($this->siteSecurityRateKeyForPath('/site-media/site/attachments/demo.jpg'));
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $method = new \ReflectionMethod($siteSecurity, 'matchRateLimit');
+        $method->setAccessible(true);
+        $request = \Illuminate\Http\Request::create('/site-media/site/attachments/demo.jpg', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $route = new \Illuminate\Routing\Route(['GET', 'HEAD'], 'site-media/{siteKey}/{path}', ['as' => 'site.media', 'uses' => fn () => null]);
+        $request->setRouteResolver(fn () => $route);
+
+        $this->assertNull($method->invoke($siteSecurity, $request, $siteId));
+        $this->assertSame(0, RateLimiter::attempts($this->siteSecuritySiteWideRateKey()));
+        $this->assertSame(1, RateLimiter::attempts($this->siteSecurityMediaWideRateKey()));
+    }
+
     public function test_site_security_strict_mode_tightens_rate_limit_threshold(): void
     {
         $this->seed(DatabaseSeeder::class);
