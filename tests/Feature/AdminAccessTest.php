@@ -525,18 +525,16 @@ class AdminAccessTest extends TestCase
         $this->assertNull($remainingChannelId);
     }
 
-    public function test_platform_dashboard_hides_switcher_when_only_one_site_exists(): void
+    public function test_platform_dashboard_does_not_render_site_switcher(): void
     {
         $this->seed(DatabaseSeeder::class);
-
-        DB::table('sites')->where('site_key', 'demo-school-2')->delete();
 
         $user = $this->superAdmin();
 
         $this->actingAs($user)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertDontSee('切换站点主控');
+            ->assertDontSee('data-site-context-switcher', false);
     }
 
     public function test_platform_admin_can_open_system_settings_page(): void

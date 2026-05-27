@@ -159,7 +159,7 @@
             @endphp
             <div class="breadcrumb">{{ $breadcrumb }}</div>
             <div class="header-user">
-                @if ($showSiteSwitcher)
+                @if ($activeAdminArea === 'site' && $showSiteSwitcher)
                     <div class="site-context-switcher" data-site-context-switcher>
                         <form class="site-context-switcher-form" method="POST" action="{{ route('admin.site-context.update') }}">
                             @csrf
