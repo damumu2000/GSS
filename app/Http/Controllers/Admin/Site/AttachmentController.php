@@ -519,6 +519,7 @@ class AttachmentController extends Controller
                 'size' => (int) $preparedFile['size'],
                 'width' => $preparedFile['width'],
                 'height' => $preparedFile['height'],
+                'url' => SitePath::storedAttachmentUrlForPath((string) $attachment->path),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -997,7 +998,7 @@ class AttachmentController extends Controller
         $rawUrl = trim((string) ($attachment->url ?? ''));
         $path = trim((string) ($attachment->path ?? ''));
 
-        $url = $path !== ''
+        $url = preg_match('#^web/[^/]+/media/.+#', trim($path, '/')) === 1
             ? SitePath::urlForStoredPath($path)
             : $rawUrl;
 

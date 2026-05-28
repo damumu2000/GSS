@@ -636,10 +636,12 @@ class AdminAccessTest extends TestCase
             ->assertDontSee('前台整页缓存当前由后备缓存接管');
     }
 
-    public function test_cache_configuration_keeps_redis_failover_and_file_compatibility(): void
+    public function test_cache_configuration_uses_redis_failover_without_project_file_store(): void
     {
         $this->assertSame(['redis', 'database', 'array'], config('cache.stores.failover.stores'));
-        $this->assertSame('file', config('cache.stores.file.driver'));
+
+        $projectCacheConfig = require config_path('cache.php');
+        $this->assertArrayNotHasKey('file', $projectCacheConfig['stores']);
     }
 
     public function test_frontend_page_cache_serves_public_pages_and_flushes_by_site_version(): void
@@ -784,6 +786,46 @@ class AdminAccessTest extends TestCase
             ->assertSessionHas('status', '只有总管理员可以执行缓存清理。');
 
         $this->assertSame('cached-value', Cache::get('admin-access-test-cache-key'));
+    }
+
+    public function test_super_admin_cannot_enter_app_cache_clear_while_clear_lock_is_held(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        Cache::put('admin-access-test-cache-key', 'cached-value', 600);
+        $lock = Cache::store('database')->lock('system-checks:cache-action:app', 30);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->actingAs($this->superAdmin())
+                ->post(route('admin.platform.system-checks.cache.clear', ['action' => 'app']))
+                ->assertRedirect(route('admin.platform.system-checks.index'))
+                ->assertSessionHas('status', '应用缓存正在处理中，请稍后再试。');
+
+            $this->assertSame('cached-value', Cache::get('admin-access-test-cache-key'));
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function test_app_cache_clear_does_not_remove_database_locks(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $lock = Cache::store('database')->lock('system-checks:cache-action:sentinel', 30);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->actingAs($this->superAdmin())
+                ->post(route('admin.platform.system-checks.cache.clear', ['action' => 'app']))
+                ->assertRedirect(route('admin.platform.system-checks.index'))
+                ->assertSessionHas('status', '应用缓存已清理。');
+
+            $contender = Cache::store('database')->lock('system-checks:cache-action:sentinel', 30);
+            $this->assertFalse($contender->get());
+        } finally {
+            $lock->release();
+        }
     }
 
     public function test_super_admin_can_clear_all_platform_cache_stores(): void
@@ -5519,7 +5561,7 @@ XML);
         $this->assertSame('new-cover.jpg', $attachment->origin_name);
         $this->assertSame('jpg', $attachment->extension);
         $this->assertSame('replace-target.jpg', $attachment->stored_name);
-        $this->assertSame('http://127.0.0.1:8000/atts/2026/04/replace-target.jpg?site=site', $attachment->url);
+        $this->assertSame('/atts/2026/04/replace-target.jpg', $attachment->url);
         $this->assertGreaterThan(strtotime('-1 hour'), strtotime((string) $attachment->created_at));
 
         $dimensions = getimagesize($absolutePath);
@@ -5618,10 +5660,9 @@ XML);
         $item = collect($response)->firstWhere('id', $attachmentId);
 
         $this->assertNotNull($item);
-        $this->assertSame(
-            'http://127.0.0.1:8000/atts/2026/04/cache-version.jpg?site=site&v='.$updatedAt->timestamp,
-            $item['url'] ?? null,
-        );
+        $this->assertSame('/atts/2026/04/cache-version.jpg', parse_url((string) ($item['url'] ?? ''), PHP_URL_PATH));
+        parse_str((string) parse_url((string) ($item['url'] ?? ''), PHP_URL_QUERY), $query);
+        $this->assertSame(['site' => 'site', 'v' => (string) $updatedAt->timestamp], $query);
     }
 
     public function test_site_media_response_uses_public_cache_headers(): void
@@ -7655,6 +7696,7 @@ XML);
                 'title' => '主网站普通动态',
                 'status' => 'published',
                 'audit_status' => 'approved',
+                'deleted_at' => null,
                 'created_by' => $operator->id,
                 'updated_by' => $operator->id,
                 'published_at' => now(),
@@ -7668,6 +7710,7 @@ XML);
                 'title' => '第三站点私有通知',
                 'status' => 'published',
                 'audit_status' => 'approved',
+                'deleted_at' => null,
                 'created_by' => $operator->id,
                 'updated_by' => $operator->id,
                 'published_at' => now(),
@@ -8988,7 +9031,7 @@ XML);
             ->assertOk()
             ->assertSee('平台安护盾 IP 详情')
             ->assertSee($ip)
-            ->assertSee('当前请求已被安全防护拦截')
+            ->assertSee('临时封禁')
             ->assertSee('PlatformSecurityAgent/1.0');
     }
 
@@ -10384,7 +10427,7 @@ XML);
             ->assertSee('/.env')
             ->assertDontSee('/wp-admin')
             ->assertSee('12')
-            ->assertSee('当前请求已被安全防护拦截')
+            ->assertSee('直接拦截')
             ->assertDontSee('127.0.0.2');
     }
 

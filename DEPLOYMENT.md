@@ -104,7 +104,7 @@ php artisan key:generate
 - `REDIS_CACHE_DB` 仅供当前应用缓存使用；后台清理应用缓存会清空该 Redis 数据库。
 - 不要仅设置带数据库编号的 `REDIS_URL` 来承载缓存连接；应使用 `REDIS_CACHE_URL`，避免缓存落入默认 Redis 库。
 - 已执行迁移并存在 `cache`、`cache_locks` 表，否则 Redis 故障时无法使用 database 后备缓存。
-- 仅在首次从旧 `file` 缓存切换到 Redis 时，手工清理 `storage/framework/cache/data` 下的旧缓存文件；保留该目录及 `.gitignore`，后续日常部署无需重复清理。
+- 仅在首次从旧 `file` 缓存切换到 Redis 时，手工删除旧目录 `storage/framework/cache/data`；当前配置不再定义 `file` 缓存仓，后续日常部署无需重复清理。
 - 执行部署脚本的缓存刷新步骤会清空专用 `REDIS_CACHE_DB` 与数据库 `cache` 表中的缓存数据，不会删除站点、用户、内容等业务表记录。
 - 多站点或多环境共用同一个 Redis 服务时，应分配不同 `REDIS_CACHE_DB`，或至少设置不同 `CACHE_PREFIX`；数据库独占更稳妥。
 - 如果后台状态曾显示 Redis“已降级”，修复 Redis 后应在 `系统检查 -> 清除缓存` 执行一次“应用缓存”，清除故障期间各层可能留下的旧缓存数据。

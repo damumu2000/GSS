@@ -865,8 +865,10 @@ class PlatformSiteController extends Controller
                 }
             }
 
-            foreach (preg_split('/\r\n|\r|\n/', $this->normalizeSiteSecurityPaths((string) $request->input('security_path_allowlist', ''))) ?: [] as $path) {
-                if (! str_starts_with($path, '/')) {
+            foreach (preg_split('/\r\n|\r|\n/', (string) $request->input('security_path_allowlist', '')) ?: [] as $path) {
+                $path = trim((string) $path);
+
+                if ($path !== '' && (! str_starts_with($path, '/') || str_starts_with($path, '//'))) {
                     $validator->errors()->add('security_path_allowlist', '路径白名单仅支持以 / 开头的站内路径。');
                     break;
                 }

@@ -618,6 +618,7 @@ class ThemeManagementTest extends TestCase
             ->assertDontSee('MOBILE');
 
         File::delete($templateRoot.DIRECTORY_SEPARATOR.'m-home.tpl');
+        \App\Support\FrontendPageCache::flushSite((int) $site->id);
 
         $this->get(route('site.home', ['site' => $site->site_key, 'device' => 'mobile']))
             ->assertOk()
