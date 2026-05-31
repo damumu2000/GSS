@@ -1492,7 +1492,7 @@ function applySmartTypesetting(editor) {
     }
 
     const parser = new DOMParser();
-    const documentFragment = parser.parseFromString(`<div data-typesetting-root>${rawHtml}</div>`, 'text/html');
+    const documentFragment = parser.parseFromString(`<div data-typesetting-root>${clearArticleFormattingHtml(rawHtml)}</div>`, 'text/html');
     const root = documentFragment.body.querySelector('[data-typesetting-root]');
     if (!root) {
         return;
@@ -1996,8 +1996,92 @@ function bindSmartPasteImport(editor) {
 function showArticleTypesettingToast() {
     showStyledEditorToast({
         title: '排版已优化完成',
-        text: '正文已统一为 15px，段落、列表和表格也一起整理好了。',
+        text: '已先清除原有格式，再统一整理正文、段落、列表和表格。',
     });
+}
+
+function clearArticleFormattingHtml(rawHtml) {
+    const parser = new DOMParser();
+    const documentFragment = parser.parseFromString(`<div data-format-clear-root>${rawHtml}</div>`, 'text/html');
+    const root = documentFragment.body.querySelector('[data-format-clear-root]');
+    if (!root) {
+        return rawHtml;
+    }
+
+    const allowedAttributesByTag = {
+        a: ['href', 'target', 'rel', 'title'],
+        img: ['src', 'alt', 'title', 'width', 'height', 'srcset', 'sizes', 'loading'],
+        iframe: ['src', 'title', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder'],
+        video: ['src', 'poster', 'width', 'height', 'controls'],
+        source: ['src', 'srcset', 'type'],
+        table: ['border', 'cellpadding', 'cellspacing'],
+        td: ['colspan', 'rowspan'],
+        th: ['colspan', 'rowspan', 'scope'],
+    };
+
+    root.querySelectorAll('img').forEach((node) => {
+        const width = normalizedImageWidth(node.getAttribute('width'))
+            || normalizedImageWidth(node.style?.width)
+            || widthFromInlineImageClass(node.closest('[class*="cms-inline-image-block--width-"], [class*="cms-inline-image-figure--width-"]'));
+
+        if (width) {
+            node.setAttribute('width', width);
+        }
+    });
+
+    root.querySelectorAll('*').forEach((node) => {
+        if (node.closest('.bilibili-video-embed[data-bilibili-video="1"]')) {
+            return;
+        }
+
+        const tagName = node.tagName.toLowerCase();
+        const allowedAttributes = allowedAttributesByTag[tagName] || [];
+
+        Array.from(node.attributes).forEach((attribute) => {
+            if (!allowedAttributes.includes(attribute.name.toLowerCase())) {
+                node.removeAttribute(attribute.name);
+            }
+        });
+    });
+
+    root.querySelectorAll('font, span').forEach((node) => {
+        if (node.closest('.bilibili-video-embed[data-bilibili-video="1"]')) {
+            return;
+        }
+
+        node.replaceWith(...Array.from(node.childNodes));
+    });
+
+    return root.innerHTML;
+}
+
+function normalizedImageWidth(value) {
+    const width = String(value || '').trim().toLowerCase();
+    if (width === '') {
+        return '';
+    }
+
+    const pixelMatch = width.match(/^(\d{1,4})(?:px)?$/);
+    if (pixelMatch) {
+        return pixelMatch[1];
+    }
+
+    const percentMatch = width.match(/^(\d{1,3})%$/);
+    if (percentMatch) {
+        const percent = Number(percentMatch[1]);
+        return percent > 0 && percent <= 100 ? `${percent}%` : '';
+    }
+
+    return '';
+}
+
+function widthFromInlineImageClass(wrapper) {
+    if (!wrapper) {
+        return '';
+    }
+
+    const match = String(wrapper.className || '').match(/cms-inline-image-(?:block|figure)--width-(100|80|60|40)\b/);
+    return match ? `${match[1]}%` : '';
 }
 
 function clearEditorFormatting(editor) {
