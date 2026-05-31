@@ -592,13 +592,6 @@ class LegacyAspAccessSiteImporter
 
     protected function upsertContent(int $siteId, array $payload): array
     {
-        $existing = DB::table('contents')
-            ->where('site_id', $siteId)
-            ->where('type', $payload['type'])
-            ->where('slug', $payload['slug'])
-            ->whereNull('deleted_at')
-            ->first(['id']);
-
         $now = now();
         $contentPayload = [
             'site_id' => $siteId,
@@ -627,10 +620,19 @@ class LegacyAspAccessSiteImporter
             'updated_at' => $now,
         ];
 
+        $existing = DB::table('contents')
+            ->where('site_id', $siteId)
+            ->where('type', $payload['type'])
+            ->where('slug', $payload['slug'])
+            ->whereNull('deleted_at')
+            ->first(array_merge(['id'], array_keys($contentPayload)));
+
         if ($existing) {
-            DB::table('contents')
-                ->where('id', $existing->id)
-                ->update($contentPayload);
+            if ($this->contentPayloadChanged($existing, $contentPayload)) {
+                DB::table('contents')
+                    ->where('id', $existing->id)
+                    ->update($contentPayload);
+            }
 
             $contentId = (int) $existing->id;
             $this->syncContentChannels($contentId, $payload['channel_ids'] ?? []);
@@ -747,18 +749,39 @@ class LegacyAspAccessSiteImporter
 
     protected function syncContentChannels(int $contentId, array $channelIds): void
     {
+        $normalizedChannelIds = collect($channelIds)
+            ->filter(fn ($channelId) => (int) $channelId > 0)
+            ->map(fn ($channelId): int => (int) $channelId)
+            ->unique()
+            ->values()
+            ->all();
+
+        $existingChannelIds = DB::table('content_channels')
+            ->where('content_id', $contentId)
+            ->pluck('channel_id')
+            ->map(fn ($channelId): int => (int) $channelId)
+            ->sort()
+            ->values()
+            ->all();
+
+        $targetChannelIds = collect($normalizedChannelIds)
+            ->sort()
+            ->values()
+            ->all();
+
+        if ($existingChannelIds === $targetChannelIds) {
+            return;
+        }
+
         DB::table('content_channels')->where('content_id', $contentId)->delete();
 
-        if ($channelIds === []) {
+        if ($normalizedChannelIds === []) {
             return;
         }
 
         $now = now();
         DB::table('content_channels')->insert(
-            collect($channelIds)
-                ->filter(fn ($channelId) => (int) $channelId > 0)
-                ->unique()
-                ->values()
+            collect($normalizedChannelIds)
                 ->map(fn ($channelId) => [
                     'content_id' => $contentId,
                     'channel_id' => (int) $channelId,
@@ -767,6 +790,51 @@ class LegacyAspAccessSiteImporter
                 ])
                 ->all()
         );
+    }
+
+    protected function contentPayloadChanged(object $existing, array $payload): bool
+    {
+        foreach ($payload as $field => $value) {
+            if ($field === 'updated_at') {
+                continue;
+            }
+
+            if (
+                $this->normalizeContentPayloadValue($field, $existing->{$field} ?? null)
+                !== $this->normalizeContentPayloadValue($field, $value)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function normalizeContentPayloadValue(string $field, mixed $value): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->format('Y-m-d H:i:s');
+        }
+
+        if (in_array($field, ['site_id', 'channel_id', 'title_bold', 'title_italic', 'is_top', 'is_recommend', 'sort', 'view_count'], true)) {
+            return (int) $value;
+        }
+
+        if ($field === 'published_at') {
+            $text = trim((string) $value);
+
+            if ($text === '') {
+                return null;
+            }
+
+            return Carbon::parse($text)->format('Y-m-d H:i:s');
+        }
+
+        return (string) $value;
     }
 
     protected function buildSummary(string $html): string

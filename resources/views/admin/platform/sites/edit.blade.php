@@ -45,6 +45,7 @@
 @endphp
 
 @push('styles')
+    @include('admin.site._custom_select_styles')
     <link rel="stylesheet" href="{{ asset('css/platform-site-modules.css') }}">
     @include('admin.platform.sites._form_styles')
 @endpush
@@ -493,6 +494,7 @@
 
 @push('scripts')
     @include('admin.platform.sites._form_scripts')
+    @include('admin.site._custom_select_scripts')
     <script src="{{ asset('js/platform-site-modules.js') }}" defer></script>
     <script src="{{ asset('js/platform-site-edit-tabs.js') }}" defer></script>
 @endpush

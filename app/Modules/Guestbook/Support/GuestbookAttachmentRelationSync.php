@@ -2,7 +2,7 @@
 
 namespace App\Modules\Guestbook\Support;
 
-use App\Support\AttachmentUsageTracker;
+use App\Support\AttachmentRelationWriter;
 use Illuminate\Support\Facades\DB;
 
 class GuestbookAttachmentRelationSync
@@ -17,28 +17,7 @@ class GuestbookAttachmentRelationSync
         $previousAttachmentIds = $this->existingAttachmentIds($siteId);
         $relationRows = $this->buildRelationRows($siteId);
 
-        DB::table('attachment_relations')
-            ->where('relation_type', 'guestbook_setting')
-            ->where('relation_id', $siteId)
-            ->delete();
-
-        if ($relationRows !== []) {
-            DB::table('attachment_relations')->insert($relationRows);
-        }
-
-        $affectedAttachmentIds = collect($relationRows)
-            ->pluck('attachment_id')
-            ->map(fn ($id) => (int) $id)
-            ->merge($previousAttachmentIds)
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($affectedAttachmentIds !== []) {
-            (new AttachmentUsageTracker())->rebuildForAttachmentIds($affectedAttachmentIds, $siteId);
-        }
-
-        return $affectedAttachmentIds;
+        return (new AttachmentRelationWriter())->sync('guestbook_setting', $siteId, $relationRows, $previousAttachmentIds, $siteId);
     }
 
     /**

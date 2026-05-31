@@ -989,48 +989,36 @@ class PayrollController extends SiteController
      */
     protected function employeeBatches(Request $request, int $siteId, string $employeeName): LengthAwarePaginator
     {
-        $recordRows = DB::table('module_payroll_records')
+        $perPage = 10;
+        $pageName = 'payroll_page';
+
+        $batches = DB::table('module_payroll_records')
             ->join('module_payroll_batches', 'module_payroll_batches.id', '=', 'module_payroll_records.batch_id')
             ->where('module_payroll_records.site_id', $siteId)
             ->where('module_payroll_records.employee_name', $employeeName)
             ->orderByDesc('module_payroll_batches.month_key')
-            ->get([
+            ->orderByDesc('module_payroll_batches.id')
+            ->groupBy('module_payroll_batches.id', 'module_payroll_batches.month_key')
+            ->select([
                 'module_payroll_batches.id as batch_id',
                 'module_payroll_batches.month_key',
-                'module_payroll_records.sheet_type',
-            ]);
+                DB::raw("MAX(CASE WHEN module_payroll_records.sheet_type = 'salary' THEN 1 ELSE 0 END) as has_salary"),
+                DB::raw("MAX(CASE WHEN module_payroll_records.sheet_type = 'performance' THEN 1 ELSE 0 END) as has_performance"),
+            ])
+            ->paginate($perPage, ['*'], $pageName);
 
-        $batches = $recordRows
-            ->groupBy('batch_id')
-            ->map(function ($group) {
-                $first = $group->first();
-
+        $batches->setCollection(
+            $batches->getCollection()->map(function ($row): array {
                 return [
-                    'batch_id' => (int) $first->batch_id,
-                    'month_key' => (string) $first->month_key,
-                    'has_salary' => $group->contains(fn ($row) => $row->sheet_type === 'salary'),
-                    'has_performance' => $group->contains(fn ($row) => $row->sheet_type === 'performance'),
+                    'batch_id' => (int) $row->batch_id,
+                    'month_key' => (string) $row->month_key,
+                    'has_salary' => (bool) $row->has_salary,
+                    'has_performance' => (bool) $row->has_performance,
                 ];
             })
-            ->values()
-            ->all();
-
-        $perPage = 10;
-        $pageName = 'payroll_page';
-        $currentPage = LengthAwarePaginator::resolveCurrentPage($pageName);
-        $total = count($batches);
-        $items = array_slice($batches, max(0, ($currentPage - 1) * $perPage), $perPage);
-
-        return new LengthAwarePaginator(
-            $items,
-            $total,
-            $perPage,
-            $currentPage,
-            [
-                'path' => $request->url(),
-                'pageName' => $pageName,
-            ],
         );
+
+        return $batches->withPath($request->url());
     }
 
     protected function identitySessionKey(int $siteId): string

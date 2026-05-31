@@ -20,11 +20,6 @@ class PromoAttachmentRelationSync
             ->where('id', $promoItemId)
             ->first(['attachment_id']);
 
-        DB::table('attachment_relations')
-            ->where('relation_type', 'promo_item')
-            ->where('relation_id', $promoItemId)
-            ->delete();
-
         $relationRows = [];
 
         if ($promoItem && (int) ($promoItem->attachment_id ?? 0) > 0) {
@@ -38,23 +33,7 @@ class PromoAttachmentRelationSync
             ];
         }
 
-        if ($relationRows !== []) {
-            DB::table('attachment_relations')->insert($relationRows);
-        }
-
-        $affectedAttachmentIds = collect($relationRows)
-            ->pluck('attachment_id')
-            ->map(fn ($id) => (int) $id)
-            ->merge($previousAttachmentIds)
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($affectedAttachmentIds !== []) {
-            (new AttachmentUsageTracker())->rebuildForAttachmentIds($affectedAttachmentIds, $siteId);
-        }
-
-        return $affectedAttachmentIds;
+        return (new AttachmentRelationWriter())->sync('promo_item', $promoItemId, $relationRows, $previousAttachmentIds, $siteId);
     }
 
     /**

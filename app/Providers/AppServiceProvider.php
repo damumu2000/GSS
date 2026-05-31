@@ -3,10 +3,13 @@
 namespace App\Providers;
 
 use App\Support\PlatformMailSettings;
+use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->guardDestructiveDatabaseResetCommands();
+
         if ($this->runningInQueueWorkerConsole()) {
             PlatformMailSettings::recordQueueWorkerHeartbeat();
         }
@@ -68,5 +73,38 @@ class AppServiceProvider extends ServiceProvider
 
         return str_contains($commandLine, 'queue:work')
             || str_contains($commandLine, 'queue:listen');
+    }
+
+    protected function guardDestructiveDatabaseResetCommands(): void
+    {
+        if (! app()->runningInConsole() || app()->environment('testing')) {
+            return;
+        }
+
+        Event::listen(CommandStarting::class, function (CommandStarting $event): void {
+            $command = (string) $event->command;
+            $blockedCommands = [
+                'db:wipe',
+                'migrate:fresh',
+                'migrate:reset',
+                'migrate:refresh',
+            ];
+
+            if (! in_array($command, $blockedCommands, true)) {
+                return;
+            }
+
+            $connection = (string) config('database.default');
+            $database = (string) config("database.connections.{$connection}.database", '');
+
+            if ($connection !== 'sqlite' || $database !== ':memory:') {
+                throw new RuntimeException(sprintf(
+                    'Blocked destructive database command [%s] on [%s:%s]. Use non-destructive migrations only.',
+                    $command,
+                    $connection,
+                    $database
+                ));
+            }
+        });
     }
 }

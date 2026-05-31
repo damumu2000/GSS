@@ -6,6 +6,7 @@ use App\Support\EmbeddedContentRenderer;
 use App\Support\FrontendContent;
 use App\Support\FrontendPageCache;
 use App\Support\FrontendDevice;
+use App\Support\SiteVisitStatsBuffer;
 use App\Support\Site as SitePath;
 use App\Support\SiteBackendAccess;
 use App\Support\ThemeTags;
@@ -1198,6 +1199,15 @@ class SiteController extends Controller
     }
 
     protected function recordSiteVisit(int $siteId, string $type, ?int $contentId = null): void
+    {
+        if (app(SiteVisitStatsBuffer::class)->record($siteId, $type, $contentId)) {
+            return;
+        }
+
+        $this->recordSiteVisitDirectly($siteId, $type, $contentId);
+    }
+
+    protected function recordSiteVisitDirectly(int $siteId, string $type, ?int $contentId = null): void
     {
         $statDate = now('Asia/Shanghai')->toDateString();
         $now = now();

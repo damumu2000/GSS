@@ -48,28 +48,7 @@ class ContentAttachmentRelationSync
             $contentId,
         );
 
-        DB::table('attachment_relations')
-            ->where('relation_type', 'content')
-            ->where('relation_id', $contentId)
-            ->delete();
-
-        if ($relationRows !== []) {
-            DB::table('attachment_relations')->insert($relationRows);
-        }
-
-        $affectedAttachmentIds = collect($relationRows)
-            ->pluck('attachment_id')
-            ->map(fn ($id) => (int) $id)
-            ->merge($previousAttachmentIds)
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($affectedAttachmentIds !== []) {
-            (new AttachmentUsageTracker())->rebuildForAttachmentIds($affectedAttachmentIds, $siteId);
-        }
-
-        return $affectedAttachmentIds;
+        return (new AttachmentRelationWriter())->sync('content', $contentId, $relationRows, $previousAttachmentIds, $siteId);
     }
 
     /**

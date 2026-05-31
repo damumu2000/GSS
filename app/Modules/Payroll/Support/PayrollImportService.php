@@ -50,30 +50,70 @@ class PayrollImportService
             throw new InvalidArgumentException($scopeLabel.'未识别到可导入的姓名与项目结构'.$sheetHint.'，请检查表格格式后重新上传。');
         }
 
-        DB::table('module_payroll_records')
-            ->where('site_id', $siteId)
-            ->where('batch_id', $batchId)
-            ->where('sheet_type', $sheetType)
-            ->delete();
-
-        $rows = [];
+        $incomingRows = [];
+        $incomingNames = [];
 
         foreach ($payload['records'] as $record) {
-            $rows[] = [
+            $itemsJson = json_encode($record['items'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $employeeName = (string) $record['employee_name'];
+
+            $incomingNames[] = $employeeName;
+            $incomingRows[$employeeName] = [
                 'site_id' => $siteId,
                 'batch_id' => $batchId,
-                'employee_name' => $record['employee_name'],
+                'employee_name' => $employeeName,
                 'sheet_type' => $sheetType,
-                'items_json' => json_encode($record['items'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                'row_hash' => hash('sha256', $record['employee_name'].'|'.$sheetType.'|'.json_encode($record['items'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+                'items_json' => $itemsJson,
+                'row_hash' => hash('sha256', $employeeName.'|'.$sheetType.'|'.$itemsJson),
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
         }
 
-        if ($rows !== []) {
-            DB::table('module_payroll_records')->insert($rows);
-        }
+        DB::transaction(function () use ($siteId, $batchId, $sheetType, $incomingRows, $incomingNames): void {
+            $existingRows = DB::table('module_payroll_records')
+                ->where('site_id', $siteId)
+                ->where('batch_id', $batchId)
+                ->where('sheet_type', $sheetType)
+                ->get(['id', 'employee_name', 'row_hash'])
+                ->keyBy('employee_name');
+
+            $staleIds = $existingRows
+                ->reject(fn ($row) => in_array((string) $row->employee_name, $incomingNames, true))
+                ->pluck('id')
+                ->all();
+
+            if ($staleIds !== []) {
+                DB::table('module_payroll_records')->whereIn('id', $staleIds)->delete();
+            }
+
+            $insertRows = [];
+
+            foreach ($incomingRows as $employeeName => $row) {
+                $existing = $existingRows->get($employeeName);
+
+                if (! $existing) {
+                    $insertRows[] = $row;
+                    continue;
+                }
+
+                if ((string) $existing->row_hash === (string) $row['row_hash']) {
+                    continue;
+                }
+
+                DB::table('module_payroll_records')
+                    ->where('id', (int) $existing->id)
+                    ->update([
+                        'items_json' => $row['items_json'],
+                        'row_hash' => $row['row_hash'],
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            foreach (array_chunk($insertRows, 500) as $chunk) {
+                DB::table('module_payroll_records')->insert($chunk);
+            }
+        });
 
         return [
             'matched' => count($payload['records']),

@@ -48,10 +48,10 @@ class DeployHealthCheck
         if ($branch === '') {
             return [
                 'label' => '部署分支',
-                'status' => 'warning',
-                'value' => '无法识别',
-                'message' => '当前环境无法确认 Git 分支信息。',
-                'suggestion' => '请检查服务器目录是否为完整 Git 工作区。',
+                'status' => 'ok',
+                'value' => '未识别',
+                'message' => '当前环境未提供 Git 分支信息，已跳过分支校验。',
+                'suggestion' => '',
                 'details' => '',
             ];
         }

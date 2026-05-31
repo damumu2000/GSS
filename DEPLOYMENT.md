@@ -89,6 +89,12 @@ cp .env.example .env
 - `FRONTEND_PAGE_CACHE_TTL`
 - 邮件、短信、对象存储等第三方配置
 
+服务器需要配置 Laravel Scheduler，否则到期图宣自动停用、访问统计批量落库和自动任务心跳不会执行。推荐使用系统 cron 每分钟触发一次：
+
+```bash
+* * * * * cd /www/wwwroot/GSS && php artisan schedule:run >> /dev/null 2>&1
+```
+
 如果 `APP_KEY` 为空，再执行：
 
 ```bash

@@ -8,6 +8,9 @@
         const trigger = selectRoot.querySelector('[data-select-trigger]');
         const panel = selectRoot.querySelector('[data-select-panel]');
         const isTreeSelect = selectRoot.classList.contains('channel-parent-select');
+        const isSearchable = isTreeSelect || selectRoot.dataset.siteSelectSearch === 'true';
+        const searchPlaceholder = selectRoot.dataset.siteSelectSearchPlaceholder || (isTreeSelect ? '搜索栏目' : '搜索');
+        const emptyText = selectRoot.dataset.siteSelectEmptyText || (isTreeSelect ? '没有找到匹配的栏目' : '没有找到匹配的选项');
         let searchKeyword = '';
         let isComposing = false;
 
@@ -27,7 +30,7 @@
             let searchInput = null;
             let clearButton = null;
 
-            if (isTreeSelect) {
+            if (isSearchable) {
                 const searchWrap = document.createElement('div');
                 searchWrap.className = 'site-select-search';
                 const searchInner = document.createElement('div');
@@ -35,7 +38,7 @@
                 searchInput = document.createElement('input');
                 searchInput.type = 'text';
                 searchInput.className = 'site-select-search-input';
-                searchInput.placeholder = '搜索栏目';
+                searchInput.placeholder = searchPlaceholder;
                 searchInput.value = searchKeyword;
                 clearButton = document.createElement('button');
                 clearButton.type = 'button';
@@ -95,11 +98,19 @@
 
             optionEntries.forEach((entry) => {
                 const { option } = entry;
-                const shouldShow = !isTreeSelect
-                    || option.value === ''
-                    || keyword === ''
-                    || matchedValues.has(entry.value)
-                    || entry.ancestors.some((ancestorValue) => matchedValues.has(ancestorValue));
+                const shouldShow = isTreeSelect
+                    ? (
+                        option.value === ''
+                        || keyword === ''
+                        || matchedValues.has(entry.value)
+                        || entry.ancestors.some((ancestorValue) => matchedValues.has(ancestorValue))
+                    )
+                    : (
+                        !isSearchable
+                        || option.value === ''
+                        || keyword === ''
+                        || matchedValues.has(entry.value)
+                    );
 
                 if (!shouldShow) {
                     return;
@@ -150,7 +161,7 @@
                 }
             });
 
-            if (isTreeSelect) {
+            if (isSearchable) {
                 searchInput?.addEventListener('compositionstart', () => {
                     isComposing = true;
                 });
@@ -188,7 +199,7 @@
                 if (visibleOptionCount === 0 || (keyword !== '' && visibleNamedCount === 0)) {
                     const empty = document.createElement('div');
                     empty.className = 'site-select-empty';
-                    empty.textContent = '没有找到匹配的栏目';
+                    empty.textContent = emptyText;
                     optionsHost.appendChild(empty);
                 }
             }
@@ -205,7 +216,7 @@
             if (nextState) {
                 selectRoot.classList.add('is-open');
                 trigger.setAttribute('aria-expanded', 'true');
-                if (isTreeSelect) {
+                if (isSearchable) {
                     window.requestAnimationFrame(() => {
                         panel.querySelector('.site-select-search-input')?.focus();
                     });

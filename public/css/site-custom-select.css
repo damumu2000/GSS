@@ -136,11 +136,13 @@
         align-items: stretch;
     }
 
-    .site-select.channel-parent-select .site-select-panel {
+    .site-select.channel-parent-select .site-select-panel,
+    .site-select[data-site-select-search="true"] .site-select-panel {
         overflow: hidden;
     }
 
-    .site-select.channel-parent-select .site-select-search {
+    .site-select.channel-parent-select .site-select-search,
+    .site-select[data-site-select-search="true"] .site-select-search {
         position: sticky;
         top: 0;
         z-index: 1;
@@ -148,11 +150,13 @@
         background: #ffffff;
     }
 
-    .site-select.channel-parent-select .site-select-search-inner {
+    .site-select.channel-parent-select .site-select-search-inner,
+    .site-select[data-site-select-search="true"] .site-select-search-inner {
         position: relative;
     }
 
-    .site-select.channel-parent-select .site-select-search-input {
+    .site-select.channel-parent-select .site-select-search-input,
+    .site-select[data-site-select-search="true"] .site-select-search-input {
         width: 100%;
         min-height: 36px;
         padding: 8px 38px 8px 12px;
@@ -166,13 +170,15 @@
         transition: border-color 0.18s ease, box-shadow 0.18s ease;
     }
 
-    .site-select.channel-parent-select .site-select-search-input:focus {
+    .site-select.channel-parent-select .site-select-search-input:focus,
+    .site-select[data-site-select-search="true"] .site-select-search-input:focus {
         outline: none;
         border-color: rgba(0, 71, 171, 0.26);
         box-shadow: 0 0 0 3px rgba(0, 71, 171, 0.10);
     }
 
-    .site-select.channel-parent-select .site-select-search-clear {
+    .site-select.channel-parent-select .site-select-search-clear,
+    .site-select[data-site-select-search="true"] .site-select-search-clear {
         position: absolute;
         right: 8px;
         top: 50%;
@@ -191,16 +197,19 @@
         transition: background 0.18s ease, color 0.18s ease;
     }
 
-    .site-select.channel-parent-select .site-select-search-clear:hover {
+    .site-select.channel-parent-select .site-select-search-clear:hover,
+    .site-select[data-site-select-search="true"] .site-select-search-clear:hover {
         background: #f3f4f6;
         color: #4b5563;
     }
 
-    .site-select.channel-parent-select .site-select-search-clear[hidden] {
+    .site-select.channel-parent-select .site-select-search-clear[hidden],
+    .site-select[data-site-select-search="true"] .site-select-search-clear[hidden] {
         display: none;
     }
 
-    .site-select.channel-parent-select .site-select-search-clear svg {
+    .site-select.channel-parent-select .site-select-search-clear svg,
+    .site-select[data-site-select-search="true"] .site-select-search-clear svg {
         width: 12px;
         height: 12px;
         stroke: currentColor;
@@ -210,7 +219,8 @@
         stroke-linejoin: round;
     }
 
-    .site-select.channel-parent-select .site-select-options {
+    .site-select.channel-parent-select .site-select-options,
+    .site-select[data-site-select-search="true"] .site-select-options {
         max-height: 320px;
         overflow-y: auto;
         overscroll-behavior: contain;
@@ -218,22 +228,26 @@
         scrollbar-color: rgba(148, 163, 184, 0.7) transparent;
     }
 
-    .site-select.channel-parent-select .site-select-options::-webkit-scrollbar {
+    .site-select.channel-parent-select .site-select-options::-webkit-scrollbar,
+    .site-select[data-site-select-search="true"] .site-select-options::-webkit-scrollbar {
         width: 8px;
     }
 
-    .site-select.channel-parent-select .site-select-options::-webkit-scrollbar-track {
+    .site-select.channel-parent-select .site-select-options::-webkit-scrollbar-track,
+    .site-select[data-site-select-search="true"] .site-select-options::-webkit-scrollbar-track {
         background: transparent;
     }
 
-    .site-select.channel-parent-select .site-select-options::-webkit-scrollbar-thumb {
+    .site-select.channel-parent-select .site-select-options::-webkit-scrollbar-thumb,
+    .site-select[data-site-select-search="true"] .site-select-options::-webkit-scrollbar-thumb {
         border-radius: 999px;
         background: rgba(148, 163, 184, 0.7);
         border: 2px solid transparent;
         background-clip: padding-box;
     }
 
-    .site-select.channel-parent-select .site-select-empty {
+    .site-select.channel-parent-select .site-select-empty,
+    .site-select[data-site-select-search="true"] .site-select-empty {
         padding: 14px 12px;
         color: #98a2b3;
         font-size: 13px;

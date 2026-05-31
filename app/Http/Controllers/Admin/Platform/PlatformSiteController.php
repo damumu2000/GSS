@@ -1217,6 +1217,7 @@ class PlatformSiteController extends Controller
                 $deletedRelations = DB::table('attachment_relations')
                     ->whereIn('attachment_id', $siteAttachmentIds)
                     ->where('relation_type', 'guestbook_setting')
+                    ->where('relation_id', $siteId)
                     ->delete();
             }
         }

@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Writer\Xls;
@@ -572,6 +573,7 @@ class AdminAccessTest extends TestCase
             ->assertSee('数据库健康')
             ->assertSee('运行环境检查')
             ->assertSee('部署状态检查')
+            ->assertSee('自动任务调度检查')
             ->assertSee('静态资源与安全检查')
             ->assertSee('SORTABLEJS')
             ->assertSee($currentVersion)
@@ -994,6 +996,167 @@ class AdminAccessTest extends TestCase
         $this->assertDatabaseHas('site_module_bindings', [
             'site_id' => $siteId,
             'module_id' => $moduleId,
+        ]);
+    }
+
+    public function test_platform_remove_site_module_only_deletes_current_site_module_data(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $remoteSiteId = $this->createAdditionalSite('remote-module-site', '远程模块站点');
+        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        $guestbookModuleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
+        $payrollModuleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
+
+        foreach ([$siteId, $remoteSiteId] as $boundSiteId) {
+            DB::table('site_module_bindings')->insert([
+                'site_id' => $boundSiteId,
+                'module_id' => $guestbookModuleId,
+                'is_trial' => 0,
+                'is_paused' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        DB::table('site_module_bindings')->insert([
+            'site_id' => $siteId,
+            'module_id' => $payrollModuleId,
+            'is_trial' => 0,
+            'is_paused' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('module_guestbook_messages')->insert([
+            [
+                'site_id' => $siteId,
+                'display_no' => 1,
+                'name' => '当前站留言',
+                'phone' => '13800000001',
+                'content' => '当前站留言内容',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $remoteSiteId,
+                'display_no' => 1,
+                'name' => '远程站留言',
+                'phone' => '13800000002',
+                'content' => '远程站留言内容',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        DB::table('site_settings')->insert([
+            [
+                'site_id' => $siteId,
+                'setting_key' => 'module.guestbook.name',
+                'setting_value' => '当前站留言板',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $remoteSiteId,
+                'setting_key' => 'module.guestbook.name',
+                'setting_value' => '远程站留言板',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $siteId,
+                'setting_key' => 'module.payroll.enabled',
+                'setting_value' => '1',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $currentAttachmentId = $this->createSiteAttachment($siteId, $user->id, 'current-guestbook-notice.jpg');
+        $remoteAttachmentId = $this->createSiteAttachment($remoteSiteId, $user->id, 'remote-guestbook-notice.jpg');
+        DB::table('attachment_relations')->insert([
+            [
+                'attachment_id' => $currentAttachmentId,
+                'relation_type' => 'guestbook_setting',
+                'relation_id' => $siteId,
+                'usage_slot' => 'notice_image',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'attachment_id' => $remoteAttachmentId,
+                'relation_type' => 'guestbook_setting',
+                'relation_id' => $remoteSiteId,
+                'usage_slot' => 'notice_image',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'attachment_id' => $currentAttachmentId,
+                'relation_type' => 'guestbook_setting',
+                'relation_id' => $remoteSiteId,
+                'usage_slot' => 'notice_link',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('admin.platform.sites.modules.remove', ['site' => $siteId, 'module' => $guestbookModuleId]))
+            ->assertRedirect(route('admin.platform.sites.modules', $siteId));
+
+        $this->assertDatabaseMissing('module_guestbook_messages', [
+            'site_id' => $siteId,
+            'name' => '当前站留言',
+        ]);
+        $this->assertDatabaseHas('module_guestbook_messages', [
+            'site_id' => $remoteSiteId,
+            'name' => '远程站留言',
+        ]);
+        $this->assertDatabaseMissing('site_settings', [
+            'site_id' => $siteId,
+            'setting_key' => 'module.guestbook.name',
+        ]);
+        $this->assertDatabaseHas('site_settings', [
+            'site_id' => $remoteSiteId,
+            'setting_key' => 'module.guestbook.name',
+        ]);
+        $this->assertDatabaseHas('site_settings', [
+            'site_id' => $siteId,
+            'setting_key' => 'module.payroll.enabled',
+        ]);
+        $this->assertDatabaseMissing('site_module_bindings', [
+            'site_id' => $siteId,
+            'module_id' => $guestbookModuleId,
+        ]);
+        $this->assertDatabaseHas('site_module_bindings', [
+            'site_id' => $remoteSiteId,
+            'module_id' => $guestbookModuleId,
+        ]);
+        $this->assertDatabaseHas('site_module_bindings', [
+            'site_id' => $siteId,
+            'module_id' => $payrollModuleId,
+        ]);
+        $this->assertDatabaseMissing('attachment_relations', [
+            'attachment_id' => $currentAttachmentId,
+            'relation_type' => 'guestbook_setting',
+            'relation_id' => $siteId,
+        ]);
+        $this->assertDatabaseHas('attachment_relations', [
+            'attachment_id' => $remoteAttachmentId,
+            'relation_type' => 'guestbook_setting',
+            'relation_id' => $remoteSiteId,
+        ]);
+        $this->assertDatabaseHas('attachment_relations', [
+            'attachment_id' => $currentAttachmentId,
+            'relation_type' => 'guestbook_setting',
+            'relation_id' => $remoteSiteId,
         ]);
     }
 
@@ -1675,6 +1838,140 @@ XML);
             'title' => '补导新文章',
             'channel_id' => $articleChannelId,
         ]);
+    }
+
+    public function test_legacy_asp_importer_skips_unchanged_content_and_channel_writes(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $sourceDir = storage_path('framework/testing-legacy-asp-unchanged-'.uniqid());
+        File::ensureDirectoryExists($sourceDir);
+        $this->temporaryLegacyImportDirs[] = $sourceDir;
+
+        $site = DB::table('sites')
+            ->where('site_key', 'site')
+            ->first(['id', 'name']);
+        $siteId = (int) $site->id;
+        $siteName = (string) $site->name;
+        $originalTimestamp = Carbon::parse('2026-05-20 09:00:00');
+        $publishedAt = Carbon::parse('2026-05-20 10:20:30');
+
+        $parentChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '新闻',
+            'slug' => 'News',
+            'type' => 'list',
+            'path' => '/News',
+            'depth' => 0,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'list_template' => 'list',
+            'detail_template' => 'detail',
+            'link_url' => null,
+            'link_target' => '_self',
+            'created_at' => $originalTimestamp,
+            'updated_at' => $originalTimestamp,
+        ]);
+
+        $articleChannelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => $parentChannelId,
+            'name' => '园内新闻',
+            'slug' => 'Garden-News',
+            'type' => 'list',
+            'path' => '/Garden-News',
+            'depth' => 1,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'list_template' => 'list',
+            'detail_template' => 'detail',
+            'link_url' => null,
+            'link_target' => '_self',
+            'created_at' => $originalTimestamp,
+            'updated_at' => $originalTimestamp,
+        ]);
+
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $articleChannelId,
+            'type' => 'article',
+            'template_name' => 'detail',
+            'title' => '重复导入文章',
+            'title_color' => null,
+            'title_bold' => 0,
+            'title_italic' => 0,
+            'sub_title' => null,
+            'slug' => 'legacy-news-300',
+            'summary' => '重复导入正文',
+            'content' => '<p>重复导入正文</p>',
+            'cover_image' => '/Up/same.jpg',
+            'author' => null,
+            'source' => $siteName,
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'is_recommend' => 0,
+            'sort' => 300,
+            'view_count' => 5,
+            'published_at' => $publishedAt,
+            'created_at' => $originalTimestamp,
+            'updated_at' => $originalTimestamp,
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $contentId,
+            'channel_id' => $articleChannelId,
+            'created_at' => $originalTimestamp,
+            'updated_at' => $originalTimestamp,
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type_D.xlsx', [
+            ['T_ID', 'T_Name', 'T_type', 'T_dlei', 'shunxu', 'en'],
+            [1, '新闻', 2, '', 110, 'News'],
+        ]);
+
+        $this->writeLegacyImportSpreadsheet($sourceDir.'/Type.xlsx', [
+            ['Type_ID', 'Type_Name', 'Type_type', 'dalei', 'shunxu', 'flag', 'en'],
+            ['a11', '园内新闻', 2, 1, 10, 1, 'Garden News'],
+        ]);
+
+        File::put($sourceDir.'/News.xml', <<<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<dataroot>
+  <News>
+    <News_ID>300</News_ID>
+    <News_Type>a11</News_Type>
+    <News_Title>重复导入文章</News_Title>
+    <News_Pic>/Up/same.jpg</News_Pic>
+    <News_Content><p>重复导入正文</p></News_Content>
+    <News_Date>2026-05-20 10:20:30</News_Date>
+    <News_count>5</News_count>
+  </News>
+</dataroot>
+XML);
+
+        Carbon::setTestNow(Carbon::parse('2026-05-28 12:00:00'));
+
+        try {
+            $result = app(LegacyAspAccessSiteImporter::class)->import('site', '测试站点', $sourceDir, true, true);
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $content = DB::table('contents')
+            ->where('id', $contentId)
+            ->first(['updated_at']);
+        $contentChannel = DB::table('content_channels')
+            ->where('content_id', $contentId)
+            ->where('channel_id', $articleChannelId)
+            ->first(['updated_at']);
+
+        $this->assertSame(1, (int) $result['imported']['articles_updated']);
+        $this->assertSame($originalTimestamp->format('Y-m-d H:i:s'), Carbon::parse($content->updated_at)->format('Y-m-d H:i:s'));
+        $this->assertSame($originalTimestamp->format('Y-m-d H:i:s'), Carbon::parse($contentChannel->updated_at)->format('Y-m-d H:i:s'));
     }
 
     public function test_legacy_asp_importer_articles_only_imports_cover_only_article_without_body(): void
@@ -4263,6 +4560,42 @@ XML);
             'employee_name' => '王老师',
             'sheet_type' => 'salary',
         ]);
+
+        $firstRecord = DB::table('module_payroll_records')
+            ->where('site_id', $siteId)
+            ->where('batch_id', $batchId)
+            ->where('employee_name', '王老师')
+            ->where('sheet_type', 'salary')
+            ->first(['id', 'row_hash']);
+
+        $sameCsvFile = $this->createPayrollCsvUpload([
+            ['姓名', '岗位工资', '薪级工资'],
+            ['王老师', '3810', '4201'],
+        ], 'salary-again.csv');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->from(route('admin.payroll.batches.edit', $batchId))
+            ->post(route('admin.payroll.batches.update', $batchId), [
+                'salary_file' => $sameCsvFile,
+            ])
+            ->assertRedirect(route('admin.payroll.batches.edit', $batchId))
+            ->assertSessionDoesntHaveErrors();
+
+        $secondRecord = DB::table('module_payroll_records')
+            ->where('site_id', $siteId)
+            ->where('batch_id', $batchId)
+            ->where('employee_name', '王老师')
+            ->where('sheet_type', 'salary')
+            ->first(['id', 'row_hash']);
+
+        $this->assertSame((int) $firstRecord->id, (int) $secondRecord->id);
+        $this->assertSame((string) $firstRecord->row_hash, (string) $secondRecord->row_hash);
+        $this->assertSame(1, DB::table('module_payroll_records')
+            ->where('site_id', $siteId)
+            ->where('batch_id', $batchId)
+            ->where('sheet_type', 'salary')
+            ->count());
     }
 
     public function test_payroll_import_accepts_legacy_xls_sheet(): void
@@ -6760,6 +7093,119 @@ XML);
             ['封面图', '正文图片'],
             data_get($response->json(), 'items.0.relation_labels')
         );
+    }
+
+    public function test_content_attachment_relation_sync_skips_unchanged_rows(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('attachment-unchanged-sync-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $attachmentId = $this->createSiteAttachment($siteId, $siteAdmin->id, 'unchanged-sync.jpg');
+        $attachmentUrl = (string) DB::table('attachments')->where('id', $attachmentId)->value('url');
+        $originalTimestamp = Carbon::parse('2026-05-20 09:00:00');
+
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'type' => 'article',
+            'title' => '附件关系重复同步',
+            'slug' => 'attachment-relation-repeat-sync',
+            'cover_image' => $attachmentUrl,
+            'content' => '',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $siteAdmin->id,
+            'updated_by' => $siteAdmin->id,
+            'created_at' => $originalTimestamp,
+            'updated_at' => $originalTimestamp,
+        ]);
+
+        Carbon::setTestNow($originalTimestamp);
+
+        try {
+            app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+
+            Carbon::setTestNow(Carbon::parse('2026-05-28 12:00:00'));
+
+            app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $relation = DB::table('attachment_relations')
+            ->where('attachment_id', $attachmentId)
+            ->where('relation_type', 'content')
+            ->where('relation_id', $contentId)
+            ->first(['updated_at']);
+
+        $this->assertSame($originalTimestamp->format('Y-m-d H:i:s'), Carbon::parse($relation->updated_at)->format('Y-m-d H:i:s'));
+        $this->assertSame(1, (int) DB::table('attachments')->where('id', $attachmentId)->value('usage_count'));
+        $this->assertSame($originalTimestamp->format('Y-m-d H:i:s'), Carbon::parse(DB::table('attachments')->where('id', $attachmentId)->value('last_used_at'))->format('Y-m-d H:i:s'));
+    }
+
+    public function test_content_channel_sync_skips_unchanged_rows(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('content-channel-unchanged-sync-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $timestamp = Carbon::parse('2026-05-20 09:00:00');
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'parent_id' => null,
+            'name' => '同步栏目',
+            'slug' => 'sync-channel',
+            'type' => 'list',
+            'path' => '/sync-channel',
+            'depth' => 0,
+            'sort' => 1,
+            'status' => 1,
+            'is_nav' => 1,
+            'list_template' => 'list',
+            'detail_template' => 'detail',
+            'link_url' => null,
+            'link_target' => '_self',
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]);
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $siteId,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '栏目关系重复同步',
+            'slug' => 'content-channel-repeat-sync',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $siteAdmin->id,
+            'updated_by' => $siteAdmin->id,
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $contentId,
+            'channel_id' => $channelId,
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-05-28 12:00:00'));
+
+        try {
+            $controller = new \App\Http\Controllers\Admin\Site\ContentController();
+            $method = new \ReflectionMethod($controller, 'syncContentChannels');
+            $method->setAccessible(true);
+            $method->invoke($controller, $contentId, [$channelId]);
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $relation = DB::table('content_channels')
+            ->where('content_id', $contentId)
+            ->where('channel_id', $channelId)
+            ->first(['updated_at']);
+
+        $this->assertSame($timestamp->format('Y-m-d H:i:s'), Carbon::parse($relation->updated_at)->format('Y-m-d H:i:s'));
     }
 
     public function test_soft_deleted_content_keeps_attachment_usage_and_shows_recycle_bin_status(): void
@@ -12023,6 +12469,9 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        app(\App\Support\SiteVisitStatsBuffer::class)->flushPending();
+        DB::table('site_visit_daily_stats')->where('site_id', $siteId)->delete();
+
         $identity = $this->createPlatformIdentity('visit-tracking-seeder');
         $channelId = $this->createSiteChannel($siteId, 'visit-track-channel', '访问统计栏目', $identity->id);
 
@@ -12052,6 +12501,8 @@ XML);
 
         $this->get(route('site.article', ['site' => 'site', 'id' => $articleId]))
             ->assertOk();
+
+        app(\App\Support\SiteVisitStatsBuffer::class)->flushPending();
 
         $this->assertDatabaseHas('site_visit_daily_stats', [
             'site_id' => $siteId,

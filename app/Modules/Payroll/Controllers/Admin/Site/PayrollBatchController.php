@@ -277,7 +277,7 @@ class PayrollBatchController extends Controller
             ];
         }
 
-        $monthLabel = \Illuminate\Support\Carbon::createFromFormat('Y-m', (string) $batch->month_key)->format('Y年n月');
+        $monthLabel = \Illuminate\Support\Carbon::createFromFormat('!Y-m', (string) $batch->month_key)->format('Y年n月');
         $typeLabel = $type === 'salary' ? '工资数据' : '绩效数据';
         $fileName = $monthLabel.$typeLabel.'.csv';
 
@@ -325,7 +325,7 @@ class PayrollBatchController extends Controller
 
         return redirect()
             ->route('admin.payroll.batches.index')
-            ->with('status', \Illuminate\Support\Carbon::createFromFormat('Y-m', (string) $batch->month_key)->format('Y年n月').'工资批次及对应解析数据已删除。');
+            ->with('status', \Illuminate\Support\Carbon::createFromFormat('!Y-m', (string) $batch->month_key)->format('Y年n月').'工资批次及对应解析数据已删除。');
     }
 
     /**

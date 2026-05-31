@@ -15,14 +15,13 @@ class RuntimeHealthCheck
             $this->appConfigItem(),
             $this->writableItem(),
             $this->storageLinkItem(),
-            $this->logHealthItem(),
         ];
 
         return [
             'key' => 'runtime',
             'title' => '运行环境检查',
             'status' => $this->overallStatus($items),
-            'summary' => '检查当前环境配置、目录写权限、存储链接和最近日志状态。',
+            'summary' => '检查当前环境配置、目录写权限和存储链接状态。',
             'items' => $items,
         ];
     }
@@ -137,71 +136,6 @@ class RuntimeHealthCheck
             'suggestion' => '请执行：php artisan storage:link',
             'details' => '',
         ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function logHealthItem(): array
-    {
-        $logPath = storage_path('logs/laravel.log');
-
-        if (! is_file($logPath)) {
-            return [
-                'label' => '最近日志',
-                'status' => 'ok',
-                'value' => '暂无 laravel.log',
-                'message' => '未发现主日志文件，当前没有可识别的异常日志。',
-                'suggestion' => '',
-                'details' => '',
-            ];
-        }
-
-        $sample = $this->tailSample($logPath, 262144);
-        $hasCritical = str_contains($sample, 'CRITICAL') || str_contains($sample, 'EMERGENCY');
-        $hasError = str_contains($sample, 'ERROR');
-
-        if (! $hasCritical && ! $hasError) {
-            return [
-                'label' => '最近日志',
-                'status' => 'ok',
-                'value' => '未发现高等级错误',
-                'message' => '最近日志中未检测到 ERROR / CRITICAL。',
-                'suggestion' => '',
-                'details' => '',
-            ];
-        }
-
-        return [
-            'label' => '最近日志',
-            'status' => $hasCritical ? 'error' : 'warning',
-            'value' => $hasCritical ? '发现 CRITICAL' : '发现 ERROR',
-            'message' => '最近日志里存在高等级异常，请尽快排查。',
-            'suggestion' => '请检查 storage/logs/laravel.log 的最新记录。',
-            'details' => '',
-        ];
-    }
-
-    protected function tailSample(string $path, int $bytes): string
-    {
-        $size = filesize($path);
-
-        if ($size === false || $size <= 0) {
-            return '';
-        }
-
-        $handle = fopen($path, 'rb');
-
-        if (! $handle) {
-            return '';
-        }
-
-        $offset = max(0, $size - $bytes);
-        fseek($handle, $offset);
-        $content = (string) stream_get_contents($handle);
-        fclose($handle);
-
-        return $content;
     }
 
     /**

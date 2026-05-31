@@ -3,6 +3,10 @@
     $isModuleCreateSubmit = (string) old('_module_action') === 'create';
     $moduleSubmitError = $errors->first('module_id') ?: ($errors->first('is_trial') ?: $errors->first('is_paused'));
     $moduleCreateModalOpen = $isModuleCreateSubmit && $moduleSubmitError !== null;
+    $selectedAvailableModule = collect($availableModules)->firstWhere('id', (int) old('module_id'));
+    $selectedAvailableModuleLabel = $selectedAvailableModule
+        ? $selectedAvailableModule['name'].'（'.$selectedAvailableModule['code'].'）'
+        : '请选择模块';
 @endphp
 
 @if ($errors->has('module'))
@@ -94,12 +98,18 @@
             @endif
             <label class="field-group">
                 <span class="field-label">选择模块</span>
-                <select class="field site-module-create-select @if ($errors->has('module_id')) is-error @endif" name="module_id" required @if ($errors->has('module_id')) aria-invalid="true" @endif>
-                    <option value="">请选择模块</option>
-                    @foreach ($availableModules as $module)
-                        <option value="{{ (int) $module['id'] }}" @selected((string) old('module_id') === (string) $module['id'])>{{ $module['name'] }}（{{ $module['code'] }}）</option>
-                    @endforeach
-                </select>
+                <div class="site-select site-module-create-select" data-site-select data-site-select-search="true" data-site-select-search-placeholder="搜索模块名称或标识" data-site-select-empty-text="没有找到匹配的模块">
+                    <select class="field site-select-native @if ($errors->has('module_id')) is-error @endif" name="module_id" required @if ($errors->has('module_id')) aria-invalid="true" @endif>
+                        <option value="">请选择模块</option>
+                        @foreach ($availableModules as $module)
+                            <option value="{{ (int) $module['id'] }}" @selected((string) old('module_id') === (string) $module['id'])>{{ $module['name'] }}（{{ $module['code'] }}）</option>
+                        @endforeach
+                    </select>
+                    <button class="site-select-trigger @if ($errors->has('module_id')) is-error @endif" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
+                        {{ $selectedAvailableModuleLabel }}
+                    </button>
+                    <div class="site-select-panel" data-select-panel role="listbox"></div>
+                </div>
             </label>
             @if (collect($availableModules)->isEmpty())
                 <div class="site-modules-empty">当前没有可添加模块，请先确认平台模块已启用且未被绑定。</div>

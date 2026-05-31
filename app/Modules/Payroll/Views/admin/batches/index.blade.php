@@ -116,7 +116,7 @@
                     @foreach ($batches as $batch)
                         <tr>
                             <td>
-                                <span class="payroll-month">{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $batch->month_key)->format('Y年n月') }}</span>
+                                <span class="payroll-month">{{ \Illuminate\Support\Carbon::createFromFormat('!Y-m', $batch->month_key)->format('Y年n月') }}</span>
                             </td>
                             <td>
                                 <div class="payroll-file-list">
@@ -164,7 +164,7 @@
                                         class="payroll-ops is-danger js-payroll-batch-delete"
                                         type="button"
                                         data-form-id="delete-payroll-batch-{{ $batch->id }}"
-                                        data-batch-label="{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $batch->month_key)->format('Y年n月') }}"
+                                        data-batch-label="{{ \Illuminate\Support\Carbon::createFromFormat('!Y-m', $batch->month_key)->format('Y年n月') }}"
                                     >
                                         <i class="fa-regular fa-trash-can"></i>
                                         <span>删除</span>

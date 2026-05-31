@@ -1165,16 +1165,40 @@ class ContentController extends Controller
      */
     protected function syncContentChannels(int $contentId, array $channelIds): void
     {
+        $normalizedChannelIds = collect($channelIds)
+            ->map(fn (int $channelId): int => $channelId)
+            ->filter(fn (int $channelId): bool => $channelId > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $existingChannelIds = DB::table('content_channels')
+            ->where('content_id', $contentId)
+            ->pluck('channel_id')
+            ->map(fn ($channelId): int => (int) $channelId)
+            ->sort()
+            ->values()
+            ->all();
+
+        $targetChannelIds = collect($normalizedChannelIds)
+            ->sort()
+            ->values()
+            ->all();
+
+        if ($existingChannelIds === $targetChannelIds) {
+            return;
+        }
+
         DB::table('content_channels')->where('content_id', $contentId)->delete();
 
-        if ($channelIds === []) {
+        if ($normalizedChannelIds === []) {
             return;
         }
 
         $now = now();
 
         DB::table('content_channels')->insert(
-            collect($channelIds)
+            collect($normalizedChannelIds)
                 ->values()
                 ->map(fn (int $channelId): array => [
                     'content_id' => $contentId,

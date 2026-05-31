@@ -4,10 +4,12 @@
 @section('breadcrumb', '后台管理 / 站点管理 / 模块使用管理')
 
 @push('styles')
+    @include('admin.site._custom_select_styles')
     <link rel="stylesheet" href="{{ asset('css/platform-site-modules.css') }}">
 @endpush
 
 @push('scripts')
+    @include('admin.site._custom_select_scripts')
     <script src="{{ asset('js/platform-site-modules.js') }}" defer></script>
 @endpush
 

@@ -19,11 +19,6 @@ class UserAttachmentRelationSync
             ->where('id', $userId)
             ->value('avatar');
 
-        DB::table('attachment_relations')
-            ->where('relation_type', 'user')
-            ->where('relation_id', $userId)
-            ->delete();
-
         $relationRows = [];
 
         foreach ($this->extractAttachmentIdsFromUrls($siteId, [(string) $avatar]) as $attachmentId) {
@@ -37,23 +32,7 @@ class UserAttachmentRelationSync
             ];
         }
 
-        if ($relationRows !== []) {
-            DB::table('attachment_relations')->insert($relationRows);
-        }
-
-        $affectedAttachmentIds = collect($relationRows)
-            ->pluck('attachment_id')
-            ->map(fn ($id) => (int) $id)
-            ->merge($previousAttachmentIds)
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($affectedAttachmentIds !== []) {
-            (new AttachmentUsageTracker())->rebuildForAttachmentIds($affectedAttachmentIds, $siteId);
-        }
-
-        return $affectedAttachmentIds;
+        return (new AttachmentRelationWriter())->sync('user', $userId, $relationRows, $previousAttachmentIds, $siteId);
     }
 
     /**

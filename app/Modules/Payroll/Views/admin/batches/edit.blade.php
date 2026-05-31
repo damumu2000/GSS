@@ -38,7 +38,7 @@
             <section class="payroll-edit-card">
                 <div class="payroll-edit-topbar">
                     <div class="payroll-edit-batch-meta">
-                        <h2 class="payroll-edit-batch-title">{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $batch->month_key)->format('Y年n月') }}</h2>
+                        <h2 class="payroll-edit-batch-title">{{ \Illuminate\Support\Carbon::createFromFormat('!Y-m', $batch->month_key)->format('Y年n月') }}</h2>
                         <span class="payroll-edit-batch-badge {{ $batch->status === 'imported' ? '' : 'is-muted' }}">{{ $batch->status === 'imported' ? '已解析' : '待上传' }}</span>
                         <span class="payroll-edit-batch-badge is-muted">工资 {{ $recordStats['salary'] }}</span>
                         <span class="payroll-edit-batch-badge is-muted">绩效 {{ $recordStats['performance'] }}</span>

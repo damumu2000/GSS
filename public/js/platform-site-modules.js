@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createModal.hidden = false;
         createModal.classList.add('is-open');
         document.body.classList.add('has-modal-open');
-        createModal.querySelector('select[name="module_id"]')?.focus();
+        createModal.querySelector('[data-select-trigger]')?.focus();
     };
 
     const closeCreateModal = () => {
