@@ -240,7 +240,9 @@
                 return;
             }
 
-            const normalizedStatus = ['error', 'warning'].includes(status) ? status : 'ok';
+            const normalizedStatus = ['error', 'draft'].includes(status)
+                ? 'error'
+                : (['warning', 'pending'].includes(status) ? 'warning' : 'ok');
 
             actionStatusNode.classList.remove('is-error', 'is-warning');
 

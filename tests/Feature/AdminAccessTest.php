@@ -5251,10 +5251,12 @@ XML);
         ]);
 
         \Illuminate\Support\Facades\Cache::forget('system-checks:laravel:latest');
+        \Illuminate\Support\Facades\Cache::store('database')->forget(\App\Support\SystemChecks\SchedulerHealthCheck::HEARTBEAT_CACHE_KEY);
 
         $this->actingAs($this->superAdmin())
             ->getJson(route('admin.platform.dashboard.system-status'))
             ->assertOk()
+            ->assertJsonPath('overall_status', 'error')
             ->assertJsonStructure([
                 'checked_at',
                 'overall_status',

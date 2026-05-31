@@ -2,8 +2,12 @@
 
 namespace App\Support;
 
+use App\Support\SystemChecks\DatabaseHealthCheck;
+use App\Support\SystemChecks\DeployHealthCheck;
 use App\Support\SystemChecks\MailQueueHealthCheck;
 use App\Support\SystemChecks\PerformanceCacheHealthCheck;
+use App\Support\SystemChecks\RuntimeHealthCheck;
+use App\Support\SystemChecks\SchedulerHealthCheck;
 use App\Support\SystemChecks\StaticVendorHealthCheck;
 use App\Support\SystemChecks\StaticVendorManager;
 
@@ -11,8 +15,12 @@ class PlatformSystemStatus
 {
     public function __construct(
         protected SystemSettings $systemSettings,
+        protected DatabaseHealthCheck $databaseHealthCheck,
+        protected DeployHealthCheck $deployHealthCheck,
         protected MailQueueHealthCheck $mailQueueHealthCheck,
         protected PerformanceCacheHealthCheck $performanceCacheHealthCheck,
+        protected RuntimeHealthCheck $runtimeHealthCheck,
+        protected SchedulerHealthCheck $schedulerHealthCheck,
         protected StaticVendorHealthCheck $staticVendorHealthCheck,
         protected StaticVendorManager $staticVendorManager,
     ) {
@@ -31,10 +39,11 @@ class PlatformSystemStatus
             $this->redisCacheStatusItem(),
             $this->imageProcessingStatusItem(),
         ];
+        $systemCheckStatus = $this->systemCheckStatus();
 
         return [
             'checked_at' => now('Asia/Shanghai')->format('Y-m-d H:i:s'),
-            'overall_status' => $this->overallStatus($items),
+            'overall_status' => $this->maxStatus([$this->overallStatus($items), $systemCheckStatus]),
             'items' => $items,
         ];
     }
@@ -44,19 +53,56 @@ class PlatformSystemStatus
      */
     protected function overallStatus(array $items): string
     {
-        $hasWarning = false;
+        $statuses = [];
 
         foreach ($items as $item) {
             if (($item['status_class'] ?? '') === 'draft') {
-                return 'error';
+                $statuses[] = 'error';
+                continue;
             }
 
             if (($item['status_class'] ?? '') === 'pending') {
-                $hasWarning = true;
+                $statuses[] = 'warning';
+                continue;
             }
+
+            $statuses[] = 'ok';
         }
 
-        return $hasWarning ? 'warning' : 'ok';
+        return $this->maxStatus($statuses);
+    }
+
+    protected function systemCheckStatus(): string
+    {
+        $groups = [
+            $this->staticVendorHealthCheck->inspect(),
+            $this->mailQueueHealthCheck->inspect(),
+            $this->performanceCacheHealthCheck->inspect(),
+            $this->schedulerHealthCheck->inspect(),
+            $this->databaseHealthCheck->inspect(),
+            $this->runtimeHealthCheck->inspect(),
+            $this->deployHealthCheck->inspect(),
+        ];
+
+        return $this->maxStatus(array_map(
+            static fn (array $group): string => (string) ($group['status'] ?? 'ok'),
+            $groups
+        ));
+    }
+
+    /**
+     * @param  array<int, string>  $statuses
+     */
+    protected function maxStatus(array $statuses): string
+    {
+        $priority = ['ok' => 0, 'warning' => 1, 'error' => 2];
+        $max = 0;
+
+        foreach ($statuses as $status) {
+            $max = max($max, $priority[$status] ?? 0);
+        }
+
+        return array_search($max, $priority, true) ?: 'ok';
     }
 
     /**
