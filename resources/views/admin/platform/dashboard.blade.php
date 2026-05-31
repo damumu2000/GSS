@@ -195,13 +195,17 @@
                     <h3 class="insight-board-card-title">系统状态</h3>
                     <div class="panel-heading-actions">
                         <a class="button dashboard-create-button dashboard-action-button" href="{{ route('admin.platform.settings.index', ['tab' => 'mail']) }}">邮件服务</a>
-                        <a class="button dashboard-create-button dashboard-action-button" href="{{ route('admin.platform.system-checks.index') }}">系统检查</a>
+                        <a class="button dashboard-create-button dashboard-action-button dashboard-status-action" href="{{ route('admin.platform.system-checks.index') }}">
+                            <span>系统检查</span>
+                            <span class="dashboard-action-status-badge" data-system-check-action-status hidden></span>
+                        </a>
                     </div>
                 </div>
                 <div
                     class="system-status-panel"
                     data-system-status-panel
                     data-status-url="{{ $systemStatusUrl }}"
+                    data-system-check-action-status-target="[data-system-check-action-status]"
                 >
                     <div class="insight-board-card-subtitle" data-system-status-checked-at>加载中</div>
                     <div class="recent-feed-empty" data-system-status-loading>正在加载系统状态...</div>

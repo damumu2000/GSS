@@ -198,6 +198,8 @@
         const listNode = panel.querySelector('[data-system-status-list]');
         const emptyNode = panel.querySelector('[data-system-status-empty]');
         const errorNode = panel.querySelector('[data-system-status-error]');
+        const actionStatusSelector = panel.getAttribute('data-system-check-action-status-target') || '';
+        const actionStatusNode = actionStatusSelector ? document.querySelector(actionStatusSelector) : null;
 
         if (! statusUrl || ! checkedAtNode || ! loadingNode || ! listNode || ! emptyNode || ! errorNode) {
             return;
@@ -233,6 +235,26 @@
             }).join('');
         };
 
+        const updateActionStatus = (status) => {
+            if (! actionStatusNode) {
+                return;
+            }
+
+            const normalizedStatus = ['error', 'warning'].includes(status) ? status : 'ok';
+
+            actionStatusNode.classList.remove('is-error', 'is-warning');
+
+            if (normalizedStatus === 'ok') {
+                actionStatusNode.hidden = true;
+                actionStatusNode.textContent = '';
+                return;
+            }
+
+            actionStatusNode.hidden = false;
+            actionStatusNode.textContent = normalizedStatus === 'error' ? '异常' : '警告';
+            actionStatusNode.classList.add(normalizedStatus === 'error' ? 'is-error' : 'is-warning');
+        };
+
         setState('loading');
 
         fetch(statusUrl, {
@@ -255,6 +277,7 @@
                     : '系统状态已加载';
 
                 const items = Array.isArray(payload.items) ? payload.items : [];
+                updateActionStatus(payload.overall_status || 'ok');
 
                 if (items.length === 0) {
                     setState('empty');
@@ -266,6 +289,7 @@
             })
             .catch(() => {
                 checkedAtNode.textContent = '系统状态加载失败';
+                updateActionStatus('error');
                 setState('error');
             });
     });

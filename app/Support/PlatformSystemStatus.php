@@ -23,17 +23,40 @@ class PlatformSystemStatus
      */
     public function dashboardSummary(): array
     {
+        $items = [
+            $this->mailQueueStatusItem(),
+            $this->laravelVersionStatusItem(),
+            $this->jqueryVersionStatusItem(),
+            $this->opcacheStatusItem(),
+            $this->redisCacheStatusItem(),
+            $this->imageProcessingStatusItem(),
+        ];
+
         return [
             'checked_at' => now('Asia/Shanghai')->format('Y-m-d H:i:s'),
-            'items' => [
-                $this->mailQueueStatusItem(),
-                $this->laravelVersionStatusItem(),
-                $this->jqueryVersionStatusItem(),
-                $this->opcacheStatusItem(),
-                $this->redisCacheStatusItem(),
-                $this->imageProcessingStatusItem(),
-            ],
+            'overall_status' => $this->overallStatus($items),
+            'items' => $items,
         ];
+    }
+
+    /**
+     * @param  array<int, array<string, string>>  $items
+     */
+    protected function overallStatus(array $items): string
+    {
+        $hasWarning = false;
+
+        foreach ($items as $item) {
+            if (($item['status_class'] ?? '') === 'draft') {
+                return 'error';
+            }
+
+            if (($item['status_class'] ?? '') === 'pending') {
+                $hasWarning = true;
+            }
+        }
+
+        return $hasWarning ? 'warning' : 'ok';
     }
 
     /**

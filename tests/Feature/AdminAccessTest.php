@@ -5231,6 +5231,7 @@ XML);
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSee('系统状态')
+            ->assertSee('data-system-check-action-status', false)
             ->assertSee('加载中')
             ->assertDontSee('近期文章');
     }
@@ -5256,6 +5257,7 @@ XML);
             ->assertOk()
             ->assertJsonStructure([
                 'checked_at',
+                'overall_status',
                 'items' => [
                     '*' => ['title', 'state', 'status_class', 'meta', 'detail', 'action_url'],
                 ],
