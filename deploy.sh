@@ -7,6 +7,46 @@ cd "$ROOT_DIR"
 
 echo "[deploy] project: $ROOT_DIR"
 
+ensure_scheduler_cron() {
+  if ! command -v crontab >/dev/null 2>&1; then
+    echo "[deploy] crontab not found, skipped Laravel Scheduler cron setup."
+    return 0
+  fi
+
+  local marker_start="# GSS Laravel Scheduler: begin"
+  local marker_end="# GSS Laravel Scheduler: end"
+  local scheduler_command="cd '$ROOT_DIR' && php artisan schedule:run >> /dev/null 2>&1"
+  local current_cron
+  local next_cron
+
+  current_cron="$(mktemp)"
+  next_cron="$(mktemp)"
+
+  crontab -l > "$current_cron" 2>/dev/null || true
+
+  awk -v start="$marker_start" -v end="$marker_end" '
+    $0 == start { skip = 1; next }
+    $0 == end { skip = 0; next }
+    ! skip { print }
+  ' "$current_cron" > "$next_cron"
+
+  if ! grep -Fq "$scheduler_command" "$next_cron"; then
+    {
+      printf "\n%s\n" "$marker_start"
+      printf "* * * * * %s\n" "$scheduler_command"
+      printf "%s\n" "$marker_end"
+    } >> "$next_cron"
+  fi
+
+  if crontab "$next_cron"; then
+    echo "[deploy] Laravel Scheduler cron ensured."
+  else
+    echo "[deploy] failed to update crontab, please configure Laravel Scheduler manually."
+  fi
+
+  rm -f "$current_cron" "$next_cron"
+}
+
 if [[ ! -f ".env" ]]; then
   echo "[deploy] missing .env, aborting."
   exit 1
@@ -76,6 +116,10 @@ if [[ ! -L "public/storage" ]]; then
   mkdir -p storage/app/public
   php artisan storage:link || ln -sfn "$ROOT_DIR/storage/app/public" "$ROOT_DIR/public/storage"
 fi
+
+echo "[deploy] ensuring Laravel Scheduler cron..."
+ensure_scheduler_cron
+php artisan schedule:run >/dev/null 2>&1 || true
 
 echo "[deploy] restarting queue workers..."
 php artisan queue:restart
