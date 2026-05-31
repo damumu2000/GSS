@@ -261,6 +261,10 @@
             line-height: 1;
         }
 
+        .dashboard-action-status-badge[hidden] {
+            display: none;
+        }
+
         .dashboard-action-status-badge.is-error {
             background: #fee2e2;
             color: #b91c1c;
