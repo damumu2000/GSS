@@ -2010,24 +2010,13 @@ function clearArticleFormattingHtml(rawHtml) {
 
     const allowedAttributesByTag = {
         a: ['href', 'target', 'rel', 'title'],
-        img: ['src', 'alt', 'title', 'width', 'height', 'srcset', 'sizes', 'loading'],
+        img: ['src', 'alt', 'title', 'srcset', 'loading'],
         iframe: ['src', 'title', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder'],
         video: ['src', 'poster', 'width', 'height', 'controls'],
         source: ['src', 'srcset', 'type'],
-        table: ['border', 'cellpadding', 'cellspacing'],
         td: ['colspan', 'rowspan'],
         th: ['colspan', 'rowspan', 'scope'],
     };
-
-    root.querySelectorAll('img').forEach((node) => {
-        const width = normalizedImageWidth(node.getAttribute('width'))
-            || normalizedImageWidth(node.style?.width)
-            || widthFromInlineImageClass(node.closest('[class*="cms-inline-image-block--width-"], [class*="cms-inline-image-figure--width-"]'));
-
-        if (width) {
-            node.setAttribute('width', width);
-        }
-    });
 
     root.querySelectorAll('*').forEach((node) => {
         if (node.closest('.bilibili-video-embed[data-bilibili-video="1"]')) {
@@ -2053,35 +2042,6 @@ function clearArticleFormattingHtml(rawHtml) {
     });
 
     return root.innerHTML;
-}
-
-function normalizedImageWidth(value) {
-    const width = String(value || '').trim().toLowerCase();
-    if (width === '') {
-        return '';
-    }
-
-    const pixelMatch = width.match(/^(\d{1,4})(?:px)?$/);
-    if (pixelMatch) {
-        return pixelMatch[1];
-    }
-
-    const percentMatch = width.match(/^(\d{1,3})%$/);
-    if (percentMatch) {
-        const percent = Number(percentMatch[1]);
-        return percent > 0 && percent <= 100 ? `${percent}%` : '';
-    }
-
-    return '';
-}
-
-function widthFromInlineImageClass(wrapper) {
-    if (!wrapper) {
-        return '';
-    }
-
-    const match = String(wrapper.className || '').match(/cms-inline-image-(?:block|figure)--width-(100|80|60|40)\b/);
-    return match ? `${match[1]}%` : '';
 }
 
 function clearEditorFormatting(editor) {
