@@ -1285,6 +1285,72 @@ function splitMixedMediaParagraphs(root) {
     });
 }
 
+function paragraphHasMeaningfulContent(element) {
+    if (!element || element.tagName?.toLowerCase() !== 'p') {
+        return false;
+    }
+
+    const text = (element.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    if (text !== '') {
+        return true;
+    }
+
+    return Array.from(element.children || []).some((child) => child.matches?.('br') === false);
+}
+
+function isEmptyArticleParagraph(element) {
+    if (!element || element.tagName?.toLowerCase() !== 'p') {
+        return false;
+    }
+
+    return (element.innerHTML || '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/\s+/g, '') === '';
+}
+
+function normalizeArticleBlankLines(root) {
+    root.querySelectorAll('p').forEach((node) => {
+        const lineBreaks = Array.from(node.childNodes).filter((child) => child.nodeType === Node.ELEMENT_NODE && child.nodeName.toLowerCase() === 'br');
+        if (lineBreaks.length === 0) {
+            return;
+        }
+
+        const paragraphDocument = node.ownerDocument || document;
+        const fragment = paragraphDocument.createDocumentFragment();
+        let currentParagraph = paragraphDocument.createElement('p');
+
+        Array.from(node.childNodes).forEach((child) => {
+            if (child.nodeType === Node.ELEMENT_NODE && child.nodeName.toLowerCase() === 'br') {
+                if (paragraphHasMeaningfulContent(currentParagraph)) {
+                    fragment.appendChild(currentParagraph);
+                }
+                currentParagraph = paragraphDocument.createElement('p');
+                return;
+            }
+
+            currentParagraph.appendChild(child.cloneNode(true));
+        });
+
+        if (paragraphHasMeaningfulContent(currentParagraph)) {
+            fragment.appendChild(currentParagraph);
+        }
+
+        if (fragment.childNodes.length === 0) {
+            node.remove();
+            return;
+        }
+
+        node.replaceWith(fragment);
+    });
+
+    root.querySelectorAll('p').forEach((node) => {
+        if (isEmptyArticleParagraph(node)) {
+            node.remove();
+        }
+    });
+}
+
 function normalizeArticleFooter(root) {
     const paragraphs = Array.from(root.querySelectorAll('p')).filter((node) => !node.querySelector('img, table, iframe, video, figure, .bilibili-video-embed'));
     const tailParagraphs = paragraphs.slice(-4);
@@ -1399,6 +1465,7 @@ function stripParagraphLeadingWhitespace(node) {
 }
 
 function normalizeArticleTypography(root) {
+    normalizeArticleBlankLines(root);
     splitMixedMediaParagraphs(root);
 
     root.querySelectorAll('p, li, td, th, figcaption, blockquote').forEach((node) => {
