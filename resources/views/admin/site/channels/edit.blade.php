@@ -79,7 +79,7 @@
                                 <div>
                                     <label for="slug">栏目别名</label>
                                     @if ($isCreate)
-                                        <input class="field @error('slug') is-error @enderror" id="slug" type="text" name="slug" value="{{ old('slug', $channel->slug) }}" inputmode="latin" maxlength="20" @error('slug') aria-invalid="true" @enderror>
+                                        <input class="field @error('slug') is-error @enderror" id="slug" type="text" name="slug" value="{{ old('slug', $channel->slug) }}" inputmode="latin" maxlength="30" @error('slug') aria-invalid="true" @enderror>
                                     @else
                                         <input type="hidden" name="slug" value="{{ $channel->slug }}">
                                         <div class="channel-slug-display">{{ $channel->slug }}</div>

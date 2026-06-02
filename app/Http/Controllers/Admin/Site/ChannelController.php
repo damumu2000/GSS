@@ -517,7 +517,7 @@ class ChannelController extends Controller
                 'required',
                 'string',
                 'min:3',
-                'max:20',
+                'max:30',
                 'regex:/^[A-Za-z0-9_-]+$/',
                 Rule::unique('channels', 'slug')
                     ->where(fn ($query) => $query->where('site_id', $currentSite->id))
@@ -616,7 +616,7 @@ class ChannelController extends Controller
             'name.regex' => '栏目名称只能使用中文、英文、数字、空格、下划线、中划线、加号、圆括号或间隔点。',
             'slug.min' => '栏目别名不能少于3个字符。',
             'slug.regex' => '栏目别名只能由英文、数字、下划线和短横线组成。',
-            'slug.max' => '栏目别名不能超过20个字符。',
+            'slug.max' => '栏目别名不能超过30个字符。',
             'slug.unique' => '当前站点已存在相同的栏目别名，请调整后再提交。',
             'parent_id.exists' => '请选择当前站点内有效的上级栏目。',
             'link_url.required_if' => '外链栏目必须填写外链地址。',

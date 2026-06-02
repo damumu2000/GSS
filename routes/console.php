@@ -4,7 +4,6 @@ use App\Support\AttachmentUsageTracker;
 use App\Support\FrontendPageCache;
 use App\Support\IpRegionResolver;
 use App\Support\LegacyAspAccessSiteImporter;
-use App\Support\OneTimeSchoolMysqlImporter;
 use App\Support\PromoItemExpiryManager;
 use App\Support\SiteVisitStatsBuffer;
 use App\Support\SystemChecks\SchedulerHealthCheck;
@@ -130,59 +129,6 @@ Artisan::command('cms:import-legacy-asp {sourceDir : 旧站导出目录} {siteKe
 
     $this->info($execute ? '旧站导入完成。' : '旧站导入预检查完成。');
 })->purpose('将 ASP + Access 老站导出文件导入为当前系统的新站点');
-
-Artisan::command('cms:import-school-mysql {sqlPath : 第三方学校系统 MySQL dump 文件} {siteKey : 目标站点标识} {--execute : 实际写入数据库}', function () {
-    $sqlPath = (string) $this->argument('sqlPath');
-    $siteKey = trim((string) $this->argument('siteKey'));
-    $execute = (bool) $this->option('execute');
-
-    $this->info($execute ? '开始执行学校 SQL 迁移...' : '开始执行学校 SQL 迁移预检查...');
-
-    $result = app(OneTimeSchoolMysqlImporter::class)->import($sqlPath, $siteKey, $execute);
-    $site = $result['site'] ?? [];
-    $counts = $result['counts'] ?? [];
-    $assets = $result['assets'] ?? [];
-    $imported = $result['imported'] ?? [];
-
-    $this->line('目标站点：'.(($site['name'] ?? '').' ('.($site['site_key'] ?? '').')'));
-    $this->line('站点ID：'.(string) ($site['id'] ?? ''));
-    $this->line('数据来源：'.$sqlPath);
-    $this->line('模式：'.($execute ? '写入执行' : '仅预检查'));
-    $this->newLine();
-
-    $this->line('源数据统计：');
-    $this->line('  单页栏目：'.(int) ($counts['article_categories'] ?? 0));
-    $this->line('  单页内容：'.(int) ($counts['pages'] ?? 0));
-    $this->line('  新闻栏目：'.(int) ($counts['news_categories'] ?? 0));
-    $this->line('  新闻内容：'.(int) ($counts['news'] ?? 0));
-    $this->line('  图片视频栏目：'.(int) ($counts['pic_categories'] ?? 0));
-    $this->line('  图片视频内容：'.(int) ($counts['pics'] ?? 0));
-    $this->newLine();
-
-    $this->line('旧附件路径统计：');
-    $this->line('  正文引用：'.(int) ($assets['html_refs'] ?? 0));
-    $this->line('  封面引用：'.(int) ($assets['cover_refs'] ?? 0));
-    $this->line('  唯一引用：'.(int) ($assets['total_unique_refs'] ?? 0));
-    $this->line('  目标前缀：'.(string) ($assets['target_prefix'] ?? ''));
-    $this->newLine();
-
-    if ($execute) {
-        $this->line('导入结果：');
-        $this->line('  栏目新增：'.(int) ($imported['channels_created'] ?? 0));
-        $this->line('  栏目更新：'.(int) ($imported['channels_updated'] ?? 0));
-        $this->line('  单页新增：'.(int) ($imported['pages_created'] ?? 0));
-        $this->line('  单页更新：'.(int) ($imported['pages_updated'] ?? 0));
-        $this->line('  内容新增：'.(int) ($imported['articles_created'] ?? 0));
-        $this->line('  内容更新：'.(int) ($imported['articles_updated'] ?? 0));
-        $this->newLine();
-    }
-
-    foreach (($result['warnings'] ?? []) as $warning) {
-        $this->warn((string) $warning);
-    }
-
-    $this->info($execute ? '学校 SQL 迁移完成。' : '学校 SQL 迁移预检查完成。');
-})->purpose('一次性迁移第三方学校系统 MySQL dump 到当前系统，迁移完成后可删除');
 
 Artisan::command('cms:backfill-site-security-regions {--site= : 仅补指定站点ID} {--limit=500 : 每批处理数量} {--refresh-existing : 重新解析并覆盖已有归属地}', function () {
     $siteId = $this->option('site');

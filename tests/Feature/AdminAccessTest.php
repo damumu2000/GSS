@@ -8777,6 +8777,51 @@ XML);
         ]);
     }
 
+    public function test_site_admin_can_save_channel_with_imported_long_slug(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('channel-imported-long-slug-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $slug = 'legacy-school-pic-cat-5';
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'name' => '优秀教师',
+            'slug' => $slug,
+            'type' => 'list',
+            'path' => '/'.$slug,
+            'depth' => 0,
+            'sort' => 999,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.channels.update', $channelId), [
+                'name' => '优秀教师风采',
+                'slug' => $slug,
+                'type' => 'list',
+                'parent_id' => '',
+                'is_nav' => '1',
+                'status' => '1',
+                'list_template' => '',
+                'detail_template' => '',
+            ])
+            ->assertRedirect(route('admin.channels.index'))
+            ->assertSessionHas('status', '栏目已更新。');
+
+        $this->assertDatabaseHas('channels', [
+            'id' => $channelId,
+            'name' => '优秀教师风采',
+            'slug' => $slug,
+        ]);
+    }
+
     public function test_content_create_channel_options_hide_disabled_channels(): void
     {
         $this->seed(DatabaseSeeder::class);
