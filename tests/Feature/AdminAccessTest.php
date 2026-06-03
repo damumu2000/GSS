@@ -8406,7 +8406,7 @@ XML);
         $this->assertNotContains('前台回收站文章', $titles);
     }
 
-    public function test_theme_children_can_hide_non_nav_child_channels(): void
+    public function test_theme_children_can_hide_disabled_child_channels(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -8427,7 +8427,7 @@ XML);
                 'depth' => 1,
                 'sort' => 1,
                 'status' => 1,
-                'is_nav' => 1,
+                'is_nav' => 0,
                 'created_by' => $identity->id,
                 'updated_by' => $identity->id,
                 'created_at' => now(),
@@ -8436,14 +8436,14 @@ XML);
             [
                 'site_id' => $site->id,
                 'parent_id' => $parentId,
-                'name' => '隐藏子栏目',
+                'name' => '停用子栏目',
                 'slug' => 'frontend-hidden-child',
                 'type' => 'list',
                 'path' => '/frontend-child-parent/frontend-hidden-child',
                 'depth' => 1,
                 'sort' => 2,
-                'status' => 1,
-                'is_nav' => 0,
+                'status' => 0,
+                'is_nav' => 1,
                 'created_by' => $identity->id,
                 'updated_by' => $identity->id,
                 'created_at' => now(),
@@ -8456,7 +8456,6 @@ XML);
         $children = $tags->children([
             'channel_id' => $parentId,
             'status' => 1,
-            'is_nav' => true,
             'limit' => 20,
         ]);
 
