@@ -31,7 +31,7 @@ class ThemeTemplateEngine
         ],
         'channels' => ['status', 'parent_id', 'is_nav', 'type', 'slug', 'include_ids', 'exclude_ids', 'keyword', 'random', 'fields', 'limit'],
         'channel' => ['id', 'channel_id', 'slug'],
-        'children' => ['id', 'channel_id', 'slug', 'limit'],
+        'children' => ['id', 'channel_id', 'slug', 'status', 'is_nav', 'limit'],
         'parent' => ['id', 'channel_id', 'slug'],
         'siblings' => ['id', 'channel_id', 'slug', 'limit'],
         'localNav' => ['id', 'channel_id', 'slug', 'limit', 'fields'],

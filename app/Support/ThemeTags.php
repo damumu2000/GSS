@@ -254,12 +254,22 @@ class ThemeTags
             return collect();
         }
 
-        return $this->allSiteChannels()
+        $channels = $this->allSiteChannels()
             ->filter(fn (object $channel): bool => (int) ($channel->parent_id ?? 0) === $parentId)
             ->sortBy([
                 ['sort', 'asc'],
                 ['id', 'asc'],
-            ])
+            ]);
+
+        if (array_key_exists('status', $options)) {
+            $channels = $channels->filter(fn (object $channel): bool => (int) ($channel->status ?? 0) === (int) $options['status']);
+        }
+
+        if (isset($options['is_nav'])) {
+            $channels = $channels->filter(fn (object $channel): bool => (int) ($channel->is_nav ?? 0) === (int) $options['is_nav']);
+        }
+
+        return $channels
             ->take(max(1, (int) ($options['limit'] ?? 100)))
             ->map(fn ($channel) => $this->mapChannel($channel))
             ->values();

@@ -8406,6 +8406,63 @@ XML);
         $this->assertNotContains('前台回收站文章', $titles);
     }
 
+    public function test_theme_children_can_hide_non_nav_child_channels(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = DB::table('sites')->where('site_key', 'site')->first();
+        $this->assertNotNull($site);
+
+        $identity = $this->createPlatformIdentity('frontend-child-channel-tester');
+        $parentId = $this->createSiteChannel((int) $site->id, 'frontend-child-parent', '前台父栏目', $identity->id);
+
+        DB::table('channels')->insert([
+            [
+                'site_id' => $site->id,
+                'parent_id' => $parentId,
+                'name' => '显示子栏目',
+                'slug' => 'frontend-visible-child',
+                'type' => 'list',
+                'path' => '/frontend-child-parent/frontend-visible-child',
+                'depth' => 1,
+                'sort' => 1,
+                'status' => 1,
+                'is_nav' => 1,
+                'created_by' => $identity->id,
+                'updated_by' => $identity->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $site->id,
+                'parent_id' => $parentId,
+                'name' => '隐藏子栏目',
+                'slug' => 'frontend-hidden-child',
+                'type' => 'list',
+                'path' => '/frontend-child-parent/frontend-hidden-child',
+                'depth' => 1,
+                'sort' => 2,
+                'status' => 1,
+                'is_nav' => 0,
+                'created_by' => $identity->id,
+                'updated_by' => $identity->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $tags = new ThemeTags($site, collect(), collect());
+
+        $children = $tags->children([
+            'channel_id' => $parentId,
+            'status' => 1,
+            'is_nav' => true,
+            'limit' => 20,
+        ]);
+
+        $this->assertSame(['显示子栏目'], $children->pluck('name')->all());
+    }
+
     public function test_site_logs_only_show_current_site_records(): void
     {
         $this->seed(DatabaseSeeder::class);

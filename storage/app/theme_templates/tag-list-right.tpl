@@ -11,7 +11,7 @@
       {% if rootChannels %}
         {% for root in rootChannels %}
           <a href="{{ root.url }}" class="sidebar-link{% if not current.page.show_all %}{% if root.is_active %} active{% endif %}{% endif %}">{{ root.name }}</a>
-          {% set childChannels = children(channel_id=root.id, limit=20) %}
+          {% set childChannels = children(channel_id=root.id, status=1, is_nav=true, limit=20) %}
           {% if childChannels %}
             <div class="sidebar-tree-children">
               {% for child in childChannels %}
