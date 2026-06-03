@@ -863,11 +863,23 @@ class SiteController extends Controller
             return $html;
         }
 
-        $assetTag = sprintf('<link rel="stylesheet" href="%s">', asset('css/site-content-render.css'));
+        $styleTag = sprintf('<link rel="stylesheet" href="%s">', asset('css/site-content-render.css'));
+        $scriptTag = sprintf('<script src="%s" defer></script>', asset('js/site-content-render.js'));
+        $assetTags = [];
 
-        if (str_contains($html, $assetTag)) {
+        if (! str_contains($html, $styleTag)) {
+            $assetTags[] = $styleTag;
+        }
+
+        if (! str_contains($html, $scriptTag)) {
+            $assetTags[] = $scriptTag;
+        }
+
+        if ($assetTags === []) {
             return $html;
         }
+
+        $assetTag = implode("\n", $assetTags);
 
         if (stripos($html, '</head>') !== false) {
             return preg_replace('/<\/head>/i', $assetTag."\n</head>", $html, 1) ?? $html;

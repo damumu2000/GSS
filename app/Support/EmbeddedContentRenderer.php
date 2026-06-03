@@ -8,11 +8,25 @@ use DOMXPath;
 
 class EmbeddedContentRenderer
 {
+    protected const DOCUMENT_EXTENSIONS = [
+        'pdf' => 'PDF',
+        'doc' => 'Word',
+        'docx' => 'Word',
+        'xls' => 'Excel',
+        'xlsx' => 'Excel',
+        'ppt' => 'PPT',
+        'pptx' => 'PPT',
+        'txt' => 'TXT',
+        'zip' => 'ZIP',
+        'rar' => 'RAR',
+        '7z' => '7Z',
+    ];
+
     public static function render(?string $html): string
     {
         $html = ContentHtmlSanitizer::sanitize((string) ($html ?? ''));
 
-        if ($html === '' || ! str_contains($html, 'data-bilibili-video')) {
+        if ($html === '' || ! static::hasRenderableMarkup($html)) {
             return $html;
         }
 
@@ -25,6 +39,8 @@ class EmbeddedContentRenderer
         );
 
         $xpath = new DOMXPath($document);
+        static::renderDocumentAndExternalLinks($document, $xpath);
+
         /** @var DOMElement $node */
         foreach ($xpath->query('//*[@data-bilibili-video="1"]') ?: [] as $node) {
             $aid = trim((string) $node->getAttribute('data-aid'));
@@ -81,6 +97,188 @@ class EmbeddedContentRenderer
         libxml_use_internal_errors($previous);
 
         return $output;
+    }
+
+    protected static function hasRenderableMarkup(string $html): bool
+    {
+        return str_contains($html, '<a ')
+            || str_contains($html, '<a>')
+            || str_contains($html, 'data-bilibili-video');
+    }
+
+    protected static function renderDocumentAndExternalLinks(DOMDocument $document, DOMXPath $xpath): void
+    {
+        /** @var DOMElement $link */
+        foreach ($xpath->query('//a[@href]') ?: [] as $link) {
+            if (! $link->parentNode || static::containsImage($link)) {
+                continue;
+            }
+
+            $href = trim((string) $link->getAttribute('href'));
+
+            if ($href === '' || str_starts_with($href, '#')) {
+                continue;
+            }
+
+            $extension = static::documentExtension($href);
+
+            if ($extension !== null) {
+                $replacement = static::createDocumentLinkCard($document, $link, $href, $extension);
+            } elseif (static::isExternalHttpUrl($href)) {
+                $replacement = static::createExternalLinkCard($document, $link, $href);
+            } else {
+                continue;
+            }
+
+            $link->parentNode->replaceChild($replacement, $link);
+        }
+    }
+
+    protected static function containsImage(DOMElement $link): bool
+    {
+        return $link->getElementsByTagName('img')->length > 0;
+    }
+
+    protected static function documentExtension(string $href): ?string
+    {
+        $path = (string) (parse_url(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'), PHP_URL_PATH) ?: '');
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return array_key_exists($extension, self::DOCUMENT_EXTENSIONS) ? $extension : null;
+    }
+
+    protected static function createDocumentLinkCard(DOMDocument $document, DOMElement $source, string $href, string $extension): DOMElement
+    {
+        $isExternal = static::isExternalHttpUrl($href);
+        $card = $document->createElement('a');
+        $card->setAttribute('class', 'cms-file-card cms-file-card--'.static::fileTypeToken($extension).($isExternal ? ' cms-file-card--external' : ''));
+        $card->setAttribute('href', $href);
+        $card->setAttribute('target', '_blank');
+        $card->setAttribute('rel', 'noopener noreferrer');
+
+        if ($isExternal) {
+            $card->setAttribute('data-cms-external-link', '1');
+            $card->setAttribute('data-cms-external-host', static::urlHost($href));
+        }
+
+        $icon = $document->createElement('span');
+        $icon->setAttribute('class', 'cms-file-card__icon');
+        $icon->appendChild($document->createTextNode(strtoupper($extension)));
+
+        $body = $document->createElement('span');
+        $body->setAttribute('class', 'cms-file-card__body');
+
+        $title = $document->createElement('span');
+        $title->setAttribute('class', 'cms-file-card__title');
+        $title->appendChild($document->createTextNode(static::linkTitle($source, $href)));
+
+        $meta = $document->createElement('span');
+        $meta->setAttribute('class', 'cms-file-card__meta');
+        $meta->appendChild($document->createTextNode((self::DOCUMENT_EXTENSIONS[$extension] ?? strtoupper($extension)).' 文件'.($isExternal ? ' · 外部来源' : '')));
+
+        $action = $document->createElement('span');
+        $action->setAttribute('class', 'cms-file-card__action');
+        $action->appendChild($document->createTextNode('下载'));
+
+        $body->appendChild($title);
+        $body->appendChild($meta);
+        $card->appendChild($icon);
+        $card->appendChild($body);
+        $card->appendChild($action);
+
+        return $card;
+    }
+
+    protected static function createExternalLinkCard(DOMDocument $document, DOMElement $source, string $href): DOMElement
+    {
+        $host = static::urlHost($href);
+        $card = $document->createElement('a');
+        $card->setAttribute('class', 'cms-external-card');
+        $card->setAttribute('href', $href);
+        $card->setAttribute('target', '_blank');
+        $card->setAttribute('rel', 'noopener noreferrer');
+        $card->setAttribute('data-cms-external-link', '1');
+        $card->setAttribute('data-cms-external-host', $host);
+
+        $icon = $document->createElement('span');
+        $icon->setAttribute('class', 'cms-external-card__icon');
+        $icon->appendChild($document->createTextNode('外'));
+
+        $body = $document->createElement('span');
+        $body->setAttribute('class', 'cms-external-card__body');
+
+        $title = $document->createElement('span');
+        $title->setAttribute('class', 'cms-external-card__title');
+        $title->appendChild($document->createTextNode(static::linkTitle($source, $href)));
+
+        $meta = $document->createElement('span');
+        $meta->setAttribute('class', 'cms-external-card__meta');
+        $meta->appendChild($document->createTextNode($host !== '' ? '外部链接 · '.$host : '外部链接'));
+
+        $action = $document->createElement('span');
+        $action->setAttribute('class', 'cms-external-card__action');
+        $action->appendChild($document->createTextNode('打开'));
+
+        $body->appendChild($title);
+        $body->appendChild($meta);
+        $card->appendChild($icon);
+        $card->appendChild($body);
+        $card->appendChild($action);
+
+        return $card;
+    }
+
+    protected static function linkTitle(DOMElement $source, string $href): string
+    {
+        $title = trim(preg_replace('/\s+/u', ' ', (string) $source->textContent) ?? '');
+
+        if ($title !== '') {
+            return $title;
+        }
+
+        $path = (string) (parse_url(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'), PHP_URL_PATH) ?: '');
+        $basename = rawurldecode(basename($path));
+
+        return $basename !== '' ? $basename : $href;
+    }
+
+    protected static function fileTypeToken(string $extension): string
+    {
+        return match ($extension) {
+            'doc', 'docx' => 'word',
+            'xls', 'xlsx' => 'excel',
+            'ppt', 'pptx' => 'ppt',
+            'zip', 'rar', '7z' => 'archive',
+            default => $extension,
+        };
+    }
+
+    protected static function isExternalHttpUrl(string $href): bool
+    {
+        $scheme = strtolower((string) (parse_url($href, PHP_URL_SCHEME) ?: ''));
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        $host = static::urlHost($href);
+        $currentHost = static::currentHost();
+
+        return $host !== '' && $currentHost !== '' && strcasecmp($host, $currentHost) !== 0;
+    }
+
+    protected static function urlHost(string $href): string
+    {
+        return strtolower((string) (parse_url($href, PHP_URL_HOST) ?: ''));
+    }
+
+    protected static function currentHost(): string
+    {
+        try {
+            return strtolower((string) request()->getHost());
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     protected static function normalizeWidth(?string $raw): string

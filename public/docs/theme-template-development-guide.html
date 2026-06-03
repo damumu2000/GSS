@@ -1101,8 +1101,8 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">children</td>
-                                    <td>取直属子栏目。若在 <code>{% for root in rootChannels %}</code> 循环里使用，<code>root.id</code> 就是“当前循环到的一级栏目 ID”。</td>
-                                    <td><code>{% set childChannels = children(channel_id=current.channel.id, limit=8)%}</code></td>
+                                    <td>取直属子栏目。普通栏目树建议按 <code>status=1</code> 过滤停用栏目；只有明确做导航区时才加 <code>is_nav=true</code>。</td>
+                                    <td><code>{% set childChannels = children(channel_id=current.channel.id, status=1, limit=8)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">parent</td>
