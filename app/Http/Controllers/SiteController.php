@@ -114,7 +114,7 @@ class SiteController extends Controller
                         ->where('content_channels.channel_id', $channel->id);
                 })
                 ->orderByDesc('sort')
-                ->orderByDesc('updated_at')
+                ->orderByDesc('published_at')
                 ->orderByDesc('id')
                 ->first();
 

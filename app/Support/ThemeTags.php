@@ -1058,8 +1058,8 @@ class ThemeTags
     protected function applyOrder($query, string $order): void
     {
         match ($order) {
-            'updated_at_desc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderByDesc('contents.updated_at')->orderByDesc('contents.id'),
-            'updated_at_asc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderBy('contents.updated_at')->orderBy('contents.id'),
+            'updated_at_desc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderByDesc('contents.published_at')->orderByDesc('contents.id'),
+            'updated_at_asc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderBy('contents.published_at')->orderBy('contents.id'),
             'id_desc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderByDesc('contents.id'),
             'id_asc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderBy('contents.id'),
             'published_at_asc' => $query->orderByDesc('contents.is_top')->orderByDesc('contents.sort')->orderBy('contents.published_at')->orderBy('contents.id'),
@@ -1239,7 +1239,7 @@ class ThemeTags
         $direction = strtolower($orderDir) === 'asc' ? 'asc' : 'desc';
         $column = match ($orderBy) {
             'id' => 'contents.id',
-            'updated_at' => 'contents.updated_at',
+            'updated_at' => 'contents.published_at',
             'sort' => 'contents.sort',
             default => 'contents.published_at',
         };

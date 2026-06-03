@@ -451,6 +451,7 @@ class ContentController extends Controller
             $validated['published_at'] ?? null,
             $resolvedStatus,
             $content->published_at,
+            $content->status,
         );
 
         DB::transaction(function () use ($contentId, $currentSite, $request, $validated, $content, $type, $requestedStatus, $resolvedStatus, $publishedAt, $selectedChannelIds, $manageableChannelIds): void {
@@ -1920,13 +1921,17 @@ class ContentController extends Controller
         return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
     }
 
-    protected function resolvePublishedAt(mixed $submittedPublishedAt, string $resolvedStatus, mixed $currentPublishedAt = null): mixed
+    protected function resolvePublishedAt(mixed $submittedPublishedAt, string $resolvedStatus, mixed $currentPublishedAt = null, mixed $currentStatus = null): mixed
     {
         if (! empty($submittedPublishedAt)) {
             return $submittedPublishedAt;
         }
 
         if ($resolvedStatus === 'published') {
+            if ((string) ($currentStatus ?? '') === 'published') {
+                return $currentPublishedAt;
+            }
+
             return $currentPublishedAt ?: now();
         }
 
