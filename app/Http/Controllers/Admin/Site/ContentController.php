@@ -77,7 +77,8 @@ class ContentController extends Controller
 
         $contents = $contentsQuery
             ->orderByDesc('contents.sort')
-            ->orderByDesc('contents.updated_at')
+            ->orderByDesc('contents.published_at')
+            ->orderByDesc('contents.id')
             ->paginate(10, [
                 'contents.id',
                 'contents.sort',

@@ -7555,6 +7555,62 @@ XML);
             ->assertSee('共享开启后可见的文章');
     }
 
+    public function test_article_index_order_does_not_promote_recently_edited_content(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('article-index-order-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $channelId = $this->createSiteChannel($siteId, 'article-index-order-channel', '文章排序栏目', $operator->id);
+        $now = now();
+
+        DB::table('contents')->insert([
+            [
+                'site_id' => $siteId,
+                'channel_id' => $channelId,
+                'type' => 'article',
+                'title' => '发布时间较新的文章',
+                'slug' => 'article-index-newer-published',
+                'summary' => 'newer',
+                'content' => '<p>newer</p>',
+                'status' => 'published',
+                'audit_status' => 'approved',
+                'sort' => 100,
+                'created_by' => $operator->id,
+                'updated_by' => $operator->id,
+                'published_at' => $now->copy()->subDay(),
+                'created_at' => $now->copy()->subDay(),
+                'updated_at' => $now->copy()->subDay(),
+            ],
+            [
+                'site_id' => $siteId,
+                'channel_id' => $channelId,
+                'type' => 'article',
+                'title' => '刚刚编辑的旧文章',
+                'slug' => 'article-index-recently-edited-old',
+                'summary' => 'old',
+                'content' => '<p>old</p>',
+                'status' => 'published',
+                'audit_status' => 'approved',
+                'sort' => 100,
+                'created_by' => $operator->id,
+                'updated_by' => $operator->id,
+                'published_at' => $now->copy()->subDays(30),
+                'created_at' => $now->copy()->subDays(30),
+                'updated_at' => $now,
+            ],
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.articles.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '发布时间较新的文章',
+                '刚刚编辑的旧文章',
+            ]);
+    }
+
     public function test_article_index_channel_filter_includes_descendant_channels(): void
     {
         $this->seed(DatabaseSeeder::class);

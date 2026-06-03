@@ -13,6 +13,7 @@
 /.zed
 /.codex-artifacts
 /.playwright-cli
+/.playwright-mcp
 /.editorconfig
 /.gitattributes
 /auth.json
