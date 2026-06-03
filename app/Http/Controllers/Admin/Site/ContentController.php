@@ -76,6 +76,7 @@ class ContentController extends Controller
         $this->applySiteContentVisibilityScope($contentsQuery, $request->user()->id, $currentSite->id);
 
         $contents = $contentsQuery
+            ->orderByDesc('contents.is_top')
             ->orderByDesc('contents.sort')
             ->orderByDesc('contents.published_at')
             ->orderByDesc('contents.id')
@@ -779,7 +780,7 @@ class ContentController extends Controller
 
         $this->applySiteContentVisibilityScope($itemsQuery, $request->user()->id, $currentSite->id);
 
-        $items = $itemsQuery->get(['id', 'sort']);
+        $items = $itemsQuery->get(['id', 'is_top', 'sort']);
 
         if ($items->count() !== count($orderedIds)) {
             return response()->json([
@@ -787,22 +788,80 @@ class ContentController extends Controller
             ], 422);
         }
 
-        $sortValues = $items
-            ->pluck('sort')
-            ->map(fn ($sort) => (int) $sort)
-            ->sortDesc()
-            ->values()
-            ->all();
+        $submittedItemsById = $items->keyBy(fn (object $item): int => (int) $item->id);
+        $hasSeenNormalItem = false;
 
-        DB::transaction(function () use ($orderedIds, $sortValues, $request): void {
-            foreach ($orderedIds as $index => $contentId) {
+        foreach ($orderedIds as $contentId) {
+            $isTop = ! empty($submittedItemsById->get($contentId)?->is_top);
+
+            if (! $isTop) {
+                $hasSeenNormalItem = true;
+            } elseif ($hasSeenNormalItem) {
+                return response()->json([
+                    'message' => '排序保存失败：置顶内容和普通内容不能互相拖动，请先调整置顶状态后再排序。',
+                ], 422);
+            }
+        }
+
+        $orderedIdSet = array_fill_keys($orderedIds, true);
+        $scopeQuery = DB::table('contents')
+            ->where('site_id', $currentSite->id)
+            ->where('type', $type)
+            ->whereNull('deleted_at');
+
+        $this->applySiteContentVisibilityScope($scopeQuery, $request->user()->id, $currentSite->id);
+
+        $scopeRows = $scopeQuery
+            ->orderByDesc('is_top')
+            ->orderByDesc('sort')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get(['id', 'sort']);
+
+        $scopeIds = $scopeRows->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $scopePositions = [];
+
+        foreach ($scopeIds as $index => $contentId) {
+            if (isset($orderedIdSet[$contentId])) {
+                $scopePositions[] = $index;
+            }
+        }
+
+        if (count($scopePositions) !== count($orderedIds)) {
+            return response()->json([
+                'message' => '排序保存失败，部分内容已不可用，请刷新页面后重试。',
+            ], 422);
+        }
+
+        $nextScopeIds = $scopeIds;
+
+        foreach ($scopePositions as $index => $position) {
+            $nextScopeIds[$position] = $orderedIds[$index];
+        }
+
+        $currentSortById = $scopeRows
+            ->mapWithKeys(fn (object $row): array => [(int) $row->id => (int) $row->sort])
+            ->all();
+        $sortBase = count($nextScopeIds);
+
+        DB::transaction(function () use ($nextScopeIds, $currentSortById, $orderedIdSet, $sortBase, $request): void {
+            foreach ($nextScopeIds as $index => $contentId) {
+                $nextSort = max($sortBase - $index, 0);
+
+                if (($currentSortById[$contentId] ?? null) === $nextSort) {
+                    continue;
+                }
+
+                $updates = ['sort' => $nextSort];
+
+                if (isset($orderedIdSet[$contentId])) {
+                    $updates['updated_by'] = $request->user()->id;
+                    $updates['updated_at'] = now();
+                }
+
                 DB::table('contents')
                     ->where('id', $contentId)
-                    ->update([
-                        'sort' => $sortValues[$index] ?? 0,
-                        'updated_by' => $request->user()->id,
-                        'updated_at' => now(),
-                    ]);
+                    ->update($updates);
             }
         });
 

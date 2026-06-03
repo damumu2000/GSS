@@ -113,6 +113,7 @@ class SiteController extends Controller
                         ->whereColumn('content_channels.content_id', 'contents.id')
                         ->where('content_channels.channel_id', $channel->id);
                 })
+                ->orderByDesc('is_top')
                 ->orderByDesc('sort')
                 ->orderByDesc('published_at')
                 ->orderByDesc('id')
@@ -863,15 +864,17 @@ class SiteController extends Controller
             return $html;
         }
 
-        $styleTag = sprintf('<link rel="stylesheet" href="%s">', asset('css/site-content-render.css'));
-        $scriptTag = sprintf('<script src="%s" defer></script>', asset('js/site-content-render.js'));
+        $stylePath = 'css/site-content-render.css';
+        $scriptPath = 'js/site-content-render.js';
+        $styleTag = sprintf('<link rel="stylesheet" href="%s">', $this->sharedFrontendAssetUrl($stylePath));
+        $scriptTag = sprintf('<script src="%s" defer></script>', $this->sharedFrontendAssetUrl($scriptPath));
         $assetTags = [];
 
-        if (! str_contains($html, $styleTag)) {
+        if (! str_contains($html, $stylePath)) {
             $assetTags[] = $styleTag;
         }
 
-        if (! str_contains($html, $scriptTag)) {
+        if (! str_contains($html, $scriptPath)) {
             $assetTags[] = $scriptTag;
         }
 
@@ -886,6 +889,18 @@ class SiteController extends Controller
         }
 
         return $assetTag."\n".$html;
+    }
+
+    protected function sharedFrontendAssetUrl(string $path): string
+    {
+        $url = asset($path);
+        $absolutePath = public_path($path);
+
+        if (! is_file($absolutePath)) {
+            return $url;
+        }
+
+        return $url.'?v='.filemtime($absolutePath);
     }
 
     protected function resolveResponsiveTemplate(object $site, string $themeCode, string $template, Request $request): string

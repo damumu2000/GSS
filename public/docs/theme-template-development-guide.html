@@ -687,7 +687,7 @@
 
                     <div class="tip">
                         <strong>公共正文样式注入规则</strong>
-                        <span>系统会给非首页模板自动注入 <code>/css/site-content-render.css</code>，用于保证文章正文、单页正文中的图片、表格、对齐和编辑器样式正常显示。首页模板 <code>home</code> / <code>m-home</code> 不会自动注入；其他页面优先插入到 <code>&lt;/head&gt;</code> 上方，如果旧模板缺少 <code>&lt;/head&gt;</code>，会兼容性地插入到页面最顶部。建议完整页面模板保持标准 <code>&lt;head&gt;...&lt;/head&gt;</code> 结构。</span>
+                        <span>系统会给非首页模板自动注入 <code>/css/site-content-render.css</code> 和 <code>/js/site-content-render.js</code>，用于保证文章正文、单页正文中的图片、表格、附件卡片和外链提示正常显示。注入地址会自动携带文件版本号，静态资源可按长期缓存处理；首页模板 <code>home</code> / <code>m-home</code> 不会自动注入。其他页面优先插入到 <code>&lt;/head&gt;</code> 上方，如果旧模板缺少 <code>&lt;/head&gt;</code>，会兼容性地插入到页面最顶部。建议完整页面模板保持标准 <code>&lt;head&gt;...&lt;/head&gt;</code> 结构。</span>
                     </div>
 
                     <div class="tip">
@@ -1288,7 +1288,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">order</td>
-                                    <td>使用预设排序，例如 <code>published_at_desc</code>、<code>updated_at_desc</code>、<code>id_desc</code>。</td>
+                                    <td>使用预设排序，例如 <code>published_at_desc</code>、<code>updated_at_desc</code>、<code>id_desc</code>。内容列表会优先遵循后台置顶和手动排序；<code>updated_at_desc</code> 为兼容旧模板名称，实际不会因编辑保存而把文章顶到最前。</td>
                                     <td><code>{% set list = contentList(order='updated_at_desc', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1903,11 +1903,11 @@
                     <div class="example-card">
                         <div class="example-head">
                             <strong>范例 5：单页列表和统一链接输出</strong>
-                            <span>这段调用用了 <code>type='page'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来取最近更新的单页。前台正式查询固定只返回已发布且未进入回收站的内容。输出链接时再配合 <code>linkTo(type='page', id=item.id, default='#')</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
+                            <span>这段调用用了 <code>type='page'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来按后台置顶、手动排序和发布时间取单页。前台正式查询固定只返回已发布且未进入回收站的内容。输出链接时再配合 <code>linkTo(type='page', id=item.id, default='#')</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
-<pre>{% set pageItems = contentList(type='page', order='updated_at_desc', limit=6)%} <span class="code-comment">{# 前台会自动过滤草稿、待审核、已驳回和回收站内容，这里按最近更新时间取单页面即可 #}</span>
+<pre>{% set pageItems = contentList(type='page', order='updated_at_desc', limit=6)%} <span class="code-comment">{# 前台会自动过滤草稿、待审核、已驳回和回收站内容；此兼容参数不会因为编辑保存而改变内容排序 #}</span>
 {% for item in pageItems %} <span class="code-comment">{# 逐条处理单页面数据，item 就是当前这一个单页 #}</span>
     &lt;a href="{{ linkTo(type='page', id=item.id, default='#')}}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 用 linkTo 统一生成单页地址，避免手写链接造成跳转错误 --&gt;</span>
 {% endfor %} <span class="code-comment">{# 单页列表循环结束，以上链接会根据单页数量重复输出 #}</span></pre>

@@ -95,6 +95,12 @@
             ghostClass: 'content-row-ghost',
             chosenClass: 'content-row-chosen',
             dragClass: 'content-row-drag',
+            onMove(event) {
+                const draggedIsTop = event.dragged?.dataset.contentIsTop;
+                const relatedIsTop = event.related?.dataset.contentIsTop;
+
+                return !draggedIsTop || !relatedIsTop || draggedIsTop === relatedIsTop;
+            },
             async onEnd(event) {
                 const row = event.item;
                 const beforeIds = event.oldIndex === event.newIndex ? null : true;

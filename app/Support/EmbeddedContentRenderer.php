@@ -163,7 +163,8 @@ class EmbeddedContentRenderer
 
         $icon = $document->createElement('span');
         $icon->setAttribute('class', 'cms-file-card__icon');
-        $icon->appendChild($document->createTextNode(strtoupper($extension)));
+        $icon->setAttribute('aria-hidden', 'true');
+        $icon->appendChild(static::createCardIcon($document, static::fileTypeToken($extension)));
 
         $body = $document->createElement('span');
         $body->setAttribute('class', 'cms-file-card__body');
@@ -202,7 +203,8 @@ class EmbeddedContentRenderer
 
         $icon = $document->createElement('span');
         $icon->setAttribute('class', 'cms-external-card__icon');
-        $icon->appendChild($document->createTextNode('外'));
+        $icon->setAttribute('aria-hidden', 'true');
+        $icon->appendChild(static::createCardIcon($document, 'external'));
 
         $body = $document->createElement('span');
         $body->setAttribute('class', 'cms-external-card__body');
@@ -264,6 +266,86 @@ class EmbeddedContentRenderer
             'ppt', 'pptx' => 'ppt',
             'zip', 'rar', '7z' => 'archive',
             default => $extension,
+        };
+    }
+
+    protected static function createCardIcon(DOMDocument $document, string $type): DOMElement
+    {
+        $svg = $document->createElement('svg');
+        $svg->setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        $svg->setAttribute('class', 'cms-card-icon-svg cms-card-icon-svg--'.$type);
+        $svg->setAttribute('viewBox', '0 0 48 48');
+        $svg->setAttribute('fill', 'none');
+        $svg->setAttribute('focusable', 'false');
+
+        foreach (static::cardIconPaths($type) as $pathAttributes) {
+            $path = $document->createElement('path');
+            $path->setAttribute('fill', 'none');
+            $path->setAttribute('stroke', 'currentColor');
+            $path->setAttribute('stroke-width', '3');
+            $path->setAttribute('stroke-linecap', 'round');
+            $path->setAttribute('stroke-linejoin', 'round');
+
+            foreach ($pathAttributes as $name => $value) {
+                $path->setAttribute($name, $value);
+            }
+
+            $svg->appendChild($path);
+        }
+
+        return $svg;
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    protected static function cardIconPaths(string $type): array
+    {
+        return match ($type) {
+            'word' => [
+                ['d' => 'M10 4H30L40 14V42C40 43.1046 39.1046 44 38 44H10C8.89543 44 8 43.1046 8 42V6C8 4.89543 8.89543 4 10 4Z', 'stroke-linecap' => 'butt'],
+                ['d' => 'M16.0083 20L19.0083 34L24.0083 24L29.0083 34L32.0083 20'],
+            ],
+            'excel' => [
+                ['d' => 'M8 15V6C8 4.89543 8.89543 4 10 4H38C39.1046 4 40 4.89543 40 6V42C40 43.1046 39.1046 44 38 44H10C8.89543 44 8 43.1046 8 42V33'],
+                ['d' => 'M31 15H34'],
+                ['d' => 'M28 23H34'],
+                ['d' => 'M28 31H34'],
+                ['d' => 'M4 15H22V33H4V15Z'],
+                ['d' => 'M10 21L16 27'],
+                ['d' => 'M16 21L10 27'],
+            ],
+            'ppt' => [
+                ['d' => 'M4 8H44'],
+                ['d' => 'M8 8H40V34H8V8Z'],
+                ['d' => 'M22 16L27 21L22 26'],
+                ['d' => 'M16 42L24 34L32 42'],
+            ],
+            'archive' => [
+                ['d' => 'M5 8.5 7.2 5h3.9l1.6 2.2H19v12.3A1.5 1.5 0 0 1 17.5 21h-13A1.5 1.5 0 0 1 3 19.5v-10A1.5 1.5 0 0 1 4.5 8h1.2'],
+                ['d' => 'M8.5 5v3M10.5 5v3M9.5 8v2.1M9.5 13.2v1.6M9.5 17v1.4'],
+                ['d' => 'M13.5 12h3.2M13.5 15h3.2'],
+            ],
+            'external' => [
+                ['d' => 'M30 19H20C15.5817 19 12 22.5817 12 27C12 31.4183 15.5817 35 20 35H36C40.4183 35 44 31.4183 44 27C44 24.9711 43.2447 23.1186 42 21.7084'],
+                ['d' => 'M6 24.2916C4.75527 22.8814 4 21.0289 4 19C4 14.5817 7.58172 11 12 11H28C32.4183 11 36 14.5817 36 19C36 23.4183 32.4183 27 28 27H18'],
+            ],
+            'pdf' => [
+                ['d' => 'M10 4H30L40 14V42C40 43.1046 39.1046 44 38 44H10C8.89543 44 8 43.1046 8 42V6C8 4.89543 8.89543 4 10 4Z', 'stroke-linecap' => 'butt'],
+                ['d' => 'M18 18H30V25.9917L18.0083 26L18 18Z', 'fill-rule' => 'evenodd', 'clip-rule' => 'evenodd'],
+                ['d' => 'M18 18V34', 'stroke-linejoin' => 'miter'],
+            ],
+            'txt' => [
+                ['d' => 'M10 4H30L40 14V42C40 43.1046 39.1046 44 38 44H10C8.89543 44 8 43.1046 8 42V6C8 4.89543 8.89543 4 10 4Z', 'stroke-linecap' => 'butt'],
+                ['d' => 'M18 18.0083H30'],
+                ['d' => 'M24.0083 18.0083V34'],
+            ],
+            default => [
+                ['d' => 'M10 4H30L40 14V42C40 43.1046 39.1046 44 38 44H10C8.89543 44 8 43.1046 8 42V6C8 4.89543 8.89543 4 10 4Z', 'stroke-linecap' => 'butt'],
+                ['d' => 'M18 18.0083H30'],
+                ['d' => 'M18 26H30'],
+                ['d' => 'M18 34H24'],
+            ],
         };
     }
 

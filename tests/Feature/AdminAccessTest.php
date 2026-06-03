@@ -202,13 +202,18 @@ class AdminAccessTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
-        $this->get('/login')
+        $response = $this->get('/login')
             ->assertOk()
             ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
             ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
             ->assertHeader('Content-Security-Policy');
+
+        $csp = (string) $response->headers->get('Content-Security-Policy');
+        $this->assertStringContainsString('frame-src', $csp);
+        $this->assertStringContainsString('https://player.bilibili.com', $csp);
+        $this->assertStringContainsString('https://www.bilibili.com', $csp);
     }
 
     public function test_login_page_uses_hsts_when_request_is_forwarded_as_https(): void

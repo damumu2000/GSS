@@ -121,6 +121,7 @@
                             @if (in_array($type, ['article', 'page'], true))
                                 data-content-row
                                 data-content-id="{{ $content->id }}"
+                                data-content-is-top="{{ !empty($content->is_top) ? '1' : '0' }}"
                             @endif
                         >
                             <td>

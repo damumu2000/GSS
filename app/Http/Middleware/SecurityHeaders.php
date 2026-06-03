@@ -76,7 +76,7 @@ class SecurityHeaders
             "style-src 'self' 'unsafe-inline'",
             $isDebugExceptionPage ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
             "connect-src 'self'",
-            "frame-src 'self' https://player.bilibili.com",
+            "frame-src 'self' https://player.bilibili.com https://www.bilibili.com",
         ]));
 
         $hstsEnabled = filter_var((string) env('SECURITY_HEADERS_HSTS_APP', false), FILTER_VALIDATE_BOOL);

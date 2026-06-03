@@ -590,6 +590,367 @@ class ThemeManagementTest extends TestCase
             ->assertDontSee('更新时间更新但排序靠后的单页');
     }
 
+    public function test_page_channel_default_content_respects_top_priority(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $themeCode = $this->createEditableTemplateWorkspace($site, $this->superAdmin()->id);
+        $templateRoot = SitePath::siteTemplateRoot($site->site_key, $themeCode);
+
+        File::put(
+            $templateRoot.DIRECTORY_SEPARATOR.'page.tpl',
+            '<!DOCTYPE html><html><head><title>Page</title></head><body>{{ current.content.title }}</body></html>'
+        );
+
+        $channelId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $site->id,
+            'name' => '置顶单页栏目',
+            'slug' => 'top-page-channel',
+            'type' => 'page',
+            'status' => 1,
+            'is_nav' => 1,
+            'detail_template' => 'page',
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $topLowSortPageId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'page',
+            'title' => '置顶单页优先显示',
+            'content' => '<p>置顶</p>',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 1,
+            'sort' => 10,
+            'published_at' => now()->subDays(2),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ]);
+
+        $normalHighSortPageId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'page',
+            'title' => '普通高排序单页不优先',
+            'content' => '<p>高排序</p>',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'sort' => 90,
+            'published_at' => now(),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            [
+                'content_id' => $topLowSortPageId,
+                'channel_id' => $channelId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'content_id' => $normalHighSortPageId,
+                'channel_id' => $channelId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->get(route('site.channel', ['slug' => 'top-page-channel', 'site' => $site->site_key]))
+            ->assertOk()
+            ->assertSee('置顶单页优先显示')
+            ->assertDontSee('普通高排序单页不优先');
+    }
+
+    public function test_admin_and_frontend_article_lists_share_content_priority_order(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $channelId = (int) DB::table('channels')
+            ->where('site_id', $site->id)
+            ->where('type', 'list')
+            ->orderBy('id')
+            ->value('id');
+
+        DB::table('contents')->where('site_id', $site->id)->where('type', 'article')->delete();
+
+        $normalHighSortId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '非置顶高排序',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'sort' => 100,
+            'published_at' => now(),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $topLowSortId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '置顶低排序',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 1,
+            'sort' => 1,
+            'published_at' => now()->subDay(),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        $topHighSortId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '置顶高排序',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 1,
+            'sort' => 2,
+            'published_at' => now()->subDays(2),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ]);
+
+        $expectedIds = [$topHighSortId, $topLowSortId, $normalHighSortId];
+
+        $adminOrderedIds = DB::table('contents')
+            ->where('site_id', $site->id)
+            ->where('type', 'article')
+            ->whereNull('deleted_at')
+            ->orderByDesc('is_top')
+            ->orderByDesc('sort')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $frontendOrderedIds = (new ThemeTags($site, collect(), collect()))
+            ->contentList(['site_wide' => true, 'limit' => 3])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $this->assertSame($expectedIds, $adminOrderedIds);
+        $this->assertSame($expectedIds, $frontendOrderedIds);
+    }
+
+    public function test_article_reorder_rejects_crossing_top_and_normal_groups(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $channelId = (int) DB::table('channels')
+            ->where('site_id', $site->id)
+            ->where('type', 'list')
+            ->orderBy('id')
+            ->value('id');
+
+        DB::table('contents')->where('site_id', $site->id)->where('type', 'article')->delete();
+
+        $topId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '置顶文章',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 1,
+            'sort' => 10,
+            'published_at' => now()->subDay(),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        $normalId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '普通文章',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'sort' => 99,
+            'published_at' => now(),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->postJson(route('admin.articles.reorder'), ['ordered_ids' => [$normalId, $topId]])
+            ->assertStatus(422)
+            ->assertJsonPath('message', '排序保存失败：置顶内容和普通内容不能互相拖动，请先调整置顶状态后再排序。');
+    }
+
+    public function test_article_reorder_persists_when_existing_sort_values_are_zero(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $channelId = (int) DB::table('channels')
+            ->where('site_id', $site->id)
+            ->where('type', 'list')
+            ->orderBy('id')
+            ->value('id');
+
+        DB::table('contents')->where('site_id', $site->id)->where('type', 'article')->delete();
+
+        $oldestId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '历史文章排第一',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'sort' => 0,
+            'published_at' => now()->subDays(3),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ]);
+        $middleId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '中间文章排第二',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'sort' => 0,
+            'published_at' => now()->subDays(2),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ]);
+        $newestId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $channelId,
+            'type' => 'article',
+            'title' => '最新文章排第三',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'is_top' => 0,
+            'sort' => 0,
+            'published_at' => now()->subDay(),
+            'created_by' => $this->superAdmin()->id,
+            'updated_by' => $this->superAdmin()->id,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        $expectedIds = [$oldestId, $middleId, $newestId];
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->postJson(route('admin.articles.reorder'), ['ordered_ids' => $expectedIds])
+            ->assertOk()
+            ->assertJsonPath('message', '文章排序已保存。');
+
+        $adminOrderedIds = DB::table('contents')
+            ->where('site_id', $site->id)
+            ->where('type', 'article')
+            ->whereNull('deleted_at')
+            ->orderByDesc('is_top')
+            ->orderByDesc('sort')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $frontendOrderedIds = (new ThemeTags($site, collect(), collect()))
+            ->contentList(['site_wide' => true, 'limit' => 3])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $this->assertSame($expectedIds, $adminOrderedIds);
+        $this->assertSame($expectedIds, $frontendOrderedIds);
+    }
+
+    public function test_article_reorder_visible_subset_stays_in_original_scope_positions(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $channelId = (int) DB::table('channels')
+            ->where('site_id', $site->id)
+            ->where('type', 'list')
+            ->orderBy('id')
+            ->value('id');
+
+        DB::table('contents')->where('site_id', $site->id)->where('type', 'article')->delete();
+
+        $ids = [];
+        foreach ([50, 40, 30, 20, 10] as $index => $sort) {
+            $ids[] = (int) DB::table('contents')->insertGetId([
+                'site_id' => $site->id,
+                'channel_id' => $channelId,
+                'type' => 'article',
+                'title' => '排序文章 '.($index + 1),
+                'status' => 'published',
+                'audit_status' => 'approved',
+                'is_top' => 0,
+                'sort' => $sort,
+                'published_at' => now()->subDays($index),
+                'created_by' => $this->superAdmin()->id,
+                'updated_by' => $this->superAdmin()->id,
+                'created_at' => now()->subDays($index),
+                'updated_at' => now()->subDays($index),
+            ]);
+        }
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->postJson(route('admin.articles.reorder'), ['ordered_ids' => [$ids[3], $ids[2]]])
+            ->assertOk()
+            ->assertJsonPath('message', '文章排序已保存。');
+
+        $orderedIds = DB::table('contents')
+            ->where('site_id', $site->id)
+            ->where('type', 'article')
+            ->whereNull('deleted_at')
+            ->orderByDesc('is_top')
+            ->orderByDesc('sort')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $this->assertSame([$ids[0], $ids[1], $ids[3], $ids[2], $ids[4]], $orderedIds);
+    }
+
     public function test_mobile_template_is_used_when_available_and_falls_back_when_missing(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -642,10 +1003,11 @@ class ThemeManagementTest extends TestCase
         $this->get(route('site.home', ['site' => $site->site_key]))
             ->assertOk()
             ->assertSee('HOME')
-            ->assertDontSee('site-content-render.css', false);
+            ->assertDontSee('site-content-render.css', false)
+            ->assertDontSee('site-content-render.js', false);
     }
 
-    public function test_shared_content_styles_are_injected_before_head_close_on_inner_pages_only(): void
+    public function test_shared_content_assets_are_injected_before_head_close_on_inner_pages_only(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -679,16 +1041,21 @@ class ThemeManagementTest extends TestCase
         $response = $this->get(route('site.channel', ['slug' => 'shared-style-list', 'site' => $site->site_key]))
             ->assertOk()
             ->assertSee('LIST 列表栏目')
-            ->assertSee('site-content-render.css', false);
+            ->assertSee('site-content-render.css?v=', false)
+            ->assertSee('site-content-render.js?v=', false);
 
         $html = $response->getContent();
         $this->assertLessThan(
             stripos($html, '</head>'),
             strpos($html, 'site-content-render.css'),
         );
+        $this->assertLessThan(
+            stripos($html, '</head>'),
+            strpos($html, 'site-content-render.js'),
+        );
     }
 
-    public function test_shared_content_styles_are_prepended_when_template_has_no_head(): void
+    public function test_shared_content_assets_are_prepended_when_template_has_no_head(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -722,7 +1089,8 @@ class ThemeManagementTest extends TestCase
         $response = $this->get(route('site.channel', ['slug' => 'shared-style-no-head', 'site' => $site->site_key]))
             ->assertOk()
             ->assertSee('NO HEAD 缺少 Head 栏目')
-            ->assertSee('site-content-render.css', false);
+            ->assertSee('site-content-render.css?v=', false)
+            ->assertSee('site-content-render.js?v=', false);
 
         $html = $response->getContent();
         $this->assertSame(0, strpos($html, '<link rel="stylesheet"'));
