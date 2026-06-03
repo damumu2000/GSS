@@ -231,15 +231,29 @@ class EmbeddedContentRenderer
     protected static function linkTitle(DOMElement $source, string $href): string
     {
         $title = trim(preg_replace('/\s+/u', ' ', (string) $source->textContent) ?? '');
+        $fileName = static::fileNameFromUrl($href);
 
-        if ($title !== '') {
+        if ($title !== '' && ! static::looksLikePath($title)) {
             return $title;
         }
 
-        $path = (string) (parse_url(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'), PHP_URL_PATH) ?: '');
-        $basename = rawurldecode(basename($path));
+        return $fileName !== '' ? $fileName : ($title !== '' ? $title : $href);
+    }
 
-        return $basename !== '' ? $basename : $href;
+    protected static function fileNameFromUrl(string $href): string
+    {
+        $path = (string) (parse_url(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'), PHP_URL_PATH) ?: '');
+
+        return rawurldecode(basename($path));
+    }
+
+    protected static function looksLikePath(string $value): bool
+    {
+        $value = trim($value);
+
+        return str_starts_with($value, '/')
+            || preg_match('#^https?://#i', $value) === 1
+            || preg_match('#^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.% -]+)+$#u', $value) === 1;
     }
 
     protected static function fileTypeToken(string $extension): string
