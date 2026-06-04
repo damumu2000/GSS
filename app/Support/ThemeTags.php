@@ -1225,8 +1225,33 @@ class ThemeTags
     {
         return [
             'code' => trim((string) ($options['code'] ?? '')),
-            'limit' => max(1, (int) ($options['limit'] ?? 10)),
+            'limit' => max(1, min(ThemeDslSpec::maxLimit(), (int) ($options['limit'] ?? 10))),
         ];
+    }
+
+    protected function sanitizePromoLinkUrl(string $url): string
+    {
+        $url = trim($url);
+
+        if ($url === '') {
+            return '';
+        }
+
+        if (str_starts_with($url, '//')) {
+            return '';
+        }
+
+        if (str_starts_with($url, '/')) {
+            return preg_match('#^/(?!/).*$#', $url) ? $url : '';
+        }
+
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return '';
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
     }
 
     protected function mapPromo(object $promo): array
@@ -1248,8 +1273,10 @@ class ThemeTags
             'attachment_extension' => (string) ($promo->attachment_extension ?? ''),
             'title' => (string) ($promo->title ?? ''),
             'subtitle' => (string) ($promo->subtitle ?? ''),
-            'link_url' => (string) ($promo->link_url ?? ''),
-            'link_target' => (string) ($promo->link_target ?? '_self'),
+            'link_url' => $this->sanitizePromoLinkUrl((string) ($promo->link_url ?? '')),
+            'link_target' => in_array((string) ($promo->link_target ?? '_self'), ['_self', '_blank'], true)
+                ? (string) ($promo->link_target ?? '_self')
+                : '_self',
             'sort' => (int) ($promo->sort ?? 0),
             'start_at' => $promo->start_at,
             'end_at' => $promo->end_at,
