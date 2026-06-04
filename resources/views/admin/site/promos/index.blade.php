@@ -186,13 +186,12 @@
                         <div class="promo-call-card-label" data-promo-call-example-label>代入模板示例</div>
                         <pre class="promo-call-code" data-promo-call-example-block></pre>
                     </div>
-                    <div class="promo-call-card">
-                        <div class="promo-call-card-label">样式文件：/css/promo-snippets.css</div>
-                        <pre class="promo-call-code" data-promo-call-css-block></pre>
-                    </div>
-                    <div class="promo-call-card">
-                        <div class="promo-call-card-label">脚本文件：/js/promo-snippets.js</div>
-                        <pre class="promo-call-code" data-promo-call-js-block></pre>
+                    <div class="promo-call-card" data-promo-call-assets-card hidden>
+                        <div class="promo-call-card-label">公共资源文件</div>
+                        <div class="promo-call-card-value">
+                            <code>/css/promo-snippets.css</code><br>
+                            <code>/js/promo-snippets.js</code>
+                        </div>
                     </div>
                     <div class="promo-call-card">
                         <div class="promo-call-card-label">使用说明</div>

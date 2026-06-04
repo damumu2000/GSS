@@ -26,13 +26,12 @@
     const callCodeBlock = callModal?.querySelector('[data-promo-call-code-block]');
     const callExampleLabel = callModal?.querySelector('[data-promo-call-example-label]');
     const callExampleBlock = callModal?.querySelector('[data-promo-call-example-block]');
-    const callCssBlock = callModal?.querySelector('[data-promo-call-css-block]');
-    const callJsBlock = callModal?.querySelector('[data-promo-call-js-block]');
+    const callAssetsCard = callModal?.querySelector('[data-promo-call-assets-card]');
     const callNote = callModal?.querySelector('[data-promo-call-note]');
     const callParams = callModal?.querySelector('[data-promo-call-params]');
 
     const openCallModal = (button) => {
-        if (!callModal || !callTitle || !callDesc || !callCodeLabel || !callCodeBlock || !callExampleLabel || !callExampleBlock || !callCssBlock || !callJsBlock || !callNote || !callParams) {
+        if (!callModal || !callTitle || !callDesc || !callCodeLabel || !callCodeBlock || !callExampleLabel || !callExampleBlock || !callAssetsCard || !callNote || !callParams) {
             return;
         }
 
@@ -67,35 +66,18 @@
                     ? '漂浮图调用方法'
                     : `${modeLabel}调用方法`;
         callDesc.textContent = `图宣位：${name} · ${modeLabel}`;
-        callCodeLabel.textContent = '引入数据';
+        callCodeLabel.textContent = mode === 'floating' ? '调用标签' : '引入数据';
         callCodeBlock.textContent = callSnippet;
         callExampleLabel.textContent = '代入模板示例';
         callExampleBlock.textContent = exampleSnippet;
-        callCssBlock.textContent = '正在读取 /css/promo-snippets.css ...';
-        fetch('/css/promo-snippets.css', { cache: 'no-store' })
-            .then((response) => (response.ok ? response.text() : Promise.reject()))
-            .then((cssText) => {
-                callCssBlock.textContent = cssText.trim();
-            })
-            .catch(() => {
-                callCssBlock.textContent = '无法读取 /css/promo-snippets.css，请确认该文件已发布到 public/css 目录。';
-            });
-        callJsBlock.textContent = '正在读取 /js/promo-snippets.js ...';
-        fetch('/js/promo-snippets.js', { cache: 'no-store' })
-            .then((response) => (response.ok ? response.text() : Promise.reject()))
-            .then((jsText) => {
-                callJsBlock.textContent = jsText.trim();
-            })
-            .catch(() => {
-                callJsBlock.textContent = '无法读取 /js/promo-snippets.js，请确认该文件已发布到 public/js 目录。';
-            });
+        callAssetsCard.hidden = mode !== 'multi' && mode !== 'floating';
         callNote.textContent = mode === 'single'
-            ? '单图位推荐用 promo 调用，返回单条图宣数据。'
+            ? '单图位用 promo 调用，拿到一条图宣数据后按模板样式输出图片和链接。'
             : mode === 'multi'
-                ? '多图位推荐用 promos 调用。需要轮播效果时，引入上面的 CSS 和 JS，并使用完整容器示例。'
+                ? '多图位用 promos 调用。需要轮播交互时，在模板中引用公共资源文件；不需要交互时可只循环输出图片。'
                 : mode === 'floating'
-                    ? '漂浮图使用 promoFloating 调用。需要漂浮图的模板手动引入 CSS 和 JS，不用的模板不加载资源。'
-                    : `当前位点适合用 promos 调用，返回图宣列表。建议 limit 不超过 ${limit}，模板里按 for 循环渲染即可。`;
+                    ? '漂浮图用 promoFloating 输出 HTML，并在当前模板引用公共资源文件；没有使用漂浮图的模板不用引入。'
+                    : `当前位点用 promos 调用，返回图宣列表。建议 limit 不超过 ${limit}，模板里按 for 循环渲染即可。`;
 
         const tagParams = mode === 'single'
             ? [

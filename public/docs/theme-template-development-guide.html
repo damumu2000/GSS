@@ -1365,7 +1365,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">promoFloating</td>
-                                    <td>输出漂浮图 HTML。需要漂浮图的模板手动引入 <code>/css/promo-snippets.css</code> 和 <code>/js/promo-snippets.js</code>。</td>
+                                    <td>输出漂浮图 HTML。只在使用漂浮图的模板中引入 <code>/css/promo-snippets.css</code> 和 <code>/js/promo-snippets.js</code>。</td>
                                     <td><code>{{ promoFloating('float_notice') }}</code></td>
                                 </tr>
                                 <tr>
@@ -1894,7 +1894,7 @@
                     <div class="example-card">
                         <div class="example-head">
                             <strong>范例 7：单条图宣和漂浮图</strong>
-                            <span>单图直接用 <code>promo('home_banner')</code>；漂浮图在需要的模板中引入图宣 CSS/JS，再输出 <code>promoFloating('float_notice')</code>。</span>
+                            <span>单图直接用 <code>promo('home_banner')</code>；漂浮图只在需要的模板中引入公共资源文件，再输出 <code>promoFloating('float_notice')</code>。</span>
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
@@ -1904,9 +1904,9 @@
         &lt;img src="{{ banner.image_url }}" alt="{{ banner.title }}"&gt; <span class="code-comment">&lt;!-- 单条图宣图片：显示视觉素材，alt 提供辅助说明 --&gt;</span>
     &lt;/a&gt; <span class="code-comment">&lt;!-- 单条图宣渲染结束 --&gt;</span>
 {% endif %} <span class="code-comment">{# 条件判断结束：无数据时整段不会输出任何 HTML #}</span>
-&lt;link rel="stylesheet" href="/css/promo-snippets.css"&gt; <span class="code-comment">&lt;!-- 只有需要漂浮图的模板才引入 #}</span>
-{{ promoFloating('float_notice') }} <span class="code-comment">{# 输出后台配置好的漂浮图 HTML #}</span>
-&lt;script src="/js/promo-snippets.js" defer&gt;&lt;/script&gt; <span class="code-comment">&lt;!-- 负责关闭按钮、关闭记忆和轮播交互 #}</span></pre>
+&lt;link rel="stylesheet" href="/css/promo-snippets.css"&gt; <span class="code-comment">&lt;!-- 漂浮图公共样式：只在使用漂浮图的模板中引入 --&gt;</span>
+{{ promoFloating('float_notice') }} <span class="code-comment">{# 输出漂浮图 HTML #}</span>
+&lt;script src="/js/promo-snippets.js" defer&gt;&lt;/script&gt; <span class="code-comment">&lt;!-- 漂浮图公共脚本：处理关闭按钮和关闭记忆 --&gt;</span></pre>
                             </div>
                         </div>
                     </div>
