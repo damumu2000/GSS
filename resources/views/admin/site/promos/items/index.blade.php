@@ -197,7 +197,7 @@
                                             <button class="site-select-trigger" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">轻浮动</button>
                                             <div class="site-select-panel" data-select-panel role="listbox"></div>
                                         </div>
-                                        <div class="promo-item-floating-hint">轻浮动为原地动效；页面漂浮会在当前页面视口内缓慢移动。</div>
+                                        <div class="promo-item-floating-hint">页面漂浮会在视口内移动，鼠标悬停时自动暂停。</div>
                                     </div>
                                     <div>
                                         <label for="drawer_floating_offset_x">横向偏移</label>
@@ -222,7 +222,7 @@
                                     <div>
                                         <label for="drawer_floating_z_index">层级</label>
                                         <input id="drawer_floating_z_index" class="field" type="number" name="floating_z_index">
-                                        <div class="promo-item-floating-hint">数字越大越靠上，避免被页面导航或弹层遮住。</div>
+                                        <div class="promo-item-floating-hint">默认最高层级，避免被页面导航或普通浮层遮住。</div>
                                     </div>
                                     <div>
                                         <label for="drawer_floating_show_on">显示端</label>

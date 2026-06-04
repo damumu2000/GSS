@@ -49,7 +49,7 @@
             offset_y: 24,
             width: 180,
             height: '',
-            z_index: 120,
+            z_index: 9999,
             show_on: 'all',
             closable: true,
             remember_close: true,
@@ -166,7 +166,7 @@
             document.getElementById('drawer_floating_offset_y').value = payload.offset_y ?? 24;
             document.getElementById('drawer_floating_width').value = payload.width ?? 180;
             document.getElementById('drawer_floating_height').value = payload.height ?? '';
-            document.getElementById('drawer_floating_z_index').value = payload.z_index ?? 120;
+            document.getElementById('drawer_floating_z_index').value = payload.z_index ?? 9999;
             syncSelectValue(document.getElementById('drawer_floating_show_on'), payload.show_on || 'all');
             syncSelectValue(document.getElementById('drawer_floating_closable'), String(payload.closable === false ? 0 : 1));
             syncSelectValue(document.getElementById('drawer_floating_remember_close'), String(payload.remember_close === false ? 0 : 1));

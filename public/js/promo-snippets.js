@@ -78,34 +78,54 @@
             floating.style.bottom = 'auto';
             floating.style.transform = 'none';
 
-            let x = Number.parseFloat(floating.style.left) || 0;
-            let y = Number.parseFloat(floating.style.top) || 0;
-            let dx = 0.36;
-            let dy = 0.28;
+            let x = 0;
+            let y = 0;
+            let dx = 0.78;
+            let dy = 0.58;
+            let paused = false;
+
+            floating.addEventListener('mouseenter', () => {
+                paused = true;
+            });
+
+            floating.addEventListener('mouseleave', () => {
+                paused = false;
+            });
 
             const move = () => {
                 if (!floating.isConnected) {
                     return;
                 }
 
-                const maxX = Math.max(window.innerWidth - floating.offsetWidth, 0);
-                const maxY = Math.max(window.innerHeight - floating.offsetHeight, 0);
+                if (paused) {
+                    window.requestAnimationFrame(move);
+                    return;
+                }
+
+                const edgePadding = 8;
+                const maxX = Math.max(window.innerWidth - floating.offsetWidth - edgePadding, edgePadding);
+                const maxY = Math.max(window.innerHeight - floating.offsetHeight - edgePadding, edgePadding);
+                const baseLeft = Number.parseFloat(floating.style.left) || 0;
+                const baseTop = Number.parseFloat(floating.style.top) || 0;
+                const minMoveX = edgePadding - baseLeft;
+                const minMoveY = edgePadding - baseTop;
+                const maxMoveX = maxX - baseLeft;
+                const maxMoveY = maxY - baseTop;
 
                 x += dx;
                 y += dy;
 
-                if (x <= 0 || x >= maxX) {
+                if (x <= minMoveX || x >= maxMoveX) {
                     dx *= -1;
-                    x = Math.min(Math.max(x, 0), maxX);
+                    x = Math.min(Math.max(x, minMoveX), maxMoveX);
                 }
 
-                if (y <= 0 || y >= maxY) {
+                if (y <= minMoveY || y >= maxMoveY) {
                     dy *= -1;
-                    y = Math.min(Math.max(y, 0), maxY);
+                    y = Math.min(Math.max(y, minMoveY), maxMoveY);
                 }
 
-                floating.style.left = `${x}px`;
-                floating.style.top = `${y}px`;
+                floating.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 
                 window.requestAnimationFrame(move);
             };

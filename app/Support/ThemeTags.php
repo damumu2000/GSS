@@ -731,7 +731,7 @@ class ThemeTags
                     'data-floating-offset-x' => (string) ($display['offset_x_token'] ?? 24),
                     'data-floating-offset-y' => (string) ($display['offset_y_token'] ?? 24),
                     'data-floating-width' => (string) ($display['width_token'] ?? 180),
-                    'data-floating-z' => (string) ($display['z_index_token'] ?? 120),
+                    'data-floating-z' => (string) ($display['z_index_token'] ?? 9999),
                 ];
 
                 if (! empty($display['height_token'])) {
@@ -746,10 +746,11 @@ class ThemeTags
                 $href = trim((string) ($item['link_url'] ?? ''));
                 $href = $href !== '' ? $href : '#';
                 $target = (string) ($item['link_target'] ?? '_self');
+                $target = in_array($target, ['_self', '_blank'], true) ? $target : '_self';
                 $alt = trim((string) ($item['image_alt'] ?? $item['title'] ?? ''));
 
                 $html = '<div'.$this->htmlAttributes($attributes).'>';
-                $html .= '<a class="promo-floating-link" href="'.e($href).'" target="'.e($target).'"'.($target === '_blank' ? ' rel="noopener"' : '').'>';
+                $html .= '<a class="promo-floating-link" href="'.e($href).'" target="'.e($target).'"'.($target === '_blank' ? ' rel="noopener noreferrer"' : '').'>';
                 $html .= '<img src="'.e((string) ($item['image_url'] ?? '')).'" alt="'.e($alt).'">';
                 $html .= '</a>';
 
@@ -1266,11 +1267,14 @@ class ThemeTags
         }
 
         $position = (string) ($payload['position'] ?? 'right-bottom');
+        $position = in_array($position, ['right-bottom', 'right-center', 'left-bottom', 'left-center', 'right-top', 'left-top'], true)
+            ? $position
+            : 'right-bottom';
         $offsetX = (int) ($payload['offset_x'] ?? 24);
         $offsetY = (int) ($payload['offset_y'] ?? 24);
         $width = isset($payload['width']) && $payload['width'] !== '' ? (int) $payload['width'] : 180;
         $height = isset($payload['height']) && $payload['height'] !== '' ? (int) $payload['height'] : null;
-        $zIndex = (int) ($payload['z_index'] ?? 120);
+        $zIndex = (int) ($payload['z_index'] ?? 9999);
 
         $offsetXToken = $this->normalizePromoToken($offsetX, [0, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64], 24);
         $offsetYToken = $this->normalizePromoToken($offsetY, [0, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64], 24);
@@ -1278,7 +1282,7 @@ class ThemeTags
         $heightToken = $height !== null
             ? $this->normalizePromoToken($height, [120, 160, 180, 200, 240, 280, 320, 360, 420], 180)
             : null;
-        $zIndexToken = $this->normalizePromoToken($zIndex, [100, 120, 160, 200, 240, 300], 120);
+        $zIndexToken = $this->normalizePromoToken($zIndex, [100, 120, 160, 200, 240, 300, 9999], 9999);
 
         return [
             'position' => $position,
@@ -1292,8 +1296,12 @@ class ThemeTags
             'width_token' => $widthToken,
             'height_token' => $heightToken,
             'z_index_token' => $zIndexToken,
-            'animation' => (string) ($payload['animation'] ?? 'float'),
-            'show_on' => (string) ($payload['show_on'] ?? 'all'),
+            'animation' => in_array((string) ($payload['animation'] ?? 'float'), ['none', 'float', 'pulse', 'sway', 'wander'], true)
+                ? (string) ($payload['animation'] ?? 'float')
+                : 'float',
+            'show_on' => in_array((string) ($payload['show_on'] ?? 'all'), ['all', 'pc', 'mobile'], true)
+                ? (string) ($payload['show_on'] ?? 'all')
+                : 'all',
             'closable' => (bool) ($payload['closable'] ?? true),
             'remember_close' => (bool) ($payload['remember_close'] ?? true),
             'close_expire_hours' => max(1, (int) ($payload['close_expire_hours'] ?? 24)),
