@@ -880,6 +880,8 @@ class ContentController extends Controller
             $request,
         );
 
+        $this->flushFrontendPageCache($currentSite);
+
         return response()->json([
             'message' => ($type === 'page' ? '单页面' : '文章').'排序已保存。',
         ]);
