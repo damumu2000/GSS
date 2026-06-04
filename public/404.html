@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>页面不存在</title>
+    <link rel="stylesheet" href="/css/site-theme-status-pages.css">
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            color: #1f2937;
+            background: #fbfcff;
+        }
+
+        .theme-status-shell {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .theme-status-card {
+            width: min(520px, 100%);
+            padding: 44px 40px 36px;
+            text-align: center;
+            border: 1px solid #e8edf3;
+            border-radius: 24px;
+            background: #ffffff;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+        }
+
+        .theme-status-title {
+            margin: 0;
+            color: #111827;
+            font-size: 22px;
+            line-height: 1.55;
+            font-weight: 600;
+            letter-spacing: 0;
+        }
+
+        .theme-status-desc {
+            margin-top: 14px;
+            color: #667085;
+            font-size: 15px;
+            line-height: 1.9;
+        }
+
+        .theme-status-meta {
+            margin-top: 26px;
+            padding-top: 20px;
+            border-top: 1px solid #eef2f6;
+        }
+
+        .theme-status-meta-label {
+            color: #98a2b3;
+            margin-right: 8px;
+        }
+
+        .theme-status-meta-value {
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        @media (max-width: 640px) {
+            .theme-status-shell {
+                padding: 16px;
+            }
+
+            .theme-status-card {
+                padding: 34px 22px 28px;
+                border-radius: 12px;
+            }
+        }
+    </style>
+</head>
+<body class="theme-status-closed-page">
+    <div class="theme-status-shell">
+        <main class="theme-status-card is-closed">
+            <div class="theme-status-icon" aria-hidden="true">
+                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor">
+                    <circle cx="24" cy="24" r="18" stroke-width="4"/>
+                    <path d="M18 18L30 30" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M30 18L18 30" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h1 class="theme-status-title">未找到页面</h1>
+            <div class="theme-status-desc">
+                你访问的地址当前无法找到，可能已被删除、移动，或链接本身不正确。
+            </div>
+
+            <section class="theme-status-meta">
+                <div class="theme-status-meta-item">
+                    <span class="theme-status-meta-label">状态代码</span>
+                    <span class="theme-status-meta-value">404</span>
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

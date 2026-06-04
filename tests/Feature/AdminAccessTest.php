@@ -234,6 +234,56 @@ class AdminAccessTest extends TestCase
         $this->assertStringContainsString('https://www.bilibili.com', $csp);
     }
 
+    public function test_public_directory_does_not_contain_sensitive_scan_targets(): void
+    {
+        $blockedNames = [
+            '.DS_Store',
+            '.env',
+            '.env.backup',
+            '.env.local',
+            '.env.production',
+            '.htaccess',
+            '.htpasswd',
+            '.user.ini',
+            'phpinfo.php',
+        ];
+        $blockedExtensions = [
+            '.bak',
+            '.backup',
+            '.dump',
+            '.log',
+            '.old',
+            '.orig',
+            '.sql',
+            '.tar',
+            '.tgz',
+            '.zip',
+        ];
+        $violations = [];
+
+        foreach (File::allFiles(public_path()) as $file) {
+            $name = $file->getFilename();
+            $normalizedPath = str_replace(DIRECTORY_SEPARATOR, '/', $file->getRelativePathname());
+            $lowerPath = mb_strtolower($normalizedPath);
+
+            if (in_array($name, $blockedNames, true)) {
+                $violations[] = $normalizedPath;
+
+                continue;
+            }
+
+            foreach ($blockedExtensions as $extension) {
+                if (str_ends_with($lowerPath, $extension)) {
+                    $violations[] = $normalizedPath;
+
+                    break;
+                }
+            }
+        }
+
+        $this->assertSame([], $violations, 'public 目录存在可被外部扫描直接命中的敏感文件。');
+    }
+
     public function test_login_page_uses_hsts_when_request_is_forwarded_as_https(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -9357,6 +9407,30 @@ XML);
         ]);
     }
 
+    public function test_site_security_blocked_response_uses_hsts_when_request_is_forwarded_as_https(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('SECURITY_HEADERS_HSTS_APP=true');
+        $_ENV['SECURITY_HEADERS_HSTS_APP'] = 'true';
+        $_SERVER['SECURITY_HEADERS_HSTS_APP'] = 'true';
+
+        try {
+            $this->withServerVariables([
+                'REMOTE_ADDR' => '127.0.0.1',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+                'HTTP_X_FORWARDED_PORT' => '443',
+            ])->get('/?site=site&keyword='.urlencode('union select 1'))
+                ->assertForbidden()
+                ->assertSee('当前请求已被安全防护拦截')
+                ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+                ->assertHeader('X-Content-Type-Options', 'nosniff')
+                ->assertHeader('Content-Security-Policy');
+        } finally {
+            putenv('SECURITY_HEADERS_HSTS_APP');
+            unset($_ENV['SECURITY_HEADERS_HSTS_APP'], $_SERVER['SECURITY_HEADERS_HSTS_APP']);
+        }
+    }
+
     public function test_site_security_samples_repeated_blocked_events_but_keeps_counts(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -10190,6 +10264,10 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         Route::middleware('web')->get('/.git/config', fn () => response('ok'));
+        Route::middleware('web')->get('/.DS_Store', fn () => response('ok'));
+        Route::middleware('web')->get('/.user.ini', fn () => response('ok'));
+        Route::middleware('web')->get('/composer.json', fn () => response('ok'));
+        Route::middleware('web')->get('/database.sql', fn () => response('ok'));
         Route::middleware('web')->get('/swagger-ui/index.html', fn () => response('ok'));
         Route::middleware('web')->get('/actuator/health', fn () => response('ok'));
         Route::middleware('web')->get('/docs/swagger-ui-note', fn () => response('ok'));
@@ -10198,6 +10276,22 @@ XML);
             ->assertOk();
 
         $this->get('/.git/config?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->get('/.DS_Store?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->get('/.user.ini?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->get('/composer.json?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->get('/database.sql?site=site')
             ->assertForbidden()
             ->assertSee('当前请求已被安全防护拦截');
 
@@ -16048,6 +16142,60 @@ XML);
             'client_ip' => $ip,
         ]);
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$siteId.':'.sha1($ip), 1));
+    }
+
+    public function test_site_security_clear_suspicious_ips_deletes_hash_only_events(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-clear-hash-site-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ipHash = hash('sha256', '203.0.113.200');
+
+        DB::table('site_security_events')->insert([
+            'site_id' => $siteId,
+            'rule_code' => 'bad_client',
+            'rule_name' => '脚本扫描器拦截',
+            'request_path' => '/hash-only-event',
+            'request_method' => 'GET',
+            'client_ip' => null,
+            'ip_hash' => $ipHash,
+            'risk_level' => 'high',
+            'action' => 'block',
+            'created_at' => now(),
+        ]);
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $siteId,
+            'client_ip' => null,
+            'ip_hash' => $ipHash,
+            'hit_count' => 1,
+            'high_risk_count' => 1,
+            'last_rule_code' => 'bad_client',
+            'last_request_path' => '/hash-only-event',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.security.ips.clear'))
+            ->assertRedirect(route('admin.security.index', [
+                'security_modal' => 'ips',
+                'security_ip_page' => 1,
+            ]));
+
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $siteId,
+            'request_path' => '/hash-only-event',
+        ]);
+        $this->assertDatabaseMissing('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'ip_hash' => $ipHash,
+        ]);
     }
 
     protected function createAdditionalSite(string $siteKey, string $name): int

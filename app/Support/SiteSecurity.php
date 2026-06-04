@@ -1240,6 +1240,7 @@ class SiteSecurity
                 break;
             }
 
+            $ipHashes = $rows->pluck('ip_hash')->filter()->unique()->values()->all();
             $ipRows = $rows->filter(fn (object $row): bool => is_string($row->client_ip) && trim((string) $row->client_ip) !== '' && filter_var(trim((string) $row->client_ip), FILTER_VALIDATE_IP) !== false)
                 ->map(function (object $row): array {
                     return [
@@ -1251,7 +1252,6 @@ class SiteSecurity
                 })
                 ->unique('ip_hash')
                 ->values();
-            $ipHashes = $ipRows->pluck('ip_hash')->filter()->unique()->values()->all();
 
             DB::transaction(function () use ($siteId, $rows, $ipRows, $ipHashes, &$deletedEvents, &$deletedIps): void {
                 if ($ipHashes !== []) {
@@ -2152,16 +2152,52 @@ class SiteSecurity
             '/manager/html',
             '/manager/status',
             '/server-status',
+            '/server-info',
             '/thinkphp',
             '/runtime/log',
             '/storage/logs',
+            '/debug/default/view',
+            '/.aws',
+            '/.docker',
         ];
         $suffixMatches = [
             '/.env',
+            '/.env.local',
+            '/.env.production',
+            '/.env.backup',
             '/.git/config',
             '/.svn/entries',
+            '/.ds_store',
+            '/.user.ini',
+            '/.htaccess',
+            '/.htpasswd',
             '/phpinfo.php',
+            '/composer.json',
+            '/composer.lock',
+            '/package.json',
+            '/package-lock.json',
+            '/pnpm-lock.yaml',
+            '/yarn.lock',
+            '/vite.config.js',
+            '/phpunit.xml',
             '/config/database.php',
+        ];
+        $riskyExtensions = [
+            '.bak',
+            '.backup',
+            '.conf',
+            '.config',
+            '.dump',
+            '.ini',
+            '.log',
+            '.old',
+            '.orig',
+            '.sql',
+            '.swp',
+            '.tar',
+            '.tar.gz',
+            '.tgz',
+            '.zip',
         ];
 
         foreach ($exactOrChildPrefixes as $prefix) {
@@ -2172,6 +2208,12 @@ class SiteSecurity
 
         foreach ($suffixMatches as $suffix) {
             if ($path === $suffix || str_ends_with($path, $suffix)) {
+                return ['code' => 'bad_path', 'name' => '恶意扫描路径'];
+            }
+        }
+
+        foreach ($riskyExtensions as $extension) {
+            if (str_ends_with($path, $extension)) {
                 return ['code' => 'bad_path', 'name' => '恶意扫描路径'];
             }
         }
