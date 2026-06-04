@@ -14067,6 +14067,56 @@ XML);
         ]);
     }
 
+    public function test_floating_promo_item_accepts_wander_animation(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $operator = $this->createCustomSiteOperator('promo-floating-wander', $siteId, ['promo.manage']);
+
+        $positionId = (int) DB::table('promo_positions')->insertGetId([
+            'site_id' => $siteId,
+            'code' => 'promo-floating-wander-position',
+            'name' => '页面漂浮图宣位',
+            'display_mode' => 'floating',
+            'status' => 1,
+            'remark' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $attachmentId = $this->createSiteAttachment($siteId, $operator->id, 'promo-floating-wander.jpg');
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.promos.items.store', ['position' => $positionId]), [
+                'attachment_id' => $attachmentId,
+                'title' => '页面漂浮图',
+                'subtitle' => '',
+                'link_url' => '',
+                'link_target' => '_self',
+                'status' => '1',
+                'floating_position' => 'right-bottom',
+                'floating_animation' => 'wander',
+                'floating_offset_x' => 24,
+                'floating_offset_y' => 24,
+                'floating_width' => 180,
+                'floating_height' => '',
+                'floating_z_index' => 120,
+                'floating_show_on' => 'all',
+                'floating_closable' => '1',
+                'floating_remember_close' => '1',
+                'floating_close_expire_hours' => 24,
+            ])
+            ->assertRedirect();
+
+        $payload = json_decode((string) DB::table('promo_items')
+            ->where('position_id', $positionId)
+            ->value('display_payload'), true);
+
+        $this->assertSame('wander', $payload['animation'] ?? null);
+    }
+
     public function test_restricted_content_operator_cannot_bind_inaccessible_cover_attachment(): void
     {
         $this->seed(DatabaseSeeder::class);

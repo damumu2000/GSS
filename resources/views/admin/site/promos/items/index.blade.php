@@ -190,14 +190,14 @@
                                         <label for="drawer_floating_animation">动画</label>
                                         <div class="site-select" data-site-select>
                                             <select id="drawer_floating_animation" class="field site-select-native" name="floating_animation">
-                                                @foreach (['float' => '轻浮动', 'pulse' => '呼吸', 'sway' => '摇摆', 'none' => '无动画'] as $value => $label)
+                                                @foreach (['float' => '轻浮动', 'wander' => '页面漂浮', 'pulse' => '呼吸', 'sway' => '摇摆', 'none' => '无动画'] as $value => $label)
                                                     <option value="{{ $value }}">{{ $label }}</option>
                                                 @endforeach
                                             </select>
                                             <button class="site-select-trigger" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">轻浮动</button>
                                             <div class="site-select-panel" data-select-panel role="listbox"></div>
                                         </div>
-                                        <div class="promo-item-floating-hint">前台模板可按这里的动画值切换浮动、呼吸或静止样式。</div>
+                                        <div class="promo-item-floating-hint">轻浮动为原地动效；页面漂浮会在当前页面视口内缓慢移动。</div>
                                     </div>
                                     <div>
                                         <label for="drawer_floating_offset_x">横向偏移</label>

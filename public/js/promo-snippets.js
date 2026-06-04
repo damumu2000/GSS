@@ -64,6 +64,56 @@
         });
     });
 
+    if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        document.querySelectorAll('.promo-floating--wander').forEach((floating) => {
+            const rect = floating.getBoundingClientRect();
+
+            if (rect.width <= 0 || rect.height <= 0) {
+                return;
+            }
+
+            floating.style.left = `${Math.min(Math.max(rect.left, 0), Math.max(window.innerWidth - rect.width, 0))}px`;
+            floating.style.top = `${Math.min(Math.max(rect.top, 0), Math.max(window.innerHeight - rect.height, 0))}px`;
+            floating.style.right = 'auto';
+            floating.style.bottom = 'auto';
+            floating.style.transform = 'none';
+
+            let x = Number.parseFloat(floating.style.left) || 0;
+            let y = Number.parseFloat(floating.style.top) || 0;
+            let dx = 0.36;
+            let dy = 0.28;
+
+            const move = () => {
+                if (!floating.isConnected) {
+                    return;
+                }
+
+                const maxX = Math.max(window.innerWidth - floating.offsetWidth, 0);
+                const maxY = Math.max(window.innerHeight - floating.offsetHeight, 0);
+
+                x += dx;
+                y += dy;
+
+                if (x <= 0 || x >= maxX) {
+                    dx *= -1;
+                    x = Math.min(Math.max(x, 0), maxX);
+                }
+
+                if (y <= 0 || y >= maxY) {
+                    dy *= -1;
+                    y = Math.min(Math.max(y, 0), maxY);
+                }
+
+                floating.style.left = `${x}px`;
+                floating.style.top = `${y}px`;
+
+                window.requestAnimationFrame(move);
+            };
+
+            window.requestAnimationFrame(move);
+        });
+    }
+
     document.querySelectorAll('[data-promo-carousel]').forEach((carousel) => {
         const slides = Array.from(carousel.querySelectorAll('.promo-carousel-slide'));
         const dots = Array.from(carousel.querySelectorAll('[data-promo-carousel-dot]'));

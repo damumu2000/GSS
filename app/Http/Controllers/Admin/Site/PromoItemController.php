@@ -584,7 +584,7 @@ class PromoItemController extends Controller
             'floating_width' => ['nullable', 'integer', 'min:40', 'max:1200'],
             'floating_height' => ['nullable', 'integer', 'min:40', 'max:1200'],
             'floating_z_index' => ['nullable', 'integer', 'min:1', 'max:9999'],
-            'floating_animation' => ['nullable', Rule::in(['none', 'float', 'pulse', 'sway'])],
+            'floating_animation' => ['nullable', Rule::in(['none', 'float', 'pulse', 'sway', 'wander'])],
             'floating_show_on' => ['nullable', Rule::in(['all', 'pc', 'mobile'])],
             'floating_closable' => ['nullable', Rule::in(['0', '1'])],
             'floating_remember_close' => ['nullable', Rule::in(['0', '1'])],

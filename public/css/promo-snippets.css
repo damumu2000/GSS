@@ -98,6 +98,7 @@
 .promo-floating--float { animation: promo-floating-float 3s ease-in-out infinite; }
 .promo-floating--pulse { animation: promo-floating-pulse 2.2s ease-in-out infinite; }
 .promo-floating--sway { animation: promo-floating-sway 3.2s ease-in-out infinite; }
+.promo-floating--wander { will-change: left, top; }
 
 @keyframes promo-floating-float {
     0%, 100% { transform: var(--promo-floating-base-transform) translateY(0); }
