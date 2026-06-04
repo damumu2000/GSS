@@ -61,7 +61,6 @@ return [
         'plainText',
         'truncate',
         'default',
-        'htmlOut',
         'formatDate',
         'timeAgo',
         'textToHtml',

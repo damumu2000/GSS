@@ -486,7 +486,7 @@
                     <span class="hero-mark" aria-hidden="true"></span>
                     <div>
                         <h1>模版开发文档</h1>
-                        <p>这份开发文档已经按当前模板引擎、模板编辑器校验规则，以及当前系统启用的 CSP 策略重新整理。文档里的语法、标签、示例和限制，和现在后台真实可保存、可解析、可上线的模板写法一一对应。</p>
+                        <p>这份开发文档用于说明前台模板的常用写法、可用标签、字段含义和资源引用方式。文档里的示例都按后台模板工作台可保存、可预览、可上线的写法整理。</p>
                     </div>
                 </div>
             </div>
@@ -495,7 +495,7 @@
                 <a class="tag" href="#syntax">基础语法</a>
                 <a class="tag" href="#assets-csp">模板资源</a>
                 <a class="tag" href="#mobile-templates">手机模板</a>
-                <a class="tag" href="#assets-csp">CSP 约束</a>
+                <a class="tag" href="#assets-csp">资源规范</a>
                 <a class="tag" href="#tag-templates">Tag 通用模版标签</a>
                 <a class="tag" href="#site-values">站点信息</a>
                 <a class="tag" href="#context">当前上下文</a>
@@ -514,11 +514,11 @@
                 </div>
                 <div class="hero-guide">
                     <strong>再按“栏目 / 内容 / 图宣”选标签</strong>
-                    <span>列表页先找查询标签，详情页再配合上一篇、下一篇和相关文章这类辅助标签。条件和循环只支持当前引擎列出的基础能力。</span>
+                    <span>列表页先找查询标签，详情页再配合上一篇、下一篇和相关文章这类辅助标签。条件和循环按文档列出的基础语法书写。</span>
                 </div>
                 <div class="hero-guide">
-                    <strong>CSP 下不要写内联代码</strong>
-                    <span>模板源码里不能写内联 <code>&lt;script&gt;</code> 和 <code>on*</code> 事件属性；内联 <code>&lt;style&gt;</code> 与 <code>style=</code> 现已允许使用，但大块样式仍建议放到主题样式文件中统一维护。</span>
+                    <strong>脚本放到主题文件</strong>
+                    <span>模板源码里不要写内联 <code>&lt;script&gt;</code> 和 <code>on*</code> 事件属性；交互脚本建议放到主题 JS 文件中统一维护。</span>
                 </div>
             </div>
         </section>
@@ -528,7 +528,7 @@
                 <div class="sidebar-card">
                     <h2>快速跳转</h2>
                     <a class="nav-link" href="#syntax">基础语法与限制</a>
-                    <a class="nav-link" href="#assets-csp">模板资源与 CSP</a>
+                    <a class="nav-link" href="#assets-csp">模板资源规范</a>
                     <a class="nav-link" href="#mobile-templates">手机模板</a>
                     <a class="nav-link" href="#tag-templates">Tag 通用模版标签</a>
                     <a class="nav-link" href="#site-values">站点信息</a>
@@ -550,7 +550,7 @@
                         <h2>基础语法与限制</h2>
                         <span class="section-kicker">先看这一节</span>
                     </div>
-                    <p>模板只负责展示，不写 PHP，也不支持复杂表达式。当前模板引擎真正支持的只有：输出、赋值、条件、循环、公共模板引用和内置标签调用。</p>
+                    <p>模板主要用于页面展示和字段组合，不写 PHP，也不支持复杂表达式。常用语法包括：输出、赋值、条件、循环、公共模板引用和内置标签调用。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -569,7 +569,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">{{{ ... }}}</td>
-                                    <td>输出系统可信 HTML。只有 <code>content_html</code>、<code>textToHtml()</code> 这类系统返回的安全对象会直出；普通字符串仍会被转义。</td>
+                                    <td>输出正文 HTML。常用于文章正文、单页正文或 <code>textToHtml()</code> 转换后的内容；普通变量建议继续使用双花括号输出。</td>
                                     <td><code>{{{ current.content.content_html }}}</code></td>
                                 </tr>
                                 <tr>
@@ -619,16 +619,16 @@
                         <li><strong>通用标签模板约定：</strong>复用片段统一使用 <code>tag-xxx.tpl</code> 命名，在业务模板中通过 <code>{% include "tag-xxx" %}</code> 直接调用。</li>
                         <li><strong>后台创建模板类型：</strong>模板工作台新增 <code>Tag 模板</code> 类型，创建时会生成 <code>tag-标识.tpl</code> 文件，适合跨列表页、详情页、单页复用同一段结构。</li>
                         <li><strong>条件能力是有限的：</strong>不支持括号、三元表达式、数组字面量、函数调用和任意 JS / PHP 风格表达式。</li>
-                        <li><strong>模板里不允许写 PHP：</strong>模板源码中不能出现 PHP 代码标签，保存时后端会直接拦截。</li>
+                        <li><strong>模板里不允许写 PHP：</strong>模板源码中不能出现 PHP 代码标签。</li>
                     </ul>
                 </section>
 
                 <section class="section" id="assets-csp">
                     <div class="section-head">
-                        <h2>模板资源与 CSP</h2>
-                        <span class="section-kicker">当前上线规则</span>
+                        <h2>模板资源规范</h2>
+                        <span class="section-kicker">推荐写法</span>
                     </div>
-                    <p>当前系统的脚本仍执行严格同源策略：<code>script-src 'self'</code>。样式为兼容后台编辑器和富文本内容展示，允许 <code>style-src 'self' 'unsafe-inline'</code>。模板资源仍建议全部走当前主题目录，模板里直接写引入即可，系统会自动生成当前站点、当前主题可访问的同源地址。</p>
+                    <p>前台脚本建议使用同源资源，模板资源建议全部放在当前主题目录中。模板里通过 <code>themeStyle</code>、<code>themeScript</code>、<code>themeAsset</code> 引入后，会生成当前站点可访问的资源地址。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -681,23 +681,23 @@
                     <ul class="rules-list">
                         <li><strong>资源写法：</strong>直接在模板里写 <code>themeStyle</code> / <code>themeScript</code> / <code>themeAsset</code>。</li>
                         <li><strong>资源必须属于当前主题：</strong><code>path</code> 指向的文件必须真实存在于当前主题里，否则模板保存校验会报错。</li>
-                        <li><strong>公共脚本库：</strong>系统级公共前台资源统一放在 <code>/pub/</code> 下，例如 jQuery 使用 <code>&lt;script src="/pub/jquery.min.js"&gt;&lt;/script&gt;</code>；该目录资源由平台静态资源检查统一做版本和校验和管理。</li>
+                        <li><strong>公共脚本库：</strong>公共前台资源统一放在 <code>/pub/</code> 下，例如 jQuery 使用 <code>&lt;script src="/pub/jquery.min.js"&gt;&lt;/script&gt;</code>。</li>
                         <li><strong>站点资源不能再直接引用：</strong>模板里不允许再写 <code>/site-media/...</code> 或旧的资源库地址；模板专用图片、字体、JSON 请放在当前主题的 <code>assets/</code> 目录。</li>
                     </ul>
 
                     <div class="tip">
                         <strong>公共正文样式注入规则</strong>
-                        <span>系统会给非首页模板自动注入 <code>/css/site-content-render.css</code> 和 <code>/js/site-content-render.js</code>，用于保证文章正文、单页正文中的图片、表格、附件卡片和外链提示正常显示。注入地址会自动携带文件版本号，静态资源可按长期缓存处理；首页模板 <code>home</code> / <code>m-home</code> 不会自动注入。其他页面优先插入到 <code>&lt;/head&gt;</code> 上方，如果旧模板缺少 <code>&lt;/head&gt;</code>，会兼容性地插入到页面最顶部。建议完整页面模板保持标准 <code>&lt;head&gt;...&lt;/head&gt;</code> 结构。</span>
+                        <span>文章详情页和单页会自动加载正文展示资源 <code>/css/site-content-render.css</code> 与 <code>/js/site-content-render.js</code>，用于图片、表格、附件卡片和外链提示。首页模板 <code>home</code> / <code>m-home</code> 不自动加载。建议完整页面模板保持标准 <code>&lt;head&gt;...&lt;/head&gt;</code> 结构。</span>
                     </div>
 
                     <div class="tip">
-                        <strong>CSP 为什么要这样写</strong>
-                        <span>当前站点脚本使用严格同源策略：<code>script-src 'self'</code>；样式允许 <code>unsafe-inline</code>，用于兼容富文本里由编辑器生成的行内样式。模板交互脚本仍应放到主题 JS 文件中，通过 <code>themeScript</code> 引入。</span>
+                        <strong>脚本资源写法</strong>
+                        <span>模板交互脚本建议放到主题 JS 文件中，通过 <code>themeScript</code> 引入；样式可以放到主题 CSS 文件中，通过 <code>themeStyle</code> 引入。</span>
                     </div>
 
                     <div class="tip">
                         <strong>保存前最容易踩坑的地方</strong>
-                        <span>以下写法会在模板保存时被直接拦截：内联 <code>&lt;script&gt;</code>、任何 <code>onclick</code> 这类内联事件属性。模板中可以直接写 <code>style</code> 属性或内联 <code>&lt;style&gt;</code>，但大块样式仍建议优先放到主题 CSS 文件中统一维护。</span>
+                        <span>模板中不要写内联 <code>&lt;script&gt;</code>，也不要写 <code>onclick</code> 这类内联事件属性。模板中可以直接写 <code>style</code> 属性或内联 <code>&lt;style&gt;</code>，但大块样式仍建议优先放到主题 CSS 文件中统一维护。</span>
                     </div>
                 </section>
 
@@ -706,7 +706,7 @@
                         <h2>手机模板</h2>
                         <span class="section-kicker">同地址自动适配</span>
                     </div>
-                    <p>手机端不需要新建站点，也不需要复制内容。系统会在同一个前台地址下自动识别设备：手机访问时优先寻找 <code>m-当前模板.tpl</code>，存在就使用手机模板，不存在就自动回退原模板。</p>
+                    <p>手机端不需要新建站点，也不需要复制内容。同一个前台地址会自动适配设备：手机访问时优先使用 <code>m-当前模板.tpl</code>，没有对应手机模板时回退原模板。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -761,12 +761,12 @@
 
                     <ul class="rules-list">
                         <li><strong>后台创建：</strong>进入模板管理的“创建模板”，模板类型选择 <code>手机版首页</code> 可直接创建 <code>m-home.tpl</code>，该文件名固定不可修改。</li>
-                        <li><strong>创建其他手机模板：</strong>模板类型选择 <code>自定义模板</code>，模板标识直接填写 <code>m-list</code>、<code>m-detail</code>、<code>m-page</code> 或 <code>m-list-news</code>，系统会生成对应的 <code>.tpl</code> 文件。</li>
+                        <li><strong>创建其他手机模板：</strong>模板类型选择 <code>自定义模板</code>，模板标识直接填写 <code>m-list</code>、<code>m-detail</code>、<code>m-page</code> 或 <code>m-list-news</code>，保存后会生成对应的 <code>.tpl</code> 文件。</li>
                         <li><strong>测试手机模板：</strong>本地或线上都可以在地址后加 <code>?device=mobile</code> 强制进入手机模式。</li>
                         <li><strong>测试 PC 模板：</strong>地址后加 <code>?device=pc</code> 可强制使用 PC 模板。</li>
                         <li><strong>链接参数保留：</strong>强制预览时，系统生成的站内链接会自动保留 <code>device=mobile</code> 或 <code>device=pc</code>，方便连续预览。</li>
                         <li><strong>模板内判断：</strong>可用 <code>current.page.device</code> 和 <code>current.page.is_mobile</code> 判断当前渲染设备。</li>
-                        <li><strong>安全边界：</strong><code>device</code> 只能取 <code>mobile</code> 或 <code>pc</code>，不能通过 URL 指定任意模板文件。</li>
+                        <li><strong>预览参数：</strong><code>device</code> 只支持 <code>mobile</code> 或 <code>pc</code>。</li>
                     </ul>
                 </section>
 
@@ -775,7 +775,7 @@
                         <h2>Tag 通用模版标签</h2>
                         <span class="section-kicker">跨页面复用首选</span>
                     </div>
-                    <p><code>tag-xxx.tpl</code> 是通用标签模板，适合把“同一段结构”抽成一个片段，在列表页、详情页、单页中复用。当前系统已在模板工作台提供 <code>Tag 模板</code> 类型，创建后会生成 <code>tag-标识.tpl</code>。</p>
+                    <p><code>tag-xxx.tpl</code> 是通用标签模板，适合把“同一段结构”抽成一个片段，在列表页、详情页、单页中复用。模板工作台提供 <code>Tag 模板</code> 类型，创建后会生成 <code>tag-标识.tpl</code>。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -835,7 +835,7 @@
                         <li><strong>Tag 模板只放结构：</strong>样式和交互建议由页面统一通过 <code>themeStyle</code> / <code>themeScript</code> 引入，避免重复加载。</li>
                         <li><strong>变量要防冲突：</strong>建议统一使用 <code>tag_</code> 前缀（如 <code>tag_items</code>、<code>tag_title</code>）。</li>
                         <li><strong>禁止循环 include：</strong><code>tag</code> 片段不要反向引用调用方模板，避免 include 循环。</li>
-                        <li><strong>参数应可兜底：</strong>片段内部建议先判断变量是否为空，避免在不同页面上下文中出现空数据异常。</li>
+                        <li><strong>参数应可兜底：</strong>片段里建议先判断变量是否为空，避免在不同页面中出现空数据异常。</li>
                     </ul>
                 </section>
 
@@ -927,6 +927,11 @@
                                     <td>网站首页地址。</td>
                                     <td><code>{{ siteValue(key='home_url')}}</code></td>
                                 </tr>
+                                <tr>
+                                    <td class="mono">config</td>
+                                    <td>读取模板配置项，适合统一管理区块标题、每页条数、开关状态等可调整内容。</td>
+                                    <td><code>{% set perPage = config('theme.list.per_page', 5) %}</code></td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -944,7 +949,7 @@
                     </div>
 
                     <h3>页面 SEO 变量（推荐）</h3>
-                    <p>前台模板统一提供 <code>meta</code> 变量，适合直接写在 <code>head.tpl</code>。系统会按“当前页面优先，站点默认兜底”自动取值：</p>
+                    <p>前台模板统一提供 <code>meta</code> 变量，适合直接写在 <code>head.tpl</code>。取值规则是“当前页面优先，站点默认兜底”：</p>
                     <ul class="rules-list">
                         <li><strong>meta.title</strong>：当前页 SEO 标题（无则回退站点 SEO 标题/站点名称）。</li>
                         <li><strong>meta.keywords</strong>：当前页 SEO 关键词（无则回退站点 SEO 关键词）。</li>
@@ -1003,7 +1008,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">current.page.keyword</td>
-                                    <td>当前请求中的搜索关键词（已做安全处理和长度限制），适合用于列表页搜索框回显，并传入 <code>contentPage(keyword=...)</code> 做服务端分页搜索。</td>
+                                    <td>当前请求中的搜索关键词，适合用于列表页搜索框回显，并传入 <code>contentPage(keyword=...)</code> 做分页搜索。</td>
                                     <td><code>{{ current.page.keyword }}</code></td>
                                 </tr>
                                 <tr>
@@ -1076,8 +1081,7 @@
                         <h2>栏目参数</h2>
                         <span class="section-kicker">导航、子栏目、面包屑</span>
                     </div>
-                    <p>适合做导航、子栏目入口、面包屑、栏目切换和栏目定向展示。</p>
-                    <p>模板优先级也和栏目有关：文章详情页默认继承栏目详情模板，单页面默认继承单页栏目模板；如果在内容编辑页里给某一篇文章或某一个单页面单独选择了模板，就会优先使用内容自己的模板。</p>
+                    <p>适合做导航、子栏目入口、面包屑、栏目切换和栏目定向展示。栏目返回字段常用有 <code>id</code>、<code>name</code>、<code>slug</code>、<code>type</code>、<code>parent_id</code>、<code>url</code>、<code>target</code>、<code>is_active</code>。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -1101,7 +1105,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">children</td>
-                                    <td>取直属子栏目。普通栏目树建议按 <code>status=1</code> 过滤停用栏目；只有明确做导航区时才加 <code>is_nav=true</code>。</td>
+                                    <td>取直属子栏目，支持 <code>channel_id</code>、<code>status</code>、<code>is_nav</code>、<code>limit</code>。栏目查询默认只返回启用栏目；只有明确做导航区时才加 <code>is_nav=true</code>。</td>
                                     <td><code>{% set childChannels = children(channel_id=current.channel.id, status=1, limit=8)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1116,12 +1120,12 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">localNav</td>
-                                    <td>取当前栏目所在本地导航组。当前是二级栏目时返回其所属一级栏目下的全部二级栏目；当前是一级栏目时返回它自己的全部子栏目。</td>
+                                    <td>取当前栏目所在本地导航组，支持 <code>channel_id</code>、<code>limit</code>、<code>fields</code>。</td>
                                     <td><code>{% set navItems = localNav(limit=20)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">childNav</td>
-                                    <td>取当前栏目的子导航。当前栏目有子栏目时返回子栏目；当前为三级栏目时返回同级三级栏目；当前二级栏目没有子栏目时只返回当前栏目。适合专题页二级栏目下的三级栏目导航。</td>
+                                    <td>取当前栏目的子导航，支持 <code>channel_id</code>、<code>limit</code>、<code>fields</code>。适合专题页或栏目侧边导航。</td>
                                     <td><code>{% set navItems = childNav(limit=20)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1146,7 +1150,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">channels parent_id / status / type / slug</td>
-                                    <td>按父级、状态、类型或别名筛选栏目。</td>
+                                    <td>按父级、类型或别名筛选栏目。栏目查询默认只返回启用栏目，示例里的 <code>status=1</code> 可作为显式写法保留。</td>
                                     <td><code>{% set pageChannels = channels(type='page', status=1, limit=6)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1186,7 +1190,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">channels fields</td>
-                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td>只返回指定字段，结果会包含 <code>id</code>。<code>localNav</code>、<code>childNav</code> 也支持 <code>fields</code>。</td>
                                     <td><code>{% set liteChannels = channels(fields='name,url', limit=5)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1204,7 +1208,7 @@
                         <h2>内容参数</h2>
                         <span class="section-kicker">列表页最常用</span>
                     </div>
-                    <p>内容查询是模板里最常用的一组能力，适合列表页、首页资讯区、固定推荐和随机推荐。需要分页时请优先使用 <code>contentPage</code>，它会返回 <code>items</code> 和 <code>pagination</code> 两段数据。</p>
+                    <p>内容查询是模板里最常用的一组能力，适合列表页、首页资讯区、固定推荐和随机推荐。<code>contentList</code> 返回普通列表；需要分页时使用 <code>contentPage</code>，它会返回 <code>items</code> 和 <code>pagination</code> 两段数据。下方筛选参数除特别说明外，<code>contentList</code> 和 <code>contentPage</code> 都可以使用。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -1218,7 +1222,7 @@
                             <tbody>
                                 <tr>
                                     <td class="mono">content</td>
-                                    <td>按内容 ID 取单条内容。</td>
+                                    <td>按内容 ID 取单条已发布内容。</td>
                                     <td><code>{% set notice = content(id=12)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1228,13 +1232,18 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">contentPage page / per_page / page_name / window</td>
-                                    <td>分页查询。返回 <code>result.items</code> 和 <code>result.pagination</code>。<code>page_name</code> 默认 <code>page</code>，<code>window</code> 控制分页条左右页码数量。</td>
+                                    <td>分页专用参数。返回 <code>result.items</code> 和 <code>result.pagination</code>。<code>page_name</code> 默认 <code>page</code>，<code>window</code> 控制分页条左右页码数量。</td>
                                     <td><code>{% set result = contentPage(channel='news', per_page=10, page=2, page_name='page', window=2)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">contentPage keyword</td>
-                                    <td>服务端关键词搜索（标题 + 摘要）并支持分页，推荐用于列表页搜索。</td>
+                                    <td>关键词搜索（标题 + 摘要）并支持分页，推荐用于列表页搜索。</td>
                                     <td><code>{% set result = contentPage(type='article', keyword=current.page.keyword, per_page=5, page_name='page', window=2)%}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">query</td>
+                                    <td>链式查询写法，适合把栏目、置顶、关键词、分页等条件从左到右组合起来。常用结尾是 <code>get()</code> 或 <code>paginate()</code>。</td>
+                                    <td><code>{% set pageData = query('article') | channel('news') | perPage(5) | paginate() %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">linkTo</td>
@@ -1283,13 +1292,13 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">order_by / order_dir</td>
-                                    <td>自定义排序字段和方向。</td>
+                                    <td>自定义排序字段和方向。<code>order_by</code> 支持 <code>published_at</code>、<code>id</code>、<code>sort</code>；<code>order_dir</code> 支持 <code>desc</code>、<code>asc</code>。</td>
                                     <td><code>{% set list = contentList(order_by='published_at', order_dir='desc', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">order</td>
-                                    <td>使用预设排序，例如 <code>published_at_desc</code>、<code>updated_at_desc</code>、<code>id_desc</code>。内容列表会优先遵循后台置顶和手动排序；<code>updated_at_desc</code> 为兼容旧模板名称，实际不会因编辑保存而把文章顶到最前。</td>
-                                    <td><code>{% set list = contentList(order='updated_at_desc', limit=6)%}</code></td>
+                                    <td>使用预设排序。所有预设都会先按后台置顶和手动排序输出；同一排序层级内，<code>published_at_desc</code> 表示发布时间从新到旧，<code>published_at_asc</code> 表示发布时间从旧到新，<code>id_desc</code> 表示内容 ID 从大到小，<code>id_asc</code> 表示内容 ID 从小到大。</td>
+                                    <td><code>{% set list = contentList(order='published_at_desc', limit=6)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">include_ids / exclude_ids</td>
@@ -1318,7 +1327,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">fields</td>
-                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td>只返回指定字段，结果会包含 <code>id</code>。</td>
                                     <td><code>{% set liteArticles = contentList(fields='title,url,published_at', limit=4)%}</code></td>
                                 </tr>
                             </tbody>
@@ -1371,7 +1380,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">fields</td>
-                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td>只返回指定字段，结果会包含 <code>id</code>。</td>
                                     <td><code>{% set litePromos = promos('home_banner', fields='title,image_url,link_url', limit=3)%}</code></td>
                                 </tr>
                             </tbody>
@@ -1401,11 +1410,6 @@
                                     <td class="mono">plainText</td>
                                     <td>去掉 HTML 标签，保留纯文本。</td>
                                     <td><code>{% set plainSummary = item.summary | plainText() %}</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">htmlOut</td>
-                                    <td>历史兼容过滤器，当前等同于 <code>plainText</code>，不会直接输出 HTML。新模板建议统一使用 <code>plainText</code> 或三花括号输出可信 <code>content_html</code>。</td>
-                                    <td><code>{{ item.content_html | htmlOut() }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">truncate</td>
@@ -1470,7 +1474,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">navItem.is_active</td>
-                                    <td>导航项是否应该高亮。系统会自动处理“当前栏目”和“当前栏目的祖先栏目”两种情况，适合头部导航直接使用。</td>
+                                    <td>导航项是否应该高亮，适合头部导航直接使用。</td>
                                     <td><code>{% if item.is_active %}&lt;a class="is-active"&gt;...&lt;/a&gt;{% endif %}</code></td>
                                 </tr>
                                 <tr>
@@ -1480,12 +1484,12 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">previous / next</td>
-                                    <td>取当前内容的上一篇和下一篇，通常传 <code>article</code>、<code>page</code> 或 <code>current.content</code>。</td>
+                                    <td>取当前内容的上一篇和下一篇，通常传 <code>current.content</code>。</td>
                                     <td><code>{% set previousItem = previous(current.content) %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">related</td>
-                                    <td>取当前内容的相关文章，通常传 <code>article</code>、<code>page</code> 或 <code>current.content</code>。</td>
+                                    <td>取当前内容的相关文章，通常传 <code>current.content</code>，可用 <code>limit</code> 控制数量。</td>
                                     <td><code>{% set relatedItems = related(current.content, limit=4)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1562,7 +1566,7 @@
                                 </tr>
                                 <tr>
                                     <td class="mono">fields</td>
-                                    <td>只返回指定字段，系统会保留 <code>id</code>。</td>
+                                    <td>只返回指定字段，结果会包含 <code>id</code>。</td>
                                     <td><code>{% set liteMessages = guestbookMessages(fields='display_no,name,summary,detail_url', limit=5)%}</code></td>
                                 </tr>
                                 <tr>
@@ -1591,13 +1595,13 @@
         &lt;/article&gt;
     {% endfor %}
 {% else %}
-    &lt;div class="feedback-empty"&gt;{{ guestbook.message }}&lt;/div&gt; <span class="code-comment">{# 模块关闭或未绑定时显示后端返回的统一提示 #}</span>
+    &lt;div class="feedback-empty"&gt;{{ guestbook.message }}&lt;/div&gt; <span class="code-comment">{# 模块关闭或未绑定时显示统一提示 #}</span>
 {% endif %}</pre>
                     </div>
 
                     <div class="tip">
-                        <strong>模板内“可提交留言”接入说明</strong>
-                        <span>当前模板里除了展示留言列表，还支持把页面中的表单接入留言模块提交接口。模板页和留言板模块页共用同一套后端提交判断：默认可直接提交，命中风险后才要求填写验证码。</span>
+                        <strong>留言提交表单接入</strong>
+                        <span>需要在模板里放留言提交表单时，按下面示例添加 <code>data-guestbook-*</code> 标记，并引入 <code>/js/guestbook-form.js</code> 即可。表单样式可以按当前模板自行调整。</span>
                     </div>
 
                     <div class="table-wrap">
@@ -1605,30 +1609,15 @@
                             <thead>
                                 <tr>
                                     <th>项</th>
-                                    <th>当前实现</th>
+                                    <th>写法</th>
                                     <th>说明</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td class="mono">提交接口</td>
-                                    <td><code>POST /guestbook</code></td>
-                                    <td>留言提交接口。</td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">验证码图片</td>
-                                    <td><code>GET /guestbook/captcha</code></td>
-                                    <td>当后端要求验证码时再显示并调用。</td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">验证码即时核验</td>
-                                    <td><code>POST /guestbook/captcha/verify</code></td>
-                                    <td>验证码显示后，输入 4 位再即时核验。</td>
-                                </tr>
-                                <tr>
                                     <td class="mono">字段映射</td>
                                     <td><code>name / phone / content / website / captcha</code></td>
-                                    <td><code>website</code> 为隐藏蜜罐字段；<code>captcha</code> 仅在后端要求时提交；<code>单位名称</code>、<code>电子邮箱</code> 可继续拼接到 <code>content</code>。</td>
+                                    <td><code>name</code>、<code>phone</code>、<code>content</code> 为常用提交字段；<code>website</code> 为隐藏校验字段；<code>captcha</code> 只在验证码显示时提交。</td>
                                 </tr>
                                 <tr>
                                     <td class="mono">前端接入方式</td>
@@ -1636,24 +1625,9 @@
                                     <td>表单里按规范加好 <code>data-guestbook-*</code> 标记，再引入 <code>/js/guestbook-form.js</code>，提交、校验和提示就会自动生效。</td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">错误提示显示规则</td>
-                                    <td><code>setFieldState(..., 'error', message)</code></td>
-                                    <td>字段错误时必须进入 <code>error</code> 状态（会加 <code>is-error</code> 并取消 <code>hidden</code>），否则错误文案可能被默认样式隐藏，看起来像“提交没反应”。</td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">后端统一判断</td>
-                                    <td><code>name</code>、<code>phone</code>、<code>content</code>、<code>website</code>、<code>captcha</code></td>
-                                    <td>模板页不要自己写一套独立防护规则，是否需要验证码、是否允许提交都以留言板模块后端返回为准。</td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">验证码触发方式</td>
-                                    <td>风险触发</td>
-                                    <td>首次不强制显示验证码；命中同 IP、多次同手机号或失败记录后，后端才要求验证码。</td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">CSRF</td>
-                                    <td>提交与验证码核验均要求 token</td>
-                                    <td>前端请求头需带 <code>X-CSRF-TOKEN</code>，避免被跨站伪造请求利用。</td>
+                                    <td class="mono">额外字段</td>
+                                    <td><code>data-guestbook-extra</code></td>
+                                    <td>可把单位名称、邮箱等自定义字段合并到留言内容中。</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1684,7 +1658,7 @@
     &lt;textarea name="demand" placeholder="请输入留言内容" data-guestbook-field="content" data-guestbook-content-label="您的需求"&gt;&lt;/textarea&gt;
     &lt;div data-guestbook-error-for="content" hidden&gt;&lt;/div&gt;
 
-    &lt;!-- 验证码区块默认隐藏，由留言板模块后端要求时再显示 --&gt;
+    &lt;!-- 验证码区块默认隐藏，接口要求时再显示 --&gt;
     &lt;div data-guestbook-captcha-block hidden&gt;
         &lt;input type="text" name="captcha" maxlength="4" autocomplete="off" placeholder="请输入验证码" data-guestbook-field="captcha"&gt;
         &lt;img src="/guestbook/captcha" alt="验证码" data-guestbook-captcha-image data-guestbook-captcha-trigger&gt;
@@ -1759,7 +1733,7 @@
     border-color: #18b981;
 }
 
-/* 验证码区域默认由模板 hidden 控制；后端要求时脚本再显示 */
+/* 验证码区域默认由模板 hidden 控制；接口要求时脚本再显示 */
 [data-guestbook-captcha-block] {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 120px;
@@ -1883,11 +1857,11 @@
                     <div class="example-card">
                         <div class="example-head">
                             <strong>范例 5：单页列表和统一链接输出</strong>
-                            <span>这段调用用了 <code>type='page'</code>、<code>order='updated_at_desc'</code> 和 <code>limit=6</code>，用来按后台置顶、手动排序和发布时间取单页。前台正式查询固定只返回已发布且未进入回收站的内容。输出链接时再配合 <code>linkTo(type='page', id=item.id, default='#')</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
+                            <span>这段调用用了 <code>type='page'</code>、<code>order='published_at_desc'</code> 和 <code>limit=6</code>，用来按后台置顶、手动排序和发布时间取单页。前台正式查询固定只返回已发布且未进入回收站的内容。输出链接时再配合 <code>linkTo(type='page', id=item.id, default='#')</code>，统一生成单页地址，适合“关于我们 / 联系方式 / 招生说明”这类单页入口区。</span>
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
-<pre>{% set pageItems = contentList(type='page', order='updated_at_desc', limit=6)%} <span class="code-comment">{# 前台会自动过滤草稿、待审核、已驳回和回收站内容；此兼容参数不会因为编辑保存而改变内容排序 #}</span>
+<pre>{% set pageItems = contentList(type='page', order='published_at_desc', limit=6)%} <span class="code-comment">{# 前台会自动过滤草稿、待审核、已驳回和回收站内容，并按置顶、手动排序、发布时间输出 #}</span>
 {% for item in pageItems %} <span class="code-comment">{# 逐条处理单页面数据，item 就是当前这一个单页 #}</span>
     &lt;a href="{{ linkTo(type='page', id=item.id, default='#')}}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 用 linkTo 统一生成单页地址，避免手写链接造成跳转错误 --&gt;</span>
 {% endfor %} <span class="code-comment">{# 单页列表循环结束，以上链接会根据单页数量重复输出 #}</span></pre>
@@ -2000,12 +1974,12 @@
 
                     <div class="example-card">
                         <div class="example-head">
-                            <strong>范例 11：列表页搜索 + 分页（服务端）</strong>
+                            <strong>范例 11：列表页搜索 + 分页</strong>
                             <span>关键词走 <code>current.page.keyword</code>，查询交给 <code>contentPage</code>，分页用 <code>pagination.pages</code> 输出。适合“全量搜索并分页”的标准列表页。</span>
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
-<pre>{% set pageData = contentPage(type='article', per_page=5, page_name='page', window=2, keyword=current.page.keyword)%} <span class="code-comment">{# 在服务端执行“搜索 + 分页”：每页 5 条，并按 page 参数切换页码 #}</span>
+<pre>{% set pageData = contentPage(type='article', per_page=5, page_name='page', window=2, keyword=current.page.keyword)%} <span class="code-comment">{# 执行“搜索 + 分页”：每页 5 条，并按 page 参数切换页码 #}</span>
 {% set list = pageData.items %} <span class="code-comment">{# 从返回结果中取出“当前页文章列表”部分，供下面循环渲染 #}</span>
 {% set pager = pageData.pagination %} <span class="code-comment">{# 从返回结果中取出分页信息（总页数、当前页、每个页码链接等） #}</span>
 {% for item in list %} <span class="code-comment">{# 逐条输出当前页文章，item 就是当前这一篇 #}</span>
@@ -2027,7 +2001,7 @@
                             <div class="example-code">
 <pre>{% set perPage = config('theme.list.per_page', 5) %} <span class="code-comment">{# 从统一配置读取每页条数；未配置时默认 5 #}</span>
 {% set pagerWindow = config('theme.list.window', 2) %} <span class="code-comment">{# 从统一配置读取分页窗口；未配置时默认 2 #}</span>
-{% set pageData = contentPage(type='article', per_page=perPage, page_name='page', window=pagerWindow, keyword=current.page.keyword) %} <span class="code-comment">{# 把配置项直接用于服务端分页查询 #}</span>
+{% set pageData = contentPage(type='article', per_page=perPage, page_name='page', window=pagerWindow, keyword=current.page.keyword) %} <span class="code-comment">{# 把配置项直接用于分页查询 #}</span>
 {% for item in pageData.items %} <span class="code-comment">{# 正常渲染当前页内容 #}</span>
     &lt;a href="{{ item.url }}"&gt;{{ item.title }}&lt;/a&gt;
 {% endfor %}</pre>
@@ -2081,7 +2055,7 @@
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
 <pre>&lt;a href="{{ withQuery(current.channel.url, 'all', 1) }}" class="sidebar-link{% if current.page.show_all %} active{% endif %}"&gt;全部内容&lt;/a&gt; <span class="code-comment">&lt;!-- “全部内容”入口：点击后带上 all=1 参数；withQuery 会兼容本地 ?site=site 和线上纯域名地址 --&gt;</span>
-{% set pageData = contentPage(type='article', per_page=5, page_name='page', window=2, keyword=current.page.keyword)%} <span class="code-comment">{# 当 URL 包含 all=1 时，后端会按“全站文章”返回分页结果，而不是只返回当前栏目 #}</span></pre>
+{% set pageData = contentPage(type='article', per_page=5, page_name='page', window=2, keyword=current.page.keyword)%} <span class="code-comment">{# 当 URL 包含 all=1 时，返回“全站文章”分页结果，而不是只返回当前栏目 #}</span></pre>
                             </div>
                         </div>
                     </div>
@@ -2106,21 +2080,18 @@
                     </div>
 
                     <div class="tip" id="pitfalls">
-                        <strong>新开发人员常见坑位（建议先看）</strong>
+                        <strong>模板常见注意事项</strong>
                         <ul class="rules-list">
-                            <li><strong>搜索范围错误：</strong>搜索必须走 <code>current.page.keyword</code> + 服务端分页，不要只在当前页前端筛选。</li>
-                            <li><strong>摘要为空：</strong>摘要为空时要回退 <code>item.content_html | plainText()</code>，再做 <code>truncate()</code>，避免出现空描述。</li>
-                            <li><strong>职责混用：</strong>模板只做展示和字段组合，权限判断、业务逻辑、复杂条件放后台处理。</li>
-                            <li><strong>导航高亮遗漏：</strong>涉及“全部内容”时要配合 <code>current.page.show_all</code> 处理高亮状态。</li>
-                            <li><strong>链接安全细节：</strong><code>target="_blank"</code> 的外链请同时加 <code>rel="noopener noreferrer"</code>。</li>
-                            <li><strong>列表稳定性：</strong>时间、摘要、图片等字段建议做默认值或条件判断，避免空字段导致页面断层。</li>
-                            <li><strong>留言错误提示缺失：</strong>表单脚本必须给错误字段设置 <code>is-error</code> 并显示对应 <code>data-guestbook-error-for</code> 节点，否则会出现“提交无反应”的错觉。</li>
+                            <li><strong>列表搜索：</strong>搜索页建议使用 <code>current.page.keyword</code> + <code>contentPage</code>，这样可以同时得到完整结果和分页数据。</li>
+                            <li><strong>摘要展示：</strong>摘要可能为空，建议用 <code>default</code> 回退正文纯文本，再用 <code>truncate</code> 控制长度。</li>
+                            <li><strong>导航高亮：</strong>导航链接建议使用 <code>item.is_active</code>；如果页面包含“全部内容”入口，再配合 <code>current.page.show_all</code> 判断。</li>
+                            <li><strong>空字段兜底：</strong>时间、摘要、图片、链接等字段建议做默认值或条件判断，避免页面出现空白块。</li>
                         </ul>
                     </div>
                 </section>
 
                 <div class="footer">
-                    模版开发文档是当前模板系统的标准开发文档。后续如果新增模板标签、参数或工具函数，应同步更新本页，保持调用能力与文档一致。
+                    模版开发文档是前台模板的标准使用文档。后续如果新增模板标签、参数或工具函数，应同步更新本页，保持调用能力与文档一致。
                 </div>
             </main>
         </div>

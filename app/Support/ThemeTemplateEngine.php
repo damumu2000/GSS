@@ -758,10 +758,6 @@ class ThemeTemplateEngine
         $filter = trim($filter);
         $canonical = ThemeDslSpec::canonicalName($filter);
 
-        if ($canonical === 'htmlOut') {
-            $canonical = 'plainText';
-        }
-
         if ($canonical === 'default') {
             $canonical = 'valueOr';
         }
