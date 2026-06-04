@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -10,10 +11,22 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class SiteSecurity
 {
     protected const HIGH_RISK_RULE_CODES = ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse', 'ip_blocklist', 'bad_client', 'bad_payload'];
+
+    protected const EVENT_SAMPLE_WINDOW_SECONDS = 600;
+
+    protected const EVENT_PRUNE_BATCH_SIZE = 1000;
+
+    /**
+     * @var array<string, bool>
+     */
+    protected static array $columnExistsCache = [];
+
+    protected static ?bool $ipReputationTableReady = null;
 
     public function __construct(
         protected SystemSettings $systemSettings,
@@ -21,7 +34,7 @@ class SiteSecurity
     ) {
         $this->ipRegionResolver ??= class_exists(IpRegionResolver::class)
             ? app(IpRegionResolver::class)
-            : new IpRegionResolver();
+            : new IpRegionResolver;
     }
 
     public function protectionEnabled(): bool
@@ -229,21 +242,21 @@ class SiteSecurity
         $date = $now->toDateString();
         $rule = $this->enrichRule($rule);
         $column = $this->statsColumn((string) $rule['code']);
+        $fingerprint = $this->eventFingerprint($siteId, $rule, $request);
 
-        DB::table('site_security_daily_stats')->updateOrInsert(
-            ['site_id' => $siteId, 'stat_date' => $date],
-            [
-                'updated_at' => $now,
-                'created_at' => $now,
-            ],
-        );
+        DB::table('site_security_daily_stats')->insertOrIgnore([
+            'site_id' => $siteId,
+            'stat_date' => $date,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
         $updates = [
             'blocked_total' => DB::raw('blocked_total + 1'),
             'updated_at' => $now,
         ];
 
-        if ($column !== 'blocked_total' && Schema::hasColumn('site_security_daily_stats', $column)) {
+        if ($column !== 'blocked_total' && $this->tableHasColumn('site_security_daily_stats', $column)) {
             $updates[$column] = DB::raw($column.' + 1');
         }
 
@@ -259,30 +272,31 @@ class SiteSecurity
             'request_path' => $this->normalizedRequestPath($request),
             'request_method' => strtoupper((string) $request->method()),
             'client_ip' => $request->ip() ?: null,
-            'region_name' => $request->ip() ? $this->resolveAttackRegionLabel((string) $request->ip()) : null,
+            'region_name' => null,
             'ip_hash' => $request->ip() ? hash('sha256', (string) $request->ip()) : null,
             'created_at' => $now,
         ];
 
-        foreach ([
-            'risk_level' => (string) $rule['risk_level'],
-            'action' => (string) $rule['action'],
-            'user_agent' => $this->trimHeader($request->userAgent()),
-            'referer' => $this->trimHeader($request->headers->get('referer')),
-            'request_query' => $this->requestQuerySample($request),
-            'fingerprint' => $this->eventFingerprint($siteId, $rule, $request),
-        ] as $column => $value) {
-            if (Schema::hasColumn('site_security_events', $column)) {
-                $event[$column] = $value;
+        if ($this->shouldSampleSecurityEvent($siteId, $fingerprint)) {
+            foreach ([
+                'risk_level' => (string) $rule['risk_level'],
+                'action' => (string) $rule['action'],
+                'user_agent' => $this->trimHeader($request->userAgent()),
+                'referer' => $this->trimHeader($request->headers->get('referer')),
+                'request_query' => $this->requestQuerySample($request),
+                'fingerprint' => $fingerprint,
+            ] as $column => $value) {
+                if ($this->tableHasColumn('site_security_events', $column)) {
+                    $event[$column] = $value;
+                }
             }
-        }
 
-        DB::table('site_security_events')->insert($event);
+            DB::table('site_security_events')->insert($event);
+        }
 
         if ($this->ipReputationTableReady()) {
             $this->updateIpReputation($siteId, $rule, $request, $now);
         }
-        $this->schedulePruning($siteId);
     }
 
     public function dashboardSummary(int $siteId): array
@@ -304,6 +318,20 @@ class SiteSecurity
         ];
     }
 
+    public function pruneSecurityStorage(?int $siteId = null): void
+    {
+        $query = DB::table('sites')->where('status', 1)->orderBy('id');
+
+        if ($siteId !== null) {
+            $query->where('id', $siteId);
+        }
+
+        foreach ($query->pluck('id') as $id) {
+            $this->pruneEvents((int) $id);
+            $this->pruneStats((int) $id);
+        }
+    }
+
     public function platformOverviewPayload(): array
     {
         $today = now('Asia/Shanghai')->startOfDay();
@@ -316,10 +344,30 @@ class SiteSecurity
             ->get();
 
         $siteIds = $siteRows->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $statTypeColumns = [
+            'bad_path' => 'blocked_bad_path',
+            'sql_injection' => 'blocked_sql_injection',
+            'xss' => 'blocked_xss',
+            'path_traversal' => 'blocked_path_traversal',
+            'bad_upload' => 'blocked_bad_upload',
+            'rate_limit' => 'blocked_rate_limit',
+            'probe_abuse' => 'blocked_probe_abuse',
+            'ip_blocklist' => 'blocked_ip_blocklist',
+            'bad_client' => 'blocked_bad_client',
+            'bad_method' => 'blocked_bad_method',
+            'bad_payload' => 'blocked_bad_payload',
+        ];
+        $statSelectColumns = ['site_id', 'stat_date', 'blocked_total'];
+        foreach ($statTypeColumns as $column) {
+            if ($this->tableHasColumn('site_security_daily_stats', $column)) {
+                $statSelectColumns[] = $column;
+            }
+        }
+
         $statsRows = DB::table('site_security_daily_stats')
             ->whereIn('site_id', $siteIds)
             ->whereBetween('stat_date', [$sevenDaysAgo->toDateString(), $today->toDateString()])
-            ->get(['site_id', 'stat_date', 'blocked_total']);
+            ->get($statSelectColumns);
 
         $suspiciousRows = $this->ipReputationTableReady()
             ? DB::table('site_security_ip_reputations')
@@ -327,13 +375,6 @@ class SiteSecurity
                 ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
                 ->get(['site_id', 'status', 'blocked_until'])
             : collect();
-
-        $topRuleRows = DB::table('site_security_events')
-            ->whereIn('site_id', $siteIds)
-            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->select('site_id', 'rule_code', DB::raw('COUNT(*) as total'))
-            ->groupBy('site_id', 'rule_code')
-            ->get();
 
         $recentHighRiskEvents = DB::table('site_security_events')
             ->join('sites', 'sites.id', '=', 'site_security_events.site_id')
@@ -367,11 +408,20 @@ class SiteSecurity
             })
             ->all();
 
-        $highRiskTotal = (int) DB::table('site_security_events')
-            ->whereIn('site_id', $siteIds)
-            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->whereIn('risk_level', ['high', 'critical'])
-            ->count();
+        $highRiskTotal = 0;
+        $typeTotalsBySite = [];
+        foreach ($statsRows as $row) {
+            $rowSiteId = (int) ($row->site_id ?? 0);
+
+            foreach ($statTypeColumns as $ruleCode => $column) {
+                $value = (int) ($row->{$column} ?? 0);
+                $typeTotalsBySite[$rowSiteId][$ruleCode] = ($typeTotalsBySite[$rowSiteId][$ruleCode] ?? 0) + $value;
+
+                if (in_array($this->defaultRiskLevel($ruleCode), ['high', 'critical'], true)) {
+                    $highRiskTotal += $value;
+                }
+            }
+        }
 
         $modeRows = DB::table('site_settings')
             ->whereIn('site_id', $siteIds)
@@ -383,8 +433,9 @@ class SiteSecurity
             $siteId = (int) $site->id;
             $rows = $statsRows->where('site_id', $siteId);
             $siteSuspicious = $suspiciousRows->where('site_id', $siteId);
-            $siteTopRule = $topRuleRows->where('site_id', $siteId)->sortByDesc('total')->first();
-            $topRuleCode = (string) ($siteTopRule->rule_code ?? '');
+            $siteTypeTotals = $typeTotalsBySite[$siteId] ?? [];
+            arsort($siteTypeTotals);
+            $topRuleCode = (string) array_key_first(array_filter($siteTypeTotals, fn (int $total): bool => $total > 0));
             $topRuleProfile = $this->eventProfile($topRuleCode, '');
 
             $siteStats[] = [
@@ -493,13 +544,13 @@ class SiteSecurity
         $ip = trim($ip);
 
         if ($ip === '127.0.0.1' || $ip === '::1') {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'client_ip' => '本地测试 IP 不支持加入站点黑白名单。',
             ]);
         }
 
         if ($this->isGlobalAllowlisted($ip) || $this->isGlobalBlocklisted($ip)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'client_ip' => '该 IP 当前受平台全局黑白名单控制，请先在平台安全设置中调整。',
             ]);
         }
@@ -554,7 +605,7 @@ class SiteSecurity
     }
 
     /**
-     * @param array<int, string> $items
+     * @param  array<int, string>  $items
      */
     protected function storeSiteIpSettingList(int $siteId, string $key, array $items, int $updatedBy): void
     {
@@ -775,24 +826,22 @@ class SiteSecurity
 
         $regionRows = DB::table('site_security_events')
             ->where('site_id', $siteId)
-            ->whereNotNull('client_ip')
             ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->orderByDesc('id')
-            ->get(['client_ip', 'region_name']);
-
-        $regionCounts = [];
-        foreach ($regionRows as $row) {
-            $label = trim((string) ($row->region_name ?? '')) ?: $this->resolveAttackRegionLabel((string) ($row->client_ip ?? ''));
-            $regionCounts[$label] = ($regionCounts[$label] ?? 0) + 1;
-        }
-
-        arsort($regionCounts);
-        $regionTotal = array_sum($regionCounts);
-        $regions = collect($regionCounts)
-            ->map(fn (int $value, string $label) => [
-                'label' => $label,
-                'value' => $value,
-                'ratio' => $regionTotal > 0 ? (int) round(($value / $regionTotal) * 100) : 0,
+            ->selectRaw("COALESCE(NULLIF(TRIM(region_name), ''), '未知地区') as region_label")
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('region_label')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get();
+        $regionTotal = (int) DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
+            ->count();
+        $regions = $regionRows
+            ->map(fn (object $row): array => [
+                'label' => (string) $row->region_label,
+                'value' => (int) $row->total,
+                'ratio' => $regionTotal > 0 ? (int) round(((int) $row->total / $regionTotal) * 100) : 0,
             ])
             ->take(5)
             ->values()
@@ -934,14 +983,37 @@ class SiteSecurity
     {
         $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
         $normalizedFilter = in_array($riskFilter, ['all', 'critical', 'high', 'medium'], true) ? $riskFilter : 'all';
+        $safePage = max(1, $page);
+        $safePerPage = max(1, $perPage);
 
-        $items = DB::table('site_security_events')
+        $query = DB::table('site_security_events')
             ->where('site_id', $siteId)
-            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
+            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString());
+
+        $this->applySecurityEventRiskFilter($query, $normalizedFilter);
+
+        $paginator = $query
+            ->select([
+                'id',
+                'rule_name',
+                'rule_code',
+                'risk_level',
+                'action',
+                'request_path',
+                'request_method',
+                'client_ip',
+                'region_name',
+                'created_at',
+            ])
+            ->selectRaw($this->securityEventRiskPrioritySql().' as risk_priority')
+            ->orderByDesc('risk_priority')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
-            ->get()
-            ->map(function (object $event): array {
+            ->paginate($safePerPage, ['*'], 'security_event_page', $safePage)
+            ->withPath(route('admin.security.index'));
+
+        $paginator->setCollection(
+            $paginator->getCollection()->map(function (object $event): array {
                 $profile = $this->eventProfile((string) ($event->rule_code ?? ''), (string) ($event->rule_name ?? ''));
                 $riskLevel = trim((string) ($event->risk_level ?? '')) ?: $this->defaultRiskLevel((string) ($event->rule_code ?? ''));
                 $action = trim((string) ($event->action ?? '')) ?: $this->defaultAction((string) ($event->rule_code ?? ''));
@@ -963,21 +1035,9 @@ class SiteSecurity
                     'risk_label' => $this->riskLevelLabel($riskLevel),
                 ];
             })
-            ->filter(fn (array $event): bool => $normalizedFilter === 'all' || $event['risk_level'] === $normalizedFilter)
-            ->sort(function (array $left, array $right): int {
-                return [
-                    $this->riskLevelPriority((string) ($right['risk_level'] ?? 'medium')),
-                    (int) ($right['created_at_ts'] ?? 0),
-                    (int) ($right['id'] ?? 0),
-                ] <=> [
-                    $this->riskLevelPriority((string) ($left['risk_level'] ?? 'medium')),
-                    (int) ($left['created_at_ts'] ?? 0),
-                    (int) ($left['id'] ?? 0),
-                ];
-            })
-            ->values();
+        );
 
-        return $this->paginateArray($items, $page, $perPage, 'security_event_page');
+        return $paginator;
     }
 
     public function siteSuspiciousIpsModalPaginator(int $siteId, int $page = 1, int $perPage = 15): LengthAwarePaginator
@@ -992,24 +1052,40 @@ class SiteSecurity
         $globalBlocklist = $this->systemSettings->securityIpBlocklist();
         $siteAllowlist = $this->siteIpAllowlist($siteId);
         $siteBlocklist = $this->siteIpBlocklist($siteId);
-        $rows = DB::table('site_security_ip_reputations')
+        $safePage = max(1, $page);
+        $safePerPage = max(1, $perPage);
+
+        $paginator = DB::table('site_security_ip_reputations')
             ->where('site_id', $siteId)
             ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->get();
+            ->select('*')
+            ->selectRaw("CASE WHEN status = 'blocked' THEN 3 WHEN status = 'limited' THEN 2 ELSE 1 END as status_weight")
+            ->orderByDesc('status_weight')
+            ->orderByDesc('high_risk_count')
+            ->orderByDesc('hit_count')
+            ->orderByDesc('last_seen_at')
+            ->orderBy('client_ip')
+            ->paginate($safePerPage, ['*'], 'security_ip_page', $safePage)
+            ->withPath(route('admin.security.index'));
 
-        $latestEventsByHash = DB::table('site_security_events')
-            ->where('site_id', $siteId)
-            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->whereIn('ip_hash', $rows->pluck('ip_hash')->filter()->unique()->values()->all())
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->get(['ip_hash', 'request_method', 'request_query', 'user_agent', 'referer', 'region_name', 'created_at'])
-            ->groupBy('ip_hash')
-            ->map(fn (Collection $events): object => $events->first())
-            ->all();
+        $rows = $paginator->getCollection();
+        $ipHashes = $rows->pluck('ip_hash')->filter()->unique()->values()->all();
 
-        $items = $rows
-            ->map(fn (object $row): array => $this->mapSuspiciousIpRow(
+        $latestEventsByHash = $ipHashes === []
+            ? []
+            : DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
+                ->whereIn('ip_hash', $ipHashes)
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->get(['ip_hash', 'request_method', 'request_query', 'user_agent', 'referer', 'region_name', 'created_at'])
+                ->groupBy('ip_hash')
+                ->map(fn (Collection $events): object => $events->first())
+                ->all();
+
+        $paginator->setCollection(
+            $rows->map(fn (object $row): array => $this->mapSuspiciousIpRow(
                 $row,
                 $globalAllowlist,
                 $globalBlocklist,
@@ -1017,30 +1093,9 @@ class SiteSecurity
                 $siteBlocklist,
                 $latestEventsByHash[(string) ($row->ip_hash ?? '')] ?? null,
             ))
-            ->sort(function (array $left, array $right): int {
-                $statusWeight = static fn (string $status): int => match ($status) {
-                    'blocked' => 3,
-                    'limited' => 2,
-                    default => 1,
-                };
+        );
 
-                return [
-                    $statusWeight((string) ($right['status'] ?? 'monitored')),
-                    (int) ($right['high_risk_count'] ?? 0),
-                    (int) ($right['hit_count'] ?? 0),
-                    (int) ($right['last_seen_at_ts'] ?? 0),
-                    (string) ($right['client_ip'] ?? ''),
-                ] <=> [
-                    $statusWeight((string) ($left['status'] ?? 'monitored')),
-                    (int) ($left['high_risk_count'] ?? 0),
-                    (int) ($left['hit_count'] ?? 0),
-                    (int) ($left['last_seen_at_ts'] ?? 0),
-                    (string) ($left['client_ip'] ?? ''),
-                ];
-            })
-            ->values();
-
-        return $this->paginateArray($items, $page, $perPage, 'security_ip_page');
+        return $paginator;
     }
 
     public function deleteSiteSecurityEventRecord(int $siteId, int $eventId): bool
@@ -1073,45 +1128,48 @@ class SiteSecurity
     {
         $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
         $normalizedFilter = in_array($riskFilter, ['all', 'critical', 'high', 'medium'], true) ? $riskFilter : 'all';
+        $deletedEvents = 0;
+        $affectedIps = [];
 
-        $events = DB::table('site_security_events')
+        $query = DB::table('site_security_events')
             ->where('site_id', $siteId)
-            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->orderByDesc('id')
-            ->get(['id', 'client_ip', 'rule_code', 'risk_level'])
-            ->filter(function (object $event) use ($normalizedFilter): bool {
-                $riskLevel = trim((string) ($event->risk_level ?? '')) ?: $this->defaultRiskLevel((string) ($event->rule_code ?? ''));
+            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString());
 
-                return $normalizedFilter === 'all' || $riskLevel === $normalizedFilter;
-            })
-            ->values();
+        $this->applySecurityEventRiskFilter($query, $normalizedFilter);
 
-        if ($events->isEmpty()) {
-            return ['deleted_events' => 0, 'affected_ips' => 0];
-        }
+        do {
+            $events = (clone $query)
+                ->orderBy('id')
+                ->limit(500)
+                ->get(['id', 'client_ip']);
 
-        $eventIds = $events->pluck('id')->map(fn ($id): int => (int) $id)->all();
-        $ips = $events->pluck('client_ip')
-            ->filter(fn ($ip): bool => is_string($ip) && trim($ip) !== '' && filter_var(trim($ip), FILTER_VALIDATE_IP) !== false)
-            ->map(fn ($ip): string => trim((string) $ip))
-            ->unique()
-            ->values()
-            ->all();
+            if ($events->isEmpty()) {
+                break;
+            }
 
-        DB::transaction(function () use ($siteId, $eventIds, $ips): void {
+            $eventIds = $events->pluck('id')->map(fn ($id): int => (int) $id)->all();
+            foreach ($events as $event) {
+                $ip = trim((string) ($event->client_ip ?? ''));
+                if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+                    $affectedIps[$ip] = true;
+                }
+            }
+
             DB::table('site_security_events')
                 ->where('site_id', $siteId)
                 ->whereIn('id', $eventIds)
                 ->delete();
 
-            foreach ($ips as $ip) {
-                $this->rebuildIpReputationFromEvents($siteId, $ip);
-            }
-        });
+            $deletedEvents += count($eventIds);
+        } while (true);
+
+        foreach (array_keys($affectedIps) as $ip) {
+            $this->rebuildIpReputationFromEvents($siteId, $ip);
+        }
 
         return [
-            'deleted_events' => count($eventIds),
-            'affected_ips' => count($ips),
+            'deleted_events' => $deletedEvents,
+            'affected_ips' => count($affectedIps),
         ];
     }
 
@@ -1127,28 +1185,24 @@ class SiteSecurity
             ->where('ip_hash', hash('sha256', $ip))
             ->first(['last_request_path', 'last_rule_code']);
 
-        $eventIds = DB::table('site_security_events')
+        $ipHash = hash('sha256', $ip);
+        $hasEvents = DB::table('site_security_events')
             ->where('site_id', $siteId)
-            ->where('ip_hash', hash('sha256', $ip))
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
-            ->all();
+            ->where('ip_hash', $ipHash)
+            ->exists();
 
-        if (! $reputation && $eventIds === []) {
+        if (! $reputation && ! $hasEvents) {
             return false;
         }
 
-        DB::transaction(function () use ($siteId, $ip, $eventIds, $reputation): void {
-            if ($eventIds !== []) {
-                DB::table('site_security_events')
-                    ->where('site_id', $siteId)
-                    ->whereIn('id', $eventIds)
-                    ->delete();
-            }
-
+        DB::transaction(function () use ($siteId, $ip, $ipHash, $reputation): void {
+            DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->where('ip_hash', $ipHash)
+                ->delete();
             DB::table('site_security_ip_reputations')
                 ->where('site_id', $siteId)
-                ->where('ip_hash', hash('sha256', $ip))
+                ->where('ip_hash', $ipHash)
                 ->delete();
 
             $this->clearRuntimeBlocksForIp(
@@ -1170,67 +1224,67 @@ class SiteSecurity
             return ['deleted_ips' => 0, 'deleted_events' => 0];
         }
 
-        $rows = DB::table('site_security_ip_reputations')
+        $rowsQuery = DB::table('site_security_ip_reputations')
             ->where('site_id', $siteId)
-            ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->get(['client_ip', 'last_request_path', 'last_rule_code']);
+            ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString());
+        $deletedIps = 0;
+        $deletedEvents = 0;
 
-        $ipRows = $rows->filter(fn (object $row): bool => is_string($row->client_ip) && trim((string) $row->client_ip) !== '' && filter_var(trim((string) $row->client_ip), FILTER_VALIDATE_IP) !== false)
-            ->map(function (object $row): array {
-                return [
-                    'client_ip' => trim((string) $row->client_ip),
-                    'last_request_path' => (string) ($row->last_request_path ?? ''),
-                    'last_rule_code' => (string) ($row->last_rule_code ?? ''),
-                ];
-            })
-            ->unique('client_ip')
-            ->values();
+        do {
+            $rows = (clone $rowsQuery)
+                ->orderBy('id')
+                ->limit(500)
+                ->get(['id', 'client_ip', 'ip_hash', 'last_request_path', 'last_rule_code']);
 
-        $ips = $ipRows->pluck('client_ip')
-            ->filter(fn ($ip): bool => is_string($ip) && trim($ip) !== '' && filter_var(trim($ip), FILTER_VALIDATE_IP) !== false)
-            ->map(fn ($ip): string => trim((string) $ip))
-            ->unique()
-            ->values()
-            ->all();
+            if ($rows->isEmpty()) {
+                break;
+            }
 
-        if ($ips === []) {
-            return ['deleted_ips' => 0, 'deleted_events' => 0];
-        }
+            $ipRows = $rows->filter(fn (object $row): bool => is_string($row->client_ip) && trim((string) $row->client_ip) !== '' && filter_var(trim((string) $row->client_ip), FILTER_VALIDATE_IP) !== false)
+                ->map(function (object $row): array {
+                    return [
+                        'client_ip' => trim((string) $row->client_ip),
+                        'ip_hash' => (string) $row->ip_hash,
+                        'last_request_path' => (string) ($row->last_request_path ?? ''),
+                        'last_rule_code' => (string) ($row->last_rule_code ?? ''),
+                    ];
+                })
+                ->unique('ip_hash')
+                ->values();
+            $ipHashes = $ipRows->pluck('ip_hash')->filter()->unique()->values()->all();
 
-        $ipHashes = array_map(fn (string $ip): string => hash('sha256', $ip), $ips);
-        $eventIds = DB::table('site_security_events')
-            ->where('site_id', $siteId)
-            ->whereIn('ip_hash', $ipHashes)
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
-            ->all();
+            DB::transaction(function () use ($siteId, $rows, $ipRows, $ipHashes, &$deletedEvents, &$deletedIps): void {
+                if ($ipHashes !== []) {
+                    $deletedEvents += DB::table('site_security_events')
+                        ->where('site_id', $siteId)
+                        ->whereIn('ip_hash', $ipHashes)
+                        ->delete();
+                }
 
-        DB::transaction(function () use ($siteId, $ipRows, $ipHashes, $eventIds): void {
-            if ($eventIds !== []) {
-                DB::table('site_security_events')
+                $deletedEvents += DB::table('site_security_events')
                     ->where('site_id', $siteId)
-                    ->whereIn('id', $eventIds)
+                    ->whereIn('client_ip', $ipRows->pluck('client_ip')->all())
                     ->delete();
-            }
 
-            DB::table('site_security_ip_reputations')
-                ->where('site_id', $siteId)
-                ->whereIn('ip_hash', $ipHashes)
-                ->delete();
+                $deletedIps += DB::table('site_security_ip_reputations')
+                    ->where('site_id', $siteId)
+                    ->whereIn('id', $rows->pluck('id')->map(fn ($id): int => (int) $id)->all())
+                    ->delete();
 
-            foreach ($ipRows as $row) {
-                $this->clearRuntimeBlocksForIp(
-                    $siteId,
-                    (string) $row['client_ip'],
-                    (string) $row['last_request_path'],
-                    (string) $row['last_rule_code'],
-                );
-            }
-        });
+                foreach ($ipRows as $row) {
+                    $this->clearRuntimeBlocksForIp(
+                        $siteId,
+                        (string) $row['client_ip'],
+                        (string) $row['last_request_path'],
+                        (string) $row['last_rule_code'],
+                    );
+                }
+            });
+        } while (true);
 
         return [
-            'deleted_ips' => count($ips),
-            'deleted_events' => count($eventIds),
+            'deleted_ips' => $deletedIps,
+            'deleted_events' => $deletedEvents,
         ];
     }
 
@@ -1376,11 +1430,47 @@ class SiteSecurity
         );
     }
 
+    protected function applySecurityEventRiskFilter($query, string $riskFilter): void
+    {
+        if ($riskFilter === 'all') {
+            return;
+        }
+
+        $ruleCodes = match ($riskFilter) {
+            'critical' => ['ip_blocklist', 'probe_abuse'],
+            'high' => ['sql_injection', 'path_traversal', 'xss', 'bad_upload', 'bad_client', 'bad_payload'],
+            default => ['bad_path', 'bad_method', 'rate_limit'],
+        };
+
+        $query->where(function ($query) use ($riskFilter, $ruleCodes): void {
+            $query
+                ->where('risk_level', $riskFilter)
+                ->orWhere(function ($query) use ($ruleCodes): void {
+                    $query
+                        ->where(function ($query): void {
+                            $query->whereNull('risk_level')->orWhere('risk_level', '');
+                        })
+                        ->whereIn('rule_code', $ruleCodes);
+                });
+        });
+    }
+
+    protected function securityEventRiskPrioritySql(): string
+    {
+        return "CASE
+            WHEN risk_level = 'critical' OR ((risk_level IS NULL OR risk_level = '') AND rule_code IN ('ip_blocklist', 'probe_abuse')) THEN 4
+            WHEN risk_level = 'high' OR ((risk_level IS NULL OR risk_level = '') AND rule_code IN ('sql_injection', 'path_traversal', 'xss', 'bad_upload', 'bad_client', 'bad_payload')) THEN 3
+            WHEN risk_level = 'medium' OR ((risk_level IS NULL OR risk_level = '') AND rule_code IN ('bad_path', 'bad_method', 'rate_limit')) THEN 2
+            WHEN risk_level = 'low' THEN 1
+            ELSE 0
+        END";
+    }
+
     /**
-     * @param array<int, string> $globalAllowlist
-     * @param array<int, string> $globalBlocklist
-     * @param array<int, string> $siteAllowlist
-     * @param array<int, string> $siteBlocklist
+     * @param  array<int, string>  $globalAllowlist
+     * @param  array<int, string>  $globalBlocklist
+     * @param  array<int, string>  $siteAllowlist
+     * @param  array<int, string>  $siteBlocklist
      * @return array<string, mixed>
      */
     protected function mapSuspiciousIpRow(object $row, array $globalAllowlist, array $globalBlocklist, array $siteAllowlist, array $siteBlocklist, ?object $latestEvent = null): array
@@ -1573,16 +1663,9 @@ class SiteSecurity
         $existing = DB::table('site_security_ip_reputations')
             ->where('site_id', $siteId)
             ->where('ip_hash', $ipHash)
-            ->first();
+            ->first(['blocked_until']);
         $isObserveMode = $this->siteSecurityMode($siteId) === 'observe';
-        $recentHighRiskHits = $isHighRisk
-            ? (int) DB::table('site_security_events')
-                ->where('site_id', $siteId)
-                ->where('ip_hash', $ipHash)
-                ->whereIn('rule_code', static::HIGH_RISK_RULE_CODES)
-                ->where('created_at', '>=', $now->copy()->subMinutes(10)->toDateTimeString())
-                ->count()
-            : 0;
+        $recentHighRiskHits = $isHighRisk ? $this->hitRecentHighRiskCounter($siteId, $ipHash) : 0;
         $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
         $shouldBlock = ! $isObserveMode && ((string) $rule['action'] === 'temporary_block' || ($blockSeconds > 0 && $recentHighRiskHits >= 3));
         $blockedUntil = $shouldBlock && $blockSeconds > 0
@@ -1597,9 +1680,6 @@ class SiteSecurity
 
         $values = [
             'client_ip' => (string) $ip,
-            'region_name' => $this->resolveAttackRegionLabel((string) $ip),
-            'hit_count' => ((int) ($existing->hit_count ?? 0)) + 1,
-            'high_risk_count' => ((int) ($existing->high_risk_count ?? 0)) + ($isHighRisk ? 1 : 0),
             'last_rule_code' => $code,
             'last_request_path' => $this->normalizedRequestPath($request),
             'status' => $shouldBlock ? 'blocked' : ((! $isObserveMode && (string) $rule['action'] === 'rate_limited') ? 'limited' : 'monitored'),
@@ -1608,25 +1688,34 @@ class SiteSecurity
             'updated_at' => $now,
         ];
 
-        if ($existing) {
-            DB::table('site_security_ip_reputations')
-                ->where('id', (int) $existing->id)
-                ->update($values);
-
-            return;
-        }
-
-        DB::table('site_security_ip_reputations')->insert([
-            ...$values,
+        DB::table('site_security_ip_reputations')->insertOrIgnore([
             'site_id' => $siteId,
+            'client_ip' => (string) $ip,
             'ip_hash' => $ipHash,
+            'hit_count' => 0,
+            'high_risk_count' => 0,
+            'last_rule_code' => $code,
+            'last_request_path' => $this->normalizedRequestPath($request),
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => $now,
             'created_at' => $now,
+            'updated_at' => $now,
         ]);
+
+        DB::table('site_security_ip_reputations')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', $ipHash)
+            ->update([
+                ...$values,
+                'hit_count' => DB::raw('hit_count + 1'),
+                'high_risk_count' => $isHighRisk ? DB::raw('high_risk_count + 1') : DB::raw('high_risk_count'),
+            ]);
     }
 
     protected function ipReputationTableReady(): bool
     {
-        return Schema::hasTable('site_security_ip_reputations');
+        return static::$ipReputationTableReady ??= Schema::hasTable('site_security_ip_reputations');
     }
 
     protected function ipReputationStatusLabel(string $status): string
@@ -1653,6 +1742,30 @@ class SiteSecurity
         $value = trim((string) $value);
 
         return $value !== '' ? mb_substr($value, 0, 255) : null;
+    }
+
+    protected function shouldSampleSecurityEvent(int $siteId, string $fingerprint): bool
+    {
+        return Cache::add(
+            'site-security:event-sample:'.$siteId.':'.$fingerprint,
+            1,
+            now('Asia/Shanghai')->addSeconds(static::EVENT_SAMPLE_WINDOW_SECONDS)
+        );
+    }
+
+    protected function hitRecentHighRiskCounter(int $siteId, string $ipHash): int
+    {
+        $key = 'site-security:recent-high-risk:'.$siteId.':'.$ipHash;
+        RateLimiter::hit($key, 600);
+
+        return RateLimiter::attempts($key);
+    }
+
+    protected function tableHasColumn(string $table, string $column): bool
+    {
+        $key = $table.'.'.$column;
+
+        return static::$columnExistsCache[$key] ??= Schema::hasColumn($table, $column);
     }
 
     protected function requestQuerySample(Request $request): ?string
@@ -1994,7 +2107,7 @@ class SiteSecurity
     }
 
     /**
-     * @param array{fields: int, max_length: int} $metrics
+     * @param  array{fields: int, max_length: int}  $metrics
      */
     protected function walkPayloadInput(mixed $value, array &$metrics): void
     {
@@ -2498,6 +2611,7 @@ class SiteSecurity
     protected function normalizedRequestPath(Request $request): string
     {
         $path = '/'.ltrim((string) $request->path(), '/');
+
         return $path === '//' ? '/' : mb_substr($path, 0, 255);
     }
 
@@ -2562,7 +2676,7 @@ class SiteSecurity
     }
 
     /**
-     * @param array<int, string> $patterns
+     * @param  array<int, string>  $patterns
      */
     protected function ipMatchesList(string $ip, array $patterns): bool
     {
@@ -2612,7 +2726,7 @@ class SiteSecurity
 
         $maskLong = $mask === 0 ? 0 : (-1 << (32 - $mask));
 
-        return (($ipLong & $maskLong) === ($subnetLong & $maskLong));
+        return ($ipLong & $maskLong) === ($subnetLong & $maskLong);
     }
 
     protected function typeDistributionNote(string $ruleCode): string
@@ -2641,18 +2755,11 @@ class SiteSecurity
     protected function pruneEvents(int $siteId): void
     {
         $limit = $this->systemSettings->securityEventRetentionLimit();
-        $recentWindowStart = now('Asia/Shanghai')->startOfDay()->subDays(6)->toDateTimeString();
         $keepIds = DB::table('site_security_events')
             ->where('site_id', $siteId)
             ->orderByDesc('id')
             ->limit($limit)
             ->pluck('id');
-
-        $recentKeepIds = DB::table('site_security_events')
-            ->where('site_id', $siteId)
-            ->where('created_at', '>=', $recentWindowStart)
-            ->pluck('id');
-
         $highRiskKeepIds = DB::table('site_security_events')
             ->where('site_id', $siteId)
             ->whereIn('rule_code', static::HIGH_RISK_RULE_CODES)
@@ -2661,16 +2768,41 @@ class SiteSecurity
             ->pluck('id');
 
         $preservedIds = $keepIds
-            ->concat($recentKeepIds)
             ->concat($highRiskKeepIds)
             ->unique()
             ->values();
 
         if ($preservedIds->isNotEmpty()) {
-            DB::table('site_security_events')
+            do {
+                $deleteIds = DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->whereNotIn('id', $preservedIds->all())
+                    ->orderBy('id')
+                    ->limit(static::EVENT_PRUNE_BATCH_SIZE)
+                    ->pluck('id');
+
+                if ($deleteIds->isEmpty()) {
+                    break;
+                }
+
+                DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->whereIn('id', $deleteIds->all())
+                    ->delete();
+            } while ($deleteIds->count() === static::EVENT_PRUNE_BATCH_SIZE);
+        } else {
+            $deleteIds = DB::table('site_security_events')
                 ->where('site_id', $siteId)
-                ->whereNotIn('id', $preservedIds->all())
-                ->delete();
+                ->orderBy('id')
+                ->limit(static::EVENT_PRUNE_BATCH_SIZE)
+                ->pluck('id');
+
+            if ($deleteIds->isNotEmpty()) {
+                DB::table('site_security_events')
+                    ->where('site_id', $siteId)
+                    ->whereIn('id', $deleteIds->all())
+                    ->delete();
+            }
         }
     }
 
@@ -2684,17 +2816,6 @@ class SiteSecurity
             ->where('site_id', $siteId)
             ->where('stat_date', '<', $cutoff)
             ->delete();
-    }
-
-    protected function schedulePruning(int $siteId): void
-    {
-        if (Cache::add('site-security:prune-events:'.$siteId, 1, now('Asia/Shanghai')->addMinutes(10))) {
-            $this->pruneEvents($siteId);
-        }
-
-        if (Cache::add('site-security:prune-stats:'.$siteId, 1, now('Asia/Shanghai')->addHours(12))) {
-            $this->pruneStats($siteId);
-        }
     }
 
     protected function isProbeCandidateRule(string $code): bool
@@ -2767,8 +2888,7 @@ class SiteSecurity
     }
 
     /**
-     * @param  mixed  $files
-     * @return Collection<int, \Illuminate\Http\UploadedFile>
+     * @return Collection<int, UploadedFile>
      */
     protected function flattenFiles(mixed $files): Collection
     {
@@ -2776,7 +2896,7 @@ class SiteSecurity
             return collect($files)->flatMap(fn ($item) => $this->flattenFiles($item));
         }
 
-        if ($files instanceof \Illuminate\Http\UploadedFile) {
+        if ($files instanceof UploadedFile) {
             return collect([$files]);
         }
 

@@ -2,13 +2,30 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Admin\Site\ContentController;
+use App\Jobs\SendGuestbookMessageNotificationJob;
+use App\Mail\GuestbookMessageNotificationMail;
+use App\Mail\PlatformTestMail;
 use App\Models\User;
-use App\Support\ThemeTags;
+use App\Modules\Guestbook\Support\GuestbookSettings;
+use App\Support\ContentAttachmentRelationSync;
+use App\Support\FrontendPageCache;
 use App\Support\LegacyAspAccessSiteImporter;
+use App\Support\Modules\ModuleManager;
+use App\Support\PlatformMailSettings;
+use App\Support\SiteSecurity;
+use App\Support\SiteVisitStatsBuffer;
+use App\Support\SystemChecks\PerformanceCacheHealthCheck;
+use App\Support\SystemChecks\SchedulerHealthCheck;
+use App\Support\SystemSettings;
+use App\Support\ThemeTags;
 use Database\Seeders\CmsBootstrapSeeder;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -19,9 +36,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Carbon;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xls;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
@@ -34,7 +50,9 @@ class AdminAccessTest extends TestCase
      * @var array<int, string>
      */
     protected array $temporaryPayrollUploads = [];
+
     protected array $temporaryFilesystemBackups = [];
+
     protected array $temporaryLegacyImportDirs = [];
 
     protected function tearDown(): void
@@ -674,7 +692,7 @@ class AdminAccessTest extends TestCase
             ->assertOk()
             ->assertHeader('X-Frontend-Page-Cache', 'HIT');
 
-        \App\Support\FrontendPageCache::flushSite($siteId);
+        FrontendPageCache::flushSite($siteId);
 
         $this->get('/?site=site')
             ->assertOk()
@@ -699,7 +717,7 @@ class AdminAccessTest extends TestCase
 
         Cache::forgetDriver('redis');
 
-        $items = app(\App\Support\SystemChecks\PerformanceCacheHealthCheck::class)->inspect()['items'];
+        $items = app(PerformanceCacheHealthCheck::class)->inspect()['items'];
         $redisItem = collect($items)->firstWhere('label', 'Redis 应用缓存');
 
         $this->assertSame('error', $redisItem['status'] ?? null);
@@ -905,7 +923,7 @@ class AdminAccessTest extends TestCase
 
         $user = $this->superAdmin();
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
         $initialStatus = (int) DB::table('modules')->where('code', 'guestbook')->value('status');
 
         $this->actingAs($user)
@@ -960,7 +978,7 @@ class AdminAccessTest extends TestCase
 
         $user = $this->superAdmin();
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
 
         DB::table('site_module_bindings')->updateOrInsert(
@@ -1011,7 +1029,7 @@ class AdminAccessTest extends TestCase
         $user = $this->superAdmin();
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
         $remoteSiteId = $this->createAdditionalSite('remote-module-site', '远程模块站点');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
         $guestbookModuleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
         $payrollModuleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
 
@@ -1273,7 +1291,7 @@ class AdminAccessTest extends TestCase
             'updated_at' => $frozenUpdatedAt,
         ]);
 
-        app(\App\Support\Modules\ModuleManager::class)->all();
+        app(ModuleManager::class)->all();
 
         $this->assertSame(
             $frozenUpdatedAt->format('Y-m-d H:i:s'),
@@ -1407,7 +1425,7 @@ class AdminAccessTest extends TestCase
     public function test_site_role_update_auto_adds_module_use_when_module_permission_selected(): void
     {
         $this->seed(DatabaseSeeder::class);
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         $user = $this->superAdmin();
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
@@ -1459,7 +1477,7 @@ class AdminAccessTest extends TestCase
     public function test_site_role_edit_displays_module_permissions_in_dedicated_group(): void
     {
         $this->seed(DatabaseSeeder::class);
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         $user = $this->superAdmin();
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
@@ -1493,7 +1511,7 @@ class AdminAccessTest extends TestCase
     public function test_site_role_module_permissions_are_hidden_and_rejected_when_module_not_bound(): void
     {
         $this->seed(DatabaseSeeder::class);
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         $user = $this->superAdmin();
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
@@ -2085,7 +2103,7 @@ XML);
         ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
         try {
-            app(\App\Support\Modules\ModuleManager::class)->synchronize();
+            app(ModuleManager::class)->synchronize();
 
             $permissionId = (int) DB::table('platform_permissions')
                 ->where('code', 'platform_ops_test.manage')
@@ -2122,7 +2140,7 @@ XML);
             'scope' => 'site',
         ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
         File::deleteDirectory($modulePath);
 
         $this->actingAs($user)
@@ -2175,7 +2193,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2208,7 +2226,7 @@ XML);
         Bus::fake();
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2235,7 +2253,7 @@ XML);
             'content' => '这里是前台提交的留言内容，希望尽快收到回复。',
         ])->assertRedirect(route('site.guestbook.index', ['site' => 'site']));
 
-        Bus::assertDispatched(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId): bool {
+        Bus::assertDispatched(SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId): bool {
             return $job->siteId === $siteId
                 && $job->trigger === 'submitted';
         });
@@ -2246,7 +2264,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2276,7 +2294,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2307,7 +2325,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2361,7 +2379,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2404,7 +2422,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2449,7 +2467,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2478,7 +2496,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2552,7 +2570,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2609,7 +2627,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2688,7 +2706,7 @@ XML);
         Bus::fake();
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2730,7 +2748,7 @@ XML);
             ])
             ->assertRedirect(route('admin.guestbook.show', $messageId));
 
-        Bus::assertDispatched(\App\Jobs\SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId, $messageId): bool {
+        Bus::assertDispatched(SendGuestbookMessageNotificationJob::class, function ($job) use ($siteId, $messageId): bool {
             return $job->siteId === $siteId
                 && $job->messageId === $messageId
                 && $job->trigger === 'replied';
@@ -2742,7 +2760,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2802,7 +2820,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -2967,10 +2985,10 @@ XML);
             'updated_at' => now(),
         ]);
 
-        $job = new \App\Jobs\SendGuestbookMessageNotificationJob($siteId, $messageId, 'submitted');
-        $job->handle(app(\App\Support\PlatformMailSettings::class), app(\App\Modules\Guestbook\Support\GuestbookSettings::class));
+        $job = new SendGuestbookMessageNotificationJob($siteId, $messageId, 'submitted');
+        $job->handle(app(PlatformMailSettings::class), app(GuestbookSettings::class));
 
-        Mail::assertSent(\App\Mail\GuestbookMessageNotificationMail::class, function ($mail): bool {
+        Mail::assertSent(GuestbookMessageNotificationMail::class, function ($mail): bool {
             return $mail->hasTo('school@example.com');
         });
     }
@@ -2980,7 +2998,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3042,7 +3060,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3075,7 +3093,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3131,7 +3149,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3172,7 +3190,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3210,7 +3228,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3296,7 +3314,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3346,7 +3364,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -3391,7 +3409,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -3485,7 +3503,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -3558,7 +3576,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         $response = $this->followingRedirects()
             ->get(route('site.payroll.index', ['site' => 'site']));
@@ -3592,7 +3610,7 @@ XML);
     {
         $this->seed(DatabaseSeeder::class);
 
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         $firstPage = $this->followingRedirects()
             ->get(route('site.payroll.index', ['site' => 'site']));
@@ -3617,7 +3635,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         $this->followingRedirects()
             ->get(route('site.payroll.index', ['site' => 'site']))
@@ -3654,7 +3672,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -3748,7 +3766,7 @@ XML);
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
         $now = now();
 
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => $now]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -3833,7 +3851,7 @@ XML);
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
         $now = now();
 
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'guestbook')->update(['status' => 1, 'updated_at' => $now]);
         $moduleId = (int) DB::table('modules')->where('code', 'guestbook')->value('id');
@@ -3897,7 +3915,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -3947,7 +3965,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4015,7 +4033,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4070,7 +4088,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4138,7 +4156,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4203,7 +4221,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4261,7 +4279,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4359,7 +4377,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4414,7 +4432,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4470,7 +4488,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4516,7 +4534,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4608,7 +4626,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4664,7 +4682,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\Modules\ModuleManager::class)->synchronize();
+        app(ModuleManager::class)->synchronize();
 
         DB::table('modules')->where('code', 'payroll')->update(['status' => 1, 'updated_at' => now()]);
         $moduleId = (int) DB::table('modules')->where('code', 'payroll')->value('id');
@@ -4712,7 +4730,7 @@ XML);
             'permissions' => ['stale_permission_test.view', 'stale_permission_test.reply'],
         ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
-        $manager = app(\App\Support\Modules\ModuleManager::class);
+        $manager = app(ModuleManager::class);
 
         try {
             $manager->synchronize();
@@ -4758,7 +4776,7 @@ XML);
             'permissions' => ['missing_permission_carry_test.view'],
         ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
-        $manager = app(\App\Support\Modules\ModuleManager::class);
+        $manager = app(ModuleManager::class);
         $manager->synchronize();
         File::deleteDirectory($modulePath);
         $manager->synchronize();
@@ -5207,7 +5225,7 @@ XML);
             ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'mail']))
             ->assertSessionHas('status', '测试邮件已写入日志通道，当前未执行真实投递。');
 
-        Mail::assertSent(\App\Mail\PlatformTestMail::class, function ($mail): bool {
+        Mail::assertSent(PlatformTestMail::class, function ($mail): bool {
             return $mail->hasTo('receiver@example.com');
         });
     }
@@ -5216,7 +5234,7 @@ XML);
     {
         $this->seed(DatabaseSeeder::class);
 
-        \App\Support\PlatformMailSettings::recordQueueWorkerHeartbeat();
+        PlatformMailSettings::recordQueueWorkerHeartbeat();
 
         $this->actingAs($this->superAdmin())
             ->get(route('admin.platform.settings.index', ['tab' => 'mail']))
@@ -5230,7 +5248,7 @@ XML);
     {
         $this->seed(DatabaseSeeder::class);
 
-        \Illuminate\Support\Facades\Cache::forget('system-checks:laravel:latest');
+        Cache::forget('system-checks:laravel:latest');
 
         $this->actingAs($this->superAdmin())
             ->get(route('admin.dashboard'))
@@ -5255,8 +5273,8 @@ XML);
             ]),
         ]);
 
-        \Illuminate\Support\Facades\Cache::forget('system-checks:laravel:latest');
-        \Illuminate\Support\Facades\Cache::store('database')->forget(\App\Support\SystemChecks\SchedulerHealthCheck::HEARTBEAT_CACHE_KEY);
+        Cache::forget('system-checks:laravel:latest');
+        Cache::store('database')->forget(SchedulerHealthCheck::HEARTBEAT_CACHE_KEY);
 
         $this->actingAs($this->superAdmin())
             ->getJson(route('admin.platform.dashboard.system-status'))
@@ -5354,7 +5372,7 @@ XML);
             ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'mail']))
             ->assertSessionHasErrors(['mail_test_to']);
 
-        Mail::assertSent(\App\Mail\PlatformTestMail::class, 1);
+        Mail::assertSent(PlatformTestMail::class, 1);
     }
 
     public function test_admin_disabled_blocks_site_operator_but_allows_super_admin(): void
@@ -7087,7 +7105,7 @@ XML);
             'updated_at' => now(),
         ]);
 
-        app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+        app(ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
 
         $this->assertSame(2, (int) DB::table('attachments')->where('id', $attachmentId)->value('usage_count'));
 
@@ -7132,11 +7150,11 @@ XML);
         Carbon::setTestNow($originalTimestamp);
 
         try {
-            app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+            app(ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
 
             Carbon::setTestNow(Carbon::parse('2026-05-28 12:00:00'));
 
-            app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+            app(ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
         } finally {
             Carbon::setTestNow();
         }
@@ -7201,7 +7219,7 @@ XML);
         Carbon::setTestNow(Carbon::parse('2026-05-28 12:00:00'));
 
         try {
-            $controller = new \App\Http\Controllers\Admin\Site\ContentController();
+            $controller = new ContentController;
             $method = new \ReflectionMethod($controller, 'syncContentChannels');
             $method->setAccessible(true);
             $method->invoke($controller, $contentId, [$channelId]);
@@ -7241,7 +7259,7 @@ XML);
             'updated_at' => now(),
         ]);
 
-        app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+        app(ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
 
         $this->assertSame(2, (int) DB::table('attachments')->where('id', $attachmentId)->value('usage_count'));
 
@@ -7290,7 +7308,7 @@ XML);
             'updated_at' => now(),
         ]);
 
-        app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+        app(ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
 
         $this->assertSame(1, (int) DB::table('attachments')->where('id', $attachmentId)->value('usage_count'));
 
@@ -7335,7 +7353,7 @@ XML);
             'deleted_at' => now(),
         ]);
 
-        app(\App\Support\ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
+        app(ContentAttachmentRelationSync::class)->syncForContent($siteId, $contentId);
 
         $response = $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
@@ -8519,7 +8537,7 @@ XML);
             ->get(route('admin.site-logs.index'))
             ->assertOk()
             ->assertSee('站点日志')
-            ->assertSee('内容 · 本站日志目标文章 #' . $localContentId)
+            ->assertSee('内容 · 本站日志目标文章 #'.$localContentId)
             ->assertViewHas('logs', function ($logs): bool {
                 return $logs->count() === 1
                     && $logs->first()->action === 'publish';
@@ -8565,8 +8583,8 @@ XML);
             ->withSession(['current_site_id' => $siteId])
             ->get(route('admin.logs.index'))
             ->assertOk()
-            ->assertSee('站点 · ' . $siteName . ' #' . $siteId)
-            ->assertSee('管理员 · ' . $user->name . ' #' . $user->id);
+            ->assertSee('站点 · '.$siteName.' #'.$siteId)
+            ->assertSee('管理员 · '.$user->name.' #'.$user->id);
     }
 
     public function test_site_logs_show_operator_target_label_for_site_user_and_auth_logs(): void
@@ -8607,8 +8625,8 @@ XML);
             ->withSession(['current_site_id' => $siteId])
             ->get(route('admin.site-logs.index'))
             ->assertOk()
-            ->assertSee('操作员 · ' . $operator->name . ' #' . $operator->id)
-            ->assertDontSee('管理员 · ' . $operator->name . ' #' . $operator->id);
+            ->assertSee('操作员 · '.$operator->name.' #'.$operator->id)
+            ->assertDontSee('管理员 · '.$operator->name.' #'.$operator->id);
     }
 
     public function test_site_logs_translate_legacy_role_target_type_into_site_role_label(): void
@@ -8637,8 +8655,8 @@ XML);
             ->withSession(['current_site_id' => $siteId])
             ->get(route('admin.site-logs.index'))
             ->assertOk()
-            ->assertSee('站点角色 · ' . $roleName . ' #' . $roleId)
-            ->assertDontSee('role #' . $roleId, false);
+            ->assertSee('站点角色 · '.$roleName.' #'.$roleId)
+            ->assertDontSee('role #'.$roleId, false);
     }
 
     public function test_platform_logs_show_readable_attachment_target_names(): void
@@ -8681,7 +8699,7 @@ XML);
             ->withSession(['current_site_id' => $siteId])
             ->get(route('admin.logs.index'))
             ->assertOk()
-            ->assertSee('资源 · 平台日志附件.png #' . $attachmentId);
+            ->assertSee('资源 · 平台日志附件.png #'.$attachmentId);
     }
 
     public function test_site_settings_only_load_current_site_information(): void
@@ -9336,6 +9354,33 @@ XML);
             'hit_count' => 1,
             'high_risk_count' => 1,
             'status' => 'monitored',
+        ]);
+    }
+
+    public function test_site_security_samples_repeated_blocked_events_but_keeps_counts(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertForbidden();
+        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertForbidden();
+
+        $this->assertSame(2, (int) DB::table('site_security_daily_stats')
+            ->where('site_id', $siteId)
+            ->value('blocked_total'));
+        $this->assertSame(2, (int) DB::table('site_security_daily_stats')
+            ->where('site_id', $siteId)
+            ->value('blocked_sql_injection'));
+        $this->assertSame(1, DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('rule_code', 'sql_injection')
+            ->count());
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => '127.0.0.1',
+            'hit_count' => 2,
+            'high_risk_count' => 2,
         ]);
     }
 
@@ -10373,11 +10418,11 @@ XML);
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/guestbook/captcha'));
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $siteSecurity = new SiteSecurity(new SystemSettings);
         $method = new \ReflectionMethod($siteSecurity, 'matchRateLimit');
         $method->setAccessible(true);
-        $makeRequest = function (string $path, string $routeName): \Illuminate\Http\Request {
-            $request = \Illuminate\Http\Request::create($path, 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $makeRequest = function (string $path, string $routeName): Request {
+            $request = Request::create($path, 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
             $route = new \Illuminate\Routing\Route(['GET', 'HEAD'], ltrim($path, '/'), ['as' => $routeName, 'uses' => fn () => null]);
             $request->setRouteResolver(fn () => $route);
 
@@ -10413,10 +10458,10 @@ XML);
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/site-media/site/attachments/demo.jpg'));
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $siteSecurity = new SiteSecurity(new SystemSettings);
         $method = new \ReflectionMethod($siteSecurity, 'matchRateLimit');
         $method->setAccessible(true);
-        $request = \Illuminate\Http\Request::create('/site-media/site/attachments/demo.jpg', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $request = Request::create('/site-media/site/attachments/demo.jpg', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
         $route = new \Illuminate\Routing\Route(['GET', 'HEAD'], 'site-media/{siteKey}/{path}', ['as' => 'site.media', 'uses' => fn () => null]);
         $request->setRouteResolver(fn () => $route);
 
@@ -10899,8 +10944,8 @@ XML);
 
         Cache::put($this->siteSecurityPathScanKey(), ['/legacy-a', '/legacy-b'], now()->addMinute());
 
-        $request = \Illuminate\Http\Request::create('/scan-fresh', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
-        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $request = Request::create('/scan-fresh', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $siteSecurity = new SiteSecurity(new SystemSettings);
         $method = new \ReflectionMethod($siteSecurity, 'matchRapidPathScan');
         $method->setAccessible(true);
 
@@ -10913,14 +10958,14 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        $siteSecurity = new \App\Support\SiteSecurity(new \App\Support\SystemSettings());
+        $siteSecurity = new SiteSecurity(new SystemSettings);
         $method = new \ReflectionMethod($siteSecurity, 'matchRapidPathScan');
         $method->setAccessible(true);
 
         Cache::forget($this->siteSecurityPathScanKey());
 
-        $themeAssetRequest = \Illuminate\Http\Request::create('/theme-assets/default/assets/app.css', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
-        $legacyAssetRequest = \Illuminate\Http\Request::create('/Up/liuyi.jpg', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $themeAssetRequest = Request::create('/theme-assets/default/assets/app.css', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $legacyAssetRequest = Request::create('/Up/liuyi.jpg', 'GET', ['site' => 'site'], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
 
         $this->assertNull($method->invoke($siteSecurity, $themeAssetRequest, $siteId));
         $this->assertNull($method->invoke($siteSecurity, $legacyAssetRequest, $siteId));
@@ -11724,8 +11769,8 @@ XML);
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $mainSiteId])
@@ -11744,8 +11789,8 @@ XML);
             'status' => 'monitored',
             'blocked_until' => null,
         ]);
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertDatabaseHas('operation_logs', [
             'scope' => 'site',
             'module' => 'security',
@@ -11822,8 +11867,8 @@ XML);
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $mainSiteId])
@@ -11841,8 +11886,8 @@ XML);
             'status' => 'monitored',
             'blocked_until' => null,
         ]);
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertDatabaseHas('operation_logs', [
             'scope' => 'site',
             'module' => 'security',
@@ -11923,14 +11968,14 @@ XML);
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate:'.$mainSiteId.':'.sha1($ip.'|/'), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe:'.$mainSiteId.':'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe:'.$mainSiteId.':probe_abuse:'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate:'.$mainSiteId.':'.sha1($ip.'|/'), 60);
+        RateLimiter::hit('site-security-probe:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-probe:'.$mainSiteId.':probe_abuse:'.sha1($ip), 60);
         Cache::put('site-security-path-scan:'.$mainSiteId.':'.sha1($ip), ['/scan-a', '/scan-b', '/scan-c'], now()->addMinute());
 
         $this->actingAs($siteAdmin)
@@ -11942,14 +11987,14 @@ XML);
             ->assertRedirect(route('admin.security.index'))
             ->assertSessionHas('status', '已解除临时封禁。');
 
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':'.sha1($ip.'|/'), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe:'.$mainSiteId.':'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe:'.$mainSiteId.':probe_abuse:'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':'.sha1($ip.'|/'), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe:'.$mainSiteId.':probe_abuse:'.sha1($ip), 1));
         $this->assertNull(Cache::get('site-security-path-scan:'.$mainSiteId.':'.sha1($ip)));
     }
 
@@ -12102,7 +12147,7 @@ XML);
             'updated_at' => now(),
         ]);
 
-        $payload = app(\App\Support\SiteSecurity::class)->sitePagePayload($mainSiteId);
+        $payload = app(SiteSecurity::class)->sitePagePayload($mainSiteId);
         $badMethodType = collect($payload['types'])->firstWhere('code', 'bad_method');
 
         $this->assertSame(1, $payload['seven_day_high_risk']);
@@ -12509,7 +12554,7 @@ XML);
 
         DB::table('site_security_events')->insert($rows);
 
-        $siteSecurity = app(\App\Support\SiteSecurity::class);
+        $siteSecurity = app(SiteSecurity::class);
 
         \Closure::bind(function () use ($mainSiteId): void {
             $this->pruneEvents($mainSiteId);
@@ -12537,6 +12582,50 @@ XML);
             'site_id' => $mainSiteId,
             'rule_code' => 'rate_limit',
             'request_path' => '/rate-old-outside-window',
+        ]);
+    }
+
+    public function test_site_security_pruning_caps_recent_medium_risk_records(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'security.event_retention_limit'],
+            ['setting_value' => '20', 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+        );
+
+        $rows = [];
+        for ($i = 1; $i <= 80; $i++) {
+            $ip = '10.30.0.'.($i % 250);
+            $rows[] = [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'bad_path',
+                'rule_name' => '恶意扫描路径',
+                'request_path' => '/recent-medium-noise-'.$i,
+                'request_method' => 'GET',
+                'client_ip' => $ip,
+                'ip_hash' => hash('sha256', $ip),
+                'risk_level' => 'medium',
+                'action' => 'block',
+                'created_at' => $now->copy()->subMinutes($i),
+            ];
+        }
+        DB::table('site_security_events')->insert($rows);
+
+        app(SiteSecurity::class)->pruneSecurityStorage($mainSiteId);
+
+        $this->assertSame(20, DB::table('site_security_events')
+            ->where('site_id', $mainSiteId)
+            ->count());
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $mainSiteId,
+            'request_path' => '/recent-medium-noise-80',
+        ]);
+        $this->assertDatabaseMissing('site_security_events', [
+            'site_id' => $mainSiteId,
+            'request_path' => '/recent-medium-noise-1',
         ]);
     }
 
@@ -12591,7 +12680,7 @@ XML);
 
         DB::table('site_security_events')->insert($rows);
 
-        $siteSecurity = app(\App\Support\SiteSecurity::class);
+        $siteSecurity = app(SiteSecurity::class);
 
         \Closure::bind(function () use ($mainSiteId): void {
             $this->pruneEvents($mainSiteId);
@@ -12635,7 +12724,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-        app(\App\Support\SiteVisitStatsBuffer::class)->flushPending();
+        app(SiteVisitStatsBuffer::class)->flushPending();
         DB::table('site_visit_daily_stats')->where('site_id', $siteId)->delete();
 
         $identity = $this->createPlatformIdentity('visit-tracking-seeder');
@@ -12668,7 +12757,7 @@ XML);
         $this->get(route('site.article', ['site' => 'site', 'id' => $articleId]))
             ->assertOk();
 
-        app(\App\Support\SiteVisitStatsBuffer::class)->flushPending();
+        app(SiteVisitStatsBuffer::class)->flushPending();
 
         $this->assertDatabaseHas('site_visit_daily_stats', [
             'site_id' => $siteId,
@@ -12868,7 +12957,7 @@ XML);
                 'mobile' => '',
                 'status' => 1,
                 'password' => 'ChangeMe123!',
-                'role_ids' => ['site:' . $foreignRoleId],
+                'role_ids' => ['site:'.$foreignRoleId],
             ]);
 
         $this->assertFalse(
@@ -12907,7 +12996,7 @@ XML);
                 'email' => $operator->email,
                 'mobile' => '',
                 'status' => 1,
-                'role_id' => 'site:' . $foreignRoleId,
+                'role_id' => 'site:'.$foreignRoleId,
             ])
             ->assertSessionHasErrors(['role_id']);
 
@@ -14438,7 +14527,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'))
@@ -14498,7 +14587,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors([
@@ -14545,7 +14634,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -14584,7 +14673,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -14615,7 +14704,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -14626,7 +14715,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -14663,7 +14752,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -14674,7 +14763,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -14718,7 +14807,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -14729,7 +14818,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -14768,7 +14857,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $operator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'))
                 ->assertSessionHasErrors(['username']);
@@ -14847,7 +14936,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $firstOperator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                 ])
                 ->assertRedirect(route('login'));
         }
@@ -14857,7 +14946,7 @@ XML);
                 ->post(route('login.store'), [
                     'username' => $firstOperator->username,
                     'password' => 'bad-password',
-                'service_agreement' => '1',
+                    'service_agreement' => '1',
                     'captcha' => $this->loginCaptcha(),
                 ])
                 ->assertRedirect(route('login'));
@@ -14922,7 +15011,7 @@ XML);
             ])
             ->assertRedirect(route('admin.site-dashboard'));
 
-        \Illuminate\Support\Facades\Auth::logout();
+        Auth::logout();
         session()->flush();
 
         $this->from('http://remote-login.test/login')
@@ -14938,7 +15027,7 @@ XML);
         $this->get('http://remote-login.test/admin')
             ->assertRedirect(route('admin.site-dashboard'));
 
-        \Illuminate\Support\Facades\Auth::logout();
+        Auth::logout();
         session()->flush();
 
         $this->from('http://site.local/login')
@@ -15065,7 +15154,7 @@ XML);
                 'mobile' => '',
                 'password' => 'ChangeMe123!',
                 'status' => 1,
-                'role_id' => 'platform:' . $platformRoleId,
+                'role_id' => 'platform:'.$platformRoleId,
             ])
             ->assertSessionHasErrors(['role_id']);
 
@@ -15092,7 +15181,7 @@ XML);
                 'mobile' => '',
                 'password' => 'ChangeMe123!',
                 'status' => 1,
-                'role_id' => 'site:' . $uploaderRoleId,
+                'role_id' => 'site:'.$uploaderRoleId,
                 'channel_ids' => [$blockedChannelId],
             ])
             ->assertRedirect(route('admin.site-users.index'));
@@ -15287,7 +15376,7 @@ XML);
                 'email' => $operator->email,
                 'mobile' => $operator->mobile,
                 'status' => 1,
-                'role_id' => 'platform:' . $platformRoleId,
+                'role_id' => 'platform:'.$platformRoleId,
             ])
             ->assertSessionHasErrors(['role_id']);
 
@@ -15819,8 +15908,8 @@ XML);
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe-block:'.$siteId.':'.sha1($ip), 60);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 60);
+        RateLimiter::hit('site-security-probe-block:'.$siteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
@@ -15841,8 +15930,8 @@ XML);
             'site_id' => $siteId,
             'client_ip' => $ip,
         ]);
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe-block:'.$siteId.':'.sha1($ip), 1));
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$siteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 1));
     }
 
     public function test_site_security_site_admin_can_clear_filtered_event_records(): void
@@ -15936,7 +16025,7 @@ XML);
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\RateLimiter::hit('site-security-rate-block:'.$siteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-rate-block:'.$siteId.':'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
@@ -15958,7 +16047,7 @@ XML);
             'site_id' => $siteId,
             'client_ip' => $ip,
         ]);
-        $this->assertFalse(\Illuminate\Support\Facades\RateLimiter::tooManyAttempts('site-security-rate-block:'.$siteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$siteId.':'.sha1($ip), 1));
     }
 
     protected function createAdditionalSite(string $siteKey, string $name): int
@@ -16021,7 +16110,7 @@ XML);
 
     protected function createPayrollSpreadsheetUpload(array $rows, string $filename = 'payroll.xlsx'): UploadedFile
     {
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $worksheet = $spreadsheet->getActiveSheet();
 
         foreach ($rows as $rowIndex => $columns) {
@@ -16074,7 +16163,7 @@ XML);
 
     protected function writeLegacyImportSpreadsheet(string $path, array $rows): void
     {
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $spreadsheet->getActiveSheet()->fromArray($rows);
 
         File::ensureDirectoryExists(dirname($path));

@@ -5,6 +5,7 @@ use App\Support\FrontendPageCache;
 use App\Support\IpRegionResolver;
 use App\Support\LegacyAspAccessSiteImporter;
 use App\Support\PromoItemExpiryManager;
+use App\Support\SiteSecurity;
 use App\Support\SiteVisitStatsBuffer;
 use App\Support\SystemChecks\SchedulerHealthCheck;
 use Illuminate\Foundation\Inspiring;
@@ -22,7 +23,7 @@ Artisan::command('cms:repair-attachment-usage {--site= : 仅修复指定站点ID
 
     $this->info('开始修复附件引用统计...');
 
-    $tracker = new AttachmentUsageTracker();
+    $tracker = new AttachmentUsageTracker;
     $deletedDuplicates = $tracker->deduplicateRelations();
     $result = $tracker->rebuildAll($resolvedSiteId);
 
@@ -38,7 +39,7 @@ Artisan::command('cms:repair-attachment-usage {--site= : 仅修复指定站点ID
 })->purpose('重建附件 usage_count 与 last_used_at 统计');
 
 Artisan::command('cms:deactivate-expired-promos', function () {
-    $affected = (new PromoItemExpiryManager())->deactivateExpiredItems();
+    $affected = (new PromoItemExpiryManager)->deactivateExpiredItems();
 
     if ($affected === 0) {
         $this->info('当前没有需要自动停用的过期图宣项。');
@@ -222,6 +223,17 @@ Artisan::command('cms:flush-site-visit-stats', function () {
     $this->info('访问统计批量落库完成。');
 })->purpose('将 Redis 中的访问统计批量落库');
 
+Artisan::command('cms:prune-site-security {--site= : 仅清理指定站点ID}', function () {
+    $siteId = $this->option('site');
+    $resolvedSiteId = is_numeric($siteId) ? (int) $siteId : null;
+
+    app(SiteSecurity::class)->pruneSecurityStorage($resolvedSiteId);
+
+    $this->info($resolvedSiteId !== null
+        ? "站点 {$resolvedSiteId} 安护盾数据裁剪完成。"
+        : '全部站点安护盾数据裁剪完成。');
+})->purpose('按保留上限裁剪安护盾明细和过期统计');
+
 Schedule::command('cms:deactivate-expired-promos')
     ->everyMinute()
     ->withoutOverlapping();
@@ -233,4 +245,8 @@ Schedule::call(fn () => app(SchedulerHealthCheck::class)->heartbeat())
 
 Schedule::command('cms:flush-site-visit-stats')
     ->hourly()
+    ->withoutOverlapping();
+
+Schedule::command('cms:prune-site-security')
+    ->everyFiveMinutes()
     ->withoutOverlapping();
