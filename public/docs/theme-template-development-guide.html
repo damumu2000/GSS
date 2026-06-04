@@ -1154,6 +1154,11 @@
                                     <td><code>{% set pageChannels = channels(type='page', status=1, limit=6)%}</code></td>
                                 </tr>
                                 <tr>
+                                    <td class="mono">channels type</td>
+                                    <td>栏目类型只支持单个值：<code>list</code> 表示文章栏目，<code>page</code> 表示单页栏目，<code>link</code> 表示外链栏目。不能写成 <code>type='list,link'</code>。</td>
+                                    <td><code>{% set linkChannels = channels(type='link', status=1, limit=6)%}</code></td>
+                                </tr>
+                                <tr>
                                     <td class="mono">channels(is_nav=true)</td>
                                     <td>取导航栏目。</td>
                                     <td><code>{% set navChannels = channels(is_nav=true, limit=8)%}</code></td>
@@ -1167,6 +1172,11 @@
                                     <td class="mono">channels(is_nav=true, type='page')</td>
                                     <td>导航里只调用“单页型”节点。</td>
                                     <td><code>{% set navPageChannels = channels(is_nav=true, type='page', status=1, limit=8)%}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="mono">channels list + link</td>
+                                    <td>如果导航只需要文章栏目和外链栏目，先取导航栏目，再在循环里用两个独立 <code>if</code> 分别输出；模板条件不支持 <code>or</code> 复合判断。</td>
+                                    <td><code>{% if top.type == 'list' %}...{% endif %}{% if top.type == 'link' %}...{% endif %}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">栏目页全部内容（all=1）</td>

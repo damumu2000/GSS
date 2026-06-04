@@ -1743,6 +1743,90 @@ function confirmImportImageSync(imageCount) {
     });
 }
 
+let directEditorImageUploadConfirmPromise = null;
+let directEditorImageUploadConfirmTimer = 0;
+
+function confirmDirectEditorImageUpload() {
+    if (directEditorImageUploadConfirmPromise) {
+        return directEditorImageUploadConfirmPromise;
+    }
+
+    const message = '检测到你正在通过粘贴或拖拽上传图片，是否确认上传到资源库并插入正文？';
+
+    directEditorImageUploadConfirmPromise = new Promise((resolve) => {
+        if (typeof window.showConfirmDialog !== 'function') {
+            resolve(window.confirm(message));
+            return;
+        }
+
+        const modal = document.querySelector('.js-confirm-modal');
+        const cancelButtons = modal ? Array.from(modal.querySelectorAll('.js-confirm-cancel')) : [];
+        let settled = false;
+
+        const finish = (value) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            cancelButtons.forEach((button) => button.removeEventListener('click', onCancel));
+            document.removeEventListener('keydown', onEscape, true);
+            resolve(value);
+        };
+
+        const onCancel = () => finish(false);
+        const onEscape = (event) => {
+            if (event.key === 'Escape') {
+                finish(false);
+            }
+        };
+
+        cancelButtons.forEach((button) => button.addEventListener('click', onCancel, { once: true }));
+        document.addEventListener('keydown', onEscape, true);
+
+        window.showConfirmDialog({
+            title: '确认上传图片？',
+            text: message,
+            confirmText: '确认上传',
+            onConfirm: () => finish(true),
+        });
+    }).finally(() => {
+        window.clearTimeout(directEditorImageUploadConfirmTimer);
+        directEditorImageUploadConfirmTimer = window.setTimeout(() => {
+            directEditorImageUploadConfirmPromise = null;
+        }, 1500);
+    });
+
+    return directEditorImageUploadConfirmPromise;
+}
+
+function removeEditorBlobImage(blobUri) {
+    const uri = String(blobUri || '').trim();
+
+    if (uri === '' || typeof tinymce === 'undefined') {
+        return;
+    }
+
+    const editors = typeof tinymce.get === 'function'
+        ? tinymce.get()
+        : (Array.isArray(tinymce.editors) ? tinymce.editors : []);
+    editors.forEach((editor) => {
+        const body = editor?.getBody?.();
+
+        if (!body) {
+            return;
+        }
+
+        body.querySelectorAll('img').forEach((image) => {
+            if (image.getAttribute('src') === uri || image.getAttribute('data-mce-src') === uri) {
+                image.remove();
+            }
+        });
+
+        editor.save?.();
+    });
+}
+
 function dataUrlToFile(dataUrl, filename = 'import-image.png') {
     const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/i);
     if (!match) {
@@ -2359,37 +2443,46 @@ tinymce.init({
         editor.on('change input undo redo', () => editor.save());
     },
     toolbar: 'undo redo wordImportCn fontfamily fontsize lineheight bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent table visualblocks quoteCn linkCn codeSampleCn codeCn clearCn smartArticleFormat schoolEmojiPicker schoolVideoEmbed schoolResourceLibrary schoolFullscreen',
-    images_upload_handler: (blobInfo, progress) => new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', imageUploadUrl);
-        xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken());
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    images_upload_handler: async (blobInfo, progress) => {
+        const confirmed = await confirmDirectEditorImageUpload();
 
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                progress(e.loaded / e.total * 100);
-            }
-        };
+        if (!confirmed) {
+            removeEditorBlobImage(blobInfo.blobUri?.());
+            throw new Error('已取消图片上传。');
+        }
 
-        xhr.onload = () => {
-            if (xhr.status < 200 || xhr.status >= 300) {
-                reject(`图片上传失败（${xhr.status}）`);
-                return;
-            }
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', imageUploadUrl);
+            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken());
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
-            const json = JSON.parse(xhr.responseText || '{}');
-            if (!json.location) {
-                reject('图片上传失败，返回数据不完整');
-                return;
-            }
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    progress(e.loaded / e.total * 100);
+                }
+            };
 
-            resolve(json.location);
-        };
+            xhr.onload = () => {
+                if (xhr.status < 200 || xhr.status >= 300) {
+                    reject(`图片上传失败（${xhr.status}）`);
+                    return;
+                }
 
-        xhr.onerror = () => reject('图片上传失败');
+                const json = JSON.parse(xhr.responseText || '{}');
+                if (!json.location) {
+                    reject('图片上传失败，返回数据不完整');
+                    return;
+                }
 
-        const formData = new FormData();
-        formData.append('file', blobInfo.blob(), blobInfo.filename());
-        xhr.send(formData);
-    })
+                resolve(json.location);
+            };
+
+            xhr.onerror = () => reject('图片上传失败');
+
+            const formData = new FormData();
+            formData.append('file', blobInfo.blob(), blobInfo.filename());
+            xhr.send(formData);
+        });
+    }
 });
