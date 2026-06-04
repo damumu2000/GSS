@@ -64,7 +64,7 @@ class PromoItemController extends Controller
             ->where('position_id', $positionRecord->id)
             ->count();
 
-        if ($existingItemCount >= (int) $positionRecord->max_items) {
+        if ($existingItemCount >= $this->maxItemsForPosition($positionRecord)) {
             return redirect()
                 ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))
                 ->withErrors(['promo_item' => '当前图宣位已达到最大图宣数量限制，请先删除或停用其他图宣内容。']);
@@ -104,7 +104,7 @@ class PromoItemController extends Controller
             ->where('position_id', $positionRecord->id)
             ->count();
 
-        if ($existingItemCount >= (int) $positionRecord->max_items) {
+        if ($existingItemCount >= $this->maxItemsForPosition($positionRecord)) {
             return response()->json([
                 'message' => '当前图宣位已达到最大图宣数量限制，请先删除或停用其他图宣内容。',
             ], 422);
@@ -476,7 +476,7 @@ class PromoItemController extends Controller
             ->where('position_id', $positionRecord->id)
             ->count();
 
-        if ($existingItemCount >= (int) $positionRecord->max_items) {
+        if ($existingItemCount >= $this->maxItemsForPosition($positionRecord)) {
             return redirect()
                 ->route('admin.promos.items.index', ['position' => $positionRecord->id] + $this->promoIndexQuery($request))
                 ->withErrors(['promo_item' => '当前图宣位已达到最大图宣数量限制，请先删除或停用其他图宣内容后再复制。']);
@@ -539,13 +539,9 @@ class PromoItemController extends Controller
         $this->authorizeSite($request, $currentSite->id, 'promo.manage');
 
         $positionRecord = DB::table('promo_positions')
-            ->leftJoin('channels', 'channels.id', '=', 'promo_positions.channel_id')
             ->where('promo_positions.site_id', $currentSite->id)
             ->where('promo_positions.id', $position)
-            ->first([
-                'promo_positions.*',
-                'channels.name as channel_name',
-            ]);
+            ->first(['promo_positions.*']);
 
         abort_unless($positionRecord, 404);
 
@@ -556,7 +552,6 @@ class PromoItemController extends Controller
     {
         return collect([
             'keyword' => $request->query('keyword', $request->input('keyword')),
-            'page_scope' => $request->query('page_scope', $request->input('page_scope')),
             'display_mode' => $request->query('display_mode'),
             'status' => $request->query('status', $request->input('status')),
             'page' => $request->query('page', $request->input('page')),
@@ -659,6 +654,11 @@ class PromoItemController extends Controller
         }
 
         return $validated;
+    }
+
+    protected function maxItemsForPosition(object $position): int
+    {
+        return (string) $position->display_mode === 'multi' ? 20 : 1;
     }
 
     protected function itemPayload(array $validated, int $siteId, int $positionId, bool $withCreatedAt = true): array

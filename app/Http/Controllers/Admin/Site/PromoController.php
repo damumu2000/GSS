@@ -8,7 +8,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -26,12 +25,10 @@ class PromoController extends Controller
         $promoIndexQuery = $this->promoIndexQuery($request);
 
         $keyword = trim((string) $request->query('keyword', ''));
-        $pageScope = trim((string) $request->query('page_scope', ''));
         $displayMode = trim((string) $request->query('display_mode', ''));
         $status = trim((string) $request->query('status', ''));
 
         $positions = DB::table('promo_positions')
-            ->leftJoin('channels', 'channels.id', '=', 'promo_positions.channel_id')
             ->leftJoin('promo_items', 'promo_items.position_id', '=', 'promo_positions.id')
             ->where('promo_positions.site_id', $currentSite->id)
             ->when($keyword !== '', function ($query) use ($keyword): void {
@@ -40,30 +37,22 @@ class PromoController extends Controller
                         ->orWhere('promo_positions.code', 'like', '%'.$keyword.'%');
                 });
             })
-            ->when($pageScope !== '', fn ($query) => $query->where('promo_positions.page_scope', $pageScope))
             ->when($displayMode !== '', fn ($query) => $query->where('promo_positions.display_mode', $displayMode))
             ->when($status !== '', fn ($query) => $query->where('promo_positions.status', (int) $status))
             ->groupBy(
                 'promo_positions.id',
                 'promo_positions.site_id',
-                'promo_positions.channel_id',
                 'promo_positions.code',
                 'promo_positions.name',
-                'promo_positions.page_scope',
                 'promo_positions.display_mode',
-                'promo_positions.template_name',
-                'promo_positions.allow_multiple',
-                'promo_positions.max_items',
                 'promo_positions.status',
                 'promo_positions.remark',
                 'promo_positions.created_at',
-                'promo_positions.updated_at',
-                'channels.name'
+                'promo_positions.updated_at'
             )
             ->orderByDesc('promo_positions.id')
             ->paginate(9, [
                 'promo_positions.*',
-                'channels.name as channel_name',
                 DB::raw('COUNT(promo_items.id) as item_count'),
             ])
             ->withQueryString();
@@ -127,10 +116,8 @@ class PromoController extends Controller
             'currentSite' => $currentSite,
             'positions' => $positions,
             'keyword' => $keyword,
-            'selectedPageScope' => $pageScope,
             'selectedDisplayMode' => $displayMode,
             'selectedStatus' => $status,
-            'pageScopes' => config('cms.promo_page_scopes'),
             'displayModes' => config('cms.promo_display_modes'),
             'promoIndexQuery' => $promoIndexQuery,
         ]);
@@ -148,8 +135,6 @@ class PromoController extends Controller
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
             'position' => $this->emptyPosition(),
-            'channels' => $this->channelOptions($currentSite->id),
-            'pageScopes' => config('cms.promo_page_scopes'),
             'displayModes' => config('cms.promo_display_modes'),
             'isCreate' => true,
             'promoIndexQuery' => $this->promoIndexQuery($request),
@@ -201,8 +186,6 @@ class PromoController extends Controller
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
             'position' => $positionRecord,
-            'channels' => $this->channelOptions($currentSite->id),
-            'pageScopes' => config('cms.promo_page_scopes'),
             'displayModes' => config('cms.promo_display_modes'),
             'isCreate' => false,
             'promoIndexQuery' => $this->promoIndexQuery($request),
@@ -221,8 +204,7 @@ class PromoController extends Controller
         abort_unless($positionRecord, 404);
 
         $validated = $this->validatePosition($request, $currentSite->id, $positionRecord->id);
-        $validated['code'] = (string) $positionRecord->code;
-        $this->ensurePositionItemLimit($positionRecord->id, (int) $validated['max_items']);
+        $this->ensurePositionItemLimit($positionRecord->id, $this->maxItemsForMode((string) $validated['display_mode']));
 
         DB::table('promo_positions')
             ->where('id', $positionRecord->id)
@@ -332,7 +314,6 @@ class PromoController extends Controller
     {
         return collect([
             'keyword' => $request->query('keyword', $request->input('keyword')),
-            'page_scope' => $request->query('page_scope', $request->input('page_scope')),
             'display_mode' => $request->query('display_mode'),
             'status' => $request->query('status', $request->input('status')),
             'page' => $request->query('page', $request->input('page')),
@@ -344,50 +325,31 @@ class PromoController extends Controller
     protected function validatePosition(Request $request, int $siteId, ?int $positionId = null): array
     {
         $displayModes = array_keys(config('cms.promo_display_modes', []));
-        $pageScopes = array_keys(config('cms.promo_page_scopes', []));
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'min:2', 'max:50'],
-            'page_scope' => ['required', Rule::in($pageScopes)],
-            'display_mode' => ['required', Rule::in($displayModes)],
-            'channel_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('channels', 'id')->where(fn ($query) => $query->where('site_id', $siteId)),
+            'code' => [
+                'required',
+                'string',
+                'min:2',
+                'max:80',
+                'regex:/^[a-z][a-z0-9_\\-]*$/',
+                Rule::unique('promo_positions', 'code')
+                    ->where(fn ($query) => $query->where('site_id', $siteId))
+                    ->ignore($positionId),
             ],
-            'template_name' => ['nullable', 'string', 'max:50'],
-            'max_items' => ['required', 'integer', 'min:1', 'max:20'],
+            'display_mode' => ['required', Rule::in($displayModes)],
             'status' => ['required', Rule::in(['0', '1', 0, 1])],
             'remark' => ['nullable', 'string', 'max:1000'],
         ], [], [
             'name' => '图宣位名称',
-            'page_scope' => '页面范围',
+            'code' => '图宣位编码',
             'display_mode' => '展示模式',
-            'channel_id' => '所属栏目',
-            'template_name' => '模板名称',
-            'max_items' => '最大图宣数',
             'status' => '状态',
             'remark' => '备注',
         ]);
 
         $validated = $validator->validate();
-        $validated['code'] = $positionId === null
-            ? $this->generateUniquePositionCode(
-                $siteId,
-                (string) $validated['page_scope'],
-                (string) $validated['display_mode'],
-                (string) $validated['name'],
-                null
-            )
-            : null;
-
-        $validated['max_items'] = match ($validated['display_mode']) {
-            'single' => 1,
-            'floating' => min((int) $validated['max_items'], 2),
-            'carousel' => min((int) $validated['max_items'], 10),
-            default => (int) $validated['max_items'],
-        };
-
-        $validated['allow_multiple'] = $validated['max_items'] > 1;
+        $validated['code'] = trim((string) $validated['code']);
 
         return $validated;
     }
@@ -403,7 +365,7 @@ class PromoController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'max_items' => "当前图宣位下已有 {$itemCount} 条图宣内容，不能将最大图宣数保存为 {$maxItems}。请先删除多余图宣内容后再保存。",
+            'display_mode' => "当前图宣位下已有 {$itemCount} 条图宣内容，不能切换为最多 {$maxItems} 条的类型。请先删除多余图宣内容后再保存。",
         ]);
     }
 
@@ -432,23 +394,9 @@ class PromoController extends Controller
     {
         $payload = [
             'site_id' => $siteId,
-            'channel_id' => $validated['channel_id'] ?: null,
             'code' => trim((string) $validated['code']),
             'name' => trim((string) $validated['name']),
-            'page_scope' => (string) $validated['page_scope'],
             'display_mode' => (string) $validated['display_mode'],
-            'template_name' => $validated['template_name'] !== null && trim((string) $validated['template_name']) !== ''
-                ? trim((string) $validated['template_name'])
-                : null,
-            'scope_hash' => $this->buildScopeHash(
-                (string) $validated['page_scope'],
-                $validated['channel_id'] ?: null,
-                $validated['template_name'] !== null && trim((string) $validated['template_name']) !== ''
-                    ? trim((string) $validated['template_name'])
-                    : null
-            ),
-            'allow_multiple' => (bool) $validated['allow_multiple'],
-            'max_items' => (int) $validated['max_items'],
             'status' => (int) $validated['status'],
             'remark' => $validated['remark'] !== null && trim((string) $validated['remark']) !== ''
                 ? trim((string) $validated['remark'])
@@ -469,86 +417,10 @@ class PromoController extends Controller
             'id' => null,
             'name' => '',
             'code' => '',
-            'page_scope' => 'global',
             'display_mode' => 'single',
-            'channel_id' => null,
-            'template_name' => '',
-            'max_items' => 1,
             'status' => 1,
             'remark' => '',
         ];
-    }
-
-    protected function buildScopeHash(string $pageScope, ?int $channelId = null, ?string $templateName = null): string
-    {
-        return sha1(sprintf(
-            '%s|%s|%s',
-            trim($pageScope) !== '' ? trim($pageScope) : 'global',
-            $channelId !== null ? (string) $channelId : 'site',
-            $templateName !== null && trim($templateName) !== '' ? trim($templateName) : 'default'
-        ));
-    }
-
-    protected function generatePositionCode(string $pageScope, string $displayMode): string
-    {
-        $scope = trim($pageScope) !== '' ? trim($pageScope) : 'global';
-        $mode = trim($displayMode) !== '' ? trim($displayMode) : 'single';
-
-        return match ($mode) {
-            'carousel' => $scope.'.carousel',
-            'floating' => $scope.'.floating',
-            default => $scope.'.hero',
-        };
-    }
-
-    protected function generateUniquePositionCode(
-        int $siteId,
-        string $pageScope,
-        string $displayMode,
-        string $name,
-        ?int $positionId = null
-    ): string {
-        $baseCode = $this->generatePositionCode($pageScope, $displayMode);
-        $nameToken = $this->buildPositionNameToken($name);
-        $candidate = $nameToken !== '' ? $baseCode.'.'.$nameToken : $baseCode.'.slot';
-
-        if (! $this->positionCodeExists($siteId, $candidate, $positionId)) {
-            return $candidate;
-        }
-
-        $suffix = 2;
-
-        while ($this->positionCodeExists($siteId, $candidate.'_'.$suffix, $positionId)) {
-            $suffix++;
-        }
-
-        return $candidate.'_'.$suffix;
-    }
-
-    protected function buildPositionNameToken(string $name): string
-    {
-        $trimmedName = trim($name);
-
-        if ($trimmedName === '') {
-            return 'slot';
-        }
-
-        $asciiSlug = Str::slug($trimmedName, '_');
-
-        if ($asciiSlug !== '') {
-            return Str::limit($asciiSlug, 24, '');
-        }
-
-        return 'slot_'.substr(sha1($trimmedName), 0, 8);
-    }
-
-    protected function positionCodeExists(int $siteId, string $code, ?int $positionId = null): bool
-    {
-        return DB::table('promo_positions')
-            ->where('site_id', $siteId)
-            ->where('code', $code)
-            ->when($positionId !== null, fn ($query) => $query->where('id', '!=', $positionId))
-            ->exists();
     }
 
     protected function findPosition(int $siteId, int $positionId): ?object
@@ -580,39 +452,8 @@ class PromoController extends Controller
         return $url.(str_contains($url, '?') ? '&' : '?').'v='.$cacheVersion;
     }
 
-    protected function channelOptions(int $siteId)
+    protected function maxItemsForMode(string $displayMode): int
     {
-        $channels = DB::table('channels')
-            ->where('site_id', $siteId)
-            ->orderBy('sort')
-            ->orderBy('id')
-            ->get(['id', 'name', 'parent_id']);
-
-        $childrenByParent = $channels->groupBy(fn (object $channel): int => (int) ($channel->parent_id ?? 0));
-
-        $walk = function (int $parentId, int $depth = 0, array $ancestorLines = []) use (&$walk, $childrenByParent): array {
-            $items = $childrenByParent->get($parentId, collect())->values();
-            $flattened = [];
-
-            foreach ($items as $index => $channel) {
-                $isLast = $index === $items->count() - 1;
-                $channel->tree_depth = $depth;
-                $channel->tree_is_last = $isLast;
-                $channel->tree_ancestors = $ancestorLines;
-                $channel->tree_has_children = $childrenByParent->has((int) $channel->id);
-                $flattened[] = $channel;
-
-                $nextAncestorLines = $ancestorLines;
-                $nextAncestorLines[] = ! $isLast;
-
-                foreach ($walk((int) $channel->id, $depth + 1, $nextAncestorLines) as $child) {
-                    $flattened[] = $child;
-                }
-            }
-
-            return $flattened;
-        };
-
-        return collect($walk(0));
+        return $displayMode === 'multi' ? 20 : 1;
     }
 }

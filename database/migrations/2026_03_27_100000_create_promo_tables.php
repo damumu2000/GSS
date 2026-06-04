@@ -14,23 +14,15 @@ return new class extends Migration
         Schema::create('promo_positions', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('site_id')->constrained('sites')->cascadeOnDelete();
-            $table->foreignId('channel_id')->nullable()->constrained('channels')->nullOnDelete();
             $table->string('code', 80);
             $table->string('name', 50);
-            $table->string('page_scope', 20)->default('global');
             $table->string('display_mode', 20)->default('single');
-            $table->string('template_name', 50)->nullable();
-            $table->string('scope_hash', 64);
-            $table->boolean('allow_multiple')->default(false);
-            $table->unsignedSmallInteger('max_items')->default(1);
             $table->unsignedTinyInteger('status')->default(1);
             $table->text('remark')->nullable();
             $table->timestamps();
 
-            $table->unique(['site_id', 'code', 'scope_hash'], 'promo_positions_site_code_scope_unique');
-            $table->index(['site_id', 'code', 'page_scope'], 'promo_positions_site_code_scope_lookup_index');
+            $table->unique(['site_id', 'code'], 'promo_positions_site_code_unique');
             $table->index(['site_id', 'status'], 'promo_positions_site_status_index');
-            $table->index(['site_id', 'page_scope', 'status'], 'promo_positions_site_scope_status_index');
         });
 
         Schema::create('promo_items', function (Blueprint $table): void {

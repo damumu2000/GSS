@@ -13961,15 +13961,9 @@ XML);
 
         $positionId = (int) DB::table('promo_positions')->insertGetId([
             'site_id' => $siteId,
-            'channel_id' => null,
             'code' => 'promo-guard-position',
             'name' => '图宣附件权限测试位',
-            'page_scope' => 'global',
-            'display_mode' => 'single',
-            'template_name' => null,
-            'scope_hash' => sha1('global|site|default'),
-            'allow_multiple' => 1,
-            'max_items' => 3,
+            'display_mode' => 'multi',
             'status' => 1,
             'remark' => null,
             'created_at' => now(),
@@ -14042,15 +14036,9 @@ XML);
 
         $positionId = (int) DB::table('promo_positions')->insertGetId([
             'site_id' => $siteId,
-            'channel_id' => null,
             'code' => 'promo-link-guard-position',
             'name' => '图宣跳转地址测试位',
-            'page_scope' => 'global',
             'display_mode' => 'single',
-            'template_name' => null,
-            'scope_hash' => sha1('global|promo-link-guard-position|single'),
-            'allow_multiple' => 1,
-            'max_items' => 3,
             'status' => 1,
             'remark' => null,
             'created_at' => now(),

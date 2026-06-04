@@ -14,7 +14,7 @@
         <div class="page-header">
             <div>
                 <h1 class="page-header-title">图宣管理</h1>
-                <div class="page-header-desc">统一管理模板中的横幅图、轮播图和漂浮图位点，并通过统一的资源库与引用关系维护前台调用。</div>
+                <div class="page-header-desc">统一管理单图、多图和漂浮图，模板按编码调用即可。</div>
             </div>
             <div class="promo-header-actions">
                 <a class="button" href="{{ route('admin.promos.create', $promoIndexQuery ?? []) }}">新建图宣位</a>
@@ -26,19 +26,6 @@
                 <div>
                     <label for="keyword">关键词</label>
                     <input id="keyword" class="field" type="text" name="keyword" value="{{ $keyword }}" placeholder="搜索图宣位名称">
-                </div>
-                <div>
-                    <label for="page_scope">页面范围</label>
-                    <div class="site-select" data-site-select>
-                        <select id="page_scope" class="field site-select-native" name="page_scope">
-                            <option value="">全部范围</option>
-                            @foreach ($pageScopes as $scopeCode => $scopeLabel)
-                                <option value="{{ $scopeCode }}" @selected($selectedPageScope === $scopeCode)>{{ $scopeLabel }}</option>
-                            @endforeach
-                        </select>
-                        <button class="site-select-trigger" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">{{ $pageScopes[$selectedPageScope] ?? '全部范围' }}</button>
-                        <div class="site-select-panel" data-select-panel role="listbox"></div>
-                    </div>
                 </div>
                 <div>
                     <label for="display_mode">展示模式</label>
@@ -82,7 +69,7 @@
                             <div class="promo-card-top">
                                 <div>
                                     <div class="promo-card-title">{{ $position->name }}</div>
-                                    <div class="promo-card-subtitle">{{ $position->channel_name ?: '站点默认' }} · {{ $pageScopes[$position->page_scope] ?? $position->page_scope }}</div>
+                                    <div class="promo-card-subtitle">编码：{{ $position->code }}</div>
                                 </div>
                                 <form method="POST" action="{{ route('admin.promos.toggle', ['position' => $position->id] + ($promoIndexQuery ?? [])) }}">
                                     @csrf
@@ -123,10 +110,7 @@
 
                             <div class="promo-meta">
                                 <span class="badge-soft">{{ $displayModes[$position->display_mode] ?? $position->display_mode }}</span>
-                                <span class="badge-soft muted">最多 {{ (int) $position->max_items }} 项</span>
-                                @if (!empty($position->template_name))
-                                    <span class="badge-soft muted">模板：{{ $position->template_name }}</span>
-                                @endif
+                                <span class="badge-soft muted">{{ $position->display_mode === 'multi' ? '最多 20 项' : '最多 1 项' }}</span>
                             </div>
 
                             <div class="promo-card-stats">
@@ -162,8 +146,7 @@
                                     data-promo-call-code="{{ $position->code }}"
                                     data-promo-call-mode="{{ $position->display_mode }}"
                                     data-promo-call-mode-label="{{ $displayModes[$position->display_mode] ?? $position->display_mode }}"
-                                    data-promo-call-scope-label="{{ $pageScopes[$position->page_scope] ?? $position->page_scope }}"
-                                    data-promo-call-limit="{{ (int) $position->max_items }}"
+                                    data-promo-call-limit="{{ $position->display_mode === 'multi' ? 20 : 1 }}"
                                 >
                                     调用
                                 </button>

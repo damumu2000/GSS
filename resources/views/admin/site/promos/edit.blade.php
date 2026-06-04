@@ -14,7 +14,7 @@
         <div class="page-header">
             <div>
                 <h1 class="page-header-title">{{ $isCreate ? '新建图宣位' : '编辑图宣位' }}</h1>
-                <div class="page-header-desc">先定义模板中的图宣调用位点，后续图宣内容、资源库选图和漂浮图参数会继续叠加到这里。</div>
+                <div class="page-header-desc">定义模板调用用的图宣位，后续在内容管理里上传图片和设置链接。</div>
             </div>
             <div class="promo-header-actions">
                 @if (!$isCreate && $position->id)
@@ -34,16 +34,9 @@
                         <input id="name" class="field @error('name') is-error @enderror" type="text" name="name" value="{{ old('name', $position->name) }}" placeholder="例如：首页主视觉">
                     </div>
                     <div>
-                        <label for="page_scope">页面范围</label>
-                        <div class="site-select" data-site-select>
-                            <select id="page_scope" class="field site-select-native" name="page_scope" @error('page_scope') aria-invalid="true" @enderror>
-                                @foreach ($pageScopes as $scopeCode => $scopeLabel)
-                                    <option value="{{ $scopeCode }}" @selected(old('page_scope', $position->page_scope) === $scopeCode)>{{ $scopeLabel }}</option>
-                                @endforeach
-                            </select>
-                            <button class="site-select-trigger @error('page_scope') is-error @enderror" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">{{ $pageScopes[old('page_scope', $position->page_scope)] ?? old('page_scope', $position->page_scope) }}</button>
-                            <div class="site-select-panel" data-select-panel role="listbox"></div>
-                        </div>
+                        <label for="code">图宣位编码</label>
+                        <input id="code" class="field @error('code') is-error @enderror" type="text" name="code" value="{{ old('code', $position->code) }}" placeholder="例如：home_banner">
+                        <div class="promo-mode-note">模板调用使用这个编码。只支持小写字母、数字、中横线和下划线。</div>
                     </div>
                     <div>
                         <label for="display_mode">展示模式</label>
@@ -58,34 +51,6 @@
                         </div>
                     </div>
                     <div>
-                        <label for="channel_id">所属栏目</label>
-                        <div class="site-select channel-parent-select" data-site-select>
-                            <select id="channel_id" class="field site-select-native" name="channel_id" @error('channel_id') aria-invalid="true" @enderror>
-                                <option value="" data-depth="0">站点默认</option>
-                                @foreach ($channels as $channel)
-                                    <option
-                                        value="{{ $channel->id }}"
-                                        data-depth="{{ (int) ($channel->tree_depth ?? 0) }}"
-                                        data-has-children="{{ !empty($channel->tree_has_children) ? '1' : '0' }}"
-                                        @selected((string) old('channel_id', $position->channel_id) === (string) $channel->id)
-                                    >{{ $channel->name }}</option>
-                                @endforeach
-                            </select>
-                            <button class="site-select-trigger @error('channel_id') is-error @enderror" type="button" data-select-trigger aria-haspopup="listbox" aria-expanded="false">{{ collect($channels)->firstWhere('id', (int) old('channel_id', $position->channel_id))?->name ?? '站点默认' }}</button>
-                            <div class="site-select-panel" data-select-panel role="listbox"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <label for="template_name">模板名称</label>
-                        <input id="template_name" class="field @error('template_name') is-error @enderror" type="text" name="template_name" value="{{ old('template_name', $position->template_name) }}" placeholder="填入模板文件名即可，例如：home">
-                        <div class="promo-mode-note">留空时使用站点默认位，填写后在对应模板页面生效。</div>
-                    </div>
-                    <div>
-                        <label for="max_items">最大图宣数</label>
-                        <input id="max_items" class="field @error('max_items') is-error @enderror" type="number" min="1" max="20" name="max_items" value="{{ old('max_items', $position->max_items ?: 1) }}">
-                        <div class="promo-mode-note" data-promo-max-items-note>单图模式固定为 1，轮播和漂浮图可按需要调整。</div>
-                    </div>
-                    <div>
                         <label for="status">状态</label>
                         <div class="site-select" data-site-select>
                             <select id="status" class="field site-select-native" name="status" @error('status') aria-invalid="true" @enderror>
@@ -98,7 +63,7 @@
                     </div>
                     <div class="field-span-2">
                         <label for="remark">备注</label>
-                        <textarea id="remark" class="field textarea @error('remark') is-error @enderror" name="remark" placeholder="记录位点用途、推荐尺寸、适用页面说明等。">{{ old('remark', $position->remark) }}</textarea>
+                        <textarea id="remark" class="field textarea @error('remark') is-error @enderror" name="remark" placeholder="记录用途、推荐尺寸等内部说明。">{{ old('remark', $position->remark) }}</textarea>
                     </div>
                 </div>
 
@@ -112,7 +77,7 @@
             <aside class="promo-preview-card">
                 <div>
                     <h3 class="promo-preview-title">位点预览</h3>
-                    <div class="promo-preview-subtitle">根据页面范围和展示模式，实时给出位点建议和视觉示意。</div>
+                    <div class="promo-preview-subtitle">根据展示模式，给出位点建议和视觉示意。</div>
                 </div>
 
                 <div class="promo-preview-shell" data-promo-preview-shell data-mode="{{ old('display_mode', $position->display_mode) }}">

@@ -699,11 +699,78 @@ class ThemeTags
         return $this->promos(array_merge($options, ['code' => $code, 'limit' => 1]))->first();
     }
 
+    public function promoFloating(string $code): HtmlString
+    {
+        $items = $this->promos([
+            'code' => $code,
+            'limit' => 1,
+            'fields' => 'id,image_url,image_alt,title,link_url,link_target,display',
+        ]);
+
+        if ($items->isEmpty()) {
+            return new HtmlString('');
+        }
+
+        $html = $items
+            ->map(function (array $item): string {
+                $display = is_array($item['display'] ?? null) ? $item['display'] : [];
+                $classes = [
+                    'promo-floating',
+                    'promo-floating--'.($display['position'] ?? 'right-bottom'),
+                    'promo-floating--'.($display['animation'] ?? 'float'),
+                ];
+
+                if (($display['show_on'] ?? 'all') === 'pc') {
+                    $classes[] = 'promo-floating--pc-only';
+                } elseif (($display['show_on'] ?? 'all') === 'mobile') {
+                    $classes[] = 'promo-floating--mobile-only';
+                }
+
+                $attributes = [
+                    'class' => implode(' ', $classes),
+                    'data-floating-offset-x' => (string) ($display['offset_x_token'] ?? 24),
+                    'data-floating-offset-y' => (string) ($display['offset_y_token'] ?? 24),
+                    'data-floating-width' => (string) ($display['width_token'] ?? 180),
+                    'data-floating-z' => (string) ($display['z_index_token'] ?? 120),
+                ];
+
+                if (! empty($display['height_token'])) {
+                    $attributes['data-floating-height'] = (string) $display['height_token'];
+                }
+
+                if (! empty($display['remember_close'])) {
+                    $attributes['data-floating-key'] = (string) ($display['close_storage_key'] ?? '');
+                    $attributes['data-floating-expire'] = (string) ($display['close_expire_hours'] ?? 24);
+                }
+
+                $href = trim((string) ($item['link_url'] ?? ''));
+                $href = $href !== '' ? $href : '#';
+                $target = (string) ($item['link_target'] ?? '_self');
+                $alt = trim((string) ($item['image_alt'] ?? $item['title'] ?? ''));
+
+                $html = '<div'.$this->htmlAttributes($attributes).'>';
+                $html .= '<a class="promo-floating-link" href="'.e($href).'" target="'.e($target).'"'.($target === '_blank' ? ' rel="noopener"' : '').'>';
+                $html .= '<img src="'.e((string) ($item['image_url'] ?? '')).'" alt="'.e($alt).'">';
+                $html .= '</a>';
+
+                if (! array_key_exists('closable', $display) || (bool) $display['closable']) {
+                    $html .= '<button class="promo-floating-close" type="button" aria-label="关闭漂浮图" data-floating-close>×</button>';
+                }
+
+                $html .= '</div>';
+
+                return $html;
+            })
+            ->implode("\n");
+
+        return new HtmlString($html);
+    }
+
     public function promos(array $options = []): Collection
     {
         $resolved = $this->resolvePromoOptions($options);
 
-        if (($resolved['code'] ?? '') === '' && ($resolved['display_mode'] ?? '') === '' && ($resolved['page_scope'] ?? '') === '') {
+        if (($resolved['code'] ?? '') === '') {
             return collect();
         }
 
@@ -725,58 +792,12 @@ class ThemeTags
                     ->orWhere('promo_items.end_at', '>=', $now);
             });
 
-        if ($resolved['code'] !== '') {
-            $resolvedPositionId = $this->resolveBestPromoPositionId($resolved);
-
-            if ($resolvedPositionId === null) {
-                return collect();
-            }
-
-            $query->where('promo_positions.id', $resolvedPositionId);
-        }
-
-        if ($resolved['page_scope'] !== '') {
-            $query->where('promo_positions.page_scope', $resolved['page_scope']);
-        }
-
-        if ($resolved['display_mode'] !== '') {
-            $query->where('promo_positions.display_mode', $resolved['display_mode']);
-        }
-
-        if ($resolved['channel_id'] !== null) {
-            $query->where(function ($channelQuery) use ($resolved): void {
-                $channelQuery->whereNull('promo_positions.channel_id')
-                    ->orWhere('promo_positions.channel_id', $resolved['channel_id']);
-            });
-        } else {
-            $query->whereNull('promo_positions.channel_id');
-        }
-
-        if ($resolved['template_name'] !== null && $resolved['template_name'] !== '') {
-            $query->where(function ($templateQuery) use ($resolved): void {
-                $templateQuery->whereNull('promo_positions.template_name')
-                    ->orWhere('promo_positions.template_name', $resolved['template_name']);
-            });
-        } else {
-            $query->whereNull('promo_positions.template_name');
-        }
+        $query->where('promo_positions.code', $resolved['code']);
 
         if (! empty($options['random'])) {
             $query->inRandomOrder();
         } else {
             $query = $query
-                ->when($resolved['channel_id'] !== null, function ($scopedQuery) use ($resolved): void {
-                    $scopedQuery->orderByRaw(
-                        'CASE WHEN promo_positions.channel_id = ? THEN 1 ELSE 0 END DESC',
-                        [(int) $resolved['channel_id']]
-                    );
-                })
-                ->when($resolved['template_name'] !== null && $resolved['template_name'] !== '', function ($scopedQuery) use ($resolved): void {
-                    $scopedQuery->orderByRaw(
-                        'CASE WHEN promo_positions.template_name = ? THEN 1 ELSE 0 END DESC',
-                        [(string) $resolved['template_name']]
-                    );
-                })
                 ->orderBy('promo_items.sort')
                 ->orderByDesc('promo_items.id');
         }
@@ -787,12 +808,7 @@ class ThemeTags
                 'promo_positions.id as position_id',
                 'promo_positions.code as position_code',
                 'promo_positions.name as position_name',
-                'promo_positions.page_scope',
                 'promo_positions.display_mode',
-                'promo_positions.channel_id',
-                'promo_positions.template_name',
-                'promo_positions.allow_multiple',
-                'promo_positions.max_items',
                 'promo_items.id',
                 'promo_items.attachment_id',
                 'promo_items.title',
@@ -832,60 +848,6 @@ class ThemeTags
                 return $payload;
             })
             ->values();
-    }
-
-    protected function resolveBestPromoPositionId(array $resolved): ?int
-    {
-        $query = DB::table('promo_positions')
-            ->where('site_id', $this->site->id)
-            ->where('status', 1)
-            ->where('code', (string) $resolved['code']);
-
-        if (($resolved['page_scope'] ?? '') !== '') {
-            $query->where('page_scope', (string) $resolved['page_scope']);
-        }
-
-        if (($resolved['display_mode'] ?? '') !== '') {
-            $query->where('display_mode', (string) $resolved['display_mode']);
-        }
-
-        if (($resolved['channel_id'] ?? null) !== null) {
-            $query->where(function ($channelQuery) use ($resolved): void {
-                $channelQuery->whereNull('channel_id')
-                    ->orWhere('channel_id', (int) $resolved['channel_id']);
-            });
-        } else {
-            $query->whereNull('channel_id');
-        }
-
-        if (($resolved['template_name'] ?? null) !== null && $resolved['template_name'] !== '') {
-            $query->where(function ($templateQuery) use ($resolved): void {
-                $templateQuery->whereNull('template_name')
-                    ->orWhere('template_name', (string) $resolved['template_name']);
-            });
-        } else {
-            $query->whereNull('template_name');
-        }
-
-        $query
-            ->when(($resolved['channel_id'] ?? null) !== null, function ($scopedQuery) use ($resolved): void {
-                $scopedQuery->orderByRaw(
-                    'CASE WHEN channel_id = ? THEN 1 ELSE 0 END DESC',
-                    [(int) $resolved['channel_id']]
-                );
-            })
-            ->when(($resolved['template_name'] ?? null) !== null && $resolved['template_name'] !== '', function ($scopedQuery) use ($resolved): void {
-                $scopedQuery->orderByRaw(
-                    'CASE WHEN template_name = ? THEN 1 ELSE 0 END DESC',
-                    [(string) $resolved['template_name']]
-                );
-            })
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id');
-
-        $positionId = $query->value('id');
-
-        return $positionId !== null ? (int) $positionId : null;
     }
 
     public function contentList(array $options = []): Collection
@@ -1262,23 +1224,8 @@ class ThemeTags
 
     protected function resolvePromoOptions(array $options): array
     {
-        $channelId = isset($options['channel_id']) && $options['channel_id'] !== ''
-            ? (int) $options['channel_id']
-            : null;
-
-        if ($channelId === null && ! empty($options['channel_slug'])) {
-            $channel = $this->siteChannelsBySlug()->get((string) $options['channel_slug']);
-            $channelId = $channel ? (int) $channel->id : null;
-        }
-
         return [
             'code' => trim((string) ($options['code'] ?? '')),
-            'page_scope' => trim((string) ($options['page_scope'] ?? $this->currentPageScope ?? '')),
-            'display_mode' => trim((string) ($options['display_mode'] ?? '')),
-            'template_name' => array_key_exists('template_name', $options)
-                ? (trim((string) $options['template_name']) ?: null)
-                : $this->currentTemplateName,
-            'channel_id' => $channelId ?? $this->currentChannelId,
             'limit' => max(1, (int) ($options['limit'] ?? 10)),
         ];
     }
@@ -1292,10 +1239,7 @@ class ThemeTags
             'position_id' => (int) $promo->position_id,
             'position_code' => (string) $promo->position_code,
             'position_name' => (string) $promo->position_name,
-            'page_scope' => (string) $promo->page_scope,
             'display_mode' => (string) $promo->display_mode,
-            'channel_id' => $promo->channel_id !== null ? (int) $promo->channel_id : null,
-            'template_name' => $promo->template_name ?: null,
             'attachment_id' => (int) $promo->attachment_id,
             'image_url' => trim((string) ($promo->attachment_path ?? '')) !== ''
                 ? Site::urlForStoredPath((string) $promo->attachment_path)
@@ -1380,6 +1324,25 @@ class ThemeTags
         }
 
         return $closest;
+    }
+
+    /**
+     * @param  array<string, string>  $attributes
+     */
+    protected function htmlAttributes(array $attributes): string
+    {
+        $html = '';
+
+        foreach ($attributes as $name => $value) {
+            $name = trim((string) $name);
+            if ($name === '' || ! preg_match('/^[A-Za-z_:][A-Za-z0-9_:\\-\\.]*$/', $name)) {
+                continue;
+            }
+
+            $html .= ' '.$name.'="'.e($value).'"';
+        }
+
+        return $html;
     }
 
     /**

@@ -197,17 +197,9 @@ return [
         ],
     ],
 
-    'promo_page_scopes' => [
-        'global' => '全站通用',
-        'home' => '首页',
-        'channel' => '栏目页',
-        'detail' => '详情页',
-        'page' => '单页面',
-    ],
-
     'promo_display_modes' => [
         'single' => '单图',
-        'carousel' => '轮播',
+        'multi' => '多图',
         'floating' => '漂浮图',
     ],
 

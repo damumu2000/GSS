@@ -1332,7 +1332,7 @@
                         <h2>图宣参数</h2>
                         <span class="section-kicker">轮播、横幅、视觉位</span>
                     </div>
-                    <p>适合首页轮播、悬浮图、横幅区和模板专属视觉位。</p>
+                    <p>适合首页轮播、悬浮图和横幅区。图宣只按后台配置的编码调用。</p>
 
                     <div class="table-wrap">
                         <table>
@@ -1346,53 +1346,33 @@
                             <tbody>
                                 <tr>
                                     <td class="mono">promo</td>
-                                    <td>取单条图宣，可直接写 <code>code</code>。</td>
-                                    <td><code>{% set banner = promo(code='home_banner')%}</code></td>
+                                    <td>取单条图宣。</td>
+                                    <td><code>{% set banner = promo('home_banner')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">promos</td>
                                     <td>取多条图宣。</td>
-                                    <td><code>{% set banners = promos(code='home_banner', limit=5)%}</code></td>
+                                    <td><code>{% set banners = promos('home_banner', limit=5)%}</code></td>
                                 </tr>
                                 <tr>
-                                    <td class="mono">promo / promos 直接写 code</td>
-                                    <td>图宣位编码是最常用的入口，也可以直接把编码作为首个值传入。</td>
-                                    <td><code>{% set banner = promo(code='home_banner') %}</code></td>
+                                    <td class="mono">promoFloating</td>
+                                    <td>输出漂浮图 HTML。需要漂浮图的模板手动引入 <code>/css/promo-snippets.css</code> 和 <code>/js/promo-snippets.js</code>。</td>
+                                    <td><code>{{ promoFloating('float_notice') }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">code</td>
-                                    <td>图宣位编码，最常用。</td>
-                                    <td><code>{% set banners = promos(code='home_banner')%}</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">display_mode</td>
-                                    <td>按展示模式筛选。</td>
-                                    <td><code>{% set floats = promos(display_mode='floating', limit=2)%}</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">page_scope</td>
-                                    <td>按页面作用域筛选。</td>
-                                    <td><code>{% set list = promos(page_scope='home')%}</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">channel_id / channel_slug</td>
-                                    <td>按栏目范围筛选。</td>
-                                    <td><code>{% set list = promos(channel_slug=current.channel.slug)%}</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="mono">template_name</td>
-                                    <td>按模板名筛选。</td>
-                                    <td><code>{% set list = promos(template_name=current.page.template_name)%}</code></td>
+                                    <td>图宣位编码，必填。</td>
+                                    <td><code>{% set banners = promos('home_banner')%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">random</td>
                                     <td>随机返回图宣顺序。</td>
-                                    <td><code>{% set randomPromos = promos(code='home_banner', random=true, limit=2)%}</code></td>
+                                    <td><code>{% set randomPromos = promos('home_banner', random=true, limit=2)%}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="mono">fields</td>
                                     <td>只返回指定字段，系统会保留 <code>id</code>。</td>
-                                    <td><code>{% set litePromos = promos(code='home_banner', fields='title,image_url,link_url', limit=3)%}</code></td>
+                                    <td><code>{% set litePromos = promos('home_banner', fields='title,image_url,link_url', limit=3)%}</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1927,7 +1907,7 @@
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
-<pre>{% set banners = promos(code='home_banner', limit=5)%} <span class="code-comment">{# 从图宣位 home_banner 读取最多 5 条素材，通常用于首页轮播 #}</span>
+<pre>{% set banners = promos('home_banner', limit=5)%} <span class="code-comment">{# 从图宣位 home_banner 读取最多 5 条素材，通常用于首页轮播 #}</span>
 {% for item in banners %} <span class="code-comment">{# 逐条渲染轮播项，item 代表当前这张轮播图的数据 #}</span>
     &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt; <span class="code-comment">&lt;!-- 轮播图外层可点击区域：点击后按配置跳转到目标地址 --&gt;</span>
         &lt;img src="{{ item.image_url }}" alt="{{ item.title }}"&gt; <span class="code-comment">&lt;!-- 轮播图片本体：image_url 是图片地址，title 作为无障碍说明文字 --&gt;</span>
@@ -1939,21 +1919,20 @@
 
                     <div class="example-card">
                         <div class="example-head">
-                            <strong>范例 7：单条图宣和模板范围图宣</strong>
-                            <span>第一段直接用 <code>promo(code='home_banner')</code> 取一条图宣，适合页面主视觉。第二段用了 <code>page_scope</code>、<code>template_name</code>、<code>random</code> 和 <code>limit</code>，会根据当前页面模板取一组更贴近当前场景的图宣，适合模板专属广告位或活动位。</span>
+                            <strong>范例 7：单条图宣和漂浮图</strong>
+                            <span>单图直接用 <code>promo('home_banner')</code>；漂浮图在需要的模板中引入图宣 CSS/JS，再输出 <code>promoFloating('float_notice')</code>。</span>
                         </div>
                         <div class="example-grid example-grid-single">
                             <div class="example-code">
-<pre>{% set banner = promo(code='home_banner') %} <span class="code-comment">{# 读取单条主视觉图宣，适合页面顶部“只展示 1 条”的场景 #}</span>
+<pre>{% set banner = promo('home_banner') %} <span class="code-comment">{# 读取单条主视觉图宣，适合页面顶部“只展示 1 条”的场景 #}</span>
 {% if banner %} <span class="code-comment">{# 只有拿到有效数据才输出，避免空数据时页面出现空白图片或坏链接 #}</span>
     &lt;a href="{{ banner.link_url }}" target="{{ banner.link_target }}"&gt; <span class="code-comment">&lt;!-- 单条图宣点击区域：用于跳转活动页、专题页或外部地址 --&gt;</span>
         &lt;img src="{{ banner.image_url }}" alt="{{ banner.title }}"&gt; <span class="code-comment">&lt;!-- 单条图宣图片：显示视觉素材，alt 提供辅助说明 --&gt;</span>
     &lt;/a&gt; <span class="code-comment">&lt;!-- 单条图宣渲染结束 --&gt;</span>
 {% endif %} <span class="code-comment">{# 条件判断结束：无数据时整段不会输出任何 HTML #}</span>
-{% set scopedPromos = promos(page_scope='home', template_name=current.page.template_name, random=true, limit=2)%} <span class="code-comment">{# 再按“页面范围 + 当前模板名”取 2 条更贴合当前页面的图宣素材 #}</span>
-{% for item in scopedPromos %} <span class="code-comment">{# 逐条渲染模板范围内的图宣，作为补充推荐位 #}</span>
-    &lt;a href="{{ item.link_url }}" target="{{ item.link_target }}"&gt;{{ item.title }}&lt;/a&gt; <span class="code-comment">&lt;!-- 文本形式的图宣入口，适合侧栏或轻量推荐区 --&gt;</span>
-{% endfor %} <span class="code-comment">{# 模板范围图宣循环结束 #}</span></pre>
+&lt;link rel="stylesheet" href="/css/promo-snippets.css"&gt; <span class="code-comment">&lt;!-- 只有需要漂浮图的模板才引入 #}</span>
+{{ promoFloating('float_notice') }} <span class="code-comment">{# 输出后台配置好的漂浮图 HTML #}</span>
+&lt;script src="/js/promo-snippets.js" defer&gt;&lt;/script&gt; <span class="code-comment">&lt;!-- 负责关闭按钮、关闭记忆和轮播交互 #}</span></pre>
                             </div>
                         </div>
                     </div>

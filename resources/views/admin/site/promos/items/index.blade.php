@@ -15,7 +15,8 @@
         <div class="page-header">
             <div>
                 <h1 class="page-header-title">{{ $position->name }}</h1>
-                <div class="page-header-desc">模式：{{ $displayModes[$position->display_mode] ?? $position->display_mode }} · 最多 {{ (int) $position->max_items }} 项。当前页支持换图、属性编辑、资源库上传与拖拽排序。</div>
+                @php($promoMaxItems = $position->display_mode === 'multi' ? 20 : 1)
+                <div class="page-header-desc">模式：{{ $displayModes[$position->display_mode] ?? $position->display_mode }} · 最多 {{ $promoMaxItems }} 项。当前页支持换图、属性编辑、资源库上传与拖拽排序。</div>
             </div>
             <div class="promo-header-actions">
                 <a class="button secondary neutral-action" href="{{ route('admin.promos.index', $promoIndexQuery ?? []) }}">返回图宣位</a>
@@ -26,7 +27,7 @@
         <div class="panel promo-item-panel-shell">
             <div class="promo-item-toolbar">
                 <div class="promo-item-toolbar-copy">点击图片可直接更换图宣图，点击编辑可在当前页完成属性修改并保存。</div>
-                <span class="badge" data-item-count-badge>{{ $items->count() }} / {{ (int) $position->max_items }}</span>
+                <span class="badge" data-item-count-badge>{{ $items->count() }} / {{ $promoMaxItems }}</span>
             </div>
 
             <div class="promo-item-empty" data-promo-item-empty @if(!$items->isEmpty()) hidden @endif>
@@ -43,7 +44,7 @@
                 data-toggle-url-template="{{ route('admin.promos.items.toggle', ['position' => $position->id, 'item' => '__ITEM__'] + ($promoIndexQuery ?? [])) }}"
                 data-duplicate-url-template="{{ route('admin.promos.items.duplicate', ['position' => $position->id, 'item' => '__ITEM__'] + ($promoIndexQuery ?? [])) }}"
                 data-destroy-url-template="{{ route('admin.promos.items.destroy', ['position' => $position->id, 'item' => '__ITEM__'] + ($promoIndexQuery ?? [])) }}"
-                data-max-items="{{ (int) $position->max_items }}"
+                data-max-items="{{ $promoMaxItems }}"
                 @if($items->isEmpty()) hidden @endif
             >
                 @foreach ($items as $item)

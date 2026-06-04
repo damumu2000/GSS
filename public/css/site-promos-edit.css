@@ -78,7 +78,7 @@
         }
 
         .promo-preview-shell[data-mode="single"] .promo-preview-single,
-        .promo-preview-shell[data-mode="carousel"] .promo-preview-carousel,
+        .promo-preview-shell[data-mode="multi"] .promo-preview-carousel,
         .promo-preview-shell[data-mode="floating"] .promo-preview-floating {
             display: block;
         }
