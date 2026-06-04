@@ -21,9 +21,11 @@ use App\Support\SystemSettings;
 use App\Support\ThemeTags;
 use Database\Seeders\CmsBootstrapSeeder;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
@@ -234,6 +236,33 @@ class AdminAccessTest extends TestCase
         $this->assertStringContainsString('https://www.bilibili.com', $csp);
     }
 
+    public function test_login_page_bypasses_frontend_security_runtime_blocks(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $siteId,
+            'client_ip' => '127.0.0.1',
+            'ip_hash' => hash('sha256', '127.0.0.1'),
+            'hit_count' => 3,
+            'high_risk_count' => 3,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/login',
+            'status' => 'blocked',
+            'blocked_until' => now()->addHour(),
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('欢迎登录')
+            ->assertDontSee('安护盾拦截');
+    }
+
     public function test_public_directory_does_not_contain_sensitive_scan_targets(): void
     {
         $blockedNames = [
@@ -316,6 +345,194 @@ class AdminAccessTest extends TestCase
         } finally {
             putenv('SECURITY_HEADERS_HSTS_APP');
             unset($_ENV['SECURITY_HEADERS_HSTS_APP'], $_SERVER['SECURITY_HEADERS_HSTS_APP']);
+        }
+    }
+
+    public function test_admin_entry_gate_hides_login_and_admin_until_entry_cookie_is_issued(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'school-console-x7k',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+
+            $this->get('/login')->assertNotFound();
+            $this->get('/login/captcha')->assertNotFound();
+            $this->get('/admin')->assertNotFound();
+            $this->get('/wrong-console-x7k')->assertNotFound();
+
+            $this->get('/school-console-x7k')
+                ->assertRedirect(route('login'));
+
+            $this->get('/login')
+                ->assertOk()
+                ->assertSee('登录');
+
+            $this->get('/login/captcha')
+                ->assertOk()
+                ->assertHeader('Content-Type', 'image/svg+xml; charset=UTF-8');
+
+            $this->get('/admin')
+                ->assertRedirect(route('login'));
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_admin_entry_gate_hides_unbound_domain_login_page(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $this->withServerVariables([
+                'HTTP_HOST' => 'unbound-entry.test',
+            ])->get('/login')
+                ->assertNotFound()
+                ->assertDontSee('域名');
+
+            $this->withServerVariables([
+                'HTTP_HOST' => 'unbound-entry.test',
+            ])->post('/login', [
+                'username' => 'admin',
+                'password' => 'secret',
+            ])->assertNotFound();
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_authenticated_admin_can_open_admin_without_entry_cookie(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $this->actingAs($this->superAdmin())
+                ->get('/admin')
+                ->assertOk();
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_logout_keeps_login_page_available_when_admin_entry_gate_is_enabled(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+            $admin = $this->superAdmin();
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'school-console-x7k',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+
+            $this->actingAs($admin)
+                ->withSession(['current_site_id' => $siteId])
+                ->post(route('logout'))
+                ->assertRedirect(route('login'));
+
+            $this->get('/login')
+                ->assertOk()
+                ->assertSee('登录');
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_login_token_expired_shows_clear_message_after_admin_entry_gate(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'school-console-x7k',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+
+            $this->get('/school-console-x7k')
+                ->assertRedirect(route('login'));
+
+            $request = Request::create('/login', 'POST', [
+                'username' => 'admin',
+            ]);
+            $request->setLaravelSession($this->app['session.store']);
+
+            $response = $this->app->make(ExceptionHandler::class)
+                ->render($request, new TokenMismatchException('CSRF token mismatch.'));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertSame(route('login'), $response->headers->get('Location'));
+            $this->assertSame(
+                '登录令牌已过期，请刷新页面后重试。',
+                $request->session()->get('errors')->getBag('default')->first('username'),
+            );
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_login_token_expired_without_admin_entry_gate_stays_hidden(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $request = Request::create('/login', 'POST', [
+                'username' => 'admin',
+            ]);
+            $request->setLaravelSession($this->app['session.store']);
+
+            $response = $this->app->make(ExceptionHandler::class)
+                ->render($request, new TokenMismatchException('CSRF token mismatch.'));
+
+            $this->assertSame(404, $response->getStatusCode());
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
         }
     }
 
@@ -13302,6 +13519,108 @@ XML);
             ->assertSessionHas('status', '站点设置已更新。');
 
         $this->assertSame('office@example.edu.cn', DB::table('sites')->where('id', $siteId)->value('contact_email'));
+    }
+
+    public function test_site_admin_can_update_admin_entry_path_without_current_password(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('site-setting-entry-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), [
+                'name' => '示例学校',
+                'filing_number' => '',
+                'contact_phone' => '010-12345678',
+                'contact_email' => '',
+                'address' => '示例地址 1 号',
+                'logo' => '',
+                'favicon' => '',
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'article_requires_review' => '0',
+                'article_share_enabled' => '0',
+                'attachment_share_enabled' => '0',
+                'site_frontend_enabled' => '1',
+                'admin_entry_path' => 'school-console-x7k',
+            ])
+            ->assertRedirect(route('admin.settings.index'))
+            ->assertSessionHas('status', '站点设置已更新。');
+
+        $this->assertSame('school-console-x7k', DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.admin_entry_path')
+            ->value('setting_value'));
+    }
+
+    public function test_site_admin_gets_reserved_path_message_for_blocked_admin_entry_path(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('site-setting-entry-reserved-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->from(route('admin.settings.index'))
+            ->post(route('admin.settings.update'), [
+                'name' => '示例学校',
+                'filing_number' => '',
+                'contact_phone' => '010-12345678',
+                'contact_email' => '',
+                'address' => '示例地址 1 号',
+                'logo' => '',
+                'favicon' => '',
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'article_requires_review' => '0',
+                'article_share_enabled' => '0',
+                'attachment_share_enabled' => '0',
+                'site_frontend_enabled' => '1',
+                'admin_entry_path' => 'login',
+            ])
+            ->assertRedirect(route('admin.settings.index'))
+            ->assertSessionHasErrors([
+                'admin_entry_path' => '后台入口路径不能使用系统保留路径或常见扫描路径。',
+            ]);
+    }
+
+    public function test_platform_admin_gets_reserved_path_message_when_domains_are_empty(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->superAdmin();
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($operator)
+            ->from(route('admin.platform.sites.edit', $siteId))
+            ->post(route('admin.platform.sites.update', $siteId), [
+                'name' => '示例学校',
+                'site_key' => 'site',
+                'status' => '1',
+                'domains' => '',
+                'contact_phone' => '010-12345678',
+                'contact_email' => 'school@openai.com',
+                'address' => '示例地址 1 号',
+                'attachment_storage_limit_mb' => 512,
+                'theme_ids' => [],
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'opened_at' => now()->format('Y-m-d'),
+                'expires_at' => '',
+                'remark' => '站点备注',
+                'site_admin_ids' => [],
+                'admin_entry_path' => 'login',
+            ])
+            ->assertRedirect(route('admin.platform.sites.edit', $siteId))
+            ->assertSessionHasErrors([
+                'admin_entry_path' => '后台入口路径不能使用系统保留路径或常见扫描路径。',
+            ]);
     }
 
     public function test_site_admin_cannot_update_site_settings_with_chinese_contact_email(): void

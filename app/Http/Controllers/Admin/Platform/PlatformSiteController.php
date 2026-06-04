@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Support\AdminEntryGate;
 use App\Support\AttachmentUsageTracker;
 use App\Support\LegacyAttachmentStats;
 use App\Support\Modules\ModuleManager;
@@ -12,12 +13,12 @@ use App\Support\ThemeTemplateScaffold;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -28,11 +29,11 @@ use Illuminate\View\View;
 class PlatformSiteController extends Controller
 {
     public function __construct(
-        protected ModuleManager $moduleManager
-    ) {
-    }
+        protected ModuleManager $moduleManager,
+        protected AdminEntryGate $adminEntryGate,
+    ) {}
 
-    protected function groupConcatNamesExpression(string $column, string $alias): \Illuminate\Database\Query\Expression
+    protected function groupConcatNamesExpression(string $column, string $alias): Expression
     {
         $driver = DB::getDriverName();
 
@@ -217,6 +218,7 @@ class PlatformSiteController extends Controller
             ->where('site_id', $siteId)
             ->where('setting_key', 'security.rule_exceptions')
             ->value('setting_value') ?? '');
+        $adminEntryPath = $this->adminEntryGate->entryPathForSite((int) $siteId);
         $legacyAttachmentStats = LegacyAttachmentStats::stats($site);
         $attachmentUsage = [
             'managed_count' => SiteStorageUsage::attachmentCount((int) $siteId),
@@ -273,6 +275,7 @@ class PlatformSiteController extends Controller
             'securityIpBlocklist' => (string) old('security_ip_blocklist', $securityIpBlocklist),
             'securityPathAllowlist' => (string) old('security_path_allowlist', $securityPathAllowlist),
             'securityRuleExceptions' => (string) old('security_rule_exceptions', $securityRuleExceptions),
+            'adminEntryPath' => (string) old('admin_entry_path', $adminEntryPath),
             'attachmentUsage' => $attachmentUsage,
             'selectedSiteAdminIds' => collect(old('site_admin_ids', $selectedSiteAdminIds))->map(fn ($id) => (int) $id)->all(),
         ]);
@@ -348,6 +351,7 @@ class PlatformSiteController extends Controller
                 'security.ip_blocklist' => implode("\n", $this->normalizeSiteSecurityIpList((string) ($validated['security_ip_blocklist'] ?? ''))),
                 'security.path_allowlist' => $this->normalizeSiteSecurityPaths((string) ($validated['security_path_allowlist'] ?? '')),
                 'security.rule_exceptions' => implode("\n", $this->normalizeSiteSecurityRuleExceptions((string) ($validated['security_rule_exceptions'] ?? ''))),
+                $this->adminEntryGate->settingKey() => $this->adminEntryGate->generateEntryPathForSite((int) $siteId),
             ], (int) $request->user()->id);
 
             return (int) $siteId;
@@ -417,6 +421,7 @@ class PlatformSiteController extends Controller
                 'security.ip_blocklist' => implode("\n", $this->normalizeSiteSecurityIpList((string) ($validated['security_ip_blocklist'] ?? ''))),
                 'security.path_allowlist' => $this->normalizeSiteSecurityPaths((string) ($validated['security_path_allowlist'] ?? '')),
                 'security.rule_exceptions' => implode("\n", $this->normalizeSiteSecurityRuleExceptions((string) ($validated['security_rule_exceptions'] ?? ''))),
+                $this->adminEntryGate->settingKey() => $this->adminEntryGate->normalizeEntryPath((string) ($validated['admin_entry_path'] ?? $this->adminEntryGate->entryPathForSite((int) $siteId))),
             ], (int) $request->user()->id);
         });
 
@@ -632,7 +637,7 @@ class PlatformSiteController extends Controller
             return $deletedStats;
         });
 
-        (new AttachmentUsageTracker())->rebuildAll((int) $siteId);
+        (new AttachmentUsageTracker)->rebuildAll((int) $siteId);
 
         $this->logOperation(
             'platform',
@@ -726,6 +731,12 @@ class PlatformSiteController extends Controller
     {
         $request->merge($this->sanitizeSiteInput($request));
 
+        if ($siteId !== null && trim((string) $request->input('admin_entry_path', '')) === '') {
+            $request->merge([
+                'admin_entry_path' => $this->adminEntryGate->entryPathForSite((int) $siteId),
+            ]);
+        }
+
         $siteKeyRule = 'unique:sites,site_key';
         if ($siteId) {
             $siteKeyRule .= ','.$siteId;
@@ -751,6 +762,7 @@ class PlatformSiteController extends Controller
             'security_ip_blocklist' => ['nullable', 'string', 'max:5000'],
             'security_path_allowlist' => ['nullable', 'string', 'max:5000'],
             'security_rule_exceptions' => ['nullable', 'string', 'max:2000'],
+            'admin_entry_path' => [$siteId ? 'required' : 'nullable', 'string', 'max:64'],
             'module_ids' => ['nullable', 'array'],
             'module_ids.*' => ['integer', 'exists:modules,id'],
             'seo_title' => ['nullable', 'string', 'max:255'],
@@ -799,18 +811,16 @@ class PlatformSiteController extends Controller
                 $validator->errors()->add('domains', '绑定域名格式不正确，请逐行输入纯域名，例如 site.test。');
             }
 
-            if ($validator->errors()->has('domains') || $domains === []) {
-                return;
-            }
+            if (! $validator->errors()->has('domains') && $domains !== []) {
+                $domainConflictQuery = DB::table('site_domains')->whereIn('domain', $domains);
 
-            $domainConflictQuery = DB::table('site_domains')->whereIn('domain', $domains);
+                if ($siteId) {
+                    $domainConflictQuery->where('site_id', '!=', $siteId);
+                }
 
-            if ($siteId) {
-                $domainConflictQuery->where('site_id', '!=', $siteId);
-            }
-
-            if ($domainConflictQuery->exists()) {
-                $validator->errors()->add('domains', '存在已被其他站点占用的域名，请检查后重试。');
+                if ($domainConflictQuery->exists()) {
+                    $validator->errors()->add('domains', '存在已被其他站点占用的域名，请检查后重试。');
+                }
             }
 
             $siteAdminIds = collect($request->input('site_admin_ids', []))
@@ -862,6 +872,17 @@ class PlatformSiteController extends Controller
 
                 if (is_numeric((string) $customRate) && is_numeric((string) $customSensitiveRate) && (int) $customSensitiveRate > (int) $customRate) {
                     $validator->errors()->add('security_custom_rate_limit_sensitive_max_requests', '敏感页面频率阈值不能高于普通页面频率阈值。');
+                }
+            }
+
+            if ($siteId !== null) {
+                $entryPathError = $this->adminEntryGate->validateEntryPath(
+                    (string) $request->input('admin_entry_path', ''),
+                    (int) $siteId,
+                );
+
+                if ($entryPathError !== null) {
+                    $validator->errors()->add('admin_entry_path', $entryPathError);
                 }
             }
 
@@ -919,6 +940,7 @@ class PlatformSiteController extends Controller
             'contact_phone',
             'contact_email',
             'address',
+            'admin_entry_path',
             'seo_title',
             'seo_keywords',
             'seo_description',
@@ -931,12 +953,13 @@ class PlatformSiteController extends Controller
 
             if (! is_string($value)) {
                 $sanitized[$field] = $value;
+
                 continue;
             }
 
             $cleaned = $this->sanitizePlainText($value);
 
-            if ($field === 'site_key' && is_string($cleaned)) {
+            if (in_array($field, ['site_key', 'admin_entry_path'], true) && is_string($cleaned)) {
                 $cleaned = Str::lower($cleaned);
             }
 
@@ -1405,7 +1428,7 @@ class PlatformSiteController extends Controller
     }
 
     /**
-     * @param array<string, string> $settings
+     * @param  array<string, string>  $settings
      */
     protected function syncSiteSettings(int $siteId, array $settings, int $updatedBy): void
     {

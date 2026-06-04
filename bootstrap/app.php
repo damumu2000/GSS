@@ -1,10 +1,20 @@
 <?php
 
+use App\Http\Middleware\EnsureAdminAccess;
+use App\Http\Middleware\EnsurePlatformOnly;
+use App\Http\Middleware\EnsureSiteModuleAdminActive;
+use App\Http\Middleware\EnsureSiteNotExpired;
+use App\Http\Middleware\MinifyHtmlResponse;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SiteSecurityGuard;
+use App\Support\AdminEntryGate;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,23 +36,52 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         $middleware->alias([
-            'admin.access' => \App\Http\Middleware\EnsureAdminAccess::class,
-            'platform.only' => \App\Http\Middleware\EnsurePlatformOnly::class,
-            'html.minify' => \App\Http\Middleware\MinifyHtmlResponse::class,
-            'site.not_expired' => \App\Http\Middleware\EnsureSiteNotExpired::class,
-            'site.security' => \App\Http\Middleware\SiteSecurityGuard::class,
-            'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
-            'module.admin.active' => \App\Http\Middleware\EnsureSiteModuleAdminActive::class,
+            'admin.access' => EnsureAdminAccess::class,
+            'platform.only' => EnsurePlatformOnly::class,
+            'html.minify' => MinifyHtmlResponse::class,
+            'site.not_expired' => EnsureSiteNotExpired::class,
+            'site.security' => SiteSecurityGuard::class,
+            'security.headers' => SecurityHeaders::class,
+            'module.admin.active' => EnsureSiteModuleAdminActive::class,
         ]);
 
-        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+        $middleware->append(SecurityHeaders::class);
 
         $middleware->appendToGroup('web', [
-            \App\Http\Middleware\EnsureSiteNotExpired::class,
-            \App\Http\Middleware\SiteSecurityGuard::class,
+            EnsureSiteNotExpired::class,
+            SiteSecurityGuard::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->respond(function (Response $response, Throwable $exception, Request $request) {
+            if ($response->getStatusCode() !== 419 || ! $exception->getPrevious() instanceof TokenMismatchException) {
+                return $response;
+            }
+
+            if (! $request->is('login') && ! $request->is('login/captcha/check')) {
+                return $response;
+            }
+
+            if (! app(AdminEntryGate::class)->allowsLogin($request)) {
+                return response()->view('errors.404', [], 404);
+            }
+
+            $message = '登录令牌已过期，请刷新页面后重试。';
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'message' => $message,
+                ], 419);
+            }
+
+            return redirect()
+                ->route('login')
+                ->withErrors([
+                    'username' => $message,
+                ])
+                ->withInput($request->only(['username', 'remember', 'service_agreement']));
+        });
+
         $exceptions->render(function (PostTooLargeException $exception, Request $request) {
             $message = '本次上传内容过大，请减少单次上传数量或压缩文件后重试。';
 

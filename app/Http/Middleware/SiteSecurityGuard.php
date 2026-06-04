@@ -11,8 +11,7 @@ class SiteSecurityGuard
 {
     public function __construct(
         protected SiteSecurity $siteSecurity,
-    ) {
-    }
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -52,7 +51,7 @@ class SiteSecurityGuard
             return false;
         }
 
-        foreach (['admin', 'logout'] as $prefix) {
+        foreach (['admin', 'login', 'logout'] as $prefix) {
             if ($path === $prefix || str_starts_with($path, $prefix.'/')) {
                 return true;
             }

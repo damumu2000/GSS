@@ -58,6 +58,14 @@
                                         @enderror
                                     </label>
 
+                                    <label class="field-group">
+                                        <span class="field-label">后台入口路径</span>
+                                        <input class="field @error('admin_entry_path') is-error @enderror" id="admin_entry_path" type="text" name="admin_entry_path" value="{{ $adminEntryPath }}" autocomplete="off" @error('admin_entry_path') aria-invalid="true" @enderror>
+                                        @error('admin_entry_path')
+                                            <span class="form-error">{{ $message }}</span>
+                                        @enderror
+                                    </label>
+
                                     <div class="field-group setting-toggle-field">
                                         <span class="field-label">内容与附件控制</span>
                                         <div class="setting-toggle-stack">

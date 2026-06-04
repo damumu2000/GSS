@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AdminEntryGate;
 use App\Support\DatabaseHealth;
 use App\Support\SystemSettings;
 use Closure;
@@ -14,8 +15,8 @@ class EnsureAdminAccess
 {
     public function __construct(
         protected SystemSettings $systemSettings,
-    ) {
-    }
+        protected AdminEntryGate $adminEntryGate,
+    ) {}
 
     /**
      * Ensure only platform admins or bound site operators can enter the admin area.
@@ -37,6 +38,10 @@ class EnsureAdminAccess
         $user = $request->user();
 
         if (! $user) {
+            if (! $this->adminEntryGate->allowsLogin($request)) {
+                abort(404);
+            }
+
             return redirect()->route('login');
         }
 

@@ -225,6 +225,14 @@
                                 </label>
 
                                 <div class="field-group">
+                                    <span class="field-label">后台入口路径</span>
+                                    <input class="field @error('admin_entry_path') is-error @enderror" id="admin_entry_path" type="text" name="admin_entry_path" value="{{ $adminEntryPath }}" autocomplete="off" @error('admin_entry_path') aria-invalid="true" @enderror>
+                                    @error('admin_entry_path')
+                                        <span class="form-error">{{ $message }}</span>
+                                    @enderror
+                                </div>
+
+                                <div class="field-group">
                                     <span class="field-label">自定义普通页面频率阈值</span>
                                     <input class="field @error('security_custom_rate_limit_max_requests') is-error @enderror" id="security_custom_rate_limit_max_requests" type="number" name="security_custom_rate_limit_max_requests" min="1" max="10000" step="1" value="{{ $securityCustomRateLimitMaxRequests ?? '' }}" @error('security_custom_rate_limit_max_requests') aria-invalid="true" @enderror>
                                     <span class="field-note">仅在自定义模式下生效，表示同一来源在窗口期内允许的普通页面请求次数。</span>

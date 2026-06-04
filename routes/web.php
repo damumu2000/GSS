@@ -6,13 +6,13 @@ use App\Http\Controllers\Admin\Platform\DatabaseController as PlatformDatabaseCo
 use App\Http\Controllers\Admin\Platform\ModuleController as PlatformModuleController;
 use App\Http\Controllers\Admin\Platform\OperationLogController as PlatformOperationLogController;
 use App\Http\Controllers\Admin\Platform\PlatformRoleController;
-use App\Http\Controllers\Admin\Platform\SecurityOverviewController as PlatformSecurityOverviewController;
 use App\Http\Controllers\Admin\Platform\PlatformSiteController;
 use App\Http\Controllers\Admin\Platform\PlatformUserController;
+use App\Http\Controllers\Admin\Platform\SecurityOverviewController as PlatformSecurityOverviewController;
 use App\Http\Controllers\Admin\Platform\SystemCheckController;
 use App\Http\Controllers\Admin\Platform\SystemSettingController;
-use App\Http\Controllers\Admin\Site\AttachmentController;
 use App\Http\Controllers\Admin\Site\ArticleReviewController;
+use App\Http\Controllers\Admin\Site\AttachmentController;
 use App\Http\Controllers\Admin\Site\ChannelController;
 use App\Http\Controllers\Admin\Site\ContentController;
 use App\Http\Controllers\Admin\Site\DashboardController as SiteDashboardController;
@@ -22,8 +22,8 @@ use App\Http\Controllers\Admin\Site\PromoController;
 use App\Http\Controllers\Admin\Site\PromoItemController;
 use App\Http\Controllers\Admin\Site\RecycleBinController;
 use App\Http\Controllers\Admin\Site\RoleController as SiteRoleController;
-use App\Http\Controllers\Admin\Site\SettingController as SiteSettingController;
 use App\Http\Controllers\Admin\Site\SecurityController as SiteSecurityController;
+use App\Http\Controllers\Admin\Site\SettingController as SiteSettingController;
 use App\Http\Controllers\Admin\Site\ThemeController;
 use App\Http\Controllers\Admin\Site\UserController as SiteUserController;
 use App\Http\Controllers\Admin\SiteContextController;
@@ -55,7 +55,7 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
 
-Route::middleware(['auth', 'admin.access'])->group(function (): void {
+Route::middleware('admin.access')->group(function (): void {
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::get('/admin/content-preview/article/{content}', [SiteController::class, 'previewArticle'])->name('admin.content-preview.article');
     Route::get('/admin/content-preview/page/{content}', [SiteController::class, 'previewPage'])->name('admin.content-preview.page');
@@ -244,3 +244,7 @@ if (File::isDirectory($moduleRoot)) {
         }
     }
 }
+
+Route::get('/{adminEntryPath}', [AuthenticatedSessionController::class, 'entry'])
+    ->where('adminEntryPath', '[A-Za-z0-9][A-Za-z0-9\-]{6,62}[A-Za-z0-9]')
+    ->name('admin.entry-gate');

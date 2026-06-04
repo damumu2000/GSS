@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Site;
 
 use App\Http\Controllers\Controller;
+use App\Support\AdminEntryGate;
 use App\Support\Site as SitePath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -14,6 +15,10 @@ use Illuminate\View\View;
 
 class SettingController extends Controller
 {
+    public function __construct(
+        protected AdminEntryGate $adminEntryGate,
+    ) {}
+
     /**
      * Display the current site's settings.
      */
@@ -37,6 +42,7 @@ class SettingController extends Controller
             'currentSite' => $currentSite,
             'settings' => $settings,
             'domains' => $domains,
+            'adminEntryPath' => (string) old('admin_entry_path', $this->adminEntryGate->entryPathForSite((int) $currentSite->id)),
         ]);
     }
 
@@ -49,6 +55,11 @@ class SettingController extends Controller
         $this->authorizeSite($request, $currentSite->id, 'setting.manage');
 
         $request->merge($this->sanitizeInput($request));
+        $oldAdminEntryPath = $this->adminEntryGate->entryPathForSite((int) $currentSite->id);
+
+        if (trim((string) $request->input('admin_entry_path', '')) === '') {
+            $request->merge(['admin_entry_path' => $oldAdminEntryPath]);
+        }
 
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:100'],
@@ -65,6 +76,7 @@ class SettingController extends Controller
             'article_share_enabled' => ['nullable', 'boolean'],
             'attachment_share_enabled' => ['nullable', 'boolean'],
             'site_frontend_enabled' => ['nullable', 'boolean'],
+            'admin_entry_path' => ['required', 'string', 'max:64'],
         ], [
             'name.required' => '请填写站点名称。',
             'contact_phone.regex' => '联系电话格式不正确，请输入有效的电话或手机号。',
@@ -72,12 +84,21 @@ class SettingController extends Controller
             'filing_number.regex' => '备案号格式不正确，请仅使用中文、字母、数字、空格及常见连接符。',
         ]);
 
-        $validator->after(function ($validator) use ($request): void {
+        $validator->after(function ($validator) use ($request, $currentSite): void {
             foreach (['logo', 'favicon'] as $imageField) {
                 $value = trim((string) $request->input($imageField, ''));
                 if ($value !== '' && ! $this->isValidAssetPath($value)) {
                     $validator->errors()->add($imageField, '图片地址格式不正确，请上传后重试。');
                 }
+            }
+
+            $entryPathError = $this->adminEntryGate->validateEntryPath(
+                (string) $request->input('admin_entry_path', ''),
+                (int) $currentSite->id,
+            );
+
+            if ($entryPathError !== null) {
+                $validator->errors()->add('admin_entry_path', $entryPathError);
             }
         });
 
@@ -153,6 +174,19 @@ class SettingController extends Controller
             ],
         );
 
+        $newAdminEntryPath = $this->adminEntryGate->normalizeEntryPath((string) $validated['admin_entry_path']);
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $currentSite->id, 'setting_key' => $this->adminEntryGate->settingKey()],
+            [
+                'setting_value' => $newAdminEntryPath,
+                'autoload' => 1,
+                'updated_by' => $request->user()->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
+
         $this->logOperation(
             'site',
             'setting',
@@ -161,7 +195,10 @@ class SettingController extends Controller
             $request->user()->id,
             'site',
             $currentSite->id,
-            ['name' => $validated['name']],
+            [
+                'name' => $validated['name'],
+                'admin_entry_path_changed' => $oldAdminEntryPath !== $newAdminEntryPath,
+            ],
             $request,
         );
 
@@ -213,6 +250,7 @@ class SettingController extends Controller
             'contact_phone',
             'contact_email',
             'address',
+            'admin_entry_path',
             'logo',
             'favicon',
             'filing_number',
@@ -225,7 +263,10 @@ class SettingController extends Controller
 
         foreach ($fields as $field) {
             $value = $request->input($field);
-            $sanitized[$field] = $this->sanitizePlainText($value);
+            $cleaned = $this->sanitizePlainText($value);
+            $sanitized[$field] = $field === 'admin_entry_path' && is_string($cleaned)
+                ? mb_strtolower($cleaned)
+                : $cleaned;
         }
 
         return $sanitized;

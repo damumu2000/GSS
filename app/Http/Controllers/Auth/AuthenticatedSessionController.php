@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Site;
+use App\Support\AdminEntryGate;
 use App\Support\DatabaseHealth;
 use App\Support\SiteBackendAccess;
 use App\Support\SystemSettings;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
@@ -16,9 +17,9 @@ use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\MessageBag;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
-use Illuminate\Support\Str;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -33,7 +34,26 @@ class AuthenticatedSessionController extends Controller
     public function __construct(
         protected SystemSettings $systemSettings,
         protected SiteBackendAccess $siteBackendAccess,
-    ) {
+        protected AdminEntryGate $adminEntryGate,
+    ) {}
+
+    public function entry(Request $request, string $entryPath): RedirectResponse|Response
+    {
+        if ($this->adminEntryGate->tooManyEntryAttempts($request, $entryPath)) {
+            return response()->view('errors.404', [], 404);
+        }
+
+        $site = $this->adminEntryGate->entryMatches($request, $entryPath);
+
+        if (! $site) {
+            $this->adminEntryGate->hitFailedEntryAttempt($request, $entryPath);
+
+            return response()->view('errors.404', [], 404);
+        }
+
+        $this->adminEntryGate->issueEntryCookie($request, $site);
+
+        return redirect()->route('login');
     }
 
     /**
@@ -52,7 +72,15 @@ class AuthenticatedSessionController extends Controller
         $loginSiteBrand = $this->resolveLoginSite($request);
 
         if (! $loginSiteBrand) {
+            if ($this->adminEntryGate->enabled()) {
+                return response()->view('errors.404', [], 404);
+            }
+
             return $this->renderDomainUnboundPage($request);
+        }
+
+        if (! $this->adminEntryGate->allowsLogin($request, $loginSiteBrand)) {
+            return response()->view('errors.404', [], 404);
         }
 
         return view('auth.login', [
@@ -78,7 +106,15 @@ class AuthenticatedSessionController extends Controller
         $loginSite = $this->resolveLoginSite($request);
 
         if (! $loginSite) {
+            if ($this->adminEntryGate->enabled()) {
+                return response()->view('errors.404', [], 404);
+            }
+
             return $this->renderDomainUnboundPage($request);
+        }
+
+        if (! $this->adminEntryGate->allowsLogin($request, $loginSite)) {
+            return response()->view('errors.404', [], 404);
         }
 
         $databaseHealth = app(DatabaseHealth::class);
@@ -293,11 +329,13 @@ class AuthenticatedSessionController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $logoutSiteId = 0;
 
         if ($user) {
             $userId = (int) $user->id;
             $isPlatformAdmin = $this->isPlatformAdmin($userId);
             $currentSiteId = (int) $request->session()->get('current_site_id', 0);
+            $logoutSiteId = $currentSiteId;
 
             $this->logOperation(
                 $isPlatformAdmin ? 'platform' : 'site',
@@ -317,12 +355,16 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        $this->adminEntryGate->issueEntryCookieForSiteId($request, $logoutSiteId);
+
         return redirect()->route('login');
     }
 
     public function captcha(Request $request): Response
     {
-        if (! $this->resolveLoginSite($request)) {
+        $site = $this->resolveLoginSite($request);
+
+        if (! $site || ! $this->adminEntryGate->allowsLogin($request, $site)) {
             return response('', 404);
         }
 
@@ -340,7 +382,9 @@ class AuthenticatedSessionController extends Controller
 
     public function captchaCheck(Request $request): JsonResponse
     {
-        if (! $this->resolveLoginSite($request)) {
+        $site = $this->resolveLoginSite($request);
+
+        if (! $site || ! $this->adminEntryGate->allowsLogin($request, $site)) {
             return response()->json([
                 'valid' => false,
             ], 404);
