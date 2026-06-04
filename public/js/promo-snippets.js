@@ -66,71 +66,107 @@
 
     if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
         document.querySelectorAll('.promo-floating--wander').forEach((floating) => {
-            const rect = floating.getBoundingClientRect();
-
-            if (rect.width <= 0 || rect.height <= 0) {
-                return;
-            }
-
-            floating.style.left = `${Math.min(Math.max(rect.left, 0), Math.max(window.innerWidth - rect.width, 0))}px`;
-            floating.style.top = `${Math.min(Math.max(rect.top, 0), Math.max(window.innerHeight - rect.height, 0))}px`;
-            floating.style.right = 'auto';
-            floating.style.bottom = 'auto';
-            floating.style.transform = 'none';
-
-            let x = 0;
-            let y = 0;
-            let dx = 0.78;
-            let dy = 0.58;
-            let paused = false;
-
-            floating.addEventListener('mouseenter', () => {
-                paused = true;
-            });
-
-            floating.addEventListener('mouseleave', () => {
-                paused = false;
-            });
-
-            const move = () => {
-                if (!floating.isConnected) {
+            const start = (rect) => {
+                if (floating.dataset.promoWanderStarted === '1' || !floating.isConnected) {
                     return;
                 }
 
-                if (paused) {
+                floating.dataset.promoWanderStarted = '1';
+
+                floating.style.left = `${Math.min(Math.max(rect.left, 0), Math.max(window.innerWidth - rect.width, 0))}px`;
+                floating.style.top = `${Math.min(Math.max(rect.top, 0), Math.max(window.innerHeight - rect.height, 0))}px`;
+                floating.style.right = 'auto';
+                floating.style.bottom = 'auto';
+                floating.style.transform = 'none';
+
+                let x = 0;
+                let y = 0;
+                let dx = 0.78;
+                let dy = 0.58;
+                let paused = false;
+
+                floating.addEventListener('mouseenter', () => {
+                    paused = true;
+                });
+
+                floating.addEventListener('mouseleave', () => {
+                    paused = false;
+                });
+
+                const move = () => {
+                    if (!floating.isConnected) {
+                        return;
+                    }
+
+                    if (paused) {
+                        window.requestAnimationFrame(move);
+                        return;
+                    }
+
+                    const edgePadding = 8;
+                    const maxX = Math.max(window.innerWidth - floating.offsetWidth - edgePadding, edgePadding);
+                    const maxY = Math.max(window.innerHeight - floating.offsetHeight - edgePadding, edgePadding);
+                    const baseLeft = Number.parseFloat(floating.style.left) || 0;
+                    const baseTop = Number.parseFloat(floating.style.top) || 0;
+                    const minMoveX = edgePadding - baseLeft;
+                    const minMoveY = edgePadding - baseTop;
+                    const maxMoveX = maxX - baseLeft;
+                    const maxMoveY = maxY - baseTop;
+
+                    x += dx;
+                    y += dy;
+
+                    if (x <= minMoveX || x >= maxMoveX) {
+                        dx *= -1;
+                        x = Math.min(Math.max(x, minMoveX), maxMoveX);
+                    }
+
+                    if (y <= minMoveY || y >= maxMoveY) {
+                        dy *= -1;
+                        y = Math.min(Math.max(y, minMoveY), maxMoveY);
+                    }
+
+                    floating.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+
                     window.requestAnimationFrame(move);
-                    return;
-                }
-
-                const edgePadding = 8;
-                const maxX = Math.max(window.innerWidth - floating.offsetWidth - edgePadding, edgePadding);
-                const maxY = Math.max(window.innerHeight - floating.offsetHeight - edgePadding, edgePadding);
-                const baseLeft = Number.parseFloat(floating.style.left) || 0;
-                const baseTop = Number.parseFloat(floating.style.top) || 0;
-                const minMoveX = edgePadding - baseLeft;
-                const minMoveY = edgePadding - baseTop;
-                const maxMoveX = maxX - baseLeft;
-                const maxMoveY = maxY - baseTop;
-
-                x += dx;
-                y += dy;
-
-                if (x <= minMoveX || x >= maxMoveX) {
-                    dx *= -1;
-                    x = Math.min(Math.max(x, minMoveX), maxMoveX);
-                }
-
-                if (y <= minMoveY || y >= maxMoveY) {
-                    dy *= -1;
-                    y = Math.min(Math.max(y, minMoveY), maxMoveY);
-                }
-
-                floating.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+                };
 
                 window.requestAnimationFrame(move);
             };
 
-            window.requestAnimationFrame(move);
+            const startWhenReady = (attempt = 0) => {
+                if (floating.dataset.promoWanderStarted === '1' || !floating.isConnected) {
+                    return;
+                }
+
+                const rect = floating.getBoundingClientRect();
+
+                if (rect.width > 0 && rect.height > 0) {
+                    start(rect);
+                    return;
+                }
+
+                if (attempt >= 80) {
+                    return;
+                }
+
+                window.setTimeout(() => {
+                    window.requestAnimationFrame(() => startWhenReady(attempt + 1));
+                }, 100);
+            };
+
+            const image = floating.querySelector('img');
+
+            if (image && !image.complete) {
+                image.addEventListener('load', () => {
+                    window.requestAnimationFrame(() => startWhenReady());
+                }, { once: true });
+                image.addEventListener('error', () => {
+                    window.requestAnimationFrame(() => startWhenReady());
+                }, { once: true });
+            }
+
+            window.requestAnimationFrame(() => startWhenReady());
         });
     }
 
