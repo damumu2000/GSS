@@ -70,7 +70,7 @@ initGuestbookForms();
     var submitUrl = resolveEndpoint(form.getAttribute('action') || '/guestbook');
     var captchaImageUrl = resolveEndpoint(form.getAttribute('data-captcha-url') || '/guestbook/captcha');
     var captchaVerifyUrl = resolveEndpoint(form.getAttribute('data-captcha-verify-url') || '/guestbook/captcha/verify');
-    var csrfToken = form.getAttribute('data-csrf-token') || getCookie('XSRF-TOKEN');
+    var csrfToken = form.getAttribute('data-csrf-token') || getCookie('REQ-TOKEN');
 
     form.setAttribute('action', submitUrl);
 

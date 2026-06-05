@@ -208,6 +208,24 @@
                         <section class="site-module">
                             <div class="site-module-header">
                                 <span class="site-module-accent"></span>
+                                <div class="site-module-title">后台入口路径</div>
+                            </div>
+                            <div class="site-module-body">
+                                <div class="domain-editor">
+                                    <div class="domain-editor-header">
+                                        <span class="domain-editor-title">用于隐藏后台登录入口，建议使用不易猜测的 5-20 位路径。</span>
+                                    </div>
+                                    <input class="field @error('admin_entry_path') is-error @enderror" id="admin_entry_path" type="text" name="admin_entry_path" value="{{ $adminEntryPath }}" autocomplete="off" @error('admin_entry_path') aria-invalid="true" @enderror>
+                                </div>
+                                @error('admin_entry_path')
+                                    <span class="form-error">{{ $message }}</span>
+                                @enderror
+                            </div>
+                        </section>
+
+                        <section class="site-module">
+                            <div class="site-module-header">
+                                <span class="site-module-accent"></span>
                                 <div class="site-module-title">安护盾例外</div>
                             </div>
                             <div class="site-module-body">
@@ -223,14 +241,6 @@
                                         <span class="form-error">{{ $message }}</span>
                                     @enderror
                                 </label>
-
-                                <div class="field-group">
-                                    <span class="field-label">后台入口路径</span>
-                                    <input class="field @error('admin_entry_path') is-error @enderror" id="admin_entry_path" type="text" name="admin_entry_path" value="{{ $adminEntryPath }}" autocomplete="off" @error('admin_entry_path') aria-invalid="true" @enderror>
-                                    @error('admin_entry_path')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
-                                </div>
 
                                 <div class="field-group">
                                     <span class="field-label">自定义普通页面频率阈值</span>

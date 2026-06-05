@@ -8,6 +8,7 @@ use App\Mail\GuestbookMessageNotificationMail;
 use App\Mail\PlatformTestMail;
 use App\Models\User;
 use App\Modules\Guestbook\Support\GuestbookSettings;
+use App\Support\AdminEntryGate;
 use App\Support\ContentAttachmentRelationSync;
 use App\Support\FrontendPageCache;
 use App\Support\LegacyAspAccessSiteImporter;
@@ -234,6 +235,14 @@ class AdminAccessTest extends TestCase
         $this->assertStringContainsString('frame-src', $csp);
         $this->assertStringContainsString('https://player.bilibili.com', $csp);
         $this->assertStringContainsString('https://www.bilibili.com', $csp);
+        $this->assertFalse($response->headers->has('X-Powered-By'));
+        $this->assertFalse($response->headers->has('X-Generator'));
+
+        $cookieNames = collect($response->headers->getCookies())
+            ->map(fn ($cookie) => $cookie->getName())
+            ->all();
+        $this->assertContains('REQ-TOKEN', $cookieNames);
+        $this->assertNotContains('XSRF-TOKEN', $cookieNames);
     }
 
     public function test_login_page_bypasses_frontend_security_runtime_blocks(): void
@@ -367,6 +376,7 @@ class AdminAccessTest extends TestCase
                     'updated_at' => now(),
                 ],
             );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
 
             $this->get('/login')->assertNotFound();
             $this->get('/login/captcha')->assertNotFound();
@@ -385,6 +395,35 @@ class AdminAccessTest extends TestCase
                 ->assertHeader('Content-Type', 'image/svg+xml; charset=UTF-8');
 
             $this->get('/admin')
+                ->assertRedirect(route('login'));
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_admin_entry_gate_accepts_five_character_entry_path(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'abc12',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+            $this->get('/abc12')
                 ->assertRedirect(route('login'));
         } finally {
             putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
@@ -455,6 +494,7 @@ class AdminAccessTest extends TestCase
                     'updated_at' => now(),
                 ],
             );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
 
             $this->actingAs($admin)
                 ->withSession(['current_site_id' => $siteId])
@@ -489,6 +529,7 @@ class AdminAccessTest extends TestCase
                     'updated_at' => now(),
                 ],
             );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
 
             $this->get('/school-console-x7k')
                 ->assertRedirect(route('login'));
@@ -5135,51 +5176,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $this->actingAs($this->superAdmin())
-            ->post(route('admin.platform.settings.update'), [
-                'system_name' => '站群后台',
-                'system_version' => '2.1.0',
-                'current_tab' => 'security',
-                'attachment_allowed_extensions' => 'jpg,jpeg,png,webp,pdf,zip',
-                'attachment_max_size_mb' => 18,
-                'attachment_image_max_size_mb' => 6,
-                'attachment_image_max_width' => 3200,
-                'attachment_image_max_height' => 2400,
-                'attachment_image_auto_resize' => '1',
-                'attachment_image_auto_compress' => '1',
-                'attachment_image_quality' => 76,
-                'admin_enabled' => '1',
-                'admin_disabled_message' => '后台暂时关闭，请联系管理员。',
-                'security_site_protection_enabled' => '1',
-                'security_block_bad_path_enabled' => '1',
-                'security_block_sql_injection_enabled' => '1',
-                'security_block_xss_enabled' => '1',
-                'security_block_path_traversal_enabled' => '1',
-                'security_block_bad_upload_enabled' => '1',
-                'security_block_bad_client_enabled' => '1',
-                'security_block_bad_method_enabled' => '1',
-                'security_block_bad_payload_enabled' => '1',
-                'security_payload_max_fields' => '80',
-                'security_payload_max_value_length' => '2000',
-                'security_rate_limit_enabled' => '1',
-                'security_rate_limit_window_seconds' => '12',
-                'security_rate_limit_max_requests' => '33',
-                'security_rate_limit_sensitive_max_requests' => '9',
-                'security_rate_limit_block_seconds' => '90',
-                'security_event_retention_limit' => '260',
-                'security_stats_retention_days' => '365',
-            ])
-            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'security']))
-            ->assertSessionHas('status', '系统设置已更新。');
-
-        $this->assertSame('90', DB::table('system_settings')->where('setting_key', 'security.rate_limit_block_seconds')->value('setting_value'));
-    }
-
-    public function test_platform_admin_can_save_security_scan_probe_settings(): void
-    {
-        $this->seed(DatabaseSeeder::class);
-
-        $this->actingAs($this->superAdmin())
-            ->post(route('admin.platform.settings.update'), [
+            ->post(route('admin.platform.security.settings.update'), [
                 'system_name' => '站群后台',
                 'system_version' => '2.1.0',
                 'current_tab' => 'security',
@@ -5212,11 +5209,66 @@ XML);
                 'security_scan_probe_enabled' => '1',
                 'security_scan_probe_window_seconds' => '600',
                 'security_scan_probe_threshold' => '4',
+                'security_malicious_auto_block_enabled' => '1',
+                'security_malicious_auto_block_window_seconds' => '3600',
+                'security_malicious_auto_block_threshold' => '10',
+                'security_malicious_auto_block_seconds' => '86400',
                 'security_event_retention_limit' => '260',
                 'security_stats_retention_days' => '365',
             ])
-            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'security']))
-            ->assertSessionHas('status', '系统设置已更新。');
+            ->assertRedirect(route('admin.platform.security.index'))
+            ->assertSessionHas('status', '安护盾设置已更新。');
+
+        $this->assertSame('90', DB::table('system_settings')->where('setting_key', 'security.rate_limit_block_seconds')->value('setting_value'));
+    }
+
+    public function test_platform_admin_can_save_security_scan_probe_settings(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.platform.security.settings.update'), [
+                'system_name' => '站群后台',
+                'system_version' => '2.1.0',
+                'current_tab' => 'security',
+                'attachment_allowed_extensions' => 'jpg,jpeg,png,webp,pdf,zip',
+                'attachment_max_size_mb' => 18,
+                'attachment_image_max_size_mb' => 6,
+                'attachment_image_max_width' => 3200,
+                'attachment_image_max_height' => 2400,
+                'attachment_image_auto_resize' => '1',
+                'attachment_image_auto_compress' => '1',
+                'attachment_image_quality' => 76,
+                'admin_enabled' => '1',
+                'admin_disabled_message' => '后台暂时关闭，请联系管理员。',
+                'security_site_protection_enabled' => '1',
+                'security_block_bad_path_enabled' => '1',
+                'security_block_sql_injection_enabled' => '1',
+                'security_block_xss_enabled' => '1',
+                'security_block_path_traversal_enabled' => '1',
+                'security_block_bad_upload_enabled' => '1',
+                'security_block_bad_client_enabled' => '1',
+                'security_block_bad_method_enabled' => '1',
+                'security_block_bad_payload_enabled' => '1',
+                'security_payload_max_fields' => '80',
+                'security_payload_max_value_length' => '2000',
+                'security_rate_limit_enabled' => '1',
+                'security_rate_limit_window_seconds' => '12',
+                'security_rate_limit_max_requests' => '33',
+                'security_rate_limit_sensitive_max_requests' => '9',
+                'security_rate_limit_block_seconds' => '90',
+                'security_scan_probe_enabled' => '1',
+                'security_scan_probe_window_seconds' => '600',
+                'security_scan_probe_threshold' => '4',
+                'security_malicious_auto_block_enabled' => '1',
+                'security_malicious_auto_block_window_seconds' => '3600',
+                'security_malicious_auto_block_threshold' => '10',
+                'security_malicious_auto_block_seconds' => '86400',
+                'security_event_retention_limit' => '260',
+                'security_stats_retention_days' => '365',
+            ])
+            ->assertRedirect(route('admin.platform.security.index'))
+            ->assertSessionHas('status', '安护盾设置已更新。');
 
         $this->assertSame('1', DB::table('system_settings')->where('setting_key', 'security.scan_probe_enabled')->value('setting_value'));
         $this->assertSame('600', DB::table('system_settings')->where('setting_key', 'security.scan_probe_window_seconds')->value('setting_value'));
@@ -5228,7 +5280,7 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         $this->actingAs($this->superAdmin())
-            ->post(route('admin.platform.settings.update'), [
+            ->post(route('admin.platform.security.settings.update'), [
                 'system_name' => '站群后台',
                 'system_version' => '2.1.0',
                 'current_tab' => 'security',
@@ -5261,13 +5313,17 @@ XML);
                 'security_scan_probe_enabled' => '1',
                 'security_scan_probe_window_seconds' => '600',
                 'security_scan_probe_threshold' => '4',
+                'security_malicious_auto_block_enabled' => '1',
+                'security_malicious_auto_block_window_seconds' => '3600',
+                'security_malicious_auto_block_threshold' => '10',
+                'security_malicious_auto_block_seconds' => '86400',
                 'security_ip_allowlist' => "192.168.1.10\n10.10.0.0/24",
                 'security_ip_blocklist' => "203.0.113.7\n198.51.100.0/24",
                 'security_event_retention_limit' => '260',
                 'security_stats_retention_days' => '365',
             ])
-            ->assertRedirect(route('admin.platform.settings.index', ['tab' => 'security']))
-            ->assertSessionHas('status', '系统设置已更新。');
+            ->assertRedirect(route('admin.platform.security.index'))
+            ->assertSessionHas('status', '安护盾设置已更新。');
 
         $this->assertSame("192.168.1.10\n10.10.0.0/24", DB::table('system_settings')->where('setting_key', 'security.ip_allowlist')->value('setting_value'));
         $this->assertSame("203.0.113.7\n198.51.100.0/24", DB::table('system_settings')->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
@@ -10634,6 +10690,51 @@ XML);
         $this->get('/?site=site')->assertOk();
     }
 
+    public function test_site_security_auto_blocks_repeated_malicious_hits_for_configured_seconds(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.scan_probe_enabled' => '1',
+            'security.scan_probe_window_seconds' => '300',
+            'security.scan_probe_threshold' => '99',
+            'security.rate_limit_block_seconds' => '60',
+            'security.malicious_auto_block_enabled' => '1',
+            'security.malicious_auto_block_window_seconds' => '3600',
+            'security.malicious_auto_block_threshold' => '3',
+            'security.malicious_auto_block_seconds' => '86400',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        foreach (['union select 1', 'union select 2', 'union select 3'] as $keyword) {
+            $this->get('/?site=site&keyword='.urlencode($keyword))->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        }
+
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => '127.0.0.1',
+            'status' => 'blocked',
+        ]);
+
+        $blockedUntil = (string) DB::table('site_security_ip_reputations')
+            ->where('site_id', $siteId)
+            ->where('client_ip', '127.0.0.1')
+            ->value('blocked_until');
+
+        $this->assertGreaterThan(now()->addHours(23)->getTimestamp(), strtotime($blockedUntil));
+
+        $this->travel(61)->seconds();
+
+        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+    }
+
     public function test_site_security_custom_mode_uses_site_probe_threshold(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -13556,6 +13657,59 @@ XML);
             ->value('setting_value'));
     }
 
+    public function test_admin_entry_path_cache_is_cleared_after_site_setting_update(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteAdmin = $this->createSiteOperator('site-setting-entry-cache-admin', true, 'site_admin');
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'old12',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+            $this->get('/old12')->assertRedirect(route('login'));
+
+            $this->actingAs($siteAdmin)
+                ->withSession(['current_site_id' => $siteId])
+                ->post(route('admin.settings.update'), [
+                    'name' => '示例学校',
+                    'filing_number' => '',
+                    'contact_phone' => '010-12345678',
+                    'contact_email' => '',
+                    'address' => '示例地址 1 号',
+                    'logo' => '',
+                    'favicon' => '',
+                    'seo_title' => '示例学校官网',
+                    'seo_keywords' => '示例学校,校园',
+                    'seo_description' => '示例学校官网描述',
+                    'article_requires_review' => '0',
+                    'article_share_enabled' => '0',
+                    'attachment_share_enabled' => '0',
+                    'site_frontend_enabled' => '1',
+                    'admin_entry_path' => 'new12',
+                ])
+                ->assertRedirect(route('admin.settings.index'));
+
+            $this->get('/old12')->assertNotFound();
+            $this->get('/new12')->assertRedirect(route('login'));
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
     public function test_site_admin_gets_reserved_path_message_for_blocked_admin_entry_path(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -13586,6 +13740,90 @@ XML);
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHasErrors([
                 'admin_entry_path' => '后台入口路径不能使用系统保留路径或常见扫描路径。',
+            ]);
+    }
+
+    public function test_admin_entry_path_can_repeat_across_different_sites(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $otherSiteId = $this->createAdditionalSite('entry-repeat-site', '入口重复测试站点');
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $otherSiteId, 'setting_key' => 'security.admin_entry_path'],
+            [
+                'setting_value' => 'same12',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
+        app(AdminEntryGate::class)->forgetEntryPathForSite($otherSiteId);
+
+        $this->assertNull(app(AdminEntryGate::class)->validateEntryPath('same12', $siteId));
+    }
+
+    public function test_admin_entry_path_accepts_five_to_twenty_characters_only(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('site-setting-entry-length-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $payload = [
+            'name' => '示例学校',
+            'filing_number' => '',
+            'contact_phone' => '010-12345678',
+            'contact_email' => '',
+            'address' => '示例地址 1 号',
+            'logo' => '',
+            'favicon' => '',
+            'seo_title' => '示例学校官网',
+            'seo_keywords' => '示例学校,校园',
+            'seo_description' => '示例学校官网描述',
+            'article_requires_review' => '0',
+            'article_share_enabled' => '0',
+            'attachment_share_enabled' => '0',
+            'site_frontend_enabled' => '1',
+        ];
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), $payload + [
+                'admin_entry_path' => 'abc12',
+            ])
+            ->assertRedirect(route('admin.settings.index'))
+            ->assertSessionHas('status', '站点设置已更新。');
+
+        $this->assertSame('abc12', DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.admin_entry_path')
+            ->value('setting_value'));
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), $payload + [
+                'admin_entry_path' => 'abc4',
+            ])
+            ->assertSessionHasErrors([
+                'admin_entry_path' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
+            ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), $payload + [
+                'admin_entry_path' => 'abcde-12345-fghij201',
+            ])
+            ->assertRedirect(route('admin.settings.index'))
+            ->assertSessionHas('status', '站点设置已更新。');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), $payload + [
+                'admin_entry_path' => 'abcde-12345-fghij2012',
+            ])
+            ->assertSessionHasErrors([
+                'admin_entry_path' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
             ]);
     }
 

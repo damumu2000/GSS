@@ -239,6 +239,7 @@ class AdminLayoutData
                     ['label' => '平台角色管理', 'route' => 'admin.platform.roles.index', 'active' => $request->routeIs('admin.platform.roles.*'), 'icon' => 'setting', 'show' => in_array('platform.role.manage', $platformPermissionCodes, true)],
                     ['label' => '数据库管理', 'route' => 'admin.platform.database.index', 'active' => $request->routeIs('admin.platform.database.*'), 'icon' => 'database', 'show' => in_array('database.manage', $platformPermissionCodes, true)],
                     ['label' => '系统设置', 'route' => 'admin.platform.settings.index', 'active' => $request->routeIs('admin.platform.settings.*'), 'icon' => 'setting', 'show' => in_array('system.setting.manage', $platformPermissionCodes, true)],
+                    ['label' => '安护盾', 'route' => 'admin.platform.security.index', 'active' => $request->routeIs('admin.platform.security.*'), 'icon' => 'shield', 'show' => in_array('system.setting.manage', $platformPermissionCodes, true)],
                     ['label' => '系统检查', 'route' => 'admin.platform.system-checks.index', 'active' => $request->routeIs('admin.platform.system-checks.*'), 'icon' => 'database', 'show' => in_array('system.check.view', $platformPermissionCodes, true)],
                     ['label' => '操作日志', 'route' => 'admin.logs.index', 'active' => $request->routeIs('admin.logs.*'), 'icon' => 'log', 'show' => in_array('platform.log.view', $platformPermissionCodes, true)],
                 ], fn ($item) => $item['show'])) : [],

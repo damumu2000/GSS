@@ -97,6 +97,7 @@ Route::middleware('admin.access')->group(function (): void {
             Route::get('/database/{table}', [PlatformDatabaseController::class, 'show'])->name('database.show');
             Route::get('/settings', [SystemSettingController::class, 'index'])->name('settings.index');
             Route::get('/security', PlatformSecurityOverviewController::class)->name('security.index');
+            Route::post('/security/settings', [PlatformSecurityOverviewController::class, 'updateSettings'])->name('security.settings.update');
             Route::get('/security/ip-detail', [PlatformSecurityOverviewController::class, 'ipDetail'])->name('security.ip-detail');
             Route::post('/security/ip-policy', [PlatformSecurityOverviewController::class, 'storeIpPolicy'])->name('security.ip-policy.store');
             Route::post('/settings', [SystemSettingController::class, 'update'])->name('settings.update');
@@ -246,5 +247,5 @@ if (File::isDirectory($moduleRoot)) {
 }
 
 Route::get('/{adminEntryPath}', [AuthenticatedSessionController::class, 'entry'])
-    ->where('adminEntryPath', '[A-Za-z0-9][A-Za-z0-9\-]{6,62}[A-Za-z0-9]')
+    ->where('adminEntryPath', '[A-Za-z0-9][A-Za-z0-9\-]{3,18}[A-Za-z0-9]')
     ->name('admin.entry-gate');

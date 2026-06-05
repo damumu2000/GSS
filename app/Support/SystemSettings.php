@@ -251,6 +251,26 @@ class SystemSettings
         return max(1, min(100, $this->int('security.scan_probe_threshold', 3)));
     }
 
+    public function securityMaliciousAutoBlockEnabled(): bool
+    {
+        return $this->bool('security.malicious_auto_block_enabled', false);
+    }
+
+    public function securityMaliciousAutoBlockWindowSeconds(): int
+    {
+        return max(60, min(86400, $this->int('security.malicious_auto_block_window_seconds', 3600)));
+    }
+
+    public function securityMaliciousAutoBlockThreshold(): int
+    {
+        return max(3, min(100, $this->int('security.malicious_auto_block_threshold', 10)));
+    }
+
+    public function securityMaliciousAutoBlockSeconds(): int
+    {
+        return max(60, min(604800, $this->int('security.malicious_auto_block_seconds', 86400)));
+    }
+
     /**
      * @return array<int, string>
      */
@@ -465,6 +485,10 @@ class SystemSettings
             'security_scan_probe_enabled' => $this->securityScanProbeEnabled(),
             'security_scan_probe_window_seconds' => $this->securityScanProbeWindowSeconds(),
             'security_scan_probe_threshold' => $this->securityScanProbeThreshold(),
+            'security_malicious_auto_block_enabled' => $this->securityMaliciousAutoBlockEnabled(),
+            'security_malicious_auto_block_window_seconds' => $this->securityMaliciousAutoBlockWindowSeconds(),
+            'security_malicious_auto_block_threshold' => $this->securityMaliciousAutoBlockThreshold(),
+            'security_malicious_auto_block_seconds' => $this->securityMaliciousAutoBlockSeconds(),
             'security_ip_allowlist' => implode("\n", $this->securityIpAllowlist()),
             'security_ip_blocklist' => implode("\n", $this->securityIpBlocklist()),
             'security_event_retention_limit' => $this->securityEventRetentionLimit(),

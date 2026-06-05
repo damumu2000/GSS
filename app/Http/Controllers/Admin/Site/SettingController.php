@@ -76,12 +76,13 @@ class SettingController extends Controller
             'article_share_enabled' => ['nullable', 'boolean'],
             'attachment_share_enabled' => ['nullable', 'boolean'],
             'site_frontend_enabled' => ['nullable', 'boolean'],
-            'admin_entry_path' => ['required', 'string', 'max:64'],
+            'admin_entry_path' => ['required', 'string', 'max:20'],
         ], [
             'name.required' => '请填写站点名称。',
             'contact_phone.regex' => '联系电话格式不正确，请输入有效的电话或手机号。',
             'contact_email.email' => '联系邮箱格式不正确，请重新填写。',
             'filing_number.regex' => '备案号格式不正确，请仅使用中文、字母、数字、空格及常见连接符。',
+            'admin_entry_path.max' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
         ]);
 
         $validator->after(function ($validator) use ($request, $currentSite): void {
@@ -186,6 +187,7 @@ class SettingController extends Controller
                 'updated_at' => now(),
             ],
         );
+        $this->adminEntryGate->forgetEntryPathForSite((int) $currentSite->id);
 
         $this->logOperation(
             'site',

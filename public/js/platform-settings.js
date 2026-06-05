@@ -1,5 +1,5 @@
 (() => {
-    const allowedTabs = ['basic', 'upload', 'security', 'mail', 'agreement', 'access'];
+    const allowedTabs = ['basic', 'upload', 'mail', 'agreement', 'access'];
     const currentTabInput = document.getElementById('current_tab');
     const form = document.getElementById('system-settings-form');
 
@@ -10,14 +10,7 @@
         const resizeLabel = document.getElementById('attachment_image_auto_resize_label');
         const compressInput = document.getElementById('attachment_image_auto_compress');
         const compressLabel = document.getElementById('attachment_image_auto_compress_label');
-        const securitySwitches = [
-            'security_site_protection_enabled',
-            'security_block_bad_path_enabled',
-            'security_block_sql_injection_enabled',
-            'security_block_xss_enabled',
-            'security_block_path_traversal_enabled',
-            'security_block_bad_upload_enabled',
-            'security_rate_limit_enabled',
+        const statusSwitches = [
             'mail_enabled',
             'mail_rate_limit_enabled',
         ];
@@ -34,7 +27,7 @@
             compressLabel.textContent = compressInput.checked ? '已开启' : '未开启';
         }
 
-        securitySwitches.forEach((name) => {
+        statusSwitches.forEach((name) => {
             const switchInput = document.getElementById(name);
             const switchLabel = document.getElementById(`${name}_label`);
 
@@ -178,13 +171,6 @@
     document.getElementById('attachment_image_auto_resize')?.addEventListener('change', syncSwitch);
     document.getElementById('attachment_image_auto_compress')?.addEventListener('change', syncSwitch);
     [
-        'security_site_protection_enabled',
-        'security_block_bad_path_enabled',
-        'security_block_sql_injection_enabled',
-        'security_block_xss_enabled',
-        'security_block_path_traversal_enabled',
-        'security_block_bad_upload_enabled',
-        'security_rate_limit_enabled',
         'mail_enabled',
         'mail_rate_limit_enabled',
     ].forEach((id) => {

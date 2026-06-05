@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Support\PlatformSecuritySettings;
 use App\Support\SiteSecurity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ class SecurityOverviewController extends Controller
 {
     public function __construct(
         protected SiteSecurity $siteSecurity,
+        protected PlatformSecuritySettings $platformSecuritySettings,
     ) {
     }
 
@@ -25,7 +27,35 @@ class SecurityOverviewController extends Controller
             'sites' => $this->adminSites(),
             'currentSite' => $this->currentSite($request),
             'overview' => $this->siteSecurity->platformOverviewPayload(),
+            'securitySettings' => $this->platformSecuritySettings->formDefaults(),
         ]);
+    }
+
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $this->authorizePlatform($request, 'system.setting.manage');
+
+        $settings = $this->platformSecuritySettings->validateAndStore($request, (int) $request->user()->id);
+
+        $this->logOperation(
+            'platform',
+            'security',
+            'update',
+            null,
+            (int) $request->user()->id,
+            'system_setting',
+            null,
+            [
+                'site_protection_enabled' => $settings['security.site_protection_enabled'],
+                'malicious_auto_block_enabled' => $settings['security.malicious_auto_block_enabled'],
+                'malicious_auto_block_threshold' => $settings['security.malicious_auto_block_threshold'],
+            ],
+            $request,
+        );
+
+        return redirect()
+            ->route('admin.platform.security.index')
+            ->with('status', '安护盾设置已更新。');
     }
 
     public function ipDetail(Request $request): View

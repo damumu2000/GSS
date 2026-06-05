@@ -17,6 +17,8 @@ class SiteSecurity
 {
     protected const HIGH_RISK_RULE_CODES = ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse', 'ip_blocklist', 'bad_client', 'bad_payload'];
 
+    protected const MALICIOUS_AUTO_BLOCK_RULE_CODES = ['bad_path', 'sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse', 'bad_client', 'bad_method', 'bad_payload'];
+
     protected const EVENT_SAMPLE_WINDOW_SECONDS = 600;
 
     protected const EVENT_PRUNE_BATCH_SIZE = 1000;
@@ -1666,14 +1668,23 @@ class SiteSecurity
             ->first(['blocked_until']);
         $isObserveMode = $this->siteSecurityMode($siteId) === 'observe';
         $recentHighRiskHits = $isHighRisk ? $this->hitRecentHighRiskCounter($siteId, $ipHash) : 0;
+        $autoBlockEnabled = $this->systemSettings->securityMaliciousAutoBlockEnabled();
+        $maliciousHits = $autoBlockEnabled && $this->shouldCountMaliciousAutoBlock($code)
+            ? $this->hitRecentMaliciousCounter($siteId, $ipHash)
+            : 0;
         $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
-        $shouldBlock = ! $isObserveMode && ((string) $rule['action'] === 'temporary_block' || ($blockSeconds > 0 && $recentHighRiskHits >= 3));
-        $blockedUntil = $shouldBlock && $blockSeconds > 0
-            ? $now->copy()->addSeconds($blockSeconds)->toDateTimeString()
+        $autoBlockSeconds = $this->systemSettings->securityMaliciousAutoBlockSeconds();
+        $shouldShortBlock = (string) $rule['action'] === 'temporary_block' || ($blockSeconds > 0 && $recentHighRiskHits >= 3);
+        $shouldAutoBlock = $autoBlockEnabled
+            && $autoBlockSeconds > 0
+            && $maliciousHits >= $this->systemSettings->securityMaliciousAutoBlockThreshold();
+        $shouldBlock = ! $isObserveMode && ($shouldShortBlock || $shouldAutoBlock);
+        $blockedUntil = $shouldBlock && ($shouldAutoBlock || $blockSeconds > 0)
+            ? $now->copy()->addSeconds($shouldAutoBlock ? $autoBlockSeconds : $blockSeconds)->toDateTimeString()
             : null;
         $currentBlockedUntil = $existing?->blocked_until ? strtotime((string) $existing->blocked_until) : false;
 
-        if (! $isObserveMode && ! $shouldBlock && $currentBlockedUntil !== false && $currentBlockedUntil > $now->getTimestamp()) {
+        if (! $isObserveMode && $currentBlockedUntil !== false && $currentBlockedUntil > $now->getTimestamp() && ($blockedUntil === null || $currentBlockedUntil > strtotime($blockedUntil))) {
             $shouldBlock = true;
             $blockedUntil = (string) $existing->blocked_until;
         }
@@ -1759,6 +1770,19 @@ class SiteSecurity
         RateLimiter::hit($key, 600);
 
         return RateLimiter::attempts($key);
+    }
+
+    protected function hitRecentMaliciousCounter(int $siteId, string $ipHash): int
+    {
+        $key = 'site-security:recent-malicious:'.$siteId.':'.$ipHash;
+        RateLimiter::hit($key, $this->systemSettings->securityMaliciousAutoBlockWindowSeconds());
+
+        return RateLimiter::attempts($key);
+    }
+
+    protected function shouldCountMaliciousAutoBlock(string $code): bool
+    {
+        return in_array($code, static::MALICIOUS_AUTO_BLOCK_RULE_CODES, true);
     }
 
     protected function tableHasColumn(string $table, string $column): bool

@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Site;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -18,6 +19,13 @@ class AdminEntryGate
     protected const SESSION_KEY = 'cms.admin_entry_passed';
 
     protected const COOKIE_MINUTES = 30;
+
+    protected const ENTRY_PATH_CACHE_SECONDS = 300;
+
+    /**
+     * @var array<int, string>
+     */
+    protected static array $entryPathCache = [];
 
     public function enabled(): bool
     {
@@ -90,12 +98,29 @@ class AdminEntryGate
 
     public function entryPathForSite(int $siteId): string
     {
+        if (isset(static::$entryPathCache[$siteId])) {
+            return static::$entryPathCache[$siteId];
+        }
+
+        $cacheKey = $this->entryPathCacheKey($siteId);
+        $cached = Cache::get($cacheKey);
+
+        if (is_string($cached)) {
+            $path = $this->normalizeEntryPath($cached);
+
+            if ($path !== '') {
+                return static::$entryPathCache[$siteId] = $path;
+            }
+        }
+
         $stored = $this->normalizeEntryPath((string) DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', self::SETTING_KEY)
             ->value('setting_value'));
 
         if ($stored !== '') {
+            $this->cacheEntryPath($siteId, $stored);
+
             return $stored;
         }
 
@@ -111,7 +136,16 @@ class AdminEntryGate
             ],
         );
 
+        $this->cacheEntryPath($siteId, $generated);
+
         return $generated;
+    }
+
+    public function forgetEntryPathForSite(int $siteId): void
+    {
+        unset(static::$entryPathCache[$siteId]);
+
+        Cache::forget($this->entryPathCacheKey($siteId));
     }
 
     public function normalizeEntryPath(string $value): string
@@ -119,7 +153,7 @@ class AdminEntryGate
         $value = trim(mb_strtolower($value));
         $value = trim($value, "/ \t\n\r\0\x0B");
 
-        return preg_match('/^[a-z0-9](?:[a-z0-9-]{6,62}[a-z0-9])$/', $value) === 1
+        return preg_match('/^[a-z0-9](?:[a-z0-9-]{3,18}[a-z0-9])$/', $value) === 1
             && ! str_contains($value, '--')
                 ? $value
                 : '';
@@ -136,11 +170,7 @@ class AdminEntryGate
         $path = $this->normalizeEntryPath($value);
 
         if ($path === '') {
-            return '后台入口路径需为 8-64 位小写字母、数字或短横线，且不能以短横线开头或结尾。';
-        }
-
-        if ($this->entryPathExistsOnOtherSite($path, $siteId)) {
-            return '后台入口路径已被其他站点使用，请更换后重试。';
+            return '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。';
         }
 
         if ($this->conflictsWithSiteFrontendPath($path, $siteId)) {
@@ -303,6 +333,22 @@ class AdminEntryGate
         );
     }
 
+    protected function cacheEntryPath(int $siteId, string $entryPath): void
+    {
+        static::$entryPathCache[$siteId] = $entryPath;
+
+        Cache::put(
+            $this->entryPathCacheKey($siteId),
+            $entryPath,
+            now()->addSeconds(self::ENTRY_PATH_CACHE_SECONDS),
+        );
+    }
+
+    protected function entryPathCacheKey(int $siteId): string
+    {
+        return 'admin-entry-gate:path:'.$siteId;
+    }
+
     protected function generateUniqueEntryPath(int $siteId): string
     {
         do {
@@ -350,15 +396,6 @@ class AdminEntryGate
         ];
 
         return in_array($path, $reserved, true);
-    }
-
-    protected function entryPathExistsOnOtherSite(string $path, int $siteId): bool
-    {
-        return DB::table('site_settings')
-            ->where('setting_key', self::SETTING_KEY)
-            ->where('setting_value', $path)
-            ->where('site_id', '!=', $siteId)
-            ->exists();
     }
 
     protected function conflictsWithSiteFrontendPath(string $path, int $siteId): bool

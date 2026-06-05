@@ -1,32 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $site->name }} - 站点模板未启用</title>
-    <link rel="stylesheet" href="{{ asset('css/site-theme-status-pages.css') }}">
-</head>
-<body>
-    <div class="theme-status-shell">
-        <main class="theme-status-card">
-            <span class="theme-status-badge is-muted">{{ $isPreview ? '预览不可用' : '站点暂不可访问' }}</span>
-            <h1 class="theme-status-title">{{ $isPreview ? '当前内容暂时无法预览' : '当前站点暂未启用可用模板' }}</h1>
-            <div class="theme-status-desc">
-                {{ $isPreview ? '该内容所属站点当前还没有配置可用模板，因此暂时无法按前台样式进行预览。' : '该站点当前还没有配置可用模板，因此前台页面暂时无法正常显示。' }}
-                请先在后台模板管理中完善模板，并启用一个可访问模板。
-            </div>
-
-            <section class="theme-status-meta">
-                <div class="theme-status-meta-item">
-                    <span class="theme-status-meta-label">站点名称</span>
-                    <span class="theme-status-meta-value">{{ $site->name }}</span>
-                </div>
-                <div class="theme-status-meta-item">
-                    <span class="theme-status-meta-label">站点标识</span>
-                    <span class="theme-status-meta-value">{{ $site->site_key }}</span>
-                </div>
-            </section>
-        </main>
-    </div>
-</body>
-</html>
+@include('errors.minimal', [
+    'code' => '503',
+    'pageTitle' => ($site->name ?? '站点').' - 站点模板未启用',
+    'title' => $isPreview ? '当前内容暂时无法预览' : '当前站点暂未启用可用模板',
+    'description' => $isPreview ? '该内容所属站点当前还没有配置可用模板，因此暂时无法按前台样式预览。' : '该站点当前还没有配置可用模板，因此前台页面暂时无法正常显示。',
+])

@@ -423,6 +423,7 @@ class PlatformSiteController extends Controller
                 'security.rule_exceptions' => implode("\n", $this->normalizeSiteSecurityRuleExceptions((string) ($validated['security_rule_exceptions'] ?? ''))),
                 $this->adminEntryGate->settingKey() => $this->adminEntryGate->normalizeEntryPath((string) ($validated['admin_entry_path'] ?? $this->adminEntryGate->entryPathForSite((int) $siteId))),
             ], (int) $request->user()->id);
+            $this->adminEntryGate->forgetEntryPathForSite((int) $siteId);
         });
 
         $this->logOperation(
@@ -762,7 +763,7 @@ class PlatformSiteController extends Controller
             'security_ip_blocklist' => ['nullable', 'string', 'max:5000'],
             'security_path_allowlist' => ['nullable', 'string', 'max:5000'],
             'security_rule_exceptions' => ['nullable', 'string', 'max:2000'],
-            'admin_entry_path' => [$siteId ? 'required' : 'nullable', 'string', 'max:64'],
+            'admin_entry_path' => [$siteId ? 'required' : 'nullable', 'string', 'max:20'],
             'module_ids' => ['nullable', 'array'],
             'module_ids.*' => ['integer', 'exists:modules,id'],
             'seo_title' => ['nullable', 'string', 'max:255'],
@@ -785,6 +786,7 @@ class PlatformSiteController extends Controller
             'expires_at.date_format' => '到期时间格式不正确，请使用 4 位年份日期。',
             'expires_at.after_or_equal' => '到期时间不能早于开通时间。',
             'site_admin_ids.*.exists' => '所选站点管理员不存在，请刷新页面后重试。',
+            'admin_entry_path.max' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
         ]);
 
         $validator->after(function ($validator) use ($request, $siteId): void {

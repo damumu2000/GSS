@@ -7,10 +7,12 @@ use App\Http\Middleware\EnsureSiteNotExpired;
 use App\Http\Middleware\MinifyHtmlResponse;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SiteSecurityGuard;
+use App\Http\Middleware\ValidateRequestToken;
 use App\Support\AdminEntryGate;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
@@ -23,8 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->encryptCookies(except: ['admin_theme']);
+        $middleware->encryptCookies(except: ['admin_theme', ValidateRequestToken::COOKIE_NAME]);
         $middleware->redirectUsersTo(fn () => route('admin.entry'));
+        $middleware->web(replace: [
+            PreventRequestForgery::class => ValidateRequestToken::class,
+        ]);
         $middleware->trustProxies(
             at: env('TRUSTED_PROXIES', '*'),
             headers: Request::HEADER_X_FORWARDED_FOR

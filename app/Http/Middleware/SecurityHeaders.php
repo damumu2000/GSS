@@ -11,8 +11,7 @@ class SecurityHeaders
 {
     public function __construct(
         protected SiteSecurity $siteSecurity,
-    ) {
-    }
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -54,6 +53,9 @@ class SecurityHeaders
 
     protected function applyHeaders(Request $request, Response $response): Response
     {
+        $response->headers->remove('X-Powered-By');
+        $response->headers->remove('X-Generator');
+
         $contentType = (string) $response->headers->get('Content-Type', '');
         $isDebugExceptionPage = config('app.debug')
             && $response->getStatusCode() >= 500
