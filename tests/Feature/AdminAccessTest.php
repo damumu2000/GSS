@@ -10732,7 +10732,20 @@ XML);
 
         $this->travel(61)->seconds();
 
+        $eventCountBeforeRuntimeBlock = DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->count();
+
         $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+
+        $this->assertSame(
+            $eventCountBeforeRuntimeBlock,
+            DB::table('site_security_events')
+                ->where('site_id', $siteId)
+                ->count()
+        );
+
+        app(SiteSecurity::class)->clearRuntimeBlocksForIp($siteId, '127.0.0.1');
     }
 
     public function test_site_security_custom_mode_uses_site_probe_threshold(): void

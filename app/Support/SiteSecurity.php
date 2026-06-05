@@ -30,6 +30,11 @@ class SiteSecurity
 
     protected static ?bool $ipReputationTableReady = null;
 
+    /**
+     * @var array<string, int>
+     */
+    protected static array $recordFailureLogBuckets = [];
+
     public function __construct(
         protected SystemSettings $systemSettings,
         protected ?IpRegionResolver $ipRegionResolver = null,
@@ -182,6 +187,10 @@ class SiteSecurity
             return null;
         }
 
+        if ($rule = $this->exceptedRule($this->matchMaliciousRuntimeBlock($request, $siteId), $siteId)) {
+            return $this->applySiteMode($rule, $mode);
+        }
+
         if ($rule = $this->exceptedRule($this->matchProbeBlock($request, $siteId), $siteId)) {
             return $this->applySiteMode($rule, $mode);
         }
@@ -240,64 +249,77 @@ class SiteSecurity
         }
 
         $siteId = (int) $site->id;
-        $now = now('Asia/Shanghai');
-        $date = $now->toDateString();
-        $rule = $this->enrichRule($rule);
-        $column = $this->statsColumn((string) $rule['code']);
-        $fingerprint = $this->eventFingerprint($siteId, $rule, $request);
 
-        DB::table('site_security_daily_stats')->insertOrIgnore([
-            'site_id' => $siteId,
-            'stat_date' => $date,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        try {
+            $now = now('Asia/Shanghai');
+            $date = $now->toDateString();
+            $rule = $this->enrichRule($rule);
+            $column = $this->statsColumn((string) $rule['code']);
+            $fingerprint = $this->eventFingerprint($siteId, $rule, $request);
 
-        $updates = [
-            'blocked_total' => DB::raw('blocked_total + 1'),
-            'updated_at' => $now,
-        ];
+            DB::table('site_security_daily_stats')->insertOrIgnore([
+                'site_id' => $siteId,
+                'stat_date' => $date,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
 
-        if ($column !== 'blocked_total' && $this->tableHasColumn('site_security_daily_stats', $column)) {
-            $updates[$column] = DB::raw($column.' + 1');
-        }
+            $updates = [
+                'blocked_total' => DB::raw('blocked_total + 1'),
+                'updated_at' => $now,
+            ];
 
-        DB::table('site_security_daily_stats')
-            ->where('site_id', $siteId)
-            ->where('stat_date', $date)
-            ->update($updates);
-
-        $event = [
-            'site_id' => $siteId,
-            'rule_code' => (string) $rule['code'],
-            'rule_name' => (string) $rule['name'],
-            'request_path' => $this->normalizedRequestPath($request),
-            'request_method' => strtoupper((string) $request->method()),
-            'client_ip' => $request->ip() ?: null,
-            'region_name' => null,
-            'ip_hash' => $request->ip() ? hash('sha256', (string) $request->ip()) : null,
-            'created_at' => $now,
-        ];
-
-        if ($this->shouldSampleSecurityEvent($siteId, $fingerprint)) {
-            foreach ([
-                'risk_level' => (string) $rule['risk_level'],
-                'action' => (string) $rule['action'],
-                'user_agent' => $this->trimHeader($request->userAgent()),
-                'referer' => $this->trimHeader($request->headers->get('referer')),
-                'request_query' => $this->requestQuerySample($request),
-                'fingerprint' => $fingerprint,
-            ] as $column => $value) {
-                if ($this->tableHasColumn('site_security_events', $column)) {
-                    $event[$column] = $value;
-                }
+            if ($column !== 'blocked_total' && $this->tableHasColumn('site_security_daily_stats', $column)) {
+                $updates[$column] = DB::raw($column.' + 1');
             }
 
-            DB::table('site_security_events')->insert($event);
-        }
+            DB::table('site_security_daily_stats')
+                ->where('site_id', $siteId)
+                ->where('stat_date', $date)
+                ->update($updates);
 
-        if ($this->ipReputationTableReady()) {
-            $this->updateIpReputation($siteId, $rule, $request, $now);
+            $event = [
+                'site_id' => $siteId,
+                'rule_code' => (string) $rule['code'],
+                'rule_name' => (string) $rule['name'],
+                'request_path' => $this->normalizedRequestPath($request),
+                'request_method' => strtoupper((string) $request->method()),
+                'client_ip' => $request->ip() ?: null,
+                'region_name' => null,
+                'ip_hash' => $request->ip() ? hash('sha256', (string) $request->ip()) : null,
+                'created_at' => $now,
+            ];
+
+            if ($this->shouldSampleSecurityEvent($siteId, $fingerprint)) {
+                foreach ([
+                    'risk_level' => (string) $rule['risk_level'],
+                    'action' => (string) $rule['action'],
+                    'user_agent' => $this->trimHeader($request->userAgent()),
+                    'referer' => $this->trimHeader($request->headers->get('referer')),
+                    'request_query' => $this->requestQuerySample($request),
+                    'fingerprint' => $fingerprint,
+                ] as $column => $value) {
+                    if ($this->tableHasColumn('site_security_events', $column)) {
+                        $event[$column] = $value;
+                    }
+                }
+
+                DB::table('site_security_events')->insert($event);
+            }
+
+            if ($this->ipReputationTableReady()) {
+                $this->updateIpReputation($siteId, $rule, $request, $now);
+            }
+        } catch (\Throwable $exception) {
+            if ($this->shouldLogRecordFailure($siteId)) {
+                Log::warning('Site security record failed.', [
+                    'site_id' => $siteId,
+                    'path' => $request->path(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+
+            return;
         }
     }
 
@@ -533,6 +555,10 @@ class SiteSecurity
             return null;
         }
 
+        if ($rule = $this->exceptedRule($this->matchMaliciousRuntimeBlock($request, $siteId), $siteId)) {
+            return $this->applySiteMode($rule, $mode);
+        }
+
         return $this->applySiteMode($this->exceptedRule($this->matchBadMethod($request), $siteId), $mode);
     }
 
@@ -590,6 +616,7 @@ class SiteSecurity
 
         RateLimiter::clear('site-security-rate-block:'.$siteId.':'.$ipHash);
         RateLimiter::clear('site-security-probe-block:'.$siteId.':'.$ipHash);
+        RateLimiter::clear('site-security-malicious-block:'.$siteId.':'.$ipHash);
         RateLimiter::clear('site-security-rate:'.$siteId.':site:'.$ipHash);
         RateLimiter::clear('site-security-rate:'.$siteId.':form:'.$ipHash);
         RateLimiter::clear('site-security-rate:'.$siteId.':media:'.$ipHash);
@@ -1722,6 +1749,10 @@ class SiteSecurity
                 'hit_count' => DB::raw('hit_count + 1'),
                 'high_risk_count' => $isHighRisk ? DB::raw('high_risk_count + 1') : DB::raw('high_risk_count'),
             ]);
+
+        if ($shouldAutoBlock) {
+            RateLimiter::hit($this->maliciousBlockKey($siteId, (string) $ip), $autoBlockSeconds);
+        }
     }
 
     protected function ipReputationTableReady(): bool
@@ -1767,22 +1798,60 @@ class SiteSecurity
     protected function hitRecentHighRiskCounter(int $siteId, string $ipHash): int
     {
         $key = 'site-security:recent-high-risk:'.$siteId.':'.$ipHash;
-        RateLimiter::hit($key, 600);
 
-        return RateLimiter::attempts($key);
+        try {
+            RateLimiter::hit($key, 600);
+
+            return RateLimiter::attempts($key);
+        } catch (\Throwable $exception) {
+            Log::warning('Site security high risk counter failed.', [
+                'site_id' => $siteId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return 0;
+        }
     }
 
     protected function hitRecentMaliciousCounter(int $siteId, string $ipHash): int
     {
         $key = 'site-security:recent-malicious:'.$siteId.':'.$ipHash;
-        RateLimiter::hit($key, $this->systemSettings->securityMaliciousAutoBlockWindowSeconds());
 
-        return RateLimiter::attempts($key);
+        try {
+            RateLimiter::hit($key, $this->systemSettings->securityMaliciousAutoBlockWindowSeconds());
+
+            return RateLimiter::attempts($key);
+        } catch (\Throwable $exception) {
+            Log::warning('Site security malicious counter failed.', [
+                'site_id' => $siteId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return 0;
+        }
     }
 
     protected function shouldCountMaliciousAutoBlock(string $code): bool
     {
         return in_array($code, static::MALICIOUS_AUTO_BLOCK_RULE_CODES, true);
+    }
+
+    protected function shouldLogRecordFailure(int $siteId): bool
+    {
+        $bucket = (int) floor(time() / 60);
+        $key = $siteId.':'.$bucket;
+
+        if (isset(static::$recordFailureLogBuckets[$key])) {
+            return false;
+        }
+
+        static::$recordFailureLogBuckets[$key] = $bucket;
+
+        if (count(static::$recordFailureLogBuckets) > 100) {
+            static::$recordFailureLogBuckets = array_slice(static::$recordFailureLogBuckets, -50, null, true);
+        }
+
+        return true;
     }
 
     protected function tableHasColumn(string $table, string $column): bool
@@ -2530,8 +2599,49 @@ class SiteSecurity
 
         $blockKey = $this->probeBlockKey($siteId, $request);
 
-        if (RateLimiter::tooManyAttempts($blockKey, 1)) {
-            return ['code' => 'probe_abuse', 'name' => '扫描试探超限', '_skip_record' => true];
+        try {
+            if (RateLimiter::tooManyAttempts($blockKey, 1)) {
+                return ['code' => 'probe_abuse', 'name' => '扫描试探超限', '_skip_record' => true];
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Site security probe block cache failed.', [
+                'site_id' => $siteId,
+                'path' => $request->path(),
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return null;
+    }
+
+    protected function matchMaliciousRuntimeBlock(Request $request, int $siteId): ?array
+    {
+        if ($this->siteSecurityMode($siteId) === 'observe') {
+            return null;
+        }
+
+        $ip = $request->ip();
+
+        if (! $ip) {
+            return null;
+        }
+
+        try {
+            if (RateLimiter::tooManyAttempts($this->maliciousBlockKey($siteId, (string) $ip), 1)) {
+                return [
+                    'code' => 'probe_abuse',
+                    'name' => '连续攻击封禁拦截',
+                    'risk_level' => 'critical',
+                    'action' => 'temporary_block',
+                    '_skip_record' => true,
+                ];
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Site security malicious block cache failed.', [
+                'site_id' => $siteId,
+                'path' => $request->path(),
+                'message' => $exception->getMessage(),
+            ]);
         }
 
         return null;
@@ -2553,18 +2663,28 @@ class SiteSecurity
         $totalKey = $this->probeTotalKey($siteId, $request);
         $ruleKey = $this->probeRuleKey($siteId, $request, (string) $rule['code']);
 
-        RateLimiter::hit($totalKey, $window);
-        RateLimiter::hit($ruleKey, $window);
+        try {
+            RateLimiter::hit($totalKey, $window);
+            RateLimiter::hit($ruleKey, $window);
 
-        if (! RateLimiter::tooManyAttempts($totalKey, $threshold) && ! RateLimiter::tooManyAttempts($ruleKey, $threshold)) {
+            if (! RateLimiter::tooManyAttempts($totalKey, $threshold) && ! RateLimiter::tooManyAttempts($ruleKey, $threshold)) {
+                return null;
+            }
+
+            if ($this->siteSecurityMode($siteId) !== 'observe' && $blockSeconds > 0) {
+                RateLimiter::hit($this->probeBlockKey($siteId, $request), $blockSeconds);
+            }
+
+            return ['code' => 'probe_abuse', 'name' => '扫描试探超限'];
+        } catch (\Throwable $exception) {
+            Log::warning('Site security probe escalation cache failed.', [
+                'site_id' => $siteId,
+                'path' => $request->path(),
+                'message' => $exception->getMessage(),
+            ]);
+
             return null;
         }
-
-        if ($this->siteSecurityMode($siteId) !== 'observe' && $blockSeconds > 0) {
-            RateLimiter::hit($this->probeBlockKey($siteId, $request), $blockSeconds);
-        }
-
-        return ['code' => 'probe_abuse', 'name' => '扫描试探超限'];
     }
 
     protected function siteByHost(string $host): ?object
@@ -2941,6 +3061,11 @@ class SiteSecurity
     protected function probeBlockKey(int $siteId, Request $request): string
     {
         return 'site-security-probe-block:'.$siteId.':'.sha1($request->ip() ?: 'guest');
+    }
+
+    protected function maliciousBlockKey(int $siteId, string $ip): string
+    {
+        return 'site-security-malicious-block:'.$siteId.':'.sha1($ip !== '' ? $ip : 'guest');
     }
 
     protected function pathScanKey(int $siteId, string $ip): string
