@@ -234,7 +234,7 @@ class AdminAccessTest extends TestCase
             ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
             ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
             ->assertHeader('Cross-Origin-Embedder-Policy', 'unsafe-none')
-            ->assertHeader('Cross-Origin-Resource-Policy', 'same-origin')
+            ->assertHeader('Cross-Origin-Resource-Policy', 'cross-origin')
             ->assertHeader('Content-Security-Policy');
 
         $csp = (string) $response->headers->get('Content-Security-Policy');

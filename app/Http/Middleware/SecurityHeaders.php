@@ -74,7 +74,7 @@ class SecurityHeaders
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
         $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
         $response->headers->set('Cross-Origin-Embedder-Policy', 'unsafe-none');
-        $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+        $response->headers->set('Cross-Origin-Resource-Policy', 'cross-origin');
         $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",
             "base-uri 'self'",
