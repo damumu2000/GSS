@@ -193,7 +193,7 @@
                                 '<div class="security-modal-subtitle">', escapeHtml(ipLabel), ' 的命中画像和最近拦截记录</div>',
                             '</div>',
                             '<div class="security-modal-title-actions">',
-                                '<button class="security-modal-back" type="button" data-security-ip-detail-back>返回排行</button>',
+                                '<button class="security-modal-back" type="button" data-security-ip-detail-back>返回</button>',
                                 '<button class="security-modal-close" type="button" data-security-modal-close aria-label="关闭 IP 详情">',
                                     '<svg viewBox="0 0 24 24" aria-hidden="true">',
                                         '<path d="M6 6l12 12"></path>',

@@ -1653,9 +1653,12 @@
         }
 
         .security-modal-title-actions {
+            position: absolute;
+            top: -2px;
+            right: -4px;
             display: inline-flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex-shrink: 0;
         }
 
@@ -1663,15 +1666,17 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 42px;
+            height: 42px;
+            min-width: 42px;
             padding: 0 16px;
             border-radius: 14px;
             border: 1px solid rgba(213, 221, 232, 0.95);
             background: rgba(255, 255, 255, 0.92);
-            color: #475467;
+            color: #667085;
             font-size: 13px;
             font-weight: 800;
             cursor: pointer;
+            box-sizing: border-box;
             transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
         }
 
@@ -1753,6 +1758,8 @@
             position: static;
             top: auto;
             right: auto;
+            width: 42px;
+            height: 42px;
             flex-shrink: 0;
         }
 
