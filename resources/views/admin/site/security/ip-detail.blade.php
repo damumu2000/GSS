@@ -69,6 +69,27 @@
         </section>
 
         <section class="security-panel security-detail-panel">
+            <h3 class="security-panel-title">封禁原因聚合</h3>
+            <div class="security-panel-desc">按最近 24 小时命中类型聚合，便于快速判断该 IP 的主要风险来源。</div>
+            <div class="security-detail-events">
+                @forelse (($detail['reason_summary'] ?? []) as $reason)
+                    <article class="security-detail-event">
+                        <div class="security-detail-event-top">
+                            <div class="security-detail-event-title">{{ $reason['rule_label'] }}</div>
+                            <div class="security-detail-event-time">最近 {{ $reason['last_seen_label'] }}</div>
+                        </div>
+                        <div class="security-detail-event-meta">
+                            <span class="security-event-chip {{ in_array($reason['risk_label'], ['高危', '严重'], true) ? 'is-risk-high' : 'is-risk-medium' }}">{{ $reason['risk_label'] }}</span>
+                            <span class="security-event-chip">命中 {{ number_format($reason['total']) }} 次</span>
+                        </div>
+                    </article>
+                @empty
+                    <div class="security-empty">最近 24 小时没有可聚合的命中原因。</div>
+                @endforelse
+            </div>
+        </section>
+
+        <section class="security-panel security-detail-panel">
             <h3 class="security-panel-title">最近命中记录</h3>
             <div class="security-panel-desc">按风险等级和时间排序，仅展示当前站点下该 IP 的最近 20 条记录。</div>
             <div class="security-detail-events">

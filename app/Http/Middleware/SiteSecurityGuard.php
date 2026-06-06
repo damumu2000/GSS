@@ -51,6 +51,10 @@ class SiteSecurityGuard
             return false;
         }
 
+        if ($path === 'login/captcha/check') {
+            return false;
+        }
+
         foreach (['admin', 'login', 'logout'] as $prefix) {
             if ($path === $prefix || str_starts_with($path, $prefix.'/')) {
                 return true;

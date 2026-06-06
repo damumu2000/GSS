@@ -8,6 +8,7 @@ use App\Support\SystemChecks\MailQueueHealthCheck;
 use App\Support\SystemChecks\PerformanceCacheHealthCheck;
 use App\Support\SystemChecks\RuntimeHealthCheck;
 use App\Support\SystemChecks\SchedulerHealthCheck;
+use App\Support\SystemChecks\SiteSecurityHealthCheck;
 use App\Support\SystemChecks\StaticVendorHealthCheck;
 use App\Support\SystemChecks\StaticVendorManager;
 
@@ -21,6 +22,7 @@ class PlatformSystemStatus
         protected PerformanceCacheHealthCheck $performanceCacheHealthCheck,
         protected RuntimeHealthCheck $runtimeHealthCheck,
         protected SchedulerHealthCheck $schedulerHealthCheck,
+        protected SiteSecurityHealthCheck $siteSecurityHealthCheck,
         protected StaticVendorHealthCheck $staticVendorHealthCheck,
         protected StaticVendorManager $staticVendorManager,
     ) {
@@ -79,6 +81,7 @@ class PlatformSystemStatus
             $this->mailQueueHealthCheck->inspect(),
             $this->performanceCacheHealthCheck->inspect(),
             $this->schedulerHealthCheck->inspect(),
+            $this->siteSecurityHealthCheck->inspect(),
             $this->databaseHealthCheck->inspect(),
             $this->runtimeHealthCheck->inspect(),
             $this->deployHealthCheck->inspect(),

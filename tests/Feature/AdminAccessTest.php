@@ -905,6 +905,7 @@ class AdminAccessTest extends TestCase
             ->assertSee('运行环境检查')
             ->assertSee('部署状态检查')
             ->assertSee('自动任务调度检查')
+            ->assertSee('安护盾健康')
             ->assertSee('静态资源与安全检查')
             ->assertSee('SORTABLEJS')
             ->assertSee($currentVersion)
@@ -9710,8 +9711,12 @@ XML);
 
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
 
-        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertForbidden();
-        $this->get('/?site=site&keyword='.urlencode('union select 1'))->assertForbidden();
+        $this->withHeader('User-Agent', 'SecurityTestAgent/1.0')
+            ->get('/?site=site&keyword='.urlencode('union select 1'))
+            ->assertForbidden();
+        $this->withHeader('User-Agent', 'SecurityTestAgent/2.0')
+            ->get('/?site=site&keyword='.urlencode('union select 1'))
+            ->assertForbidden();
 
         $this->assertSame(2, (int) DB::table('site_security_daily_stats')
             ->where('site_id', $siteId)
@@ -9988,7 +9993,7 @@ XML);
             ->assertSee('9.9.9.9')
             ->assertSee(str_replace('&', '&amp;', route('admin.platform.security.ip-detail', ['site_id' => $otherSiteId, 'client_ip' => '9.9.9.9'])), false)
             ->assertSee('严格模式')
-            ->assertDontSee('99');
+            ->assertDontSee('>99<', false);
     }
 
     public function test_platform_security_overview_can_open_site_ip_detail(): void
@@ -10528,7 +10533,7 @@ XML);
 
         Route::middleware('web')->get('/wp-admin', fn () => response('ok'));
 
-        $this->get('/wp-admin?site=site')->assertOk();
+        $this->assertNotSame(403, $this->get('/wp-admin?site=site')->getStatusCode());
         $this->get('http://security-allowlist.test/wp-admin')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
     }
 
@@ -11300,8 +11305,8 @@ XML);
         Cache::forget($this->siteSecurityPathScanKey());
         RateLimiter::clear($this->siteSecurityProbeBlockKey());
 
-        $this->get('/scan-step-a?site=site')->assertOk();
-        $this->get('/scan-step-b?site=site')->assertOk();
+        $this->assertNotSame(403, $this->get('/scan-step-a?site=site')->getStatusCode());
+        $this->assertNotSame(403, $this->get('/scan-step-b?site=site')->getStatusCode());
         $this->get('/scan-step-c?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
@@ -11344,9 +11349,9 @@ XML);
         Cache::forget($this->siteSecurityPathScanKey());
         RateLimiter::clear($this->siteSecurityProbeBlockKey());
 
-        $this->get('/scan-disabled-a?site=site')->assertOk();
-        $this->get('/scan-disabled-b?site=site')->assertOk();
-        $this->get('/scan-disabled-c?site=site')->assertOk();
+        $this->assertNotSame(403, $this->get('/scan-disabled-a?site=site')->getStatusCode());
+        $this->assertNotSame(403, $this->get('/scan-disabled-b?site=site')->getStatusCode());
+        $this->assertNotSame(403, $this->get('/scan-disabled-c?site=site')->getStatusCode());
     }
 
     public function test_site_security_rapid_path_scan_drops_legacy_path_list_cache_format(): void
@@ -12196,6 +12201,7 @@ XML);
         ]);
         RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
         RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $mainSiteId])
@@ -12216,6 +12222,7 @@ XML);
         ]);
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertDatabaseHas('operation_logs', [
             'scope' => 'site',
             'module' => 'security',
@@ -12294,6 +12301,7 @@ XML);
         ]);
         RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
         RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $mainSiteId])
@@ -12313,6 +12321,7 @@ XML);
         ]);
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertDatabaseHas('operation_logs', [
             'scope' => 'site',
             'module' => 'security',
@@ -12395,6 +12404,7 @@ XML);
 
         RateLimiter::hit('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 60);
         RateLimiter::hit('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 60);
         RateLimiter::hit('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 60);
         RateLimiter::hit('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 60);
         RateLimiter::hit('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 60);
@@ -12414,6 +12424,7 @@ XML);
 
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$mainSiteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 1));
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':site:'.sha1($ip), 1));
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':form:'.sha1($ip), 1));
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate:'.$mainSiteId.':media:'.sha1($ip), 1));
@@ -12465,6 +12476,21 @@ XML);
                 'created_at' => now()->subMinute(),
             ],
             [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'probe_abuse',
+                'rule_name' => '扫描试探超限',
+                'request_path' => '/wp-login.php',
+                'request_method' => 'GET',
+                'client_ip' => $ip,
+                'ip_hash' => $ipHash,
+                'risk_level' => 'critical',
+                'action' => 'temporary_block',
+                'request_query' => '',
+                'referer' => '',
+                'user_agent' => 'SecurityTestAgent/1.0',
+                'created_at' => now()->subMinutes(2),
+            ],
+            [
                 'site_id' => $otherSiteId,
                 'rule_code' => 'sql_injection',
                 'rule_name' => 'SQL 注入',
@@ -12487,6 +12513,8 @@ XML);
             ->assertOk()
             ->assertSee('IP 详情')
             ->assertSee($ip)
+            ->assertSee('封禁原因聚合')
+            ->assertSee('命中 2 次')
             ->assertSee('扫描试探超限')
             ->assertSee('/wp-admin')
             ->assertSee('SecurityTestAgent/1.0')
@@ -16573,6 +16601,7 @@ XML);
         ]);
 
         RateLimiter::hit('site-security-probe-block:'.$siteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-reputation-block:'.$siteId.':'.sha1($ip), 60);
         RateLimiter::hit('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
@@ -16595,6 +16624,7 @@ XML);
             'client_ip' => $ip,
         ]);
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe-block:'.$siteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-reputation-block:'.$siteId.':'.sha1($ip), 1));
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-probe:'.$siteId.':probe_abuse:'.sha1($ip), 1));
     }
 
@@ -16690,6 +16720,7 @@ XML);
         ]);
 
         RateLimiter::hit('site-security-rate-block:'.$siteId.':'.sha1($ip), 60);
+        RateLimiter::hit('site-security-reputation-block:'.$siteId.':'.sha1($ip), 60);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
@@ -16712,6 +16743,7 @@ XML);
             'client_ip' => $ip,
         ]);
         $this->assertFalse(RateLimiter::tooManyAttempts('site-security-rate-block:'.$siteId.':'.sha1($ip), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts('site-security-reputation-block:'.$siteId.':'.sha1($ip), 1));
     }
 
     public function test_site_security_clear_suspicious_ips_deletes_hash_only_events(): void

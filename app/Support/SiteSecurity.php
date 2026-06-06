@@ -99,10 +99,12 @@ class SiteSecurity
                     return $this->siteByHost($host);
                 });
             } catch (\Throwable $exception) {
-                Log::warning('Site security host cache failed.', [
-                    'host' => $host,
-                    'message' => $exception->getMessage(),
-                ]);
+                if ($this->shouldLogRuntimeFailure(0, 'host-cache')) {
+                    Log::warning('Site security host cache failed.', [
+                        'host' => $host,
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
 
                 $site = $this->siteByHost($host);
             }
@@ -187,7 +189,7 @@ class SiteSecurity
             return null;
         }
 
-        if ($rule = $this->exceptedRule($this->matchMaliciousRuntimeBlock($request, $siteId), $siteId)) {
+        if ($rule = $this->exceptedRule($this->matchRuntimeIpBlock($request, $siteId), $siteId)) {
             return $this->applySiteMode($rule, $mode);
         }
 
@@ -555,7 +557,7 @@ class SiteSecurity
             return null;
         }
 
-        if ($rule = $this->exceptedRule($this->matchMaliciousRuntimeBlock($request, $siteId), $siteId)) {
+        if ($rule = $this->exceptedRule($this->matchRuntimeIpBlock($request, $siteId), $siteId)) {
             return $this->applySiteMode($rule, $mode);
         }
 
@@ -616,6 +618,7 @@ class SiteSecurity
 
         RateLimiter::clear('site-security-rate-block:'.$siteId.':'.$ipHash);
         RateLimiter::clear('site-security-probe-block:'.$siteId.':'.$ipHash);
+        RateLimiter::clear('site-security-reputation-block:'.$siteId.':'.$ipHash);
         RateLimiter::clear('site-security-malicious-block:'.$siteId.':'.$ipHash);
         RateLimiter::clear('site-security-rate:'.$siteId.':site:'.$ipHash);
         RateLimiter::clear('site-security-rate:'.$siteId.':form:'.$ipHash);
@@ -888,27 +891,7 @@ class SiteSecurity
                 ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
                 ->get()
                 ->map(fn (object $row): array => $this->mapSuspiciousIpRow($row, $globalAllowlist, $globalBlocklist, $siteAllowlist, $siteBlocklist))
-                ->sort(function (array $left, array $right): int {
-                    $statusWeight = static fn (string $status): int => match ($status) {
-                        'blocked' => 3,
-                        'limited' => 2,
-                        default => 1,
-                    };
-
-                    return [
-                        $statusWeight((string) ($right['status'] ?? 'monitored')),
-                        (int) ($right['high_risk_count'] ?? 0),
-                        (int) ($right['hit_count'] ?? 0),
-                        (int) ($right['last_seen_at_ts'] ?? 0),
-                        (string) ($right['client_ip'] ?? ''),
-                    ] <=> [
-                        $statusWeight((string) ($left['status'] ?? 'monitored')),
-                        (int) ($left['high_risk_count'] ?? 0),
-                        (int) ($left['hit_count'] ?? 0),
-                        (int) ($left['last_seen_at_ts'] ?? 0),
-                        (string) ($left['client_ip'] ?? ''),
-                    ];
-                })
+                ->sort(fn (array $left, array $right): int => $this->compareSuspiciousIpRows($left, $right))
                 ->take(5)
                 ->values()
                 ->all();
@@ -973,6 +956,7 @@ class SiteSecurity
             })
             ->values()
             ->all();
+        $reasonSummary = $this->siteIpReasonSummary($siteId, $ipHash);
 
         if (! $row && $recentEvents === []) {
             return null;
@@ -1004,6 +988,7 @@ class SiteSecurity
         return [
             ...$mapped,
             'last_rule_label' => (string) ($lastRuleProfile['category_label'] ?? '暂无规则'),
+            'reason_summary' => $reasonSummary,
             'recent_events' => $recentEvents,
         ];
     }
@@ -1122,6 +1107,8 @@ class SiteSecurity
                 $siteBlocklist,
                 $latestEventsByHash[(string) ($row->ip_hash ?? '')] ?? null,
             ))
+                ->sort(fn (array $left, array $right): int => $this->compareSuspiciousIpRows($left, $right))
+                ->values()
         );
 
         return $paginator;
@@ -1561,6 +1548,33 @@ class SiteSecurity
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $left
+     * @param  array<string, mixed>  $right
+     */
+    protected function compareSuspiciousIpRows(array $left, array $right): int
+    {
+        $statusWeight = static fn (string $status): int => match ($status) {
+            'blocked' => 3,
+            'limited' => 2,
+            default => 1,
+        };
+
+        return [
+            $statusWeight((string) ($right['status'] ?? 'monitored')),
+            (int) ($right['high_risk_count'] ?? 0),
+            (int) ($right['hit_count'] ?? 0),
+            (int) ($right['last_seen_at_ts'] ?? 0),
+            (string) ($right['client_ip'] ?? ''),
+        ] <=> [
+            $statusWeight((string) ($left['status'] ?? 'monitored')),
+            (int) ($left['high_risk_count'] ?? 0),
+            (int) ($left['hit_count'] ?? 0),
+            (int) ($left['last_seen_at_ts'] ?? 0),
+            (string) ($left['client_ip'] ?? ''),
+        ];
+    }
+
     protected function compactSecurityText(string $value, int $limit, string $fallback): string
     {
         $plain = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
@@ -1653,25 +1667,37 @@ class SiteSecurity
             return null;
         }
 
-        $now = now('Asia/Shanghai')->toDateTimeString();
-        $row = DB::table('site_security_ip_reputations')
-            ->where('site_id', $siteId)
-            ->where('ip_hash', hash('sha256', (string) $ip))
-            ->where('status', 'blocked')
-            ->where('blocked_until', '>', $now)
-            ->first(['blocked_until']);
+        try {
+            $now = now('Asia/Shanghai');
+            $row = DB::table('site_security_ip_reputations')
+                ->where('site_id', $siteId)
+                ->where('ip_hash', hash('sha256', (string) $ip))
+                ->where('status', 'blocked')
+                ->where('blocked_until', '>', $now->toDateTimeString())
+                ->first(['blocked_until']);
+        } catch (\Throwable $exception) {
+            if ($this->shouldLogRuntimeFailure($siteId, 'ip-reputation-db')) {
+                Log::warning('Site security ip reputation lookup failed.', [
+                    'site_id' => $siteId,
+                    'path' => $request->path(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+
+            return null;
+        }
 
         if (! $row) {
             return null;
         }
 
-        return [
-            'code' => 'probe_abuse',
-            'name' => 'IP 临时封禁拦截',
-            'risk_level' => 'critical',
-            'action' => 'temporary_block',
-            '_skip_record' => true,
-        ];
+        $blockedUntilTimestamp = strtotime((string) $row->blocked_until);
+
+        if ($blockedUntilTimestamp !== false) {
+            $this->seedRuntimeIpBlock($siteId, (string) $ip, max(1, $blockedUntilTimestamp - $now->getTimestamp()));
+        }
+
+        return $this->runtimeIpBlockRule('IP 临时封禁拦截');
     }
 
     protected function updateIpReputation(int $siteId, array $rule, Request $request, mixed $now): void
@@ -1750,8 +1776,12 @@ class SiteSecurity
                 'high_risk_count' => $isHighRisk ? DB::raw('high_risk_count + 1') : DB::raw('high_risk_count'),
             ]);
 
-        if ($shouldAutoBlock) {
-            RateLimiter::hit($this->maliciousBlockKey($siteId, (string) $ip), $autoBlockSeconds);
+        if ($shouldBlock && $blockedUntil !== null) {
+            $blockedUntilTimestamp = strtotime($blockedUntil);
+
+            if ($blockedUntilTimestamp !== false) {
+                $this->seedRuntimeIpBlock($siteId, (string) $ip, max(1, $blockedUntilTimestamp - $now->getTimestamp()));
+            }
         }
     }
 
@@ -1804,10 +1834,12 @@ class SiteSecurity
 
             return RateLimiter::attempts($key);
         } catch (\Throwable $exception) {
-            Log::warning('Site security high risk counter failed.', [
-                'site_id' => $siteId,
-                'message' => $exception->getMessage(),
-            ]);
+            if ($this->shouldLogRuntimeFailure($siteId, 'high-risk-counter')) {
+                Log::warning('Site security high risk counter failed.', [
+                    'site_id' => $siteId,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             return 0;
         }
@@ -1822,10 +1854,12 @@ class SiteSecurity
 
             return RateLimiter::attempts($key);
         } catch (\Throwable $exception) {
-            Log::warning('Site security malicious counter failed.', [
-                'site_id' => $siteId,
-                'message' => $exception->getMessage(),
-            ]);
+            if ($this->shouldLogRuntimeFailure($siteId, 'malicious-counter')) {
+                Log::warning('Site security malicious counter failed.', [
+                    'site_id' => $siteId,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             return 0;
         }
@@ -1838,8 +1872,13 @@ class SiteSecurity
 
     protected function shouldLogRecordFailure(int $siteId): bool
     {
+        return $this->shouldLogRuntimeFailure($siteId, 'record');
+    }
+
+    protected function shouldLogRuntimeFailure(int $siteId, string $scope): bool
+    {
         $bucket = (int) floor(time() / 60);
-        $key = $siteId.':'.$bucket;
+        $key = $siteId.':'.$scope.':'.$bucket;
 
         if (isset(static::$recordFailureLogBuckets[$key])) {
             return false;
@@ -1902,8 +1941,44 @@ class SiteSecurity
             (string) $rule['code'],
             (string) ($request->ip() ?: 'guest'),
             mb_strtolower($this->normalizedRequestPath($request)),
-            mb_substr((string) $request->userAgent(), 0, 120),
         ]));
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function siteIpReasonSummary(int $siteId, string $ipHash): array
+    {
+        $since = now('Asia/Shanghai')->subHours(24)->toDateTimeString();
+
+        return DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('ip_hash', $ipHash)
+            ->where('created_at', '>=', $since)
+            ->select(['rule_code', 'rule_name', 'risk_level'])
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('MAX(created_at) as last_seen_at')
+            ->groupBy('rule_code', 'rule_name', 'risk_level')
+            ->orderByDesc('total')
+            ->orderByDesc('last_seen_at')
+            ->limit(6)
+            ->get()
+            ->map(function (object $row): array {
+                $ruleCode = (string) ($row->rule_code ?? '');
+                $profile = $this->eventProfile($ruleCode, (string) ($row->rule_name ?? ''));
+                $riskLevel = trim((string) ($row->risk_level ?? '')) ?: $this->defaultRiskLevel($ruleCode);
+
+                return [
+                    'rule_code' => $ruleCode,
+                    'rule_label' => (string) ($profile['category_label'] ?? '异常请求'),
+                    'risk_level' => $riskLevel,
+                    'risk_label' => $this->riskLevelLabel($riskLevel),
+                    'total' => (int) ($row->total ?? 0),
+                    'last_seen_label' => $row->last_seen_at ? date('m-d H:i', strtotime((string) $row->last_seen_at)) : '--',
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     protected function pathMatchesAllowlist(Request $request, int $siteId): bool
@@ -2516,11 +2591,13 @@ class SiteSecurity
 
             RateLimiter::hit($key, $window);
         } catch (\Throwable $exception) {
-            Log::warning('Site security rate limit cache failed.', [
-                'site_id' => $siteId,
-                'path' => $request->path(),
-                'message' => $exception->getMessage(),
-            ]);
+            if ($this->shouldLogRuntimeFailure($siteId, 'rate-limit')) {
+                Log::warning('Site security rate limit cache failed.', [
+                    'site_id' => $siteId,
+                    'path' => $request->path(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             return null;
         }
@@ -2604,17 +2681,19 @@ class SiteSecurity
                 return ['code' => 'probe_abuse', 'name' => '扫描试探超限', '_skip_record' => true];
             }
         } catch (\Throwable $exception) {
-            Log::warning('Site security probe block cache failed.', [
-                'site_id' => $siteId,
-                'path' => $request->path(),
-                'message' => $exception->getMessage(),
-            ]);
+            if ($this->shouldLogRuntimeFailure($siteId, 'probe-block')) {
+                Log::warning('Site security probe block cache failed.', [
+                    'site_id' => $siteId,
+                    'path' => $request->path(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
         }
 
         return null;
     }
 
-    protected function matchMaliciousRuntimeBlock(Request $request, int $siteId): ?array
+    protected function matchRuntimeIpBlock(Request $request, int $siteId): ?array
     {
         if ($this->siteSecurityMode($siteId) === 'observe') {
             return null;
@@ -2627,21 +2706,21 @@ class SiteSecurity
         }
 
         try {
+            if (RateLimiter::tooManyAttempts($this->reputationBlockKey($siteId, (string) $ip), 1)) {
+                return $this->runtimeIpBlockRule('IP 临时封禁拦截');
+            }
+
             if (RateLimiter::tooManyAttempts($this->maliciousBlockKey($siteId, (string) $ip), 1)) {
-                return [
-                    'code' => 'probe_abuse',
-                    'name' => '连续攻击封禁拦截',
-                    'risk_level' => 'critical',
-                    'action' => 'temporary_block',
-                    '_skip_record' => true,
-                ];
+                return $this->runtimeIpBlockRule('连续攻击封禁拦截');
             }
         } catch (\Throwable $exception) {
-            Log::warning('Site security malicious block cache failed.', [
-                'site_id' => $siteId,
-                'path' => $request->path(),
-                'message' => $exception->getMessage(),
-            ]);
+            if ($this->shouldLogRuntimeFailure($siteId, 'runtime-block')) {
+                Log::warning('Site security runtime block cache failed.', [
+                    'site_id' => $siteId,
+                    'path' => $request->path(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
         }
 
         return null;
@@ -2677,11 +2756,13 @@ class SiteSecurity
 
             return ['code' => 'probe_abuse', 'name' => '扫描试探超限'];
         } catch (\Throwable $exception) {
-            Log::warning('Site security probe escalation cache failed.', [
-                'site_id' => $siteId,
-                'path' => $request->path(),
-                'message' => $exception->getMessage(),
-            ]);
+            if ($this->shouldLogRuntimeFailure($siteId, 'probe-escalation')) {
+                Log::warning('Site security probe escalation cache failed.', [
+                    'site_id' => $siteId,
+                    'path' => $request->path(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             return null;
         }
@@ -3063,9 +3144,42 @@ class SiteSecurity
         return 'site-security-probe-block:'.$siteId.':'.sha1($request->ip() ?: 'guest');
     }
 
+    protected function reputationBlockKey(int $siteId, string $ip): string
+    {
+        return 'site-security-reputation-block:'.$siteId.':'.sha1($ip !== '' ? $ip : 'guest');
+    }
+
     protected function maliciousBlockKey(int $siteId, string $ip): string
     {
         return 'site-security-malicious-block:'.$siteId.':'.sha1($ip !== '' ? $ip : 'guest');
+    }
+
+    protected function seedRuntimeIpBlock(int $siteId, string $ip, int $seconds): void
+    {
+        try {
+            RateLimiter::hit($this->reputationBlockKey($siteId, $ip), max(1, $seconds));
+        } catch (\Throwable $exception) {
+            if ($this->shouldLogRuntimeFailure($siteId, 'seed-runtime-block')) {
+                Log::warning('Site security runtime block seed failed.', [
+                    'site_id' => $siteId,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function runtimeIpBlockRule(string $name): array
+    {
+        return [
+            'code' => 'probe_abuse',
+            'name' => $name,
+            'risk_level' => 'critical',
+            'action' => 'temporary_block',
+            '_skip_record' => true,
+        ];
     }
 
     protected function pathScanKey(int $siteId, string $ip): string
