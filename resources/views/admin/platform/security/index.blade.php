@@ -144,7 +144,7 @@
                                 <div class="setting-toggle-copy" aria-hidden="true">
                                     <span class="setting-toggle-text">启用频繁刷新防护</span>
                                     <span class="setting-toggle-state" id="security_rate_limit_enabled_label">{{ old('security_rate_limit_enabled', $securitySettings['security_rate_limit_enabled']) ? '已开启' : '未开启' }}</span>
-                                    <span class="setting-toggle-desc">超过阈值后会短时间拒绝重复访问，不参与 24 小时恶意封禁判断。</span>
+                                    <span class="setting-toggle-desc">优先按同一浏览器设备统计，公网 IP 仅做高阈值兜底；不参与 24 小时恶意封禁判断。</span>
                                 </div>
                             </div>
                         </div>
@@ -160,7 +160,7 @@
                 <label class="settings-field">
                     <span class="settings-label">普通页面最大请求次数</span>
                     <input class="field" type="number" name="security_rate_limit_max_requests" min="1" max="1000" value="{{ old('security_rate_limit_max_requests', $securitySettings['security_rate_limit_max_requests']) }}">
-                    <span class="settings-note">超过次数后会触发频繁刷新拦截。</span>
+                    <span class="settings-note">同一浏览器设备超过次数后会触发频繁刷新拦截；同公网大量异常访问仍会被兜底限制。</span>
                 </label>
 
                 <label class="settings-field">

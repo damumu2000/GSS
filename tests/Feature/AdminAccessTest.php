@@ -151,6 +151,31 @@ class AdminAccessTest extends TestCase
         return 'site-security-rate:'.$siteId.':'.sha1('127.0.0.1|'.$path);
     }
 
+    protected function siteSecurityDeviceRateKey(string $deviceId, string $scope, ?string $path = null): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+        $parts = [$scope, $deviceId];
+
+        if ($path !== null && $path !== '') {
+            $parts[] = mb_strtolower($path);
+        }
+
+        return 'site-security-rate-device:'.$siteId.':'.sha1(implode('|', $parts));
+    }
+
+    protected function siteSecurityDeviceRateLimitBlockKey(string $deviceId): string
+    {
+        $siteId = (int) DB::table('sites')
+            ->where('status', 1)
+            ->orderBy('id')
+            ->value('id');
+
+        return 'site-security-rate-block-device:'.$siteId.':'.sha1($deviceId);
+    }
+
     protected function siteSecuritySiteWideRateKey(): string
     {
         $siteId = (int) DB::table('sites')
@@ -10818,9 +10843,12 @@ XML);
             );
         }
 
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden();
+        $this->get('/?site=site')->assertOk()->assertCookie(SiteSecurity::DEVICE_COOKIE_NAME);
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-one')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-one')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-one')->get('/?site=site')->assertForbidden();
+        $this->assertTrue(RateLimiter::tooManyAttempts($this->siteSecurityDeviceRateLimitBlockKey('device-one'), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts($this->siteSecurityRateLimitBlockKey(), 1));
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -10833,6 +10861,107 @@ XML);
             'rule_code' => 'rate_limit',
             'rule_name' => '频繁刷新拦截',
         ]);
+    }
+
+    public function test_site_security_frequent_refresh_is_scoped_by_anonymous_device(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-a')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-a')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-a')->get('/?site=site')->assertForbidden();
+
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-b')->get('/?site=site')->assertOk();
+
+        $this->assertTrue(RateLimiter::tooManyAttempts($this->siteSecurityDeviceRateLimitBlockKey('device-a'), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts($this->siteSecurityDeviceRateLimitBlockKey('device-b'), 1));
+        $this->assertFalse(RateLimiter::tooManyAttempts($this->siteSecurityRateLimitBlockKey(), 1));
+    }
+
+    public function test_site_security_ip_fallback_still_blocks_shared_network_spikes(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        $ipFallbackKey = 'site-security-rate:'.$siteId.':site:'.sha1('127.0.0.1');
+
+        for ($i = 0; $i < 180; $i++) {
+            RateLimiter::hit($ipFallbackKey, 10);
+        }
+
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-fallback')->get('/?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->assertTrue(RateLimiter::tooManyAttempts($this->siteSecurityRateLimitBlockKey(), 1));
+    }
+
+    public function test_site_security_ip_fallback_does_not_block_normal_shared_network_until_high_threshold(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $now = now();
+
+        foreach ([
+            'security.rate_limit_window_seconds' => '10',
+            'security.rate_limit_max_requests' => '2',
+            'security.rate_limit_sensitive_max_requests' => '1',
+            'security.rate_limit_block_seconds' => '60',
+        ] as $key => $value) {
+            DB::table('system_settings')->updateOrInsert(
+                ['setting_key' => $key],
+                ['setting_value' => $value, 'autoload' => 1, 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+
+        for ($i = 1; $i <= 179; $i++) {
+            $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'shared-device-'.$i)
+                ->get('/?site=site')
+                ->assertOk();
+        }
+
+        $this->assertFalse(RateLimiter::tooManyAttempts($this->siteSecurityRateLimitBlockKey(), 1));
+
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'shared-device-180')
+            ->get('/?site=site')
+            ->assertOk();
+
+        $this->assertFalse(RateLimiter::tooManyAttempts($this->siteSecurityRateLimitBlockKey(), 1));
+
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'shared-device-181')
+            ->get('/?site=site')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截');
+
+        $this->assertTrue(RateLimiter::tooManyAttempts($this->siteSecurityRateLimitBlockKey(), 1));
     }
 
     public function test_site_security_guestbook_page_refresh_uses_normal_site_wide_threshold(): void
@@ -10935,8 +11064,8 @@ XML);
             );
         }
 
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-strict')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-strict')->get('/?site=site')->assertForbidden();
 
         $this->assertDatabaseHas('site_security_events', [
             'site_id' => $siteId,
@@ -10975,8 +11104,8 @@ XML);
             );
         }
 
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-custom')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-custom')->get('/?site=site')->assertForbidden();
     }
 
     public function test_site_security_rate_limit_block_persists_for_configured_seconds(): void
@@ -11000,22 +11129,29 @@ XML);
         RateLimiter::clear($this->siteSecurityRateLimitBlockKey());
         RateLimiter::clear($this->siteSecuritySiteWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+        RateLimiter::clear($this->siteSecurityDeviceRateLimitBlockKey('device-persist'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-persist', 'site'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-persist', 'path', '/'));
 
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-persist')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-persist')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-persist')->get('/?site=site')->assertForbidden();
 
         RateLimiter::clear($this->siteSecuritySiteWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-persist', 'site'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-persist', 'path', '/'));
 
-        $this->get('/?site=site')->assertForbidden();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-persist')->get('/?site=site')->assertForbidden();
 
         $this->travel(61)->seconds();
 
         RateLimiter::clear($this->siteSecuritySiteWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-persist', 'site'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-persist', 'path', '/'));
 
-        $this->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-persist')->get('/?site=site')->assertOk();
     }
 
     public function test_site_security_rate_limit_block_does_not_get_recorded_as_probe_abuse(): void
@@ -11042,15 +11178,20 @@ XML);
         RateLimiter::clear($this->siteSecurityProbeBlockKey());
         RateLimiter::clear($this->siteSecuritySiteWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+        RateLimiter::clear($this->siteSecurityDeviceRateLimitBlockKey('device-no-probe'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-no-probe', 'site'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-no-probe', 'path', '/'));
 
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-no-probe')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-no-probe')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-no-probe')->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         RateLimiter::clear($this->siteSecuritySiteWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-no-probe', 'site'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-no-probe', 'path', '/'));
 
-        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-no-probe')->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -11087,9 +11228,9 @@ XML);
             );
         }
 
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertOk();
-        $this->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-site-scope')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-site-scope')->get('/?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-site-scope')->get('/?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertNotSame(403, $this->get('http://security-rate-remote.test/')->getStatusCode());
     }
@@ -11120,9 +11261,13 @@ XML);
         RateLimiter::clear($this->siteSecurityFormWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/security-form-a'));
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/security-form-b'));
+        RateLimiter::clear($this->siteSecurityDeviceRateLimitBlockKey('device-form'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-form', 'form'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-form', 'path', '/security-form-a'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-form', 'path', '/security-form-b'));
 
-        $this->post('/security-form-a?site=site')->assertOk();
-        $this->post('/security-form-b?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-form')->post('/security-form-a?site=site')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-form')->post('/security-form-b?site=site')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -11230,9 +11375,9 @@ XML);
         File::ensureDirectoryExists(dirname($mediaPath));
         File::put($mediaPath, 'security-media');
 
-        $this->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
-        $this->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
-        $this->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertForbidden();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media')->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media')->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media')->get('/site-media/site/attachments/2026/04/security-rate-limit.jpg')->assertForbidden();
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -11277,9 +11422,13 @@ XML);
         RateLimiter::clear($this->siteSecurityMediaWideRateKey());
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/site-media/site/attachments/2026/04/security-rate-limit-a.jpg'));
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg'));
+        RateLimiter::clear($this->siteSecurityDeviceRateLimitBlockKey('device-media-assets'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-media-assets', 'media'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-media-assets', 'path', '/site-media/site/attachments/2026/04/security-rate-limit-a.jpg'));
+        RateLimiter::clear($this->siteSecurityDeviceRateKey('device-media-assets', 'path', '/site-media/site/attachments/2026/04/security-rate-limit-b.jpg'));
 
-        $this->get('/site-media/site/attachments/2026/04/security-rate-limit-a.jpg')->assertOk();
-        $this->get('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media-assets')->get('/site-media/site/attachments/2026/04/security-rate-limit-a.jpg')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media-assets')->get('/site-media/site/attachments/2026/04/security-rate-limit-b.jpg')->assertForbidden()->assertSee('当前请求已被安全防护拦截');
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $siteId,
@@ -11436,9 +11585,9 @@ XML);
         File::ensureDirectoryExists(dirname($mediaPath));
         File::put($mediaPath, 'security-media-remote');
 
-        $this->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
-        $this->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
-        $this->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertForbidden();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media-remote')->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media-remote')->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertOk();
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-media-remote')->get('/site-media/security-media-remote-site/attachments/2026/04/security-rate-limit.jpg')->assertForbidden();
 
         $this->assertDatabaseHas('site_security_daily_stats', [
             'site_id' => $remoteSiteId,
@@ -15788,11 +15937,11 @@ XML);
         $this->seed(DatabaseSeeder::class);
 
         for ($i = 0; $i < 10; $i++) {
-            $this->post(route('login.captcha.check'), ['captcha' => 'ABCD'])
+            $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-captcha')->post(route('login.captcha.check'), ['captcha' => 'ABCD'])
                 ->assertOk();
         }
 
-        $this->post(route('login.captcha.check'), ['captcha' => 'ABCD'])
+        $this->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-captcha')->post(route('login.captcha.check'), ['captcha' => 'ABCD'])
             ->assertForbidden();
     }
 

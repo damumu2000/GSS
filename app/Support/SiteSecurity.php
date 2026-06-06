@@ -7,14 +7,18 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class SiteSecurity
 {
+    public const DEVICE_COOKIE_NAME = 'SITE-DEVICE';
+
     protected const HIGH_RISK_RULE_CODES = ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse', 'ip_blocklist', 'bad_client', 'bad_payload'];
 
     protected const MALICIOUS_AUTO_BLOCK_RULE_CODES = ['bad_path', 'sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse', 'bad_client', 'bad_method', 'bad_payload'];
@@ -29,6 +33,11 @@ class SiteSecurity
     protected static array $columnExistsCache = [];
 
     protected static ?bool $ipReputationTableReady = null;
+
+    /**
+     * @var array<string, string>
+     */
+    protected array $requestDeviceIds = [];
 
     /**
      * @var array<string, int>
@@ -2521,20 +2530,36 @@ class SiteSecurity
             $maxAttempts = $this->rateLimitMaxAttemptsForMode($siteId, $maxAttempts, $isSensitive);
             $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
             $blockKey = $this->rateLimitBlockKey($siteId, $request);
+            $deviceBlockKey = $this->rateLimitDeviceBlockKey($siteId, $request);
+            $normalizedPath = $this->normalizedRequestPath($request);
 
             if (! $isObserveMode && $blockSeconds > 0 && RateLimiter::tooManyAttempts($blockKey, 1)) {
                 return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
             }
 
+            if (! $isObserveMode && $blockSeconds > 0 && RateLimiter::tooManyAttempts($deviceBlockKey, 1)) {
+                return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+            }
+
             if ($this->isFrontendPageRequest($request)) {
-                $siteWideKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
+                $siteWideKey = $this->rateLimitDeviceKey($siteId, $request, 'site');
+                $siteWideIpKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
                 $siteWideMaxAttempts = $this->rateLimitMaxAttemptsForMode(
                     $siteId,
                     $this->systemSettings->securityRateLimitMaxRequests(),
                     false
                 );
+                $siteWideIpMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($siteWideMaxAttempts);
 
                 if (RateLimiter::tooManyAttempts($siteWideKey, $siteWideMaxAttempts)) {
+                    if (! $isObserveMode && $blockSeconds > 0) {
+                        RateLimiter::hit($deviceBlockKey, $blockSeconds);
+                    }
+
+                    return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+                }
+
+                if (RateLimiter::tooManyAttempts($siteWideIpKey, $siteWideIpMaxAttempts)) {
                     if (! $isObserveMode && $blockSeconds > 0) {
                         RateLimiter::hit($blockKey, $blockSeconds);
                     }
@@ -2543,12 +2568,23 @@ class SiteSecurity
                 }
 
                 RateLimiter::hit($siteWideKey, $window);
+                RateLimiter::hit($siteWideIpKey, $window);
             }
 
             if ($this->isStateChangingRequest($request)) {
-                $formWideKey = 'site-security-rate:'.$siteId.':form:'.sha1($request->ip() ?: 'guest');
+                $formWideKey = $this->rateLimitDeviceKey($siteId, $request, 'form');
+                $formWideIpKey = 'site-security-rate:'.$siteId.':form:'.sha1($request->ip() ?: 'guest');
+                $formWideIpMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($maxAttempts, true);
 
                 if (RateLimiter::tooManyAttempts($formWideKey, $maxAttempts)) {
+                    if (! $isObserveMode && $blockSeconds > 0) {
+                        RateLimiter::hit($deviceBlockKey, $blockSeconds);
+                    }
+
+                    return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+                }
+
+                if (RateLimiter::tooManyAttempts($formWideIpKey, $formWideIpMaxAttempts)) {
                     if (! $isObserveMode && $blockSeconds > 0) {
                         RateLimiter::hit($blockKey, $blockSeconds);
                     }
@@ -2557,12 +2593,23 @@ class SiteSecurity
                 }
 
                 RateLimiter::hit($formWideKey, $window);
+                RateLimiter::hit($formWideIpKey, $window);
             }
 
             if ($this->isMediaRequest($request)) {
-                $mediaWideKey = 'site-security-rate:'.$siteId.':media:'.sha1($request->ip() ?: 'guest');
+                $mediaWideKey = $this->rateLimitDeviceKey($siteId, $request, 'media');
+                $mediaWideIpKey = 'site-security-rate:'.$siteId.':media:'.sha1($request->ip() ?: 'guest');
+                $mediaWideIpMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($maxAttempts);
 
                 if (RateLimiter::tooManyAttempts($mediaWideKey, $maxAttempts)) {
+                    if (! $isObserveMode && $blockSeconds > 0) {
+                        RateLimiter::hit($deviceBlockKey, $blockSeconds);
+                    }
+
+                    return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+                }
+
+                if (RateLimiter::tooManyAttempts($mediaWideIpKey, $mediaWideIpMaxAttempts)) {
                     if (! $isObserveMode && $blockSeconds > 0) {
                         RateLimiter::hit($blockKey, $blockSeconds);
                     }
@@ -2571,6 +2618,7 @@ class SiteSecurity
                 }
 
                 RateLimiter::hit($mediaWideKey, $window);
+                RateLimiter::hit($mediaWideIpKey, $window);
             }
 
             if ($scanRule = $this->matchRapidPathScan($request, $siteId)) {
@@ -2581,11 +2629,19 @@ class SiteSecurity
                 return $scanRule;
             }
 
-            $key = 'site-security-rate:'.$siteId.':'.sha1(
-                ($request->ip() ?: 'guest').'|'.mb_strtolower($this->normalizedRequestPath($request))
-            );
+            $key = $this->rateLimitDeviceKey($siteId, $request, 'path', $normalizedPath);
+            $ipKey = 'site-security-rate:'.$siteId.':'.sha1(($request->ip() ?: 'guest').'|'.mb_strtolower($normalizedPath));
+            $ipMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($maxAttempts, $isSensitive);
 
             if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
+                if (! $isObserveMode && $blockSeconds > 0) {
+                    RateLimiter::hit($deviceBlockKey, $blockSeconds);
+                }
+
+                return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
+            }
+
+            if (RateLimiter::tooManyAttempts($ipKey, $ipMaxAttempts)) {
                 if (! $isObserveMode && $blockSeconds > 0) {
                     RateLimiter::hit($blockKey, $blockSeconds);
                 }
@@ -2594,6 +2650,7 @@ class SiteSecurity
             }
 
             RateLimiter::hit($key, $window);
+            RateLimiter::hit($ipKey, $window);
         } catch (\Throwable $exception) {
             if ($this->shouldLogRuntimeFailure($siteId, 'rate-limit')) {
                 Log::warning('Site security rate limit cache failed.', [
@@ -3194,6 +3251,73 @@ class SiteSecurity
     protected function rateLimitBlockKey(int $siteId, Request $request): string
     {
         return 'site-security-rate-block:'.$siteId.':'.sha1($request->ip() ?: 'guest');
+    }
+
+    protected function rateLimitDeviceBlockKey(int $siteId, Request $request): string
+    {
+        return 'site-security-rate-block-device:'.$siteId.':'.sha1($this->ensureRateLimitDeviceId($request));
+    }
+
+    protected function rateLimitDeviceKey(int $siteId, Request $request, string $scope, ?string $path = null): string
+    {
+        $parts = [$scope, $this->ensureRateLimitDeviceId($request)];
+
+        if ($path !== null && $path !== '') {
+            $parts[] = mb_strtolower($path);
+        }
+
+        return 'site-security-rate-device:'.$siteId.':'.sha1(implode('|', $parts));
+    }
+
+    protected function rateLimitIpFallbackMaxAttempts(int $maxAttempts, bool $isSensitive = false): int
+    {
+        $multiplier = $isSensitive ? 3 : 6;
+        $minimum = $isSensitive ? 30 : 180;
+
+        return max($minimum, $maxAttempts * $multiplier);
+    }
+
+    protected function ensureRateLimitDeviceId(Request $request): string
+    {
+        $requestKey = spl_object_hash($request);
+
+        if (isset($this->requestDeviceIds[$requestKey])) {
+            return $this->requestDeviceIds[$requestKey];
+        }
+
+        $deviceId = $this->normalizeRateLimitDeviceId($request->cookie(self::DEVICE_COOKIE_NAME));
+
+        if ($deviceId === '') {
+            $deviceId = Str::lower(Str::random(40));
+            Cookie::queue(cookie(
+                self::DEVICE_COOKIE_NAME,
+                $deviceId,
+                60 * 24 * 365,
+                '/',
+                null,
+                $request->isSecure() || (bool) config('session.secure', false),
+                true,
+                false,
+                'lax',
+            ));
+        }
+
+        return $this->requestDeviceIds[$requestKey] = $deviceId;
+    }
+
+    protected function normalizeRateLimitDeviceId(mixed $value): string
+    {
+        if (! is_scalar($value)) {
+            return '';
+        }
+
+        $deviceId = trim((string) $value);
+
+        if ($deviceId === '' || strlen($deviceId) > 120 || preg_match('/^[a-z0-9_-]+$/i', $deviceId) !== 1) {
+            return '';
+        }
+
+        return $deviceId;
     }
 
     /**
