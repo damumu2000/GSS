@@ -56,7 +56,7 @@ class AttachmentController extends Controller
         $attachmentTotalSize = (clone $attachmentQuery)->sum('attachments.size');
 
         $attachments = $attachmentQuery
-            ->paginate(12, [
+            ->paginate(16, [
                 'attachments.id',
                 'attachments.origin_name',
                 'attachments.extension',

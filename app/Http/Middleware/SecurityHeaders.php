@@ -53,6 +53,10 @@ class SecurityHeaders
 
     protected function applyHeaders(Request $request, Response $response): Response
     {
+        if (! headers_sent()) {
+            header_remove('X-Powered-By');
+        }
+
         $response->headers->remove('X-Powered-By');
         $response->headers->remove('X-Generator');
 
@@ -63,8 +67,14 @@ class SecurityHeaders
 
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('X-Download-Options', 'noopen');
+        $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
+        $response->headers->set('X-XSS-Protection', '0');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+        $response->headers->set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+        $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
         $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",
             "base-uri 'self'",

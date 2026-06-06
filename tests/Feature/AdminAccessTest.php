@@ -227,8 +227,14 @@ class AdminAccessTest extends TestCase
             ->assertOk()
             ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('X-Download-Options', 'noopen')
+            ->assertHeader('X-Permitted-Cross-Domain-Policies', 'none')
+            ->assertHeader('X-XSS-Protection', '0')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
             ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+            ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+            ->assertHeader('Cross-Origin-Embedder-Policy', 'unsafe-none')
+            ->assertHeader('Cross-Origin-Resource-Policy', 'same-origin')
             ->assertHeader('Content-Security-Policy');
 
         $csp = (string) $response->headers->get('Content-Security-Policy');
@@ -499,7 +505,8 @@ class AdminAccessTest extends TestCase
             $this->actingAs($admin)
                 ->withSession(['current_site_id' => $siteId])
                 ->post(route('logout'))
-                ->assertRedirect(route('login'));
+                ->assertRedirect(route('login'))
+                ->assertHeader('Clear-Site-Data', '"cache", "storage"');
 
             $this->get('/login')
                 ->assertOk()
@@ -7011,6 +7018,7 @@ XML);
             ->assertOk()
             ->assertDontSee('系统管理')
             ->assertDontSee(route('admin.platform.users.index'), false)
+            ->assertSeeInOrder(['内容管理', '安全防护', '安护盾', '站点配置'])
             ->assertSee('站点配置')
             ->assertSee('内容管理');
     }

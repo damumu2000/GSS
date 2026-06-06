@@ -357,7 +357,9 @@ class AuthenticatedSessionController extends Controller
 
         $this->adminEntryGate->issueEntryCookieForSiteId($request, $logoutSiteId);
 
-        return redirect()->route('login');
+        return redirect()
+            ->route('login')
+            ->header('Clear-Site-Data', '"cache", "storage"');
     }
 
     public function captcha(Request $request): Response
