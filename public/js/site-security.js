@@ -251,7 +251,7 @@
                 return;
             }
 
-            if (modal === ipModal && isIpDetailMode()) {
+            if (modal === ipModal && modal.hidden && isIpDetailMode()) {
                 restoreIpList();
             }
 
