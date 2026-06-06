@@ -740,6 +740,9 @@ class SiteSecurity
         $peak = (int) $trend->max('value');
         $todayTotal = (int) ($byDate->get($today->toDateString())->blocked_total ?? 0);
         $sevenDayTotal = (int) $rows->sum('blocked_total');
+        $totalBlocked = (int) DB::table('site_security_daily_stats')
+            ->where('site_id', $siteId)
+            ->sum('blocked_total');
 
         $typeTotals = DB::table('site_security_daily_stats')
             ->where('site_id', $siteId)
@@ -900,6 +903,7 @@ class SiteSecurity
         return [
             'enabled' => $this->protectionEnabled(),
             'today_blocked' => $todayTotal,
+            'total_blocked' => $totalBlocked,
             'status_label' => $this->protectionEnabled() ? '运行中' : '未启用',
             'status_tone' => $this->protectionEnabled() ? 'running' : 'disabled',
             'peak_blocked' => $peak,
@@ -1645,7 +1649,7 @@ class SiteSecurity
     {
         return match ($action) {
             'temporary_block' => '临时封禁',
-            'rate_limited' => '限速拦截',
+            'rate_limited' => '自动拦截',
             'record' => '记录观察',
             default => '直接拦截',
         };

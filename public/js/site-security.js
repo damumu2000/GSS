@@ -66,6 +66,8 @@
         var activeModal = null;
         var params = new URLSearchParams(window.location.search);
         var parser = new DOMParser();
+        var ipListSnapshot = '';
+        var ipListScrollTop = 0;
 
         var getModalKey = function (modal) {
             if (!(modal instanceof HTMLElement)) {
@@ -110,6 +112,11 @@
 
             currentInner.innerHTML = freshInner.innerHTML;
 
+            if (modalKey === 'ips') {
+                ipListSnapshot = freshInner.innerHTML;
+                ipListScrollTop = 0;
+            }
+
             var message = documentNode.body && documentNode.body.dataset
                 ? documentNode.body.dataset.adminStatusMessage
                 : '';
@@ -142,9 +149,110 @@
             });
         };
 
+        var escapeHtml = function (value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+
+        var renderIpDetail = function (html) {
+            var currentInner = ipModal instanceof HTMLElement
+                ? ipModal.querySelector('.security-modal-inner')
+                : null;
+
+            if (!(currentInner instanceof HTMLElement)) {
+                return false;
+            }
+
+            if (!ipListSnapshot) {
+                ipListSnapshot = currentInner.innerHTML;
+            }
+
+            var scrollBox = ipModal.querySelector('.security-modal-scroll');
+            ipListScrollTop = scrollBox instanceof HTMLElement ? scrollBox.scrollTop : 0;
+
+            var documentNode = parser.parseFromString(html, 'text/html');
+            var detailContent = documentNode.querySelector('[data-security-ip-detail-content]');
+
+            if (!(detailContent instanceof HTMLElement)) {
+                return false;
+            }
+
+            var ipTitle = detailContent.querySelector('.security-card-value--ip');
+            var ipLabel = ipTitle instanceof HTMLElement ? ipTitle.textContent.trim() : 'IP 详情';
+
+            currentInner.innerHTML = [
+                '<div class="security-modal-topbar security-modal-topbar--detail">',
+                    '<div class="security-modal-heading">',
+                        '<div class="security-modal-heading-row">',
+                            '<div>',
+                                '<h3 class="security-modal-title" id="security-ips-modal-title">IP 详情</h3>',
+                                '<div class="security-modal-subtitle">', escapeHtml(ipLabel), ' 的命中画像和最近拦截记录</div>',
+                            '</div>',
+                            '<div class="security-modal-title-actions">',
+                                '<button class="security-modal-back" type="button" data-security-ip-detail-back>返回排行</button>',
+                                '<button class="security-modal-close" type="button" data-security-modal-close aria-label="关闭 IP 详情">',
+                                    '<svg viewBox="0 0 24 24" aria-hidden="true">',
+                                        '<path d="M6 6l12 12"></path>',
+                                        '<path d="M18 6 6 18"></path>',
+                                    '</svg>',
+                                '</button>',
+                            '</div>',
+                        '</div>',
+                    '</div>',
+                '</div>',
+                '<div class="security-modal-frame security-modal-frame--detail">',
+                    '<div class="security-modal-detail-body">',
+                        detailContent.innerHTML,
+                    '</div>',
+                '</div>',
+            ].join('');
+
+            if (scrollBox instanceof HTMLElement) {
+                scrollBox.scrollTop = 0;
+            }
+
+            openModal(ipModal);
+
+            return true;
+        };
+
+        var restoreIpList = function () {
+            var currentInner = ipModal instanceof HTMLElement
+                ? ipModal.querySelector('.security-modal-inner')
+                : null;
+            var scrollBox = ipModal instanceof HTMLElement
+                ? ipModal.querySelector('.security-modal-scroll')
+                : null;
+
+            if (!(currentInner instanceof HTMLElement) || !ipListSnapshot) {
+                return;
+            }
+
+            currentInner.innerHTML = ipListSnapshot;
+
+            if (scrollBox instanceof HTMLElement) {
+                window.requestAnimationFrame(function () {
+                    scrollBox.scrollTop = ipListScrollTop;
+                });
+            }
+        };
+
+        var isIpDetailMode = function () {
+            return ipModal instanceof HTMLElement
+                && ipModal.querySelector('[data-security-ip-detail-back]') instanceof HTMLElement;
+        };
+
         var openModal = function (modal) {
             if (!(modal instanceof HTMLElement)) {
                 return;
+            }
+
+            if (modal === ipModal && isIpDetailMode()) {
+                restoreIpList();
             }
 
             activeModal = modal;
@@ -158,6 +266,10 @@
         var closeModal = function (modal) {
             if (!(modal instanceof HTMLElement) || modal.hidden) {
                 return;
+            }
+
+            if (modal === ipModal && isIpDetailMode()) {
+                restoreIpList();
             }
 
             modal.classList.remove('is-open');
@@ -197,6 +309,39 @@
             var closeTrigger = event.target.closest('[data-security-modal-close]');
             if (closeTrigger instanceof HTMLElement) {
                 closeModal(closeTrigger.closest('.security-modal'));
+                return;
+            }
+
+            var backTrigger = event.target.closest('[data-security-ip-detail-back]');
+            if (backTrigger instanceof HTMLElement) {
+                restoreIpList();
+                return;
+            }
+
+            var detailTrigger = event.target.closest('[data-security-ip-detail-link]');
+            if (detailTrigger instanceof HTMLAnchorElement) {
+                event.preventDefault();
+
+                window.fetch(detailTrigger.href, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Requested-Modal': 'ips-detail',
+                    },
+                }).then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('Request failed');
+                    }
+
+                    return response.text();
+                }).then(function (html) {
+                    if (!renderIpDetail(html)) {
+                        window.location.href = detailTrigger.href;
+                    }
+                }).catch(function () {
+                    window.location.href = detailTrigger.href;
+                });
+
                 return;
             }
 

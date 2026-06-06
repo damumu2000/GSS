@@ -50,7 +50,7 @@
             </article>
             <article class="security-card">
                 <div class="security-card-top">
-                    <div class="security-card-label">近 7 天高危次数</div>
+                    <div class="security-card-label">总拦截次数</div>
                     <div class="security-card-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24">
                             <path d="M12 3 5.5 6v5.2c0 4.1 2.5 7.7 6.5 9.8 4-2.1 6.5-5.7 6.5-9.8V6L12 3Z"></path>
@@ -59,8 +59,8 @@
                         </svg>
                     </div>
                 </div>
-                <div class="security-card-value">{{ number_format($security['seven_day_high_risk']) }}</div>
-                <div class="security-card-note">近 7 天高危规则命中的总次数。</div>
+                <div class="security-card-value">{{ number_format($security['total_blocked']) }}</div>
+                <div class="security-card-note">站点安护盾累计拦截的异常请求。</div>
             </article>
             <article class="security-card is-status">
                 <div class="security-status-showcase{{ ($security['status_tone'] ?? 'running') === 'disabled' ? ' is-disabled' : '' }}">
@@ -451,7 +451,9 @@
                                                 </div>
                                             </div>
                                             <div class="security-ip-footer">
-                                                <a class="security-ip-detail-link" href="{{ route('admin.security.ip-detail', ['client_ip' => $clientIp]) }}">查看详情</a>
+                                                <a class="security-ip-detail-link"
+                                                   href="{{ route('admin.security.ip-detail', ['client_ip' => $clientIp]) }}"
+                                                   data-security-ip-detail-link>查看详情</a>
                                                 @if ($canManageIp && !empty($canManageIpPolicy))
                                                     <div class="security-ip-actions">
                                                         <form method="POST" action="{{ route('admin.security.ips.delete') }}" data-security-modal-request="ips" onsubmit="return confirm('确认清除该 IP 的自动画像和相关自动拦截记录吗？这会解除自动临时限制，不影响手工黑白名单。');">

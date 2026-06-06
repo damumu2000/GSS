@@ -9993,6 +9993,9 @@ XML);
             ->get(route('admin.platform.security.index'))
             ->assertOk()
             ->assertSee('安护盾总览')
+            ->assertSee('aria-controls="platform-security-panel-settings"', false)
+            ->assertSee('id="platform-security-panel-sites"', false)
+            ->assertSee('data-platform-security-tab-panel="sites" hidden', false)
             ->assertSee('18')
             ->assertSee('2')
             ->assertSee('扫描试探超限')
@@ -11519,6 +11522,8 @@ XML);
             ->get(route('admin.security.index'))
             ->assertOk()
             ->assertSee('安护盾')
+            ->assertSee('总拦截次数')
+            ->assertDontSee('近 7 天高危次数')
             ->assertSee('/.env')
             ->assertDontSee('/wp-admin')
             ->assertSee('12')
@@ -12016,6 +12021,7 @@ XML);
             ->withSession(['current_site_id' => $mainSiteId])
             ->get(route('admin.security.index'))
             ->assertOk()
+            ->assertSee('data-security-ip-detail-link', false)
             ->assertSeeInOrder([
                 '8.8.8.8',
                 '9.9.9.9',
@@ -12499,6 +12505,21 @@ XML);
                 'created_at' => now()->subMinutes(2),
             ],
             [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'rate_limit',
+                'rule_name' => '异常高频访问',
+                'request_path' => '/guestbook',
+                'request_method' => 'GET',
+                'client_ip' => $ip,
+                'ip_hash' => $ipHash,
+                'risk_level' => 'medium',
+                'action' => 'rate_limited',
+                'request_query' => '',
+                'referer' => '',
+                'user_agent' => 'SecurityRateAgent/1.0',
+                'created_at' => now()->subMinutes(3),
+            ],
+            [
                 'site_id' => $otherSiteId,
                 'rule_code' => 'sql_injection',
                 'rule_name' => 'SQL 注入',
@@ -12520,12 +12541,15 @@ XML);
             ->get(route('admin.security.ip-detail', ['client_ip' => $ip]))
             ->assertOk()
             ->assertSee('IP 详情')
+            ->assertSee('data-security-ip-detail-content', false)
             ->assertSee($ip)
             ->assertSee('封禁原因聚合')
             ->assertSee('命中 2 次')
             ->assertSee('扫描试探超限')
             ->assertSee('/wp-admin')
             ->assertSee('SecurityTestAgent/1.0')
+            ->assertSee('自动拦截')
+            ->assertDontSee('限速拦截')
             ->assertDontSee('/remote-only');
     }
 
@@ -12611,6 +12635,7 @@ XML);
         $payload = app(SiteSecurity::class)->sitePagePayload($mainSiteId);
         $badMethodType = collect($payload['types'])->firstWhere('code', 'bad_method');
 
+        $this->assertSame(2, $payload['total_blocked']);
         $this->assertSame(1, $payload['seven_day_high_risk']);
         $this->assertSame(false, $badMethodType['is_high_risk'] ?? null);
     }

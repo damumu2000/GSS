@@ -48,21 +48,21 @@
 
     <section class="platform-security-workspace" data-platform-security-tabs>
         <div class="platform-security-tabs" role="tablist" aria-label="安护盾管理">
-            <button class="platform-security-tab is-active" type="button" role="tab" aria-selected="true" data-platform-security-tab-trigger="settings">
+            <button class="platform-security-tab is-active" id="platform-security-tab-settings" type="button" role="tab" aria-selected="true" aria-controls="platform-security-panel-settings" data-platform-security-tab-trigger="settings">
                 <span>防护设置</span>
                 <strong>规则与阈值</strong>
             </button>
-            <button class="platform-security-tab" type="button" role="tab" aria-selected="false" data-platform-security-tab-trigger="sites">
+            <button class="platform-security-tab" id="platform-security-tab-sites" type="button" role="tab" aria-selected="false" aria-controls="platform-security-panel-sites" data-platform-security-tab-trigger="sites">
                 <span>站点态势</span>
                 <strong>{{ number_format($overview['active_sites']) }} 个站点</strong>
             </button>
-            <button class="platform-security-tab" type="button" role="tab" aria-selected="false" data-platform-security-tab-trigger="events">
+            <button class="platform-security-tab" id="platform-security-tab-events" type="button" role="tab" aria-selected="false" aria-controls="platform-security-panel-events" data-platform-security-tab-trigger="events">
                 <span>高危记录</span>
                 <strong>近 7 天</strong>
             </button>
         </div>
 
-        <div class="platform-security-tab-panel is-active" role="tabpanel" data-platform-security-tab-panel="settings">
+        <div class="platform-security-tab-panel is-active" id="platform-security-panel-settings" role="tabpanel" aria-labelledby="platform-security-tab-settings" data-platform-security-tab-panel="settings">
             <form id="platform-security-settings-form" method="POST" action="{{ route('admin.platform.security.settings.update') }}" class="settings-shell platform-security-settings">
                 @csrf
 
@@ -271,7 +271,7 @@
             </form>
         </div>
 
-        <div class="platform-security-tab-panel" role="tabpanel" data-platform-security-tab-panel="sites">
+        <div class="platform-security-tab-panel" id="platform-security-panel-sites" role="tabpanel" aria-labelledby="platform-security-tab-sites" data-platform-security-tab-panel="sites" hidden>
             <section class="platform-security-panel">
                 <div class="platform-security-panel-head">
                     <h3 class="platform-security-panel-title">站点态势</h3>
@@ -316,7 +316,7 @@
             </section>
         </div>
 
-        <div class="platform-security-tab-panel" role="tabpanel" data-platform-security-tab-panel="events">
+        <div class="platform-security-tab-panel" id="platform-security-panel-events" role="tabpanel" aria-labelledby="platform-security-tab-events" data-platform-security-tab-panel="events" hidden>
             <section class="platform-security-panel">
                 <div class="platform-security-panel-head">
                     <h3 class="platform-security-panel-title">最近高危记录</h3>

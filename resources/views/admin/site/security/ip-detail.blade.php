@@ -15,7 +15,7 @@
         </div>
     </section>
 
-    <div class="security-shell">
+    <div class="security-shell" data-security-ip-detail-content>
         <section class="security-metrics">
             <article class="security-card">
                 <div class="security-card-top">

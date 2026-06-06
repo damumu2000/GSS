@@ -45,7 +45,9 @@
             });
 
             panels.forEach((panel) => {
-                panel.classList.toggle('is-active', panel.dataset.platformSecurityTabPanel === name);
+                const active = panel.dataset.platformSecurityTabPanel === name;
+                panel.classList.toggle('is-active', active);
+                panel.hidden = !active;
             });
         };
 
