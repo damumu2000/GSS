@@ -447,7 +447,7 @@
                                                     @if (!empty($ip['site_policy_label']))
                                                         <span class="security-event-chip is-ip-policy">{{ $ip['site_policy_label'] }}</span>
                                                     @endif
-                                                    <span class="security-ip-time">{{ $ip['status'] === 'blocked' && $ip['blocked_until_label'] !== '' ? ('至 ' . $ip['blocked_until_label']) : ('最近 ' . $ip['last_seen_label']) }}</span>
+                                                    <span class="security-ip-time">{{ $ip['status_time_label'] ?? ('最近 ' . $ip['last_seen_label']) }}</span>
                                                 </div>
                                             </div>
                                             <div class="security-ip-footer">

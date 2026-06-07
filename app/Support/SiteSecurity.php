@@ -1510,11 +1510,16 @@ class SiteSecurity
         $isSiteAllowlisted = $this->ipMatchesList($clientIp, $siteAllowlist);
         $isSiteBlocklisted = $this->ipMatchesList($clientIp, $siteBlocklist);
         $blockedUntilTs = $row->blocked_until ? strtotime((string) $row->blocked_until) : false;
-        $hasActiveTemporaryBlock = $blockedUntilTs !== false && $blockedUntilTs > now('Asia/Shanghai')->getTimestamp();
+        $nowTs = now('Asia/Shanghai')->getTimestamp();
+        $hasActiveTemporaryBlock = $blockedUntilTs !== false && $blockedUntilTs > $nowTs;
         $rowStatus = (string) ($row->status ?? 'monitored');
-        $effectiveRowStatus = $rowStatus === 'blocked' && ! $hasActiveTemporaryBlock
-            ? 'monitored'
-            : $rowStatus;
+        $limitedUntilTs = $rowStatus === 'limited' ? $this->limitedStatusActiveUntilTimestamp($row) : false;
+        $hasActiveLimitedStatus = $limitedUntilTs !== false && $limitedUntilTs > $nowTs;
+        $effectiveRowStatus = match (true) {
+            $rowStatus === 'blocked' && ! $hasActiveTemporaryBlock => 'released',
+            $rowStatus === 'limited' && ! $hasActiveLimitedStatus => 'limit_released',
+            default => $rowStatus,
+        };
         $effectiveStatus = $isGlobalAllowlisted
             ? 'monitored'
             : ($isGlobalBlocklisted
@@ -1549,7 +1554,8 @@ class SiteSecurity
             'last_user_agent_preview' => $this->compactSecurityText($userAgent, 96, '无 UA 记录'),
             'last_referer_preview' => $this->compactSecurityText($referer, 96, '无来源记录'),
             'status' => $effectiveStatus,
-            'status_label' => $this->ipReputationStatusLabel($effectiveStatus),
+            'status_label' => $this->ipReputationStatusLabel($effectiveStatus, $row, $blockedUntilTs),
+            'status_time_label' => $this->ipReputationStatusTimeLabel($effectiveStatus, $row, $blockedUntilTs),
             'blocked_until_label' => ($isGlobalAllowlisted || $isGlobalBlocklisted || $isSiteAllowlisted || $isSiteBlocklisted || ! $hasActiveTemporaryBlock) ? '' : date('m-d H:i', $blockedUntilTs),
             'last_seen_label' => $row->last_seen_at ? date('m-d H:i', strtotime((string) $row->last_seen_at)) : '--',
             'last_seen_at_ts' => $row->last_seen_at ? strtotime((string) $row->last_seen_at) : 0,
@@ -1559,6 +1565,23 @@ class SiteSecurity
             'is_site_blocklisted' => $isSiteBlocklisted,
             'site_policy_label' => $policyLabel,
         ];
+    }
+
+    protected function limitedStatusActiveUntilTimestamp(object $row): int|false
+    {
+        $lastSeenTs = $row->last_seen_at ? strtotime((string) $row->last_seen_at) : false;
+
+        if ($lastSeenTs === false) {
+            return false;
+        }
+
+        $activeSeconds = min(86400, max(
+            60,
+            $this->systemSettings->securityRateLimitWindowSeconds(),
+            $this->systemSettings->securityRateLimitBlockSeconds(),
+        ));
+
+        return $lastSeenTs + $activeSeconds;
     }
 
     /**
@@ -1803,13 +1826,47 @@ class SiteSecurity
         return static::$ipReputationTableReady ??= Schema::hasTable('site_security_ip_reputations');
     }
 
-    protected function ipReputationStatusLabel(string $status): string
+    protected function ipReputationStatusLabel(string $status, ?object $row = null, int|false $blockedUntilTs = false): string
     {
         return match ($status) {
             'blocked' => '已封禁',
             'limited' => '访问受限',
+            'released' => $this->releasedBlockStatusLabel($row, $blockedUntilTs),
+            'limit_released' => '访问限制已解除',
             default => '观察中',
         };
+    }
+
+    protected function ipReputationStatusTimeLabel(string $status, object $row, int|false $blockedUntilTs): string
+    {
+        if ($status === 'blocked' && $blockedUntilTs !== false) {
+            return '至 '.date('m-d H:i', $blockedUntilTs);
+        }
+
+        if ($status === 'released' && $blockedUntilTs !== false) {
+            return '已于 '.date('m-d H:i', $blockedUntilTs).' 解除';
+        }
+
+        return '最近 '.($row->last_seen_at ? date('m-d H:i', strtotime((string) $row->last_seen_at)) : '--');
+    }
+
+    protected function releasedBlockStatusLabel(?object $row, int|false $blockedUntilTs): string
+    {
+        if (! $row || $blockedUntilTs === false) {
+            return '封禁已解除';
+        }
+
+        $updatedAtTs = $row->updated_at ? strtotime((string) $row->updated_at) : false;
+
+        if ($updatedAtTs !== false) {
+            $durationSeconds = $blockedUntilTs - $updatedAtTs;
+
+            if ($durationSeconds >= 23 * 3600 && $durationSeconds <= 25 * 3600) {
+                return '24小时封禁已解除';
+            }
+        }
+
+        return '封禁已解除';
     }
 
     protected function siteSecurityModeLabel(string $mode): string

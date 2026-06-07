@@ -43,7 +43,7 @@
                     <div class="security-card-label">当前状态</div>
                 </div>
                 <div class="security-card-value">{{ $detail['status_label'] }}</div>
-                <div class="security-card-note">{{ $detail['site_policy_label'] !== '' ? $detail['site_policy_label'] : ('最近 ' . $detail['last_seen_label']) }}</div>
+                <div class="security-card-note">{{ $detail['site_policy_label'] !== '' ? $detail['site_policy_label'] : ($detail['status_time_label'] ?? ('最近 ' . $detail['last_seen_label'])) }}</div>
             </article>
         </section>
 
@@ -62,8 +62,8 @@
                     <div class="security-detail-value">{{ $detail['last_request_path'] ?: '暂无路径记录' }}</div>
                 </div>
                 <div class="security-detail-summary-item">
-                    <div class="security-detail-label">封禁到期</div>
-                    <div class="security-detail-value">{{ $detail['blocked_until_label'] !== '' ? $detail['blocked_until_label'] : '无' }}</div>
+                    <div class="security-detail-label">封禁状态</div>
+                    <div class="security-detail-value">{{ $detail['status_time_label'] ?? ($detail['blocked_until_label'] !== '' ? $detail['blocked_until_label'] : '无') }}</div>
                 </div>
             </div>
         </section>
