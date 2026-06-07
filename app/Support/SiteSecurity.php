@@ -868,28 +868,7 @@ class SiteSecurity
             })
             ->all();
 
-        $regionRows = DB::table('site_security_events')
-            ->where('site_id', $siteId)
-            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->selectRaw("COALESCE(NULLIF(TRIM(region_name), ''), '未知地区') as region_label")
-            ->selectRaw('COUNT(*) as total')
-            ->groupBy('region_label')
-            ->orderByDesc('total')
-            ->limit(5)
-            ->get();
-        $regionTotal = (int) DB::table('site_security_events')
-            ->where('site_id', $siteId)
-            ->where('created_at', '>=', $sevenDaysAgo->toDateTimeString())
-            ->count();
-        $regions = $regionRows
-            ->map(fn (object $row): array => [
-                'label' => (string) $row->region_label,
-                'value' => (int) $row->total,
-                'ratio' => $regionTotal > 0 ? (int) round(((int) $row->total / $regionTotal) * 100) : 0,
-            ])
-            ->take(5)
-            ->values()
-            ->all();
+        $regions = $this->siteAttackRegions($siteId, $sevenDaysAgo->toDateTimeString());
 
         $suspiciousIps = [];
 
@@ -1004,6 +983,79 @@ class SiteSecurity
             'reason_summary' => $reasonSummary,
             'recent_events' => $recentEvents,
         ];
+    }
+
+    protected function siteAttackRegions(int $siteId, string $windowStart): array
+    {
+        $regionTotal = (int) DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $windowStart)
+            ->count();
+
+        if ($regionTotal <= 0) {
+            return [];
+        }
+
+        $regionCounts = [];
+        $resolvedMissingRegionTotal = 0;
+
+        DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $windowStart)
+            ->whereNotNull('region_name')
+            ->whereRaw("TRIM(region_name) <> ''")
+            ->selectRaw('TRIM(region_name) as region_label')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('region_label')
+            ->get()
+            ->each(function (object $row) use (&$regionCounts): void {
+                $label = trim((string) ($row->region_label ?? '')) ?: '未知来源';
+                $regionCounts[$label] = ($regionCounts[$label] ?? 0) + (int) $row->total;
+            });
+
+        DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $windowStart)
+            ->where(function ($query): void {
+                $query->whereNull('region_name')
+                    ->orWhereRaw("TRIM(region_name) = ''");
+            })
+            ->select('client_ip')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('client_ip')
+            ->orderByDesc('total')
+            ->limit(2000)
+            ->get()
+            ->each(function (object $row) use (&$regionCounts, &$resolvedMissingRegionTotal): void {
+                $total = (int) $row->total;
+                $label = trim($this->resolveAttackRegionLabel((string) ($row->client_ip ?? ''))) ?: '未知来源';
+                $regionCounts[$label] = ($regionCounts[$label] ?? 0) + $total;
+                $resolvedMissingRegionTotal += $total;
+            });
+
+        $missingRegionTotal = (int) DB::table('site_security_events')
+            ->where('site_id', $siteId)
+            ->where('created_at', '>=', $windowStart)
+            ->where(function ($query): void {
+                $query->whereNull('region_name')
+                    ->orWhereRaw("TRIM(region_name) = ''");
+            })
+            ->count();
+
+        if ($missingRegionTotal > $resolvedMissingRegionTotal) {
+            $regionCounts['未知来源'] = ($regionCounts['未知来源'] ?? 0) + ($missingRegionTotal - $resolvedMissingRegionTotal);
+        }
+
+        return collect($regionCounts)
+            ->map(fn (int $total, string $label): array => [
+                'label' => $label,
+                'value' => $total,
+                'ratio' => (int) round(($total / $regionTotal) * 100),
+            ])
+            ->sortByDesc('value')
+            ->take(5)
+            ->values()
+            ->all();
     }
 
     public function siteEventsModalPaginator(int $siteId, string $riskFilter = 'all', int $page = 1, int $perPage = 20): LengthAwarePaginator

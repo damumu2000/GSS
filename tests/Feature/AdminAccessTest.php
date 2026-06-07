@@ -12958,6 +12958,46 @@ XML);
             ->assertSee('北京');
     }
 
+    public function test_site_security_regions_resolve_missing_event_region_from_ip(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-region-fallback-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'bad_path',
+                'rule_name' => '异常路径拦截',
+                'request_path' => '/demo-security/private-a',
+                'request_method' => 'GET',
+                'client_ip' => '10.12.0.8',
+                'region_name' => null,
+                'ip_hash' => hash('sha256', '10.12.0.8'),
+                'created_at' => now()->subDay(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'rule_code' => 'bad_path',
+                'rule_name' => '异常路径拦截',
+                'request_path' => '/demo-security/private-b',
+                'request_method' => 'GET',
+                'client_ip' => '10.12.0.8',
+                'region_name' => '',
+                'ip_hash' => hash('sha256', '10.12.0.8'),
+                'created_at' => now()->subDay()->subMinute(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('内网来源')
+            ->assertDontSee('未知地区');
+    }
+
     public function test_site_security_recent_events_only_render_from_last_seven_days(): void
     {
         $this->seed(DatabaseSeeder::class);
