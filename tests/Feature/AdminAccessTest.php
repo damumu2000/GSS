@@ -7043,7 +7043,8 @@ XML);
             ->assertOk()
             ->assertDontSee('系统管理')
             ->assertDontSee(route('admin.platform.users.index'), false)
-            ->assertSeeInOrder(['内容管理', '安全防护', '安护盾', '站点配置'])
+            ->assertDontSee('安全防护')
+            ->assertSeeInOrder(['内容管理', '功能模块', '安护盾', '站点配置'])
             ->assertSee('站点配置')
             ->assertSee('内容管理');
     }

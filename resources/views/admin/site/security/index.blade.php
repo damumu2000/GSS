@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('title', '安护盾 - ' . app(\App\Support\SystemSettings::class)->string('system.name', (string) config('app.name')))
-@section('breadcrumb', '后台管理 / 安护盾')
+@section('breadcrumb', '后台管理 / 功能模块 / 安护盾')
 
 @push('styles')
     <link rel="stylesheet" href="/css/site-security.css">

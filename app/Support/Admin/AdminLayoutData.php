@@ -150,6 +150,60 @@ class AdminLayoutData
             ? (int) DB::table('module_payroll_employees')->where('site_id', $currentSite->id)->where('status', 'pending')->count()
             : 0;
 
+        $siteModuleMenuItems = array_values(array_filter(
+            $boundSiteModules->map(function (array $module) use ($guestbookMenuLabel, $guestbookPendingCount, $payrollEmployeePendingCount, $request): array {
+                $entryRoute = is_string($module['site_entry_route'] ?? null) && ($module['site_entry_route'] ?? '') !== ''
+                    ? (string) $module['site_entry_route']
+                    : 'admin.site-modules.show';
+                $routeParams = $entryRoute === 'admin.site-modules.show'
+                    ? ['module' => $module['code']]
+                    : [];
+                $activePattern = $entryRoute === 'admin.site-modules.show'
+                    ? 'admin.site-modules.show'
+                    : preg_replace('/\.[^.]+$/', '.*', $entryRoute);
+                $moduleLevelPattern = $activePattern;
+
+                if ($entryRoute !== 'admin.site-modules.show' && preg_match('/^([^.]+\.[^.]+)\./', $entryRoute, $matches)) {
+                    $moduleLevelPattern = $matches[1].'.*';
+                }
+
+                $isActive = $request->routeIs($activePattern)
+                    || $request->routeIs($moduleLevelPattern)
+                    || ($request->routeIs('admin.site-modules.show') && $request->route('module') === $module['code']);
+
+                return [
+                    'label' => $module['code'] === 'guestbook' && $guestbookMenuLabel !== '' ? $guestbookMenuLabel : $module['name'],
+                    'route' => $entryRoute,
+                    'route_params' => $routeParams,
+                    'active' => $isActive,
+                    'icon' => match ($module['code'] ?? null) {
+                        'guestbook' => 'guestbook',
+                        'payroll' => 'payroll',
+                        default => 'module',
+                    },
+                    'prefix_badge' => ! empty($module['binding_is_trial']) ? '试用' : null,
+                    'badge' => match ($module['code'] ?? null) {
+                        'guestbook' => $guestbookPendingCount,
+                        'payroll' => $payrollEmployeePendingCount,
+                        default => 0,
+                    },
+                    'badge_class' => in_array(($module['code'] ?? null), ['guestbook', 'payroll'], true) ? 'is-title' : '',
+                    'show' => true,
+                ];
+            })->all(),
+            fn ($item) => $item['show']
+        ));
+
+        if (in_array('security.view', $sitePermissionCodes, true)) {
+            $siteModuleMenuItems[] = [
+                'label' => '安护盾',
+                'route' => 'admin.security.index',
+                'active' => $request->routeIs('admin.security.*'),
+                'icon' => 'shield',
+                'show' => true,
+            ];
+        }
+
         $siteMenuGroups = [
             [
                 'title' => '内容管理',
@@ -163,55 +217,7 @@ class AdminLayoutData
             ],
             [
                 'title' => '功能模块',
-                'items' => array_values(array_filter(
-                    $boundSiteModules->map(function (array $module) use ($guestbookMenuLabel, $guestbookPendingCount, $payrollEmployeePendingCount, $request): array {
-                        $entryRoute = is_string($module['site_entry_route'] ?? null) && ($module['site_entry_route'] ?? '') !== ''
-                            ? (string) $module['site_entry_route']
-                            : 'admin.site-modules.show';
-                        $routeParams = $entryRoute === 'admin.site-modules.show'
-                            ? ['module' => $module['code']]
-                            : [];
-                        $activePattern = $entryRoute === 'admin.site-modules.show'
-                            ? 'admin.site-modules.show'
-                            : preg_replace('/\.[^.]+$/', '.*', $entryRoute);
-                        $moduleLevelPattern = $activePattern;
-
-                        if ($entryRoute !== 'admin.site-modules.show' && preg_match('/^([^.]+\.[^.]+)\./', $entryRoute, $matches)) {
-                            $moduleLevelPattern = $matches[1].'.*';
-                        }
-
-                        $isActive = $request->routeIs($activePattern)
-                            || $request->routeIs($moduleLevelPattern)
-                            || ($request->routeIs('admin.site-modules.show') && $request->route('module') === $module['code']);
-
-                        return [
-                            'label' => $module['code'] === 'guestbook' && $guestbookMenuLabel !== '' ? $guestbookMenuLabel : $module['name'],
-                            'route' => $entryRoute,
-                            'route_params' => $routeParams,
-                            'active' => $isActive,
-                            'icon' => match ($module['code'] ?? null) {
-                                'guestbook' => 'guestbook',
-                                'payroll' => 'payroll',
-                                default => 'module',
-                            },
-                            'prefix_badge' => ! empty($module['binding_is_trial']) ? '试用' : null,
-                            'badge' => match ($module['code'] ?? null) {
-                                'guestbook' => $guestbookPendingCount,
-                                'payroll' => $payrollEmployeePendingCount,
-                                default => 0,
-                            },
-                            'badge_class' => in_array(($module['code'] ?? null), ['guestbook', 'payroll'], true) ? 'is-title' : '',
-                            'show' => true,
-                        ];
-                    })->all(),
-                    fn ($item) => $item['show']
-                )),
-            ],
-            [
-                'title' => '安全防护',
-                'items' => array_values(array_filter([
-                    ['label' => '安护盾', 'route' => 'admin.security.index', 'active' => $request->routeIs('admin.security.*'), 'icon' => 'shield', 'show' => in_array('security.view', $sitePermissionCodes, true)],
-                ], fn ($item) => $item['show'])),
+                'items' => $siteModuleMenuItems,
             ],
             [
                 'title' => '站点配置',

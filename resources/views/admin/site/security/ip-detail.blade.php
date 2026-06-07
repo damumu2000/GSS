@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('title', 'IP 详情 - 安护盾 - ' . app(\App\Support\SystemSettings::class)->string('system.name', (string) config('app.name')))
-@section('breadcrumb', '后台管理 / 安护盾 / IP 详情')
+@section('breadcrumb', '后台管理 / 功能模块 / 安护盾 / IP 详情')
 
 @push('styles')
     <link rel="stylesheet" href="/css/site-security.css">
