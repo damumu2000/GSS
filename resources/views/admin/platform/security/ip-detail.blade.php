@@ -4,7 +4,7 @@
 @section('breadcrumb', '后台管理 / 平台 / 安护盾总览 / IP 详情')
 
 @push('styles')
-    <link rel="stylesheet" href="/css/site-security.css">
+    <link rel="stylesheet" href="{{ asset('css/site-security.css') }}?v={{ filemtime(public_path('css/site-security.css')) }}">
     <link rel="stylesheet" href="/css/platform-security-overview.css">
 @endpush
 
@@ -39,7 +39,7 @@
                 <div class="security-card-value">{{ number_format($detail['high_risk_count']) }}</div>
                 <div class="security-card-note">高危和严重规则命中总数。</div>
             </article>
-            <article class="security-card">
+            <article class="security-card security-card--detail-status">
                 <div class="security-card-top">
                     <div class="security-card-label">当前状态</div>
                 </div>

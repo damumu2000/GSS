@@ -4,7 +4,7 @@
 @section('breadcrumb', '后台管理 / 功能模块 / 安护盾')
 
 @push('styles')
-    <link rel="stylesheet" href="/css/site-security.css">
+    <link rel="stylesheet" href="{{ asset('css/site-security.css') }}?v={{ filemtime(public_path('css/site-security.css')) }}">
 @endpush
 
 @push('scripts')

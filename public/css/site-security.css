@@ -1094,10 +1094,15 @@
         }
 
         .security-metrics--ip-detail .security-card-value--status {
-            font-size: 30px;
-            line-height: 1.2;
+            font-size: 24px;
+            line-height: 1.28;
             overflow-wrap: anywhere;
             word-break: keep-all;
+        }
+
+        .security-metrics--ip-detail .security-card--detail-status .security-card-value {
+            font-size: 24px;
+            line-height: 1.28;
         }
 
         .security-detail-panel {
@@ -1841,6 +1846,11 @@
 
         .security-modal-detail-body .security-card-value--ip {
             font-size: 22px;
+        }
+
+        .security-modal-detail-body .security-card--detail-status .security-card-value {
+            font-size: 24px;
+            line-height: 1.28;
         }
 
         .security-modal-detail-body .security-detail-summary-item,
