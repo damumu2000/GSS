@@ -16,7 +16,7 @@
     </section>
 
     <div class="security-shell" data-security-ip-detail-content>
-        <section class="security-metrics">
+        <section class="security-metrics security-metrics--ip-detail">
             <article class="security-card">
                 <div class="security-card-top">
                     <div class="security-card-label">来源 IP</div>
@@ -42,7 +42,7 @@
                 <div class="security-card-top">
                     <div class="security-card-label">当前状态</div>
                 </div>
-                <div class="security-card-value">{{ $detail['status_label'] }}</div>
+                <div class="security-card-value security-card-value--status">{{ $detail['status_label'] }}</div>
                 <div class="security-card-note">{{ $detail['site_policy_label'] !== '' ? $detail['site_policy_label'] : ($detail['status_time_label'] ?? ('最近 ' . $detail['last_seen_label'])) }}</div>
             </article>
         </section>
