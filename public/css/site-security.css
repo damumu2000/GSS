@@ -1128,6 +1128,8 @@
             border-radius: 18px;
             background: #ffffff;
             border: 1px solid #edf2f7;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .security-detail-event-top {
@@ -1135,12 +1137,17 @@
             justify-content: space-between;
             align-items: center;
             gap: 16px;
+            min-width: 0;
         }
 
         .security-detail-event-title {
             color: #344054;
             font-size: 14px;
             font-weight: 800;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .security-detail-event-time {
@@ -1157,13 +1164,33 @@
             color: #475467;
             font-size: 12px;
             font-weight: 700;
+            min-width: 0;
+        }
+
+        .security-detail-event-meta > span {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .security-detail-event-path {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .security-detail-event-extra {
             color: #64748b;
             font-size: 12px;
             line-height: 1.6;
-            word-break: break-all;
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            line-clamp: 3;
         }
 
         @media (max-width: 1180px) {

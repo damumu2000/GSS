@@ -104,16 +104,16 @@
                             <span class="security-event-chip">{{ $event['action_label'] }}</span>
                             <span class="security-event-chip">{{ $event['region_name'] ?? '未知来源' }}</span>
                             <span>{{ $event['request_method'] ?: 'GET' }}</span>
-                            <span>{{ $event['request_path'] ?: '/' }}</span>
+                            <span class="security-detail-event-path" title="{{ $event['request_path'] ?: '/' }}">{{ $event['request_path'] ?: '/' }}</span>
                         </div>
                         @if ($event['request_query'] !== '')
-                            <div class="security-detail-event-extra">参数：{{ $event['request_query'] }}</div>
+                            <div class="security-detail-event-extra" title="参数：{{ $event['request_query'] }}">参数：{{ $event['request_query'] }}</div>
                         @endif
                         @if ($event['referer'] !== '')
-                            <div class="security-detail-event-extra">来源：{{ $event['referer'] }}</div>
+                            <div class="security-detail-event-extra" title="来源：{{ $event['referer'] }}">来源：{{ $event['referer'] }}</div>
                         @endif
                         @if ($event['user_agent'] !== '')
-                            <div class="security-detail-event-extra">UA：{{ $event['user_agent'] }}</div>
+                            <div class="security-detail-event-extra" title="UA：{{ $event['user_agent'] }}">UA：{{ $event['user_agent'] }}</div>
                         @endif
                     </article>
                 @empty
