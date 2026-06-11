@@ -24,6 +24,63 @@
         }
     });
 
+    document.querySelectorAll('[data-admin-entry-path-preview]').forEach((preview) => {
+        const suffixSelector = preview.getAttribute('data-entry-suffix-input') || '';
+        const suffixInput = suffixSelector ? document.querySelector(suffixSelector) : null;
+        const valueTarget = preview.querySelector('[data-admin-entry-path-value]');
+        const copyButton = preview.querySelector('[data-admin-entry-path-copy]');
+        const baseUrl = (preview.getAttribute('data-entry-base') || window.location.origin).replace(/\/+$/, '');
+
+        if (!(suffixInput instanceof HTMLInputElement) || !valueTarget || !(copyButton instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        const suffixValue = () => {
+            const value = suffixInput.value.trim().toLowerCase().replace(/^\/+/, '');
+
+            return value.startsWith('login-') ? value.slice(6) : value;
+        };
+        const entryPath = () => `login-${suffixValue()}`;
+        const fullPath = () => `${baseUrl}/${entryPath()}`;
+        const syncPreview = () => {
+            valueTarget.textContent = fullPath();
+        };
+
+        suffixInput.addEventListener('input', syncPreview);
+        suffixInput.addEventListener('blur', () => {
+            const suffix = suffixValue();
+            if (suffixInput.value !== suffix) {
+                suffixInput.value = suffix;
+            }
+            syncPreview();
+        });
+        syncPreview();
+
+        copyButton.addEventListener('click', async () => {
+            const text = fullPath();
+
+            try {
+                if (navigator.clipboard?.writeText && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.setAttribute('readonly', 'readonly');
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    textarea.remove();
+                }
+
+                window.showMessage?.('后台登录路径已复制。');
+            } catch (error) {
+                window.showMessage?.('复制失败，请手动选择复制。', 'error');
+            }
+        });
+    });
+
     document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
         const nativeSelect = selectRoot.querySelector('[data-select-native]');
         const trigger = selectRoot.querySelector('[data-select-trigger]');

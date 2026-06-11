@@ -309,8 +309,18 @@
                             </div>
                             <div class="site-module-body">
                                 <div class="domain-readonly-panel">
-                                    <div class="domain-readonly-desc">用于隐藏后台登录入口。新入口需使用 console- 开头，后接 5-12 位小写字母或数字。</div>
-                                    <input class="field @error('admin_entry_path') is-error @enderror" id="admin_entry_path" type="text" name="admin_entry_path" value="{{ $adminEntryPath }}" autocomplete="off" @error('admin_entry_path') aria-invalid="true" @enderror>
+                                    <div class="domain-readonly-desc">用于隐藏后台登录入口，只需填写后缀，系统会固定使用 login- 前缀。</div>
+                                    <div class="admin-entry-path-input">
+                                        <span class="admin-entry-path-prefix">login-</span>
+                                        <input class="field admin-entry-path-suffix @error('admin_entry_path') is-error @enderror" id="admin_entry_suffix" type="text" name="admin_entry_suffix" value="{{ app(\App\Support\AdminEntryGate::class)->entryPathSuffix($adminEntryPath) }}" autocomplete="off" inputmode="latin" data-admin-entry-path-suffix @error('admin_entry_path') aria-invalid="true" @enderror>
+                                    </div>
+                                    <div class="admin-entry-path-preview" data-admin-entry-path-preview data-entry-suffix-input="#admin_entry_suffix" data-entry-base="{{ url('/') }}">
+                                        <div class="admin-entry-path-preview-label">完整后台登录路径</div>
+                                        <div class="admin-entry-path-preview-row">
+                                            <code class="admin-entry-path-preview-value" data-admin-entry-path-value></code>
+                                            <button class="admin-entry-path-copy" type="button" data-admin-entry-path-copy>复制</button>
+                                        </div>
+                                    </div>
                                 </div>
                                 @error('admin_entry_path')
                                     <span class="form-error">{{ $message }}</span>

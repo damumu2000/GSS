@@ -42,7 +42,15 @@ class EnsureAdminAccess
                 abort(404);
             }
 
-            return redirect()->route('login');
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'message' => $this->adminEntryGate->loginExpiredMessage(),
+                ], 401);
+            }
+
+            return redirect()
+                ->route('login')
+                ->withErrors(['username' => $this->adminEntryGate->loginExpiredMessage()]);
         }
 
         if (! $this->systemSettings->adminEnabled() && (int) $user->id !== (int) config('cms.super_admin_user_id', 1)) {

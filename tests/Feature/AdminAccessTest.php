@@ -401,7 +401,7 @@ class AdminAccessTest extends TestCase
             DB::table('site_settings')->updateOrInsert(
                 ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
                 [
-                    'setting_value' => 'school-console-x7k',
+                    'setting_value' => 'school-login-x7k',
                     'autoload' => 1,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -412,9 +412,9 @@ class AdminAccessTest extends TestCase
             $this->get('/login')->assertNotFound();
             $this->get('/login/captcha')->assertNotFound();
             $this->get('/admin')->assertNotFound();
-            $this->get('/wrong-console-x7k')->assertNotFound();
+            $this->get('/wrong-login-x7k')->assertNotFound();
 
-            $this->get('/school-console-x7k')
+            $this->get('/school-login-x7k')
                 ->assertRedirect(route('login'));
 
             $this->get('/login')
@@ -519,7 +519,7 @@ class AdminAccessTest extends TestCase
             DB::table('site_settings')->updateOrInsert(
                 ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
                 [
-                    'setting_value' => 'school-console-x7k',
+                    'setting_value' => 'school-login-x7k',
                     'autoload' => 1,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -542,6 +542,132 @@ class AdminAccessTest extends TestCase
         }
     }
 
+    public function test_admin_entry_cookie_lifetime_follows_session_lifetime(): void
+    {
+        config(['session.lifetime' => 180]);
+
+        $this->assertSame(180, app(AdminEntryGate::class)->cookieMinutes());
+    }
+
+    public function test_admin_session_expired_after_entry_redirects_to_login_with_clear_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'school-login-x7k',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+            $this->get('/school-login-x7k')
+                ->assertRedirect(route('login'));
+
+            $this->get('/admin')
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors([
+                    'username' => app(AdminEntryGate::class)->loginExpiredMessage(),
+                ]);
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_admin_ajax_session_expired_after_entry_returns_json_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'school-login-x7k',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+            $this->get('/school-login-x7k')
+                ->assertRedirect(route('login'));
+
+            $this->withHeaders([
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+                ->get('/admin')
+                ->assertStatus(401)
+                ->assertJson([
+                    'message' => app(AdminEntryGate::class)->loginExpiredMessage(),
+                ]);
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_successful_login_refreshes_admin_entry_payload_after_session_regeneration(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+            $operator = $this->createSiteOperator('entry-refresh-login-user', true, 'editor');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'school-login-x7k',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+            $this->get('/school-login-x7k')
+                ->assertRedirect(route('login'));
+
+            $this->from(route('login'))
+                ->post(route('login.store'), [
+                    'username' => $operator->username,
+                    'password' => 'ChangeMe123!',
+                    'service_agreement' => '1',
+                    'captcha' => $this->loginCaptcha(),
+                ])
+                ->assertRedirect(route('admin.site-dashboard'));
+
+            $payload = session('cms.admin_entry_passed');
+
+            $this->assertIsArray($payload);
+            $this->assertSame($siteId, (int) ($payload['site_id'] ?? 0));
+            $this->assertGreaterThan(now()->addMinutes(100)->timestamp, (int) ($payload['expires_at'] ?? 0));
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
     public function test_login_token_expired_shows_clear_message_after_admin_entry_gate(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -555,7 +681,7 @@ class AdminAccessTest extends TestCase
             DB::table('site_settings')->updateOrInsert(
                 ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
                 [
-                    'setting_value' => 'school-console-x7k',
+                    'setting_value' => 'school-login-x7k',
                     'autoload' => 1,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -563,7 +689,7 @@ class AdminAccessTest extends TestCase
             );
             app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
 
-            $this->get('/school-console-x7k')
+            $this->get('/school-login-x7k')
                 ->assertRedirect(route('login'));
 
             $request = Request::create('/login', 'POST', [
@@ -14175,12 +14301,12 @@ XML);
                 'article_share_enabled' => '0',
                 'attachment_share_enabled' => '0',
                 'site_frontend_enabled' => '1',
-                'admin_entry_path' => 'console-x7k99',
+                'admin_entry_suffix' => 'x7k99',
             ])
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHas('status', '站点设置已更新。');
 
-        $this->assertSame('console-x7k99', DB::table('site_settings')
+        $this->assertSame('login-x7k99', DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', 'security.admin_entry_path')
             ->value('setting_value'));
@@ -14227,12 +14353,12 @@ XML);
                     'article_share_enabled' => '0',
                     'attachment_share_enabled' => '0',
                     'site_frontend_enabled' => '1',
-                    'admin_entry_path' => 'console-new12',
+                    'admin_entry_suffix' => 'new12',
                 ])
                 ->assertRedirect(route('admin.settings.index'));
 
             $this->get('/old12')->assertNotFound();
-            $this->get('/console-new12')->assertRedirect(route('login'));
+            $this->get('/login-new12')->assertRedirect(route('login'));
         } finally {
             putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
             unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
@@ -14245,11 +14371,12 @@ XML);
 
         $siteAdmin = $this->createSiteOperator('site-setting-entry-legacy-admin', true, 'site_admin');
         $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $legacyPath = 'legacyentrypath123';
 
         DB::table('site_settings')->updateOrInsert(
             ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
             [
-                'setting_value' => 'old12',
+                'setting_value' => $legacyPath,
                 'autoload' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -14274,12 +14401,12 @@ XML);
                 'article_share_enabled' => '0',
                 'attachment_share_enabled' => '0',
                 'site_frontend_enabled' => '1',
-                'admin_entry_path' => 'old12',
+                'admin_entry_suffix' => $legacyPath,
             ])
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHas('status', '站点设置已更新。');
 
-        $this->assertSame('old12', DB::table('site_settings')
+        $this->assertSame($legacyPath, DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', 'security.admin_entry_path')
             ->value('setting_value'));
@@ -14328,7 +14455,7 @@ XML);
         DB::table('site_settings')->updateOrInsert(
             ['site_id' => $otherSiteId, 'setting_key' => 'security.admin_entry_path'],
             [
-                'setting_value' => 'console-same12',
+                'setting_value' => 'login-same12',
                 'autoload' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -14336,10 +14463,10 @@ XML);
         );
         app(AdminEntryGate::class)->forgetEntryPathForSite($otherSiteId);
 
-        $this->assertNull(app(AdminEntryGate::class)->validateEntryPath('console-same12', $siteId));
+        $this->assertNull(app(AdminEntryGate::class)->validateEntryPath('login-same12', $siteId));
     }
 
-    public function test_admin_entry_path_requires_console_prefix_for_new_values(): void
+    public function test_admin_entry_path_accepts_suffix_and_stores_login_prefixed_value(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -14365,21 +14492,12 @@ XML);
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'abc12',
-            ])
-            ->assertSessionHasErrors([
-                'admin_entry_path' => '后台入口路径需以 console- 开头，后接 5-12 位小写字母或数字。',
-            ]);
-
-        $this->actingAs($siteAdmin)
-            ->withSession(['current_site_id' => $siteId])
-            ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'console-abc12',
+                'admin_entry_suffix' => 'abc',
             ])
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHas('status', '站点设置已更新。');
 
-        $this->assertSame('console-abc12', DB::table('site_settings')
+        $this->assertSame('login-abc', DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', 'security.admin_entry_path')
             ->value('setting_value'));
@@ -14387,16 +14505,29 @@ XML);
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'console-ab4',
+                'admin_entry_suffix' => 'login-abc12',
+            ])
+            ->assertRedirect(route('admin.settings.index'))
+            ->assertSessionHas('status', '站点设置已更新。');
+
+        $this->assertSame('login-abc12', DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.admin_entry_path')
+            ->value('setting_value'));
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), $payload + [
+                'admin_entry_suffix' => 'ab',
             ])
             ->assertSessionHasErrors([
-                'admin_entry_path' => '后台入口路径需以 console- 开头，后接 5-12 位小写字母或数字。',
+                'admin_entry_path' => '后台入口后缀需为 3-10 位小写字母或数字。',
             ]);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'console-abcde12345',
+                'admin_entry_suffix' => 'abcde12345',
             ])
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHas('status', '站点设置已更新。');
@@ -14404,10 +14535,10 @@ XML);
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'console-abcde12345678',
+                'admin_entry_suffix' => 'abcde123456',
             ])
             ->assertSessionHasErrors([
-                'admin_entry_path' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
+                'admin_entry_path' => '后台入口后缀需为 3-10 位小写字母或数字。',
             ]);
     }
 

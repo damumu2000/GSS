@@ -730,11 +730,23 @@ class PlatformSiteController extends Controller
 
     protected function validateSite(Request $request, ?string $siteId = null): array
     {
+        $hasAdminEntrySuffix = $request->request->has('admin_entry_suffix');
         $request->merge($this->sanitizeSiteInput($request));
 
-        if ($siteId !== null && trim((string) $request->input('admin_entry_path', '')) === '') {
+        $adminEntryInput = (string) ($hasAdminEntrySuffix
+            ? $request->input('admin_entry_suffix', '')
+            : $request->input('admin_entry_path', ''));
+        $currentAdminEntryPath = $siteId !== null ? $this->adminEntryGate->entryPathForSite((int) $siteId) : '';
+
+        if ($siteId !== null && trim($adminEntryInput) === '') {
             $request->merge([
-                'admin_entry_path' => $this->adminEntryGate->entryPathForSite((int) $siteId),
+                'admin_entry_path' => $currentAdminEntryPath,
+            ]);
+        } elseif ($siteId !== null) {
+            $request->merge([
+                'admin_entry_path' => $hasAdminEntrySuffix
+                    ? $this->adminEntryGate->entryPathFromInput($adminEntryInput, $currentAdminEntryPath)
+                    : $adminEntryInput,
             ]);
         }
 
@@ -786,7 +798,7 @@ class PlatformSiteController extends Controller
             'expires_at.date_format' => '到期时间格式不正确，请使用 4 位年份日期。',
             'expires_at.after_or_equal' => '到期时间不能早于开通时间。',
             'site_admin_ids.*.exists' => '所选站点管理员不存在，请刷新页面后重试。',
-            'admin_entry_path.max' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
+            'admin_entry_path.max' => '后台入口后缀需为 3-10 位小写字母或数字。',
         ]);
 
         $validator->after(function ($validator) use ($request, $siteId): void {
@@ -944,6 +956,7 @@ class PlatformSiteController extends Controller
             'contact_email',
             'address',
             'admin_entry_path',
+            'admin_entry_suffix',
             'seo_title',
             'seo_keywords',
             'seo_description',

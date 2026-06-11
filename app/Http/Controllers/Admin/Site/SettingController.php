@@ -54,11 +54,22 @@ class SettingController extends Controller
         $currentSite = $this->currentSite($request);
         $this->authorizeSite($request, $currentSite->id, 'setting.manage');
 
+        $hasAdminEntrySuffix = $request->request->has('admin_entry_suffix');
         $request->merge($this->sanitizeInput($request));
         $oldAdminEntryPath = $this->adminEntryGate->entryPathForSite((int) $currentSite->id);
 
-        if (trim((string) $request->input('admin_entry_path', '')) === '') {
+        $adminEntryInput = (string) ($hasAdminEntrySuffix
+            ? $request->input('admin_entry_suffix', '')
+            : $request->input('admin_entry_path', ''));
+
+        if (trim($adminEntryInput) === '') {
             $request->merge(['admin_entry_path' => $oldAdminEntryPath]);
+        } else {
+            $request->merge([
+                'admin_entry_path' => $hasAdminEntrySuffix
+                    ? $this->adminEntryGate->entryPathFromInput($adminEntryInput, $oldAdminEntryPath)
+                    : $adminEntryInput,
+            ]);
         }
 
         $validator = Validator::make($request->all(), [
@@ -82,7 +93,7 @@ class SettingController extends Controller
             'contact_phone.regex' => '联系电话格式不正确，请输入有效的电话或手机号。',
             'contact_email.email' => '联系邮箱格式不正确，请重新填写。',
             'filing_number.regex' => '备案号格式不正确，请仅使用中文、字母、数字、空格及常见连接符。',
-            'admin_entry_path.max' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
+            'admin_entry_path.max' => '后台入口后缀需为 3-10 位小写字母或数字。',
         ]);
 
         $validator->after(function ($validator) use ($request, $currentSite): void {
@@ -254,6 +265,7 @@ class SettingController extends Controller
             'contact_email',
             'address',
             'admin_entry_path',
+            'admin_entry_suffix',
             'logo',
             'favicon',
             'filing_number',

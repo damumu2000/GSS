@@ -244,6 +244,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         $request->session()->regenerate();
+        $this->adminEntryGate->issueEntryCookie($request, $loginSite);
 
         if ($isPlatformAdmin) {
             $platformLoginSiteId = (int) ($loginSite->id ?? 0);

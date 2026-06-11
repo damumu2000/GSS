@@ -18,8 +18,6 @@ class AdminEntryGate
 
     protected const SESSION_KEY = 'cms.admin_entry_passed';
 
-    protected const COOKIE_MINUTES = 30;
-
     protected const ENTRY_PATH_CACHE_SECONDS = 300;
 
     /**
@@ -161,25 +159,31 @@ class AdminEntryGate
 
     public function validateEntryPath(string $value, int $siteId, ?string $currentEntryPath = null): ?string
     {
-        $candidate = $this->cleanEntryPath($value);
+        $rawPath = $this->cleanEntryPath($value);
         $currentPath = $currentEntryPath !== null ? $this->normalizeEntryPath($currentEntryPath) : '';
 
-        if ($currentPath !== '' && $this->normalizeEntryPath($candidate) === $currentPath) {
+        if ($this->isReservedEntryPath($rawPath)) {
+            return '后台入口路径不能使用系统保留路径或常见扫描路径。';
+        }
+
+        if ($currentPath !== '' && $this->entryPathSuffix($currentPath) === $this->entryPathSuffix($rawPath)) {
             return null;
         }
+
+        $candidate = $this->completeLoginEntryPath($rawPath);
 
         if ($this->isReservedEntryPath($candidate)) {
             return '后台入口路径不能使用系统保留路径或常见扫描路径。';
         }
 
-        $path = $this->normalizeEntryPath($value);
+        $path = $this->normalizeEntryPath($candidate);
 
         if ($path === '') {
-            return '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。';
+            return '后台入口后缀需为 3-10 位小写字母或数字。';
         }
 
-        if (! $this->usesConsolePrefix($path)) {
-            return '后台入口路径需以 console- 开头，后接 5-12 位小写字母或数字。';
+        if (! $this->usesLoginPrefix($path)) {
+            return '后台入口后缀需为 3-10 位小写字母或数字。';
         }
 
         if ($this->conflictsWithSiteFrontendPath($path, $siteId)) {
@@ -187,6 +191,36 @@ class AdminEntryGate
         }
 
         return null;
+    }
+
+    public function entryPathSuffix(string $value): string
+    {
+        $path = $this->cleanEntryPath($value);
+
+        return str_starts_with($path, 'login-') ? substr($path, 6) : $path;
+    }
+
+    public function completeLoginEntryPath(string $value): string
+    {
+        $path = $this->cleanEntryPath($value);
+
+        if ($path === '' || str_starts_with($path, 'login-')) {
+            return $path;
+        }
+
+        return 'login-'.$path;
+    }
+
+    public function entryPathFromInput(string $value, ?string $currentEntryPath = null): string
+    {
+        $path = $this->cleanEntryPath($value);
+        $currentPath = $currentEntryPath !== null ? $this->normalizeEntryPath($currentEntryPath) : '';
+
+        if ($currentPath !== '' && $this->entryPathSuffix($currentPath) === $this->entryPathSuffix($path)) {
+            return $currentPath;
+        }
+
+        return $this->completeLoginEntryPath($path);
     }
 
     protected function cleanEntryPath(string $value): string
@@ -228,7 +262,8 @@ class AdminEntryGate
     {
         $siteId = (int) $site->id;
         $entryPath = $this->entryPathForSite($siteId);
-        $expiresAt = now()->addMinutes(self::COOKIE_MINUTES)->timestamp;
+        $cookieMinutes = $this->cookieMinutes();
+        $expiresAt = now()->addMinutes($cookieMinutes)->timestamp;
         $payload = [
             'site_id' => $siteId,
             'path_hash' => hash('sha256', $entryPath),
@@ -240,7 +275,7 @@ class AdminEntryGate
         Cookie::queue(cookie(
             self::COOKIE_NAME,
             json_encode($payload, JSON_UNESCAPED_SLASHES),
-            self::COOKIE_MINUTES,
+            $cookieMinutes,
             '/',
             null,
             $request->isSecure() || (bool) config('session.secure', false),
@@ -248,6 +283,11 @@ class AdminEntryGate
             false,
             'lax',
         ));
+    }
+
+    public function loginExpiredMessage(): string
+    {
+        return '登录已过期，请重新登录。';
     }
 
     public function allowsLogin(Request $request, ?object $site = null): bool
@@ -276,6 +316,11 @@ class AdminEntryGate
             (string) ($payload['path_hash'] ?? ''),
             hash('sha256', $this->entryPathForSite((int) $site->id)),
         );
+    }
+
+    public function cookieMinutes(): int
+    {
+        return max(30, (int) config('session.lifetime', 120));
     }
 
     public function entryMatches(Request $request, string $entryPath): ?object
@@ -361,7 +406,7 @@ class AdminEntryGate
     protected function generateUniqueEntryPath(int $siteId): string
     {
         do {
-            $candidate = 'console-'.Str::lower(Str::random(10));
+            $candidate = 'login-'.Str::lower(Str::random(10));
         } while (
             $this->validateEntryPath($candidate, $siteId) !== null
             || DB::table('site_settings')
@@ -407,9 +452,9 @@ class AdminEntryGate
         return in_array($path, $reserved, true);
     }
 
-    protected function usesConsolePrefix(string $path): bool
+    protected function usesLoginPrefix(string $path): bool
     {
-        return preg_match('/^console-[a-z0-9]{5,12}$/', $path) === 1;
+        return preg_match('/^login-[a-z0-9]{3,10}$/', $path) === 1;
     }
 
     protected function conflictsWithSiteFrontendPath(string $path, int $siteId): bool

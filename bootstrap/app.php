@@ -63,7 +63,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 return $response;
             }
 
-            if (! $request->is('login') && ! $request->is('login/captcha/check')) {
+            $isLoginRequest = $request->is('login') || $request->is('login/captcha/check');
+            $isAdminRequest = $request->is('admin') || $request->is('admin/*');
+
+            if (! $isLoginRequest && ! $isAdminRequest) {
                 return $response;
             }
 
@@ -71,7 +74,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->view('errors.404', [], 404);
             }
 
-            $message = '登录令牌已过期，请刷新页面后重试。';
+            $message = $isLoginRequest
+                ? '登录令牌已过期，请刷新页面后重试。'
+                : app(AdminEntryGate::class)->loginExpiredMessage();
 
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
