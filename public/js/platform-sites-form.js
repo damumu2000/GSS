@@ -30,17 +30,26 @@
         const valueTarget = preview.querySelector('[data-admin-entry-path-value]');
         const copyButton = preview.querySelector('[data-admin-entry-path-copy]');
         const baseUrl = (preview.getAttribute('data-entry-base') || window.location.origin).replace(/\/+$/, '');
+        const currentEntryPath = (preview.getAttribute('data-entry-current-path') || '').trim().replace(/^\/+/, '');
+        const legacyEntry = preview.getAttribute('data-entry-legacy') === '1';
 
         if (!(suffixInput instanceof HTMLInputElement) || !valueTarget || !(copyButton instanceof HTMLButtonElement)) {
             return;
         }
 
+        const initialSuffix = suffixInput.value.trim().toLowerCase().replace(/^\/+/, '');
         const suffixValue = () => {
             const value = suffixInput.value.trim().toLowerCase().replace(/^\/+/, '');
 
             return value.startsWith('login-') ? value.slice(6) : value;
         };
-        const entryPath = () => `login-${suffixValue()}`;
+        const entryPath = () => {
+            if (legacyEntry && currentEntryPath !== '' && suffixValue() === initialSuffix) {
+                return currentEntryPath;
+            }
+
+            return `login-${suffixValue()}`;
+        };
         const fullPath = () => `${baseUrl}/${entryPath()}`;
         const syncPreview = () => {
             valueTarget.textContent = fullPath();

@@ -314,13 +314,16 @@
                                         <span class="admin-entry-path-prefix">login-</span>
                                         <input class="field admin-entry-path-suffix @error('admin_entry_path') is-error @enderror" id="admin_entry_suffix" type="text" name="admin_entry_suffix" value="{{ app(\App\Support\AdminEntryGate::class)->entryPathSuffix($adminEntryPath) }}" autocomplete="off" inputmode="latin" data-admin-entry-path-suffix @error('admin_entry_path') aria-invalid="true" @enderror>
                                     </div>
-                                    <div class="admin-entry-path-preview" data-admin-entry-path-preview data-entry-suffix-input="#admin_entry_suffix" data-entry-base="{{ url('/') }}">
+                                    <div class="admin-entry-path-preview" data-admin-entry-path-preview data-entry-suffix-input="#admin_entry_suffix" data-entry-base="{{ $adminEntryBaseUrl ?? url('/') }}" data-entry-current-path="{{ $adminEntryPath }}" data-entry-legacy="{{ ! empty($adminEntryIsLegacy) ? '1' : '0' }}">
                                         <div class="admin-entry-path-preview-label">完整后台登录路径</div>
                                         <div class="admin-entry-path-preview-row">
                                             <code class="admin-entry-path-preview-value" data-admin-entry-path-value></code>
                                             <button class="admin-entry-path-copy" type="button" data-admin-entry-path-copy>复制</button>
                                         </div>
                                     </div>
+                                    @if (! empty($adminEntryIsLegacy))
+                                        <div class="admin-entry-path-legacy-note">目前为兼容旧路径，请尽快更换最新标准。</div>
+                                    @endif
                                 </div>
                                 @error('admin_entry_path')
                                     <span class="form-error">{{ $message }}</span>

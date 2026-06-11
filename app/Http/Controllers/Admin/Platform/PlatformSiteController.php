@@ -218,7 +218,8 @@ class PlatformSiteController extends Controller
             ->where('site_id', $siteId)
             ->where('setting_key', 'security.rule_exceptions')
             ->value('setting_value') ?? '');
-        $adminEntryPath = $this->adminEntryGate->entryPathForSite((int) $siteId);
+        $storedAdminEntryPath = $this->adminEntryGate->entryPathForSite((int) $siteId);
+        $adminEntryPath = $storedAdminEntryPath;
         $legacyAttachmentStats = LegacyAttachmentStats::stats($site);
         $attachmentUsage = [
             'managed_count' => SiteStorageUsage::attachmentCount((int) $siteId),
@@ -276,6 +277,8 @@ class PlatformSiteController extends Controller
             'securityPathAllowlist' => (string) old('security_path_allowlist', $securityPathAllowlist),
             'securityRuleExceptions' => (string) old('security_rule_exceptions', $securityRuleExceptions),
             'adminEntryPath' => (string) old('admin_entry_path', $adminEntryPath),
+            'adminEntryBaseUrl' => $this->adminEntryBaseUrl((int) $siteId),
+            'adminEntryIsLegacy' => ! $this->adminEntryGate->isStandardLoginEntryPath($storedAdminEntryPath),
             'attachmentUsage' => $attachmentUsage,
             'selectedSiteAdminIds' => collect(old('site_admin_ids', $selectedSiteAdminIds))->map(fn ($id) => (int) $id)->all(),
         ]);
@@ -1192,6 +1195,20 @@ class PlatformSiteController extends Controller
         }
 
         $this->forgetThemeAssetBaseCacheForDomains(array_merge($existingDomains, $domains));
+    }
+
+    protected function adminEntryBaseUrl(int $siteId): string
+    {
+        $domain = DB::table('site_domains')
+            ->where('site_id', $siteId)
+            ->where('status', 1)
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->value('domain');
+
+        $domain = trim((string) $domain);
+
+        return $domain !== '' ? 'https://'.$domain : url('/');
     }
 
     /**

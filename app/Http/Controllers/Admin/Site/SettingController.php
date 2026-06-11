@@ -37,12 +37,17 @@ class SettingController extends Controller
             ->orderBy('domain')
             ->get(['domain', 'is_primary']);
 
+        $adminEntryPath = (string) old('admin_entry_path', $this->adminEntryGate->entryPathForSite((int) $currentSite->id));
+        $storedAdminEntryPath = $this->adminEntryGate->entryPathForSite((int) $currentSite->id);
+
         return view('admin.site.settings.index', [
             'sites' => $this->adminSites(),
             'currentSite' => $currentSite,
             'settings' => $settings,
             'domains' => $domains,
-            'adminEntryPath' => (string) old('admin_entry_path', $this->adminEntryGate->entryPathForSite((int) $currentSite->id)),
+            'adminEntryPath' => $adminEntryPath,
+            'adminEntryBaseUrl' => $this->adminEntryBaseUrl((int) $currentSite->id),
+            'adminEntryIsLegacy' => ! $this->adminEntryGate->isStandardLoginEntryPath($storedAdminEntryPath),
         ]);
     }
 
@@ -285,6 +290,20 @@ class SettingController extends Controller
         }
 
         return $sanitized;
+    }
+
+    protected function adminEntryBaseUrl(int $siteId): string
+    {
+        $domain = DB::table('site_domains')
+            ->where('site_id', $siteId)
+            ->where('status', 1)
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->value('domain');
+
+        $domain = trim((string) $domain);
+
+        return $domain !== '' ? 'https://'.$domain : url('/');
     }
 
     protected function sanitizePlainText(mixed $value): mixed

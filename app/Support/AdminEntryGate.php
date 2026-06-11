@@ -223,6 +223,11 @@ class AdminEntryGate
         return $this->completeLoginEntryPath($path);
     }
 
+    public function isStandardLoginEntryPath(string $value): bool
+    {
+        return $this->usesLoginPrefix($this->normalizeEntryPath($value));
+    }
+
     protected function cleanEntryPath(string $value): string
     {
         $value = trim(mb_strtolower($value));

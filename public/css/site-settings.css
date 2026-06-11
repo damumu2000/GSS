@@ -208,6 +208,13 @@
     background: rgba(0, 71, 171, 0.06);
 }
 
+.admin-entry-path-legacy-note {
+    color: #b45309;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
 .site-setting-footer-note {
     color: #bfbfbf;
     font-size: 12px;
