@@ -288,7 +288,6 @@
                             <th>可疑 IP</th>
                             <th>当前封禁</th>
                             <th>主要类型</th>
-                            <th>模式</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -303,11 +302,10 @@
                                 <td>{{ number_format($row['suspicious_ip_count']) }}</td>
                                 <td>{{ number_format($row['blocked_ip_count']) }}</td>
                                 <td>{{ $row['top_rule_label'] }}</td>
-                                <td>{{ $row['security_mode_label'] }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="platform-security-empty">当前还没有站点级安护盾统计。</td>
+                                <td colspan="6" class="platform-security-empty">当前还没有站点级安护盾统计。</td>
                             </tr>
                         @endforelse
                         </tbody>

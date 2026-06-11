@@ -37,8 +37,10 @@ class SettingController extends Controller
             ->orderBy('domain')
             ->get(['domain', 'is_primary']);
 
-        $adminEntryPath = (string) old('admin_entry_path', $this->adminEntryGate->entryPathForSite((int) $currentSite->id));
         $storedAdminEntryPath = $this->adminEntryGate->entryPathForSite((int) $currentSite->id);
+        $adminEntryPath = old('admin_entry_suffix') !== null
+            ? $this->adminEntryGate->entryPathFromInput((string) old('admin_entry_suffix'), (int) $currentSite->id)
+            : $storedAdminEntryPath;
 
         return view('admin.site.settings.index', [
             'sites' => $this->adminSites(),

@@ -220,7 +220,7 @@ class DashboardController extends Controller
                     'note' => '近 30 天累计 ' . number_format($monthPageViews) . ' PV',
                 ],
                 [
-                    'label' => '今日拦截攻击',
+                    'label' => '今日拦截',
                     'value' => number_format($securitySummary['today_blocked']),
                     'accent' => 'security',
                     'note' => ! $securitySummary['enabled']

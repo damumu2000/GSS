@@ -166,19 +166,18 @@ class SiteSecurity
         }
 
         $siteId = (int) $site->id;
-        $mode = $this->siteSecurityMode($siteId);
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->systemSettings->securityIpAllowlist())) {
             return null;
         }
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->systemSettings->securityIpBlocklist())) {
-            return $this->applySiteMode([
+            return [
                 'code' => 'ip_blocklist',
                 'name' => '黑名单 IP 拦截',
                 'risk_level' => 'critical',
-                'action' => 'temporary_block',
-            ], $mode);
+                'action' => 'blocklist',
+            ];
         }
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->siteIpAllowlist($siteId))) {
@@ -186,68 +185,64 @@ class SiteSecurity
         }
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->siteIpBlocklist($siteId))) {
-            return $this->applySiteMode([
+            return [
                 'code' => 'ip_blocklist',
                 'name' => '站点黑名单 IP 拦截',
                 'risk_level' => 'critical',
-                'action' => 'temporary_block',
-            ], $mode);
+                'action' => 'blocklist',
+            ];
         }
 
-        if ($this->pathMatchesAllowlist($request, $siteId)) {
-            return null;
+        if ($rule = $this->matchRuntimeIpBlock($request, $siteId)) {
+            return $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchRuntimeIpBlock($request, $siteId), $siteId)) {
-            return $this->applySiteMode($rule, $mode);
+        if ($rule = $this->matchProbeBlock($request, $siteId)) {
+            return $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchProbeBlock($request, $siteId), $siteId)) {
-            return $this->applySiteMode($rule, $mode);
+        if ($rule = $this->matchIpReputationBlock($request, $siteId)) {
+            return $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchIpReputationBlock($request, $siteId), $siteId)) {
-            return $this->applySiteMode($rule, $mode);
+        if ($rule = $this->matchBadMethod($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchBadMethod($request), $siteId)) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
+        if ($rule = $this->matchBadClient($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchBadClient($request), $siteId)) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
+        if ($rule = $this->matchBadPayload($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchBadPayload($request), $siteId)) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
+        if (! $this->isMediaRequest($request) && ($rule = $this->matchBadPath($request))) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if (! $this->isMediaRequest($request) && ($rule = $this->exceptedRule($this->matchBadPath($request), $siteId))) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
-        }
-
-        if ($rule = $this->exceptedRule($this->matchPathTraversal($request), $siteId)) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
+        if ($rule = $this->matchPathTraversal($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
         if ($this->isMediaRequest($request)) {
-            return $this->applySiteMode($this->exceptedRule($this->matchRateLimit($request, $siteId), $siteId), $mode);
+            return $this->matchRateLimit($request, $siteId);
         }
 
-        if ($rule = $this->exceptedRule($this->matchBadUpload($request), $siteId)) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
+        if ($rule = $this->matchBadUpload($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchSqlInjection($request), $siteId)) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
+        if ($rule = $this->matchSqlInjection($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchXss($request), $siteId)) {
-            return $this->applySiteMode($this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule, $mode);
+        if ($rule = $this->matchXss($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchRateLimit($request, $siteId), $siteId)) {
-            return $this->applySiteMode($rule, $mode);
+        if ($rule = $this->matchRateLimit($request, $siteId)) {
+            return $rule;
         }
 
         return null;
@@ -458,11 +453,6 @@ class SiteSecurity
             }
         }
 
-        $modeRows = DB::table('site_settings')
-            ->whereIn('site_id', $siteIds)
-            ->where('setting_key', 'security.mode')
-            ->pluck('setting_value', 'site_id');
-
         $siteStats = [];
         foreach ($siteRows as $site) {
             $siteId = (int) $site->id;
@@ -492,7 +482,6 @@ class SiteSecurity
                     return strtotime((string) $row->blocked_until) > $now->getTimestamp();
                 })->count(),
                 'top_rule_label' => $topRuleCode !== '' ? (string) ($topRuleProfile['category_label'] ?? '异常请求') : '暂无',
-                'security_mode_label' => $this->siteSecurityModeLabel((string) ($modeRows[$siteId] ?? 'standard')),
             ];
         }
 
@@ -534,19 +523,18 @@ class SiteSecurity
         }
 
         $siteId = (int) $site->id;
-        $mode = $this->siteSecurityMode($siteId);
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->systemSettings->securityIpAllowlist())) {
             return null;
         }
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->systemSettings->securityIpBlocklist())) {
-            return $this->applySiteMode([
+            return [
                 'code' => 'ip_blocklist',
                 'name' => '黑名单 IP 拦截',
                 'risk_level' => 'critical',
-                'action' => 'temporary_block',
-            ], $mode);
+                'action' => 'blocklist',
+            ];
         }
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->siteIpAllowlist($siteId))) {
@@ -554,23 +542,19 @@ class SiteSecurity
         }
 
         if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->siteIpBlocklist($siteId))) {
-            return $this->applySiteMode([
+            return [
                 'code' => 'ip_blocklist',
                 'name' => '站点黑名单 IP 拦截',
                 'risk_level' => 'critical',
-                'action' => 'temporary_block',
-            ], $mode);
+                'action' => 'blocklist',
+            ];
         }
 
-        if ($this->pathMatchesAllowlist($request, $siteId)) {
-            return null;
+        if ($rule = $this->matchRuntimeIpBlock($request, $siteId)) {
+            return $rule;
         }
 
-        if ($rule = $this->exceptedRule($this->matchRuntimeIpBlock($request, $siteId), $siteId)) {
-            return $this->applySiteMode($rule, $mode);
-        }
-
-        return $this->applySiteMode($this->exceptedRule($this->matchBadMethod($request), $siteId), $mode);
+        return $this->matchBadMethod($request);
     }
 
     public function shouldBlock(array $rule): bool
@@ -1733,6 +1717,7 @@ class SiteSecurity
     {
         return match ($action) {
             'temporary_block' => '临时封禁',
+            'blocklist' => '黑名单拦截',
             'rate_limited' => '自动拦截',
             'record' => '记录观察',
             default => '直接拦截',
@@ -1741,10 +1726,6 @@ class SiteSecurity
 
     protected function matchIpReputationBlock(Request $request, int $siteId): ?array
     {
-        if ($this->siteSecurityMode($siteId) === 'observe') {
-            return null;
-        }
-
         if (! $this->ipReputationTableReady()) {
             return null;
         }
@@ -1807,7 +1788,6 @@ class SiteSecurity
             ->where('site_id', $siteId)
             ->where('ip_hash', $ipHash)
             ->first(['blocked_until']);
-        $isObserveMode = $this->siteSecurityMode($siteId) === 'observe';
         $recentHighRiskHits = $isHighRisk ? $this->hitRecentHighRiskCounter($siteId, $ipHash) : 0;
         $autoBlockEnabled = $this->systemSettings->securityMaliciousAutoBlockEnabled();
         $maliciousHits = $autoBlockEnabled && $this->shouldCountMaliciousAutoBlock($code)
@@ -1815,17 +1795,18 @@ class SiteSecurity
             : 0;
         $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
         $autoBlockSeconds = $this->systemSettings->securityMaliciousAutoBlockSeconds();
+        $isPolicyBlock = $code === 'ip_blocklist' || (string) $rule['action'] === 'blocklist';
         $shouldShortBlock = (string) $rule['action'] === 'temporary_block' || ($blockSeconds > 0 && $recentHighRiskHits >= 3);
         $shouldAutoBlock = $autoBlockEnabled
             && $autoBlockSeconds > 0
             && $maliciousHits >= $this->systemSettings->securityMaliciousAutoBlockThreshold();
-        $shouldBlock = ! $isObserveMode && ($shouldShortBlock || $shouldAutoBlock);
+        $shouldBlock = $isPolicyBlock || $shouldShortBlock || $shouldAutoBlock;
         $blockedUntil = $shouldBlock && ($shouldAutoBlock || $blockSeconds > 0)
             ? $now->copy()->addSeconds($shouldAutoBlock ? $autoBlockSeconds : $blockSeconds)->toDateTimeString()
             : null;
         $currentBlockedUntil = $existing?->blocked_until ? strtotime((string) $existing->blocked_until) : false;
 
-        if (! $isObserveMode && $currentBlockedUntil !== false && $currentBlockedUntil > $now->getTimestamp() && ($blockedUntil === null || $currentBlockedUntil > strtotime($blockedUntil))) {
+        if ($currentBlockedUntil !== false && $currentBlockedUntil > $now->getTimestamp() && ($blockedUntil === null || $currentBlockedUntil > strtotime($blockedUntil))) {
             $shouldBlock = true;
             $blockedUntil = (string) $existing->blocked_until;
         }
@@ -1834,7 +1815,7 @@ class SiteSecurity
             'client_ip' => (string) $ip,
             'last_rule_code' => $code,
             'last_request_path' => $this->normalizedRequestPath($request),
-            'status' => $shouldBlock ? 'blocked' : ((! $isObserveMode && (string) $rule['action'] === 'rate_limited') ? 'limited' : 'monitored'),
+            'status' => $shouldBlock ? 'blocked' : (((string) $rule['action'] === 'rate_limited') ? 'limited' : 'monitored'),
             'blocked_until' => $blockedUntil,
             'last_seen_at' => $now,
             'updated_at' => $now,
@@ -1905,7 +1886,7 @@ class SiteSecurity
     protected function releasedBlockStatusLabel(?object $row, int|false $blockedUntilTs): string
     {
         if (! $row || $blockedUntilTs === false) {
-            return '封禁已解除';
+            return '自动封禁已解除';
         }
 
         $updatedAtTs = $row->updated_at ? strtotime((string) $row->updated_at) : false;
@@ -1918,17 +1899,7 @@ class SiteSecurity
             }
         }
 
-        return '封禁已解除';
-    }
-
-    protected function siteSecurityModeLabel(string $mode): string
-    {
-        return match ($mode) {
-            'observe' => '观察模式',
-            'strict' => '严格模式',
-            'custom' => '自定义模式',
-            default => '标准模式',
-        };
+        return '自动封禁已解除';
     }
 
     protected function trimHeader(mixed $value): ?string
@@ -2103,30 +2074,8 @@ class SiteSecurity
             ->all();
     }
 
-    protected function pathMatchesAllowlist(Request $request, int $siteId): bool
-    {
-        $path = mb_strtolower($this->normalizedRequestPath($request));
-
-        foreach ($this->sitePathAllowlist($siteId) as $allowedPath) {
-            if ($this->pathMatchesPrefix($path, $allowedPath)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    protected function exceptedRule(?array $rule, int $siteId): ?array
-    {
-        if ($rule === null) {
-            return null;
-        }
-
-        return in_array((string) ($rule['code'] ?? ''), $this->siteRuleExceptions($siteId), true) ? null : $rule;
-    }
-
     /**
-     * @return array{mode: string, ip_allowlist: array<int, string>, ip_blocklist: array<int, string>, path_allowlist: array<int, string>, rule_exceptions: array<int, string>, custom_rate_limit_max_requests: ?int, custom_rate_limit_sensitive_max_requests: ?int, custom_scan_probe_threshold: ?int}
+     * @return array{ip_allowlist: array<int, string>, ip_blocklist: array<int, string>}
      */
     protected function sitePolicy(int $siteId): array
     {
@@ -2135,57 +2084,20 @@ class SiteSecurity
             $settings = DB::table('site_settings')
                 ->where('site_id', $siteId)
                 ->whereIn('setting_key', [
-                    'security.mode',
                     'security.ip_allowlist',
                     'security.ip_blocklist',
-                    'security.path_allowlist',
-                    'security.rule_exceptions',
-                    'security.custom_rate_limit_max_requests',
-                    'security.custom_rate_limit_sensitive_max_requests',
-                    'security.custom_scan_probe_threshold',
                 ])
                 ->pluck('setting_value', 'setting_key');
 
             return [
-                'mode' => $this->normalizeSiteSecurityMode((string) ($settings['security.mode'] ?? 'standard')),
                 'ip_allowlist' => $this->normalizeSiteIpList((string) ($settings['security.ip_allowlist'] ?? '')),
                 'ip_blocklist' => $this->normalizeSiteIpList((string) ($settings['security.ip_blocklist'] ?? '')),
-                'path_allowlist' => $this->normalizeSitePathAllowlist((string) ($settings['security.path_allowlist'] ?? '')),
-                'rule_exceptions' => $this->normalizeSiteRuleExceptions((string) ($settings['security.rule_exceptions'] ?? '')),
-                'custom_rate_limit_max_requests' => $this->normalizePositiveNullableInt((string) ($settings['security.custom_rate_limit_max_requests'] ?? '')),
-                'custom_rate_limit_sensitive_max_requests' => $this->normalizePositiveNullableInt((string) ($settings['security.custom_rate_limit_sensitive_max_requests'] ?? '')),
-                'custom_scan_probe_threshold' => $this->normalizePositiveNullableInt((string) ($settings['security.custom_scan_probe_threshold'] ?? '')),
             ];
         };
 
         return app()->runningUnitTests()
             ? $resolver()
             : Cache::remember($cacheKey, now('Asia/Shanghai')->addMinute(), $resolver);
-    }
-
-    protected function siteSecurityMode(int $siteId): string
-    {
-        return $this->sitePolicy($siteId)['mode'];
-    }
-
-    protected function normalizeSiteSecurityMode(string $mode): string
-    {
-        $mode = trim(mb_strtolower($mode));
-
-        return in_array($mode, ['observe', 'standard', 'strict', 'custom'], true) ? $mode : 'standard';
-    }
-
-    protected function applySiteMode(?array $rule, string $mode): ?array
-    {
-        if ($rule === null) {
-            return null;
-        }
-
-        if ($mode === 'observe') {
-            $rule['action'] = 'record';
-        }
-
-        return $rule;
     }
 
     /**
@@ -2207,101 +2119,11 @@ class SiteSecurity
     /**
      * @return array<int, string>
      */
-    protected function sitePathAllowlist(int $siteId): array
-    {
-        return $this->sitePolicy($siteId)['path_allowlist'];
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    protected function siteRuleExceptions(int $siteId): array
-    {
-        return $this->sitePolicy($siteId)['rule_exceptions'];
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    protected function normalizeSitePathAllowlist(string $value): array
-    {
-        return collect(preg_split('/\r\n|\r|\n/', $value) ?: [])
-            ->map(fn ($item): string => trim((string) $item))
-            ->filter(fn (string $item): bool => $item !== '')
-            ->map(function (string $item): string {
-                $path = '/'.ltrim(parse_url($item, PHP_URL_PATH) ?: $item, '/');
-
-                return mb_strtolower(rtrim($path, '/')) ?: '/';
-            })
-            ->map(fn (string $item): string => $item === '' ? '/' : $item)
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
     protected function normalizeSiteIpList(string $value): array
     {
         return collect(preg_split('/[\s,]+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [])
             ->map(fn ($item): string => trim((string) $item))
             ->filter(fn (string $item): bool => $item !== '')
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    protected function customRateLimitMaxRequests(int $siteId): ?int
-    {
-        return $this->sitePolicy($siteId)['custom_rate_limit_max_requests'];
-    }
-
-    protected function customRateLimitSensitiveMaxRequests(int $siteId): ?int
-    {
-        return $this->sitePolicy($siteId)['custom_rate_limit_sensitive_max_requests'];
-    }
-
-    protected function customScanProbeThreshold(int $siteId): ?int
-    {
-        return $this->sitePolicy($siteId)['custom_scan_probe_threshold'];
-    }
-
-    protected function normalizePositiveNullableInt(string $value): ?int
-    {
-        $value = trim($value);
-
-        if ($value === '' || ! is_numeric($value)) {
-            return null;
-        }
-
-        $int = (int) $value;
-
-        return $int > 0 ? $int : null;
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    protected function normalizeSiteRuleExceptions(string $value): array
-    {
-        $allowed = collect([
-            'bad_path',
-            'sql_injection',
-            'xss',
-            'path_traversal',
-            'bad_upload',
-            'rate_limit',
-            'probe_abuse',
-            'ip_blocklist',
-            'bad_client',
-            'bad_method',
-            'bad_payload',
-        ]);
-
-        return collect(preg_split('/[\r\n,]+/', $value) ?: [])
-            ->map(fn ($item): string => trim(mb_strtolower((string) $item)))
-            ->filter(fn (string $item): bool => $item !== '' && $allowed->contains($item))
             ->unique()
             ->values()
             ->all();
@@ -2630,38 +2452,32 @@ class SiteSecurity
         }
 
         try {
-            $isObserveMode = $this->siteSecurityMode($siteId) === 'observe';
             $window = $this->systemSettings->securityRateLimitWindowSeconds();
             $isSensitive = $this->isSensitiveRequest($request);
             $maxAttempts = $isSensitive
                 ? $this->systemSettings->securityRateLimitSensitiveMaxRequests()
                 : $this->systemSettings->securityRateLimitMaxRequests();
-            $maxAttempts = $this->rateLimitMaxAttemptsForMode($siteId, $maxAttempts, $isSensitive);
             $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
             $blockKey = $this->rateLimitBlockKey($siteId, $request);
             $deviceBlockKey = $this->rateLimitDeviceBlockKey($siteId, $request);
             $normalizedPath = $this->normalizedRequestPath($request);
 
-            if (! $isObserveMode && $blockSeconds > 0 && RateLimiter::tooManyAttempts($blockKey, 1)) {
+            if ($blockSeconds > 0 && RateLimiter::tooManyAttempts($blockKey, 1)) {
                 return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
             }
 
-            if (! $isObserveMode && $blockSeconds > 0 && RateLimiter::tooManyAttempts($deviceBlockKey, 1)) {
+            if ($blockSeconds > 0 && RateLimiter::tooManyAttempts($deviceBlockKey, 1)) {
                 return ['code' => 'rate_limit', 'name' => '频繁刷新拦截'];
             }
 
             if ($this->isFrontendPageRequest($request)) {
                 $siteWideKey = $this->rateLimitDeviceKey($siteId, $request, 'site');
                 $siteWideIpKey = 'site-security-rate:'.$siteId.':site:'.sha1($request->ip() ?: 'guest');
-                $siteWideMaxAttempts = $this->rateLimitMaxAttemptsForMode(
-                    $siteId,
-                    $this->systemSettings->securityRateLimitMaxRequests(),
-                    false
-                );
+                $siteWideMaxAttempts = $this->systemSettings->securityRateLimitMaxRequests();
                 $siteWideIpMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($siteWideMaxAttempts);
 
                 if (RateLimiter::tooManyAttempts($siteWideKey, $siteWideMaxAttempts)) {
-                    if (! $isObserveMode && $blockSeconds > 0) {
+                    if ($blockSeconds > 0) {
                         RateLimiter::hit($deviceBlockKey, $blockSeconds);
                     }
 
@@ -2669,7 +2485,7 @@ class SiteSecurity
                 }
 
                 if (RateLimiter::tooManyAttempts($siteWideIpKey, $siteWideIpMaxAttempts)) {
-                    if (! $isObserveMode && $blockSeconds > 0) {
+                    if ($blockSeconds > 0) {
                         RateLimiter::hit($blockKey, $blockSeconds);
                     }
 
@@ -2686,7 +2502,7 @@ class SiteSecurity
                 $formWideIpMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($maxAttempts, true);
 
                 if (RateLimiter::tooManyAttempts($formWideKey, $maxAttempts)) {
-                    if (! $isObserveMode && $blockSeconds > 0) {
+                    if ($blockSeconds > 0) {
                         RateLimiter::hit($deviceBlockKey, $blockSeconds);
                     }
 
@@ -2694,7 +2510,7 @@ class SiteSecurity
                 }
 
                 if (RateLimiter::tooManyAttempts($formWideIpKey, $formWideIpMaxAttempts)) {
-                    if (! $isObserveMode && $blockSeconds > 0) {
+                    if ($blockSeconds > 0) {
                         RateLimiter::hit($blockKey, $blockSeconds);
                     }
 
@@ -2711,7 +2527,7 @@ class SiteSecurity
                 $mediaWideIpMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($maxAttempts);
 
                 if (RateLimiter::tooManyAttempts($mediaWideKey, $maxAttempts)) {
-                    if (! $isObserveMode && $blockSeconds > 0) {
+                    if ($blockSeconds > 0) {
                         RateLimiter::hit($deviceBlockKey, $blockSeconds);
                     }
 
@@ -2719,7 +2535,7 @@ class SiteSecurity
                 }
 
                 if (RateLimiter::tooManyAttempts($mediaWideIpKey, $mediaWideIpMaxAttempts)) {
-                    if (! $isObserveMode && $blockSeconds > 0) {
+                    if ($blockSeconds > 0) {
                         RateLimiter::hit($blockKey, $blockSeconds);
                     }
 
@@ -2731,7 +2547,7 @@ class SiteSecurity
             }
 
             if ($scanRule = $this->matchRapidPathScan($request, $siteId)) {
-                if (! $isObserveMode && $blockSeconds > 0) {
+                if ($blockSeconds > 0) {
                     RateLimiter::hit($this->probeBlockKey($siteId, $request), $blockSeconds);
                 }
 
@@ -2743,7 +2559,7 @@ class SiteSecurity
             $ipMaxAttempts = $this->rateLimitIpFallbackMaxAttempts($maxAttempts, $isSensitive);
 
             if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
-                if (! $isObserveMode && $blockSeconds > 0) {
+                if ($blockSeconds > 0) {
                     RateLimiter::hit($deviceBlockKey, $blockSeconds);
                 }
 
@@ -2751,7 +2567,7 @@ class SiteSecurity
             }
 
             if (RateLimiter::tooManyAttempts($ipKey, $ipMaxAttempts)) {
-                if (! $isObserveMode && $blockSeconds > 0) {
+                if ($blockSeconds > 0) {
                     RateLimiter::hit($blockKey, $blockSeconds);
                 }
 
@@ -2781,7 +2597,12 @@ class SiteSecurity
             return null;
         }
 
-        if ($this->isFrontendPageRequest($request) || $this->isMediaRequest($request) || $this->isStateChangingRequest($request)) {
+        if (
+            $this->isFrontendPageRequest($request)
+            || $this->isMediaRequest($request)
+            || $this->isStateChangingRequest($request)
+            || $this->isAdminEntryCandidateRequest($request)
+        ) {
             return null;
         }
 
@@ -2821,7 +2642,7 @@ class SiteSecurity
         $normalizedEntries[$path] = $now;
         Cache::put($cacheKey, $normalizedEntries, now('Asia/Shanghai')->addSeconds(max(1, $window)));
 
-        if (count($normalizedEntries) < $this->probeThresholdForMode($siteId, $this->systemSettings->securityScanProbeThreshold())) {
+        if (count($normalizedEntries) < $this->systemSettings->securityScanProbeThreshold()) {
             return null;
         }
 
@@ -2830,10 +2651,6 @@ class SiteSecurity
 
     protected function matchProbeBlock(Request $request, int $siteId): ?array
     {
-        if ($this->siteSecurityMode($siteId) === 'observe') {
-            return null;
-        }
-
         if (! $this->systemSettings->securityScanProbeEnabled()) {
             return null;
         }
@@ -2865,10 +2682,6 @@ class SiteSecurity
 
     protected function matchRuntimeIpBlock(Request $request, int $siteId): ?array
     {
-        if ($this->siteSecurityMode($siteId) === 'observe') {
-            return null;
-        }
-
         $ip = $request->ip();
 
         if (! $ip) {
@@ -2907,7 +2720,7 @@ class SiteSecurity
         }
 
         $window = $this->systemSettings->securityScanProbeWindowSeconds();
-        $threshold = $this->probeThresholdForMode($siteId, $this->systemSettings->securityScanProbeThreshold());
+        $threshold = $this->systemSettings->securityScanProbeThreshold();
         $blockSeconds = $this->systemSettings->securityRateLimitBlockSeconds();
         $totalKey = $this->probeTotalKey($siteId, $request);
         $ruleKey = $this->probeRuleKey($siteId, $request, (string) $rule['code']);
@@ -2920,7 +2733,7 @@ class SiteSecurity
                 return null;
             }
 
-            if ($this->siteSecurityMode($siteId) !== 'observe' && $blockSeconds > 0) {
+            if ($blockSeconds > 0) {
                 RateLimiter::hit($this->probeBlockKey($siteId, $request), $blockSeconds);
             }
 
@@ -2989,6 +2802,17 @@ class SiteSecurity
         }
 
         return false;
+    }
+
+    protected function isAdminEntryCandidateRequest(Request $request): bool
+    {
+        if (! in_array(strtoupper((string) $request->method()), ['GET', 'HEAD'], true)) {
+            return false;
+        }
+
+        $path = mb_strtolower($this->normalizedRequestPath($request));
+
+        return preg_match('#^/login-[a-z0-9]{1,20}$#', $path) === 1;
     }
 
     protected function isStateChangingRequest(Request $request): bool
@@ -3258,40 +3082,6 @@ class SiteSecurity
     protected function isProbeCandidateRule(string $code): bool
     {
         return in_array($code, ['bad_path', 'sql_injection', 'xss', 'path_traversal', 'bad_upload'], true);
-    }
-
-    protected function rateLimitMaxAttemptsForMode(int $siteId, int $maxAttempts, bool $isSensitive): int
-    {
-        $mode = $this->siteSecurityMode($siteId);
-
-        if ($mode === 'custom') {
-            $custom = $isSensitive
-                ? $this->customRateLimitSensitiveMaxRequests($siteId)
-                : $this->customRateLimitMaxRequests($siteId);
-
-            return $custom ?? $maxAttempts;
-        }
-
-        if ($mode === 'strict') {
-            return max(1, (int) floor($maxAttempts * 0.6));
-        }
-
-        return $maxAttempts;
-    }
-
-    protected function probeThresholdForMode(int $siteId, int $threshold): int
-    {
-        $mode = $this->siteSecurityMode($siteId);
-
-        if ($mode === 'custom') {
-            return $this->customScanProbeThreshold($siteId) ?? $threshold;
-        }
-
-        if ($mode === 'strict') {
-            return max(1, $threshold - 1);
-        }
-
-        return $threshold;
     }
 
     protected function pathMatchesPrefix(string $path, string $prefix): bool

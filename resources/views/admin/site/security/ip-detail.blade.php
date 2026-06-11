@@ -62,14 +62,14 @@
                     <div class="security-detail-value">{{ $detail['last_request_path'] ?: '暂无路径记录' }}</div>
                 </div>
                 <div class="security-detail-summary-item">
-                    <div class="security-detail-label">封禁状态</div>
+                    <div class="security-detail-label">状态时间</div>
                     <div class="security-detail-value">{{ $detail['status_time_label'] ?? ($detail['blocked_until_label'] !== '' ? $detail['blocked_until_label'] : '无') }}</div>
                 </div>
             </div>
         </section>
 
         <section class="security-panel security-detail-panel">
-            <h3 class="security-panel-title">封禁原因聚合</h3>
+            <h3 class="security-panel-title">命中原因聚合</h3>
             <div class="security-panel-desc">按最近 24 小时命中类型聚合，便于快速判断该 IP 的主要风险来源。</div>
             <div class="security-detail-events">
                 @forelse (($detail['reason_summary'] ?? []) as $reason)

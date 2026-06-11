@@ -23,7 +23,7 @@
         <section class="security-metrics">
             <article class="security-card">
                 <div class="security-card-top">
-                    <div class="security-card-label">今日拦截攻击</div>
+                    <div class="security-card-label">今日拦截</div>
                     <div class="security-card-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24">
                             <path d="M12 3 5.5 6v5.2c0 4.1 2.5 7.7 6.5 9.8 4-2.1 6.5-5.7 6.5-9.8V6L12 3Z"></path>
@@ -216,8 +216,8 @@
                         </div>
                     </div>
                     <div class="security-region">
-                        <h4 class="security-region-heading">攻击区域</h4>
-                        <div class="security-region-sub">近 7 天命中的拦截记录里，主要攻击来源区域如下。</div>
+                        <h4 class="security-region-heading">来源区域</h4>
+                        <div class="security-region-sub">近 7 天命中的拦截记录里，主要异常来源区域如下。</div>
                         <div class="security-region-list-items">
                             @forelse ($regionItems as $region)
                                 <div class="security-region-item">
@@ -423,7 +423,7 @@
                                             <div class="security-ip-path">{{ $ip['last_request_method'] }} · {{ $ip['last_request_path'] ?: '暂无路径记录' }}</div>
                                             <div class="security-ip-detail-grid">
                                                 <div class="security-ip-detail-block">
-                                                    <div class="security-ip-detail-label">攻击参数</div>
+                                                    <div class="security-ip-detail-label">请求参数</div>
                                                     <div class="security-ip-detail-value">{{ $ip['last_request_query_preview'] }}</div>
                                                 </div>
                                                 <div class="security-ip-detail-block">
