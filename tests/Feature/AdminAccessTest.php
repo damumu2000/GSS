@@ -527,11 +527,12 @@ class AdminAccessTest extends TestCase
             );
             app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
 
-            $this->actingAs($admin)
+            $response = $this->actingAs($admin)
                 ->withSession(['current_site_id' => $siteId])
                 ->post(route('logout'))
-                ->assertRedirect(route('login'))
-                ->assertHeader('Clear-Site-Data', '"cache", "storage"');
+                ->assertRedirect(route('login'));
+
+            $this->assertFalse($response->headers->has('Clear-Site-Data'));
 
             $this->get('/login')
                 ->assertOk()
