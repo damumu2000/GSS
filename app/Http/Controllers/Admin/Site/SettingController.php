@@ -96,6 +96,7 @@ class SettingController extends Controller
             $entryPathError = $this->adminEntryGate->validateEntryPath(
                 (string) $request->input('admin_entry_path', ''),
                 (int) $currentSite->id,
+                $this->adminEntryGate->entryPathForSite((int) $currentSite->id),
             );
 
             if ($entryPathError !== null) {

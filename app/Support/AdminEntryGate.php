@@ -159,9 +159,14 @@ class AdminEntryGate
                 : '';
     }
 
-    public function validateEntryPath(string $value, int $siteId): ?string
+    public function validateEntryPath(string $value, int $siteId, ?string $currentEntryPath = null): ?string
     {
         $candidate = $this->cleanEntryPath($value);
+        $currentPath = $currentEntryPath !== null ? $this->normalizeEntryPath($currentEntryPath) : '';
+
+        if ($currentPath !== '' && $this->normalizeEntryPath($candidate) === $currentPath) {
+            return null;
+        }
 
         if ($this->isReservedEntryPath($candidate)) {
             return '后台入口路径不能使用系统保留路径或常见扫描路径。';
@@ -171,6 +176,10 @@ class AdminEntryGate
 
         if ($path === '') {
             return '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。';
+        }
+
+        if (! $this->usesConsolePrefix($path)) {
+            return '后台入口路径需以 console- 开头，后接 5-12 位小写字母或数字。';
         }
 
         if ($this->conflictsWithSiteFrontendPath($path, $siteId)) {
@@ -396,6 +405,11 @@ class AdminEntryGate
         ];
 
         return in_array($path, $reserved, true);
+    }
+
+    protected function usesConsolePrefix(string $path): bool
+    {
+        return preg_match('/^console-[a-z0-9]{5,12}$/', $path) === 1;
     }
 
     protected function conflictsWithSiteFrontendPath(string $path, int $siteId): bool

@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadUrl = configRoot?.dataset.uploadUrl || '';
     const replaceUrlTemplate = configRoot?.dataset.replaceUrlTemplate || '';
     const usageEndpointTemplate = configRoot?.dataset.usageUrlTemplate || '';
+    const maxBatchUploadFiles = 20;
 
     const setUploadStatus = (message, isError = false) => {
         if (!uploadStatus) {
@@ -105,6 +106,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const files = Array.from(fileInput.files || []);
 
         if (!files.length) {
+            return;
+        }
+
+        if (files.length > maxBatchUploadFiles) {
+            setUploadStatus(`单次最多上传 ${maxBatchUploadFiles} 个资源文件。`, true);
+            fileInput.value = '';
             return;
         }
 

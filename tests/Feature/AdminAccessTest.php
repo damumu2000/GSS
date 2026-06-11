@@ -5854,6 +5854,79 @@ XML);
             ->assertJsonValidationErrors(['file']);
     }
 
+    public function test_library_batch_upload_rejects_more_than_twenty_files(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'attachment.allowed_extensions'],
+            ['setting_value' => 'pdf', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        $operator = $this->createSiteOperator('library-batch-count-limit-editor', true, 'editor');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $files = [];
+
+        for ($index = 1; $index <= 21; $index++) {
+            $files[] = UploadedFile::fake()->create('batch-count-'.$index.'.pdf', 1, 'application/pdf');
+        }
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.attachments.library-upload'), [
+                'files' => $files,
+            ], [
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['files']);
+    }
+
+    public function test_library_batch_upload_rejects_all_files_when_total_site_storage_limit_would_be_exceeded(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'attachment.allowed_extensions'],
+            ['setting_value' => 'pdf', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+        DB::table('system_settings')->updateOrInsert(
+            ['setting_key' => 'attachment.max_size_mb'],
+            ['setting_value' => '10', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        $operator = $this->createSiteOperator('library-batch-storage-limit-editor', true, 'editor');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'attachment.storage_limit_mb'],
+            ['setting_value' => '1', 'autoload' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        $files = [
+            UploadedFile::fake()->create('batch-limit-a.pdf', 600, 'application/pdf'),
+            UploadedFile::fake()->create('batch-limit-b.pdf', 600, 'application/pdf'),
+        ];
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.attachments.library-upload'), [
+                'files' => $files,
+            ], [
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('uploadedCount', 0)
+            ->assertJsonPath('failedCount', 2);
+
+        $this->assertSame(0, DB::table('attachments')
+            ->where('site_id', $siteId)
+            ->whereIn('origin_name', ['batch-limit-a.pdf', 'batch-limit-b.pdf'])
+            ->count());
+    }
+
     public function test_library_upload_resizes_large_jpeg_when_auto_resize_is_enabled(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -14102,12 +14175,12 @@ XML);
                 'article_share_enabled' => '0',
                 'attachment_share_enabled' => '0',
                 'site_frontend_enabled' => '1',
-                'admin_entry_path' => 'school-console-x7k',
+                'admin_entry_path' => 'console-x7k99',
             ])
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHas('status', '站点设置已更新。');
 
-        $this->assertSame('school-console-x7k', DB::table('site_settings')
+        $this->assertSame('console-x7k99', DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', 'security.admin_entry_path')
             ->value('setting_value'));
@@ -14154,16 +14227,62 @@ XML);
                     'article_share_enabled' => '0',
                     'attachment_share_enabled' => '0',
                     'site_frontend_enabled' => '1',
-                    'admin_entry_path' => 'new12',
+                    'admin_entry_path' => 'console-new12',
                 ])
                 ->assertRedirect(route('admin.settings.index'));
 
             $this->get('/old12')->assertNotFound();
-            $this->get('/new12')->assertRedirect(route('login'));
+            $this->get('/console-new12')->assertRedirect(route('login'));
         } finally {
             putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
             unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
         }
+    }
+
+    public function test_existing_legacy_admin_entry_path_can_be_kept_when_saving_site_settings(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('site-setting-entry-legacy-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->updateOrInsert(
+            ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+            [
+                'setting_value' => 'old12',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
+        app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), [
+                'name' => '示例学校',
+                'filing_number' => '',
+                'contact_phone' => '010-12345678',
+                'contact_email' => '',
+                'address' => '示例地址 1 号',
+                'logo' => '',
+                'favicon' => '',
+                'seo_title' => '示例学校官网',
+                'seo_keywords' => '示例学校,校园',
+                'seo_description' => '示例学校官网描述',
+                'article_requires_review' => '0',
+                'article_share_enabled' => '0',
+                'attachment_share_enabled' => '0',
+                'site_frontend_enabled' => '1',
+                'admin_entry_path' => 'old12',
+            ])
+            ->assertRedirect(route('admin.settings.index'))
+            ->assertSessionHas('status', '站点设置已更新。');
+
+        $this->assertSame('old12', DB::table('site_settings')
+            ->where('site_id', $siteId)
+            ->where('setting_key', 'security.admin_entry_path')
+            ->value('setting_value'));
     }
 
     public function test_site_admin_gets_reserved_path_message_for_blocked_admin_entry_path(): void
@@ -14209,7 +14328,7 @@ XML);
         DB::table('site_settings')->updateOrInsert(
             ['site_id' => $otherSiteId, 'setting_key' => 'security.admin_entry_path'],
             [
-                'setting_value' => 'same12',
+                'setting_value' => 'console-same12',
                 'autoload' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -14217,10 +14336,10 @@ XML);
         );
         app(AdminEntryGate::class)->forgetEntryPathForSite($otherSiteId);
 
-        $this->assertNull(app(AdminEntryGate::class)->validateEntryPath('same12', $siteId));
+        $this->assertNull(app(AdminEntryGate::class)->validateEntryPath('console-same12', $siteId));
     }
 
-    public function test_admin_entry_path_accepts_five_to_twenty_characters_only(): void
+    public function test_admin_entry_path_requires_console_prefix_for_new_values(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -14248,10 +14367,19 @@ XML);
             ->post(route('admin.settings.update'), $payload + [
                 'admin_entry_path' => 'abc12',
             ])
+            ->assertSessionHasErrors([
+                'admin_entry_path' => '后台入口路径需以 console- 开头，后接 5-12 位小写字母或数字。',
+            ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->post(route('admin.settings.update'), $payload + [
+                'admin_entry_path' => 'console-abc12',
+            ])
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHas('status', '站点设置已更新。');
 
-        $this->assertSame('abc12', DB::table('site_settings')
+        $this->assertSame('console-abc12', DB::table('site_settings')
             ->where('site_id', $siteId)
             ->where('setting_key', 'security.admin_entry_path')
             ->value('setting_value'));
@@ -14259,16 +14387,16 @@ XML);
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'abc4',
+                'admin_entry_path' => 'console-ab4',
             ])
             ->assertSessionHasErrors([
-                'admin_entry_path' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',
+                'admin_entry_path' => '后台入口路径需以 console- 开头，后接 5-12 位小写字母或数字。',
             ]);
 
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'abcde-12345-fghij201',
+                'admin_entry_path' => 'console-abcde12345',
             ])
             ->assertRedirect(route('admin.settings.index'))
             ->assertSessionHas('status', '站点设置已更新。');
@@ -14276,7 +14404,7 @@ XML);
         $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $siteId])
             ->post(route('admin.settings.update'), $payload + [
-                'admin_entry_path' => 'abcde-12345-fghij2012',
+                'admin_entry_path' => 'console-abcde12345678',
             ])
             ->assertSessionHasErrors([
                 'admin_entry_path' => '后台入口路径需为 5-20 位小写字母、数字或短横线，且不能以短横线开头或结尾。',

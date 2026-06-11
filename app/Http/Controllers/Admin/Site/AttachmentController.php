@@ -21,6 +21,8 @@ use Illuminate\View\View;
 
 class AttachmentController extends Controller
 {
+    protected const MAX_BATCH_UPLOAD_FILES = 20;
+
     public function __construct(
         protected SystemSettings $systemSettings,
     ) {
@@ -116,8 +118,15 @@ class AttachmentController extends Controller
 
         $this->validateImageDimensionsIfNeeded($validated['file'], '附件文件');
         $preparedFile = $this->prepareStoredAttachmentFile($validated['file'], false);
-        $this->validatePreparedAttachmentSize($preparedFile, '附件文件', false);
-        $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
+
+        try {
+            $this->validatePreparedAttachmentSize($preparedFile, '附件文件', false);
+            $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
+        } catch (ValidationException $exception) {
+            $this->cleanupPreparedAttachmentFiles([$preparedFile]);
+
+            throw $exception;
+        }
 
         $attachmentId = $this->storeAttachment($currentSite, $validated['file'], $request->user()->id, $preparedFile);
 
@@ -154,8 +163,15 @@ class AttachmentController extends Controller
 
         $this->validateImageDimensionsIfNeeded($validated['file'], '图片文件');
         $preparedFile = $this->prepareStoredAttachmentFile($validated['file'], true);
-        $this->validatePreparedAttachmentSize($preparedFile, '图片文件', true);
-        $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
+
+        try {
+            $this->validatePreparedAttachmentSize($preparedFile, '图片文件', true);
+            $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
+        } catch (ValidationException $exception) {
+            $this->cleanupPreparedAttachmentFiles([$preparedFile]);
+
+            throw $exception;
+        }
 
         $attachmentId = $this->storeAttachment($currentSite, $validated['file'], $request->user()->id, $preparedFile);
         $attachment = $this->findAttachmentForSite($currentSite->id, $attachmentId);
@@ -304,17 +320,20 @@ class AttachmentController extends Controller
                 ]);
             }
 
-            if (count($files) > 20) {
+            if (count($files) > self::MAX_BATCH_UPLOAD_FILES) {
                 throw ValidationException::withMessages([
-                    'files' => '单次最多上传 20 个资源文件。',
+                    'files' => sprintf('单次最多上传 %d 个资源文件。', self::MAX_BATCH_UPLOAD_FILES),
                 ]);
             }
 
             $uploadedByName = trim((string) ($request->user()->name ?? '')) ?: trim((string) ($request->user()->username ?? '')) ?: '未记录';
+            $preparedUploads = [];
             $attachments = [];
             $errors = [];
 
             foreach ($files as $index => $file) {
+                $preparedFile = null;
+
                 try {
                     $validator = Validator::make([
                         'file' => $file,
@@ -334,8 +353,60 @@ class AttachmentController extends Controller
                     $this->validateImageDimensionsIfNeeded($file, $attributeLabel);
                     $preparedFile = $this->prepareStoredAttachmentFile($file, false);
                     $this->validatePreparedAttachmentSize($preparedFile, $attributeLabel, false);
-                    $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
 
+                    $preparedUploads[] = [
+                        'index' => $index,
+                        'file' => $file,
+                        'prepared' => $preparedFile,
+                    ];
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())
+                        ->flatten()
+                        ->filter(fn ($item) => is_string($item) && $item !== '')
+                        ->first() ?: '资源上传失败';
+
+                    if (is_array($preparedFile)) {
+                        $this->cleanupPreparedAttachmentFiles([$preparedFile]);
+                    }
+
+                    $errors[] = [
+                        'index' => $index,
+                        'name' => $file->getClientOriginalName(),
+                        'message' => $message,
+                    ];
+                }
+            }
+
+            if ($preparedUploads !== []) {
+                try {
+                    $batchBytes = array_sum(array_map(
+                        fn (array $upload): int => (int) $upload['prepared']['size'],
+                        $preparedUploads,
+                    ));
+                    $this->validateSiteAttachmentStorageLimit($currentSite->id, $batchBytes);
+                } catch (ValidationException $exception) {
+                    $this->cleanupPreparedAttachmentFiles(array_column($preparedUploads, 'prepared'));
+                    $message = collect($exception->errors())->flatten()->first() ?: '当前站点总容量不足。';
+
+                    return response()->json([
+                        'message' => $message,
+                        'uploadedCount' => 0,
+                        'failedCount' => count($files),
+                        'attachments' => [],
+                        'errors' => [[
+                            'index' => null,
+                            'name' => '',
+                            'message' => $message,
+                        ]],
+                    ], 422);
+                }
+            }
+
+            foreach ($preparedUploads as $upload) {
+                $file = $upload['file'];
+                $preparedFile = $upload['prepared'];
+
+                try {
                     $attachmentId = $this->storeAttachment($currentSite, $file, $request->user()->id, $preparedFile);
                     $attachment = $this->findAttachmentForSite($currentSite->id, $attachmentId);
 
@@ -373,7 +444,7 @@ class AttachmentController extends Controller
                         ->first() ?: '资源上传失败';
 
                     $errors[] = [
-                        'index' => $index,
+                        'index' => (int) $upload['index'],
                         'name' => $file->getClientOriginalName(),
                         'message' => $message,
                     ];
@@ -414,8 +485,15 @@ class AttachmentController extends Controller
 
         $this->validateImageDimensionsIfNeeded($validated['file'], '资源文件');
         $preparedFile = $this->prepareStoredAttachmentFile($validated['file'], false);
-        $this->validatePreparedAttachmentSize($preparedFile, '资源文件', false);
-        $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
+
+        try {
+            $this->validatePreparedAttachmentSize($preparedFile, '资源文件', false);
+            $this->validateSiteAttachmentStorageLimit($currentSite->id, (int) $preparedFile['size']);
+        } catch (ValidationException $exception) {
+            $this->cleanupPreparedAttachmentFiles([$preparedFile]);
+
+            throw $exception;
+        }
 
         $attachmentId = $this->storeAttachment($currentSite, $validated['file'], $request->user()->id, $preparedFile);
         $attachment = $this->findAttachmentForSite($currentSite->id, $attachmentId);
@@ -495,18 +573,24 @@ class AttachmentController extends Controller
         $this->validateImageDimensionsIfNeeded($validated['file'], '替换文件');
         $preparedFile = $this->prepareStoredAttachmentFile($validated['file'], false, $originalExtension);
 
-        if (strtolower((string) ($preparedFile['extension'] ?? '')) !== $originalExtension) {
-            throw ValidationException::withMessages([
-                'file' => '替换文件必须与原附件保持相同后缀名。',
-            ]);
-        }
+        try {
+            if (strtolower((string) ($preparedFile['extension'] ?? '')) !== $originalExtension) {
+                throw ValidationException::withMessages([
+                    'file' => '替换文件必须与原附件保持相同后缀名。',
+                ]);
+            }
 
-        $this->validatePreparedAttachmentSize($preparedFile, '替换文件', false);
-        $this->validateSiteAttachmentReplacementStorageLimit(
-            (int) $currentSite->id,
-            (int) $preparedFile['size'],
-            (int) ($attachment->size ?? 0),
-        );
+            $this->validatePreparedAttachmentSize($preparedFile, '替换文件', false);
+            $this->validateSiteAttachmentReplacementStorageLimit(
+                (int) $currentSite->id,
+                (int) $preparedFile['size'],
+                (int) ($attachment->size ?? 0),
+            );
+        } catch (ValidationException $exception) {
+            $this->cleanupPreparedAttachmentFiles([$preparedFile]);
+
+            throw $exception;
+        }
 
         $this->overwriteAttachmentFile((string) $attachment->path, $validated['file'], $preparedFile);
 
@@ -1304,6 +1388,20 @@ class AttachmentController extends Controller
             'file',
             'mimes:'.implode(',', $extensions),
         ];
+    }
+
+    /**
+     * @param  array<int, array{temp_path:string|null}>  $preparedFiles
+     */
+    protected function cleanupPreparedAttachmentFiles(array $preparedFiles): void
+    {
+        foreach ($preparedFiles as $preparedFile) {
+            $tempPath = (string) ($preparedFile['temp_path'] ?? '');
+
+            if ($tempPath !== '' && is_file($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
     }
 
     protected function validateImageDimensionsIfNeeded(UploadedFile $file, string $attributeLabel): void

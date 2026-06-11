@@ -309,7 +309,7 @@
                             </div>
                             <div class="site-module-body">
                                 <div class="domain-readonly-panel">
-                                    <div class="domain-readonly-desc">用于隐藏后台登录入口，建议使用不易猜测的 5-20 位路径。</div>
+                                    <div class="domain-readonly-desc">用于隐藏后台登录入口。新入口需使用 console- 开头，后接 5-12 位小写字母或数字。</div>
                                     <input class="field @error('admin_entry_path') is-error @enderror" id="admin_entry_path" type="text" name="admin_entry_path" value="{{ $adminEntryPath }}" autocomplete="off" @error('admin_entry_path') aria-invalid="true" @enderror>
                                 </div>
                                 @error('admin_entry_path')

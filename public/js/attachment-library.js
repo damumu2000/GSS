@@ -26,6 +26,7 @@ const attachmentLibraryFeedUrl = attachmentLibraryConfig.feedUrl || '';
 const attachmentLibraryReplaceUrlTemplate = attachmentLibraryConfig.replaceUrlTemplate || '';
 const attachmentDeleteUrlTemplate = attachmentLibraryConfig.deleteUrlTemplate || '';
 const attachmentUsageUrlTemplate = attachmentLibraryConfig.usageUrlTemplate || '';
+const attachmentLibraryMaxBatchFiles = 20;
 let attachmentLibraryLoading = false;
 let attachmentLibraryPagination = {
     page: 1,
@@ -1420,6 +1421,12 @@ let attachmentLibraryPagination = {
 
                 if (!canBatchUploadInLibrary() && files.length > 1) {
                     setAttachmentUploadStatus('当前场景仅支持单个资源上传。', true);
+                    input.value = '';
+                    return;
+                }
+
+                if (files.length > attachmentLibraryMaxBatchFiles) {
+                    setAttachmentUploadStatus(`单次最多上传 ${attachmentLibraryMaxBatchFiles} 个资源文件。`, true);
                     input.value = '';
                     return;
                 }
