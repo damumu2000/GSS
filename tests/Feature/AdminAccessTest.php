@@ -9363,6 +9363,134 @@ XML);
             ->assertDontSee('关闭栏目B');
     }
 
+    public function test_article_channel_options_include_list_child_under_page_channel(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = $this->createSiteOperator('page-parent-list-content-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $parentId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $siteId,
+            'name' => '学校概况',
+            'slug' => 'page-parent-for-list',
+            'type' => 'page',
+            'path' => '/page-parent-for-list',
+            'depth' => 0,
+            'sort' => 1101,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('channels')->insert([
+            'site_id' => $siteId,
+            'parent_id' => $parentId,
+            'name' => '学校新闻',
+            'slug' => 'list-child-under-page',
+            'type' => 'list',
+            'path' => '/page-parent-for-list/list-child-under-page',
+            'depth' => 1,
+            'sort' => 1102,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $operator->id,
+            'updated_by' => $operator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($operator)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.articles.create'))
+            ->assertOk()
+            ->assertSee('学校概况')
+            ->assertSee('学校新闻');
+    }
+
+    public function test_theme_page_content_list_keeps_page_channel_when_it_has_article_child_channels(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = DB::table('sites')->where('site_key', 'site')->first();
+        $this->assertNotNull($site);
+
+        $identity = $this->createPlatformIdentity('page-channel-with-child-list-tester');
+        $parentId = (int) DB::table('channels')->insertGetId([
+            'site_id' => $site->id,
+            'name' => '校情简介',
+            'slug' => 'page-with-child-list',
+            'type' => 'page',
+            'path' => '/page-with-child-list',
+            'depth' => 0,
+            'sort' => 1201,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('channels')->insert([
+            'site_id' => $site->id,
+            'parent_id' => $parentId,
+            'name' => '校情新闻',
+            'slug' => 'article-child-under-page-for-template',
+            'type' => 'list',
+            'path' => '/page-with-child-list/article-child-under-page-for-template',
+            'depth' => 1,
+            'sort' => 1202,
+            'status' => 1,
+            'is_nav' => 1,
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $site->id,
+            'channel_id' => $parentId,
+            'type' => 'page',
+            'title' => '校情简介单页',
+            'content' => '<p>单页内容</p>',
+            'status' => 'published',
+            'audit_status' => 'approved',
+            'sort' => 10,
+            'published_at' => now(),
+            'created_by' => $identity->id,
+            'updated_by' => $identity->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('content_channels')->insert([
+            'content_id' => $contentId,
+            'channel_id' => $parentId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $channels = DB::table('channels')
+            ->where('site_id', $site->id)
+            ->where('status', 1)
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->get();
+
+        $items = (new ThemeTags($site, collect(), $channels))->contentList([
+            'channel_id' => $parentId,
+            'type' => 'page',
+            'limit' => 50,
+        ]);
+
+        $this->assertSame(['校情简介单页'], $items->pluck('title')->all());
+    }
+
     public function test_frontend_blocks_disabled_channel_and_its_article(): void
     {
         $this->seed(DatabaseSeeder::class);

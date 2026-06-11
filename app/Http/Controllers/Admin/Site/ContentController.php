@@ -1390,7 +1390,7 @@ class ContentController extends Controller
         }
 
         return $this->flattenContentChannels(
-            $this->visibleContentChannels($articleChannels, $selectableIds),
+            $this->visibleContentChannels($allChannels, $selectableIds),
             $selectableIds
         );
     }

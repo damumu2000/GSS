@@ -1064,7 +1064,11 @@ class ThemeTags
 
         if (! $showAllInChannelPage) {
             if ($channelId !== null) {
-                $this->applyChannelMembershipFilter($query, $this->channelAndDescendantLeafIds($channelId));
+                $channelIds = $type === 'page'
+                    ? [$channelId]
+                    : $this->channelAndDescendantLeafIds($channelId);
+
+                $this->applyChannelMembershipFilter($query, $channelIds);
             } elseif (
                 (array_key_exists('channel', $options) && $options['channel'] !== '')
                 || (! empty($options['channel_id']))
