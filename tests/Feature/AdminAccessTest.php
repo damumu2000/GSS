@@ -12446,11 +12446,11 @@ XML);
             ->assertDontSee('解封');
     }
 
-    public function test_site_security_page_labels_limited_status_as_access_restricted(): void
+    public function test_site_security_page_labels_rate_limit_record_as_monitored(): void
     {
         $this->seed(DatabaseSeeder::class);
 
-        $siteAdmin = $this->createSiteOperator('security-ip-limited-status-site-admin', true, 'site_admin');
+        $siteAdmin = $this->createSiteOperator('security-ip-rate-limit-status-site-admin', true, 'site_admin');
         $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
 
         DB::table('site_security_ip_reputations')->insert([
@@ -12461,7 +12461,7 @@ XML);
             'high_risk_count' => 0,
             'last_rule_code' => 'rate_limit',
             'last_request_path' => '/guestbook',
-            'status' => 'limited',
+            'status' => 'monitored',
             'blocked_until' => null,
             'last_seen_at' => now(),
             'created_at' => now(),
@@ -12473,39 +12473,9 @@ XML);
             ->get(route('admin.security.index'))
             ->assertOk()
             ->assertSee('198.51.100.66')
-            ->assertSee('访问受限')
-            ->assertDontSee('限速中');
-    }
-
-    public function test_site_security_page_labels_expired_limited_status_as_released(): void
-    {
-        $this->seed(DatabaseSeeder::class);
-
-        $siteAdmin = $this->createSiteOperator('security-ip-expired-limited-status-site-admin', true, 'site_admin');
-        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
-
-        DB::table('site_security_ip_reputations')->insert([
-            'site_id' => $mainSiteId,
-            'client_ip' => '198.51.100.67',
-            'ip_hash' => hash('sha256', '198.51.100.67'),
-            'hit_count' => 5,
-            'high_risk_count' => 0,
-            'last_rule_code' => 'rate_limit',
-            'last_request_path' => '/guestbook/create',
-            'status' => 'limited',
-            'blocked_until' => null,
-            'last_seen_at' => now()->subDays(2),
-            'created_at' => now()->subDays(2),
-            'updated_at' => now()->subDays(2),
-        ]);
-
-        $this->actingAs($siteAdmin)
-            ->withSession(['current_site_id' => $mainSiteId])
-            ->get(route('admin.security.index'))
-            ->assertOk()
-            ->assertSee('198.51.100.67')
-            ->assertSee('访问限制已解除')
-            ->assertDontSee('访问受限');
+            ->assertSee('观察中')
+            ->assertDontSee('访问受限')
+            ->assertDontSee('访问限制已解除');
     }
 
     public function test_site_security_suspicious_ip_ranking_prioritizes_blocked_status(): void
@@ -12554,6 +12524,54 @@ XML);
             ->assertSeeInOrder([
                 '8.8.8.8',
                 '9.9.9.9',
+            ], false);
+    }
+
+    public function test_site_security_suspicious_ip_ranking_does_not_prioritize_expired_block(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-ranking-expired-block-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '8.8.8.8',
+                'ip_hash' => hash('sha256', '8.8.8.8'),
+                'hit_count' => 30,
+                'high_risk_count' => 15,
+                'last_rule_code' => 'probe_abuse',
+                'last_request_path' => '/expired-block',
+                'status' => 'blocked',
+                'blocked_until' => now()->subMinutes(5),
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'client_ip' => '9.9.9.9',
+                'ip_hash' => hash('sha256', '9.9.9.9'),
+                'hit_count' => 1,
+                'high_risk_count' => 1,
+                'last_rule_code' => 'probe_abuse',
+                'last_request_path' => '/active-block',
+                'status' => 'blocked',
+                'blocked_until' => now()->addMinutes(5),
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '9.9.9.9',
+                '8.8.8.8',
             ], false);
     }
 

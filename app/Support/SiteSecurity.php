@@ -1130,12 +1130,13 @@ class SiteSecurity
         $siteBlocklist = $this->siteIpBlocklist($siteId);
         $safePage = max(1, $page);
         $safePerPage = max(1, $perPage);
+        $now = now('Asia/Shanghai')->toDateTimeString();
 
         $paginator = DB::table('site_security_ip_reputations')
             ->where('site_id', $siteId)
             ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
             ->select('*')
-            ->selectRaw("CASE WHEN status = 'blocked' THEN 3 WHEN status = 'limited' THEN 2 ELSE 1 END as status_weight")
+            ->selectRaw("CASE WHEN status = 'blocked' AND (blocked_until IS NULL OR blocked_until > ?) THEN 3 ELSE 1 END as status_weight", [$now])
             ->orderByDesc('status_weight')
             ->orderByDesc('high_risk_count')
             ->orderByDesc('hit_count')
@@ -1562,11 +1563,8 @@ class SiteSecurity
         $nowTs = now('Asia/Shanghai')->getTimestamp();
         $hasActiveTemporaryBlock = $blockedUntilTs !== false && $blockedUntilTs > $nowTs;
         $rowStatus = (string) ($row->status ?? 'monitored');
-        $limitedUntilTs = $rowStatus === 'limited' ? $this->limitedStatusActiveUntilTimestamp($row) : false;
-        $hasActiveLimitedStatus = $limitedUntilTs !== false && $limitedUntilTs > $nowTs;
         $effectiveRowStatus = match (true) {
             $rowStatus === 'blocked' && ! $hasActiveTemporaryBlock => 'released',
-            $rowStatus === 'limited' && ! $hasActiveLimitedStatus => 'limit_released',
             default => $rowStatus,
         };
         $effectiveStatus = $isGlobalAllowlisted
@@ -1616,23 +1614,6 @@ class SiteSecurity
         ];
     }
 
-    protected function limitedStatusActiveUntilTimestamp(object $row): int|false
-    {
-        $lastSeenTs = $row->last_seen_at ? strtotime((string) $row->last_seen_at) : false;
-
-        if ($lastSeenTs === false) {
-            return false;
-        }
-
-        $activeSeconds = min(86400, max(
-            60,
-            $this->systemSettings->securityRateLimitWindowSeconds(),
-            $this->systemSettings->securityRateLimitBlockSeconds(),
-        ));
-
-        return $lastSeenTs + $activeSeconds;
-    }
-
     /**
      * @param  array<string, mixed>  $left
      * @param  array<string, mixed>  $right
@@ -1641,7 +1622,6 @@ class SiteSecurity
     {
         $statusWeight = static fn (string $status): int => match ($status) {
             'blocked' => 3,
-            'limited' => 2,
             default => 1,
         };
 
@@ -1828,7 +1808,7 @@ class SiteSecurity
             'client_ip' => (string) $ip,
             'last_rule_code' => $code,
             'last_request_path' => $this->normalizedRequestPath($request),
-            'status' => $shouldBlock ? 'blocked' : (((string) $rule['action'] === 'rate_limited') ? 'limited' : 'monitored'),
+            'status' => $shouldBlock ? 'blocked' : 'monitored',
             'blocked_until' => $blockedUntil,
             'last_seen_at' => $now,
             'updated_at' => $now,
@@ -1876,9 +1856,7 @@ class SiteSecurity
     {
         return match ($status) {
             'blocked' => '已封禁',
-            'limited' => '访问受限',
             'released' => $this->releasedBlockStatusLabel($row, $blockedUntilTs),
-            'limit_released' => '访问限制已解除',
             default => '观察中',
         };
     }
