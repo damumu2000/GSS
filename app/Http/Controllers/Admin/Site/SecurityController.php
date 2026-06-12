@@ -24,7 +24,7 @@ class SecurityController extends Controller
         $eventFilter = in_array((string) $request->query('security_event_filter', 'all'), ['all', 'critical', 'high', 'medium'], true)
             ? (string) $request->query('security_event_filter', 'all')
             : 'all';
-        $activeModal = in_array((string) $request->query('security_modal', ''), ['events', 'ips'], true)
+        $activeModal = in_array((string) $request->query('security_modal', ''), ['events', 'ips', 'policies'], true)
             ? (string) $request->query('security_modal', '')
             : '';
 
@@ -37,6 +37,7 @@ class SecurityController extends Controller
             'securityEventFilter' => $eventFilter,
             'securityEventsPaginator' => $this->siteSecurity->siteEventsModalPaginator($siteId, $eventFilter, (int) $request->query('security_event_page', 1)),
             'securityIpsPaginator' => $this->siteSecurity->siteSuspiciousIpsModalPaginator($siteId, (int) $request->query('security_ip_page', 1)),
+            'securityIpPolicies' => $this->siteSecurity->siteIpPolicyLists($siteId),
             'activeSecurityModal' => $activeModal,
         ]);
     }

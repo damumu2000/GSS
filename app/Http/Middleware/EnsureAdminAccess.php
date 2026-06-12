@@ -38,6 +38,18 @@ class EnsureAdminAccess
         $user = $request->user();
 
         if (! $user) {
+            if ($request->routeIs('logout')) {
+                $site = $this->adminEntryGate->resolveSite($request);
+
+                if ($site) {
+                    $this->adminEntryGate->issueEntryCookie($request, $site);
+
+                    return redirect()
+                        ->route('login')
+                        ->withErrors(['username' => $this->adminEntryGate->loginExpiredMessage()]);
+                }
+            }
+
             if (! $this->adminEntryGate->allowsLogin($request)) {
                 abort(404);
             }

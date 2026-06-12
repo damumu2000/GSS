@@ -543,6 +543,79 @@ class AdminAccessTest extends TestCase
         }
     }
 
+    public function test_expired_admin_logout_redirects_to_login_instead_of_404(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'login-x7k',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+            $this->withServerVariables(['HTTP_HOST' => '127.0.0.1'])
+                ->post(route('logout'))
+                ->assertRedirect(route('login'))
+                ->assertSessionHasErrors('username');
+
+            $this->withServerVariables(['HTTP_HOST' => '127.0.0.1'])
+                ->get('/login')
+                ->assertOk()
+                ->assertSee('登录');
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
+    public function test_logout_without_current_site_still_keeps_login_page_available(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        putenv('CMS_ADMIN_ENTRY_GATE_ENABLED=true');
+        $_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+        $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED'] = 'true';
+
+        try {
+            $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+            $admin = $this->superAdmin();
+
+            DB::table('site_settings')->updateOrInsert(
+                ['site_id' => $siteId, 'setting_key' => 'security.admin_entry_path'],
+                [
+                    'setting_value' => 'login-k9m',
+                    'autoload' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+            app(AdminEntryGate::class)->forgetEntryPathForSite($siteId);
+
+            $this->actingAs($admin)
+                ->withServerVariables(['HTTP_HOST' => '127.0.0.1'])
+                ->post(route('logout'))
+                ->assertRedirect(route('login'));
+
+            $this->withServerVariables(['HTTP_HOST' => '127.0.0.1'])
+                ->get('/login')
+                ->assertOk()
+                ->assertSee('登录');
+        } finally {
+            putenv('CMS_ADMIN_ENTRY_GATE_ENABLED');
+            unset($_ENV['CMS_ADMIN_ENTRY_GATE_ENABLED'], $_SERVER['CMS_ADMIN_ENTRY_GATE_ENABLED']);
+        }
+    }
+
     public function test_admin_entry_cookie_lifetime_follows_session_lifetime(): void
     {
         config(['session.lifetime' => 180]);
@@ -12214,6 +12287,45 @@ XML);
             ->assertForbidden();
 
         $this->assertNull(DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+    }
+
+    public function test_site_security_page_shows_site_ip_policy_manager(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-policy-manager-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_allowlist',
+                'setting_value' => '203.0.113.10',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_blocklist',
+                'setting_value' => '203.0.113.20',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('IP 名单管理')
+            ->assertSee('security-policies-modal')
+            ->assertSee('IP 白名单')
+            ->assertSee('IP 黑名单')
+            ->assertSee('203.0.113.10')
+            ->assertSee('203.0.113.20')
+            ->assertSee('data-security-modal-open="policies"', false);
     }
 
     public function test_site_security_page_prefers_allowlist_label_when_ip_matches_both_site_policies(): void

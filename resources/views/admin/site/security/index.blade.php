@@ -251,6 +251,14 @@
                             <span class="security-insight-action-label">可疑 IP 排行</span>
                             <span class="security-insight-action-meta">查看近 7 天活跃的来源画像与处置状态</span>
                         </button>
+                        <button
+                            class="security-insight-action"
+                            type="button"
+                            data-security-modal-open="policies"
+                        >
+                            <span class="security-insight-action-label">IP 名单管理</span>
+                            <span class="security-insight-action-meta">维护当前站点 IP 白名单和黑名单</span>
+                        </button>
                     </div>
                 </div>
             </article>
@@ -365,6 +373,113 @@
                                         ])->onEachSide(1)->links() }}
                                     </div>
                                 @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="security-modal" id="security-policies-modal" hidden>
+        <div class="security-modal-backdrop" data-security-modal-close></div>
+        <div class="security-modal-shell" data-security-modal-shell>
+            <div class="security-modal-panel" role="dialog" aria-modal="true" aria-labelledby="security-policies-modal-title">
+                <div class="security-modal-scroll">
+                    <div class="security-modal-inner">
+                        <div class="security-modal-topbar">
+                            <div class="security-modal-heading">
+                                <div class="security-modal-heading-row">
+                                    <h3 class="security-modal-title" id="security-policies-modal-title">IP 名单管理</h3>
+                                    <button class="security-modal-close" type="button" data-security-modal-close aria-label="关闭 IP 名单管理">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M6 6l12 12"></path>
+                                            <path d="M18 6 6 18"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="security-modal-toolbar">
+                                    <div class="security-modal-meta">
+                                        <span class="security-modal-chip">当前站点</span>
+                                        <span>白名单跳过站点安护盾拦截，黑名单会固定拦截该 IP。</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="security-modal-frame">
+                            @php
+                                $siteAllowlist = collect($securityIpPolicies['allowlist'] ?? [])->values();
+                                $siteBlocklist = collect($securityIpPolicies['blocklist'] ?? [])->values();
+                            @endphp
+                            <div class="security-policy-grid">
+                                <section class="security-policy-card">
+                                    <div class="security-policy-head">
+                                        <div>
+                                            <h4 class="security-policy-title">IP 白名单</h4>
+                                            <div class="security-policy-note">可信来源，不参与当前站点安护盾拦截。</div>
+                                        </div>
+                                        <span class="security-event-chip">{{ $siteAllowlist->count() }} 个</span>
+                                    </div>
+                                    @if (!empty($canManageIpPolicy))
+                                        <form class="security-policy-add" method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies">
+                                            @csrf
+                                            <input type="hidden" name="action" value="allow">
+                                            <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="输入单个 IP，例如 203.0.113.10" autocomplete="off">
+                                            <button class="security-ip-action is-allow" type="submit">加白</button>
+                                        </form>
+                                    @endif
+                                    <div class="security-policy-list">
+                                        @forelse ($siteAllowlist as $ip)
+                                            <div class="security-policy-row">
+                                                <span class="security-policy-ip">{{ $ip }}</span>
+                                                @if (!empty($canManageIpPolicy))
+                                                    <form method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies">
+                                                        @csrf
+                                                        <input type="hidden" name="client_ip" value="{{ $ip }}">
+                                                        <input type="hidden" name="action" value="remove_allow">
+                                                        <button class="security-ip-action is-remove" type="submit">移除</button>
+                                                    </form>
+                                                @endif
+                                            </div>
+                                        @empty
+                                            <div class="security-empty">当前没有站点 IP 白名单。</div>
+                                        @endforelse
+                                    </div>
+                                </section>
+                                <section class="security-policy-card">
+                                    <div class="security-policy-head">
+                                        <div>
+                                            <h4 class="security-policy-title">IP 黑名单</h4>
+                                            <div class="security-policy-note">固定拦截来源，适合明确恶意的单个 IP。</div>
+                                        </div>
+                                        <span class="security-event-chip is-risk-high">{{ $siteBlocklist->count() }} 个</span>
+                                    </div>
+                                    @if (!empty($canManageIpPolicy))
+                                        <form class="security-policy-add" method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies">
+                                            @csrf
+                                            <input type="hidden" name="action" value="block">
+                                            <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="输入单个 IP，例如 203.0.113.10" autocomplete="off">
+                                            <button class="security-ip-action is-block" type="submit">拉黑</button>
+                                        </form>
+                                    @endif
+                                    <div class="security-policy-list">
+                                        @forelse ($siteBlocklist as $ip)
+                                            <div class="security-policy-row">
+                                                <span class="security-policy-ip">{{ $ip }}</span>
+                                                @if (!empty($canManageIpPolicy))
+                                                    <form method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies">
+                                                        @csrf
+                                                        <input type="hidden" name="client_ip" value="{{ $ip }}">
+                                                        <input type="hidden" name="action" value="remove_block">
+                                                        <button class="security-ip-action is-remove" type="submit">移除</button>
+                                                    </form>
+                                                @endif
+                                            </div>
+                                        @empty
+                                            <div class="security-empty">当前没有站点 IP 黑名单。</div>
+                                        @endforelse
+                                    </div>
+                                </section>
                             </div>
                         </div>
                     </div>

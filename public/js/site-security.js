@@ -63,6 +63,7 @@
         var body = document.body;
         var eventModal = document.getElementById('security-events-modal');
         var ipModal = document.getElementById('security-ips-modal');
+        var policyModal = document.getElementById('security-policies-modal');
         var activeModal = null;
         var params = new URLSearchParams(window.location.search);
         var parser = new DOMParser();
@@ -74,7 +75,15 @@
                 return '';
             }
 
-            return modal.id === 'security-ips-modal' ? 'ips' : 'events';
+            if (modal.id === 'security-ips-modal') {
+                return 'ips';
+            }
+
+            if (modal.id === 'security-policies-modal') {
+                return 'policies';
+            }
+
+            return 'events';
         };
 
         var stripModalQuery = function () {
@@ -92,7 +101,15 @@
         };
 
         var getModalByKey = function (key) {
-            return key === 'ips' ? ipModal : eventModal;
+            if (key === 'ips') {
+                return ipModal;
+            }
+
+            if (key === 'policies') {
+                return policyModal;
+            }
+
+            return eventModal;
         };
 
         var updateModalContent = function (modalKey, html) {
@@ -287,7 +304,7 @@
         document.querySelectorAll('[data-security-modal-open]').forEach(function (button) {
             button.addEventListener('click', function () {
                 var target = button.getAttribute('data-security-modal-open');
-                openModal(target === 'ips' ? ipModal : eventModal);
+                openModal(getModalByKey(target));
             });
         });
 
@@ -388,6 +405,9 @@
             stripModalQuery();
         } else if (params.get('security_modal') === 'ips') {
             openModal(ipModal);
+            stripModalQuery();
+        } else if (params.get('security_modal') === 'policies') {
+            openModal(policyModal);
             stripModalQuery();
         }
     };

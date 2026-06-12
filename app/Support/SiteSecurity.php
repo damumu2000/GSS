@@ -605,6 +605,19 @@ class SiteSecurity
         Cache::forget('site-security:site-policy:'.$siteId);
     }
 
+    /**
+     * @return array{allowlist: array<int, string>, blocklist: array<int, string>}
+     */
+    public function siteIpPolicyLists(int $siteId): array
+    {
+        $policy = $this->sitePolicy($siteId);
+
+        return [
+            'allowlist' => $policy['ip_allowlist'],
+            'blocklist' => $policy['ip_blocklist'],
+        ];
+    }
+
     public function clearRuntimeBlocksForIp(int $siteId, string $ip, ?string $lastRequestPath = null, ?string $lastRuleCode = null): void
     {
         $ipHash = sha1($ip);

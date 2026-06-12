@@ -336,7 +336,9 @@ class AuthenticatedSessionController extends Controller
             $userId = (int) $user->id;
             $isPlatformAdmin = $this->isPlatformAdmin($userId);
             $currentSiteId = (int) $request->session()->get('current_site_id', 0);
-            $logoutSiteId = $currentSiteId;
+            $logoutSiteId = $currentSiteId > 0
+                ? $currentSiteId
+                : (int) ($this->adminEntryGate->resolveSite($request)?->id ?? 0);
 
             $this->logOperation(
                 $isPlatformAdmin ? 'platform' : 'site',
