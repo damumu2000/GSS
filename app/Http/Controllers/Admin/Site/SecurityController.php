@@ -35,6 +35,7 @@ class SecurityController extends Controller
             'securityEventsPaginator' => $this->siteSecurity->siteEventsModalPaginator($siteId, $eventFilter, (int) $request->query('security_event_page', 1)),
             'securityIpsPaginator' => $this->siteSecurity->siteSuspiciousIpsModalPaginator($siteId, (int) $request->query('security_ip_page', 1)),
             'securityIpPolicies' => $this->siteSecurity->siteIpPolicyLists($siteId),
+            'securityIpPolicyLimit' => SiteSecurity::SITE_IP_POLICY_LIST_LIMIT,
         ]);
     }
 

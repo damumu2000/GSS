@@ -257,7 +257,7 @@
                             data-security-modal-open="policies"
                         >
                             <span class="security-insight-action-label">IP 名单管理</span>
-                            <span class="security-insight-action-meta">维护当前站点 IP 白名单和黑名单</span>
+                            <span class="security-insight-action-meta" data-security-policy-summary>白名单：{{ number_format(count($securityIpPolicies['allowlist'] ?? [])) }} 个　黑名单：{{ number_format(count($securityIpPolicies['blocklist'] ?? [])) }} 个</span>
                         </button>
                     </div>
                 </div>
@@ -410,13 +410,16 @@
                             @php
                                 $siteAllowlist = collect($securityIpPolicies['allowlist'] ?? [])->values();
                                 $siteBlocklist = collect($securityIpPolicies['blocklist'] ?? [])->values();
+                                $ipPolicyLimit = (int) ($securityIpPolicyLimit ?? 100);
+                                $siteAllowlistFull = $siteAllowlist->count() >= $ipPolicyLimit;
+                                $siteBlocklistFull = $siteBlocklist->count() >= $ipPolicyLimit;
                             @endphp
                             <div class="security-policy-grid">
                                 <section class="security-policy-card">
                                     <div class="security-policy-head">
                                         <div>
                                             <h4 class="security-policy-title">IP 白名单</h4>
-                                            <div class="security-policy-note">可信来源，不参与当前站点安护盾拦截。</div>
+                                            <div class="security-policy-note">可信来源，不参与当前站点安护盾拦截。最多 {{ $ipPolicyLimit }} 个。</div>
                                         </div>
                                         <div class="security-policy-head-actions">
                                             <span class="security-event-chip">{{ $siteAllowlist->count() }} 个</span>
@@ -439,8 +442,8 @@
                                             @csrf
                                             <input type="hidden" name="action" value="allow">
                                             <input type="hidden" name="security_modal" value="policies">
-                                            <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="输入单个 IP，例如 203.0.113.10" autocomplete="off">
-                                            <button class="security-ip-action is-allow" type="submit">加白</button>
+                                            <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="{{ $siteAllowlistFull ? '白名单已达到数量上限' : '输入单个 IP，例如 203.0.113.10' }}" autocomplete="off" @disabled($siteAllowlistFull)>
+                                            <button class="security-ip-action is-allow" type="submit" @disabled($siteAllowlistFull)>加白</button>
                                         </form>
                                     @endif
                                     <div class="security-policy-list">
@@ -466,7 +469,7 @@
                                     <div class="security-policy-head">
                                         <div>
                                             <h4 class="security-policy-title">IP 黑名单</h4>
-                                            <div class="security-policy-note">固定拦截来源，适合明确恶意的单个 IP。</div>
+                                            <div class="security-policy-note">固定拦截来源，适合明确恶意的单个 IP。最多 {{ $ipPolicyLimit }} 个。</div>
                                         </div>
                                         <div class="security-policy-head-actions">
                                             <span class="security-event-chip is-risk-high">{{ $siteBlocklist->count() }} 个</span>
@@ -489,8 +492,8 @@
                                             @csrf
                                             <input type="hidden" name="action" value="block">
                                             <input type="hidden" name="security_modal" value="policies">
-                                            <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="输入单个 IP，例如 203.0.113.10" autocomplete="off">
-                                            <button class="security-ip-action is-block" type="submit">拉黑</button>
+                                            <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="{{ $siteBlocklistFull ? '黑名单已达到数量上限' : '输入单个 IP，例如 203.0.113.10' }}" autocomplete="off" @disabled($siteBlocklistFull)>
+                                            <button class="security-ip-action is-block" type="submit" @disabled($siteBlocklistFull)>拉黑</button>
                                         </form>
                                     @endif
                                     <div class="security-policy-list">

@@ -112,6 +112,27 @@
             return eventModal;
         };
 
+        var syncPolicyState = function (documentNode, sourceModalKey) {
+            var currentSummary = document.querySelector('[data-security-policy-summary]');
+            var freshSummary = documentNode.querySelector('[data-security-policy-summary]');
+
+            if (currentSummary instanceof HTMLElement && freshSummary instanceof HTMLElement) {
+                currentSummary.innerHTML = freshSummary.innerHTML;
+            }
+
+            if (sourceModalKey === 'policies' || !(policyModal instanceof HTMLElement)) {
+                return;
+            }
+
+            var freshPolicyModal = documentNode.getElementById('security-policies-modal');
+            var currentPolicyInner = policyModal.querySelector('.security-modal-inner');
+            var freshPolicyInner = freshPolicyModal ? freshPolicyModal.querySelector('.security-modal-inner') : null;
+
+            if (currentPolicyInner instanceof HTMLElement && freshPolicyInner instanceof HTMLElement) {
+                currentPolicyInner.innerHTML = freshPolicyInner.innerHTML;
+            }
+        };
+
         var updateModalContent = function (modalKey, html) {
             var currentModal = getModalByKey(modalKey);
             if (!(currentModal instanceof HTMLElement)) {
@@ -119,6 +140,8 @@
             }
 
             var documentNode = parser.parseFromString(html, 'text/html');
+            syncPolicyState(documentNode, modalKey);
+
             var freshModal = documentNode.getElementById(currentModal.id);
             var currentInner = currentModal.querySelector('.security-modal-inner');
             var freshInner = freshModal ? freshModal.querySelector('.security-modal-inner') : null;

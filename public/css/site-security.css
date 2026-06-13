@@ -1068,6 +1068,14 @@
             background: #f8fafc;
         }
 
+        .security-ip-action:disabled,
+        .security-ip-action:disabled:hover {
+            cursor: not-allowed;
+            color: #98a2b3;
+            border-color: #e5edf6;
+            background: #f8fafc;
+        }
+
         .security-policy-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1193,6 +1201,12 @@
         .security-policy-input:focus {
             border-color: rgba(54, 89, 217, 0.5);
             box-shadow: 0 0 0 4px rgba(54, 89, 217, 0.08);
+        }
+
+        .security-policy-input:disabled {
+            cursor: not-allowed;
+            color: #98a2b3;
+            background: #f8fafc;
         }
 
         .security-policy-list {

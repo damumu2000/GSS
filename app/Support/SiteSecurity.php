@@ -19,6 +19,8 @@ class SiteSecurity
 {
     public const DEVICE_COOKIE_NAME = 'SITE-DEVICE';
 
+    public const SITE_IP_POLICY_LIST_LIMIT = 100;
+
     protected const HIGH_RISK_RULE_CODES = ['sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse', 'ip_blocklist', 'bad_client', 'bad_payload'];
 
     protected const MALICIOUS_AUTO_BLOCK_RULE_CODES = ['bad_path', 'sql_injection', 'xss', 'path_traversal', 'bad_upload', 'probe_abuse', 'bad_client', 'bad_method', 'bad_payload'];
@@ -604,6 +606,7 @@ class SiteSecurity
                 ]);
             }
 
+            $this->ensureSiteIpPolicyListLimit($allowlist, '白名单');
             $allowlist[] = $ip;
             $blocklist = array_values(array_filter($blocklist, fn (string $item): bool => $item !== $ip));
             $this->releaseTemporaryBlock($siteId, $ip);
@@ -620,6 +623,7 @@ class SiteSecurity
                 ]);
             }
 
+            $this->ensureSiteIpPolicyListLimit($blocklist, '黑名单');
             $blocklist[] = $ip;
             $allowlist = array_values(array_filter($allowlist, fn (string $item): bool => $item !== $ip));
             $this->syncIpReputationPolicyStatus($siteId, $ip, 'block');
@@ -640,6 +644,20 @@ class SiteSecurity
         $this->storeSiteIpSettingList($siteId, 'security.ip_allowlist', $allowlist, $updatedBy);
         $this->storeSiteIpSettingList($siteId, 'security.ip_blocklist', $blocklist, $updatedBy);
         Cache::forget('site-security:site-policy:'.$siteId);
+    }
+
+    /**
+     * @param  array<int, string>  $list
+     */
+    protected function ensureSiteIpPolicyListLimit(array $list, string $label): void
+    {
+        if (count($list) < self::SITE_IP_POLICY_LIST_LIMIT) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'client_ip' => sprintf('站点 IP %s最多支持 %d 个，请先移除不再使用的 IP。', $label, self::SITE_IP_POLICY_LIST_LIMIT),
+        ]);
     }
 
     /**
@@ -2145,9 +2163,22 @@ class SiteSecurity
             ];
         };
 
-        return app()->runningUnitTests()
-            ? $resolver()
-            : Cache::remember($cacheKey, now('Asia/Shanghai')->addMinute(), $resolver);
+        if (app()->runningUnitTests()) {
+            return $resolver();
+        }
+
+        try {
+            return Cache::remember($cacheKey, now('Asia/Shanghai')->addMinute(), $resolver);
+        } catch (\Throwable $exception) {
+            if ($this->shouldLogRuntimeFailure($siteId, 'site-policy-cache')) {
+                Log::warning('Site security policy cache failed.', [
+                    'site_id' => $siteId,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+
+            return $resolver();
+        }
     }
 
     /**

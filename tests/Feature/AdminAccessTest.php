@@ -12325,6 +12325,9 @@ XML);
             ->assertOk()
             ->assertSee('IP 名单管理')
             ->assertSee('security-policies-modal')
+            ->assertSee('data-security-policy-summary', false)
+            ->assertSee('白名单：1 个')
+            ->assertSee('黑名单：1 个')
             ->assertSee('IP 白名单')
             ->assertSee('IP 黑名单')
             ->assertSee('203.0.113.10')
@@ -12351,6 +12354,46 @@ XML);
             ->assertSee('全部清除');
 
         $this->assertSame(2, substr_count($response->getContent(), 'disabled>全部清除</button>'));
+    }
+
+    public function test_site_security_page_disables_ip_policy_add_forms_when_lists_are_full(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-full-ip-policy-manager-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_allowlist',
+                'setting_value' => collect(range(1, SiteSecurity::SITE_IP_POLICY_LIST_LIMIT))
+                    ->map(fn (int $index): string => '10.2.0.'.$index)
+                    ->implode("\n"),
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_blocklist',
+                'setting_value' => collect(range(1, SiteSecurity::SITE_IP_POLICY_LIST_LIMIT))
+                    ->map(fn (int $index): string => '10.3.0.'.$index)
+                    ->implode("\n"),
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $response = $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('白名单已达到数量上限')
+            ->assertSee('黑名单已达到数量上限');
+
+        $this->assertSame(2, substr_count($response->getContent(), 'type="submit" disabled>'));
     }
 
     public function test_site_security_page_prefers_allowlist_label_when_ip_matches_both_site_policies(): void
@@ -13025,6 +13068,76 @@ XML);
             ->value('setting_value'));
     }
 
+    public function test_site_security_site_ip_allowlist_rejects_more_than_limit(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-allow-limit-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ips = collect(range(1, SiteSecurity::SITE_IP_POLICY_LIST_LIMIT))
+            ->map(fn (int $index): string => '10.0.0.'.$index)
+            ->implode("\n");
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_allowlist',
+            'setting_value' => $ips,
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '10.0.1.1',
+                'action' => 'allow',
+            ])
+            ->assertSessionHasErrors([
+                'client_ip' => '站点 IP 白名单最多支持 100 个，请先移除不再使用的 IP。',
+            ]);
+
+        $this->assertSame($ips, DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_allowlist')
+            ->value('setting_value'));
+    }
+
+    public function test_site_security_site_ip_blocklist_rejects_more_than_limit(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-block-limit-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ips = collect(range(1, SiteSecurity::SITE_IP_POLICY_LIST_LIMIT))
+            ->map(fn (int $index): string => '10.1.0.'.$index)
+            ->implode("\n");
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_blocklist',
+            'setting_value' => $ips,
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '10.1.1.1',
+                'action' => 'block',
+            ])
+            ->assertSessionHasErrors([
+                'client_ip' => '站点 IP 黑名单最多支持 100 个，请先移除不再使用的 IP。',
+            ]);
+
+        $this->assertSame($ips, DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_blocklist')
+            ->value('setting_value'));
+    }
+
     public function test_site_security_ip_policy_rejects_opposite_cidr_conflict(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -13062,6 +13175,9 @@ XML);
         $script = File::get(public_path('js/site-security.js'));
 
         $this->assertStringContainsString('formActionUrl', $script);
+        $this->assertStringContainsString('syncPolicyState', $script);
+        $this->assertStringContainsString('data-security-policy-summary', $script);
+        $this->assertStringContainsString('security-policies-modal', $script);
         $this->assertStringNotContainsString('form.action', $script);
     }
 
