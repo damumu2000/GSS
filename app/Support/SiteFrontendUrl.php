@@ -28,11 +28,17 @@ class SiteFrontendUrl
 
     public static function contentPreviewUrl(object $site, string $type, int|string $contentId): string
     {
-        $route = $type === 'page'
+        $normalizedType = $type === 'page' ? 'page' : 'article';
+
+        if (! static::canUseCurrentHostForSite($site)) {
+            return '';
+        }
+
+        $route = $normalizedType === 'page'
             ? route('admin.content-preview.page', ['content' => $contentId], absolute: false)
             : route('admin.content-preview.article', ['content' => $contentId], absolute: false);
 
-        return static::urlForSitePath($site, $route);
+        return static::urlForCurrentHostPath($site, $route);
     }
 
     public static function guestbookUrl(object $site): string
@@ -77,6 +83,17 @@ class SiteFrontendUrl
         return $path.$separator.'site='.$siteKey;
     }
 
+    protected static function urlForCurrentHostPath(object $site, string $path): string
+    {
+        $host = mb_strtolower(trim((string) request()->getHost()));
+
+        if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return static::appendSiteQuery($path, (string) $site->site_key);
+        }
+
+        return rtrim(request()->getSchemeAndHttpHost(), '/').$path;
+    }
+
     public static function primaryDomain(int $siteId): ?string
     {
         if (array_key_exists($siteId, static::$primaryDomains)) {
@@ -97,5 +114,20 @@ class SiteFrontendUrl
         static::$primaryDomains[$siteId] = $domain;
 
         return $domain;
+    }
+
+    protected static function canUseCurrentHostForSite(object $site): bool
+    {
+        $host = mb_strtolower(trim((string) request()->getHost()));
+
+        if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            return true;
+        }
+
+        return DB::table('site_domains')
+            ->where('site_id', (int) $site->id)
+            ->where('status', 1)
+            ->whereRaw('LOWER(domain) = ?', [$host])
+            ->exists();
     }
 }

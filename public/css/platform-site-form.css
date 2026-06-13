@@ -756,6 +756,11 @@
         line-height: 1.5;
     }
 
+    .domain-editor-header .button {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
     .domain-editor-list {
         display: grid;
         gap: 8px;

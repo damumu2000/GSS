@@ -500,7 +500,7 @@
                             <div>
                                 <div class="content-body-header">
                                     <label class="content-main-label" for="content">正文</label>
-                                    @if (! $isCreate)
+                                    @if ($previewUrl !== '')
                                         <a class="button secondary neutral-action content-body-preview-button" href="{{ $previewUrl }}" target="_blank" rel="noreferrer">前台预览</a>
                                     @endif
                                 </div>

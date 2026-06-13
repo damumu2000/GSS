@@ -8158,6 +8158,85 @@ XML);
             ->assertNotFound();
     }
 
+    public function test_content_preview_button_is_hidden_when_admin_host_is_not_site_domain(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $platformAdmin = $this->superAdmin();
+        $remoteSiteId = $this->createAdditionalSite('platform-preview-remote-site', '平台预览远程站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'remote-preview.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $remoteSiteId,
+            'type' => 'article',
+            'title' => '平台管理员跨域预览文章',
+            'slug' => 'platform-admin-cross-domain-preview',
+            'content' => '<p>platform preview</p>',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $platformAdmin->id,
+            'updated_by' => $platformAdmin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withServerVariables(['HTTP_HOST' => 'platform.test'])
+            ->actingAs($platformAdmin)
+            ->withSession(['current_site_id' => $remoteSiteId])
+            ->get('http://platform.test'.route('admin.articles.edit', $contentId, false));
+
+        $response->assertOk()
+            ->assertDontSee('content-body-preview-button', false)
+            ->assertDontSee('/admin/content-preview/article/'.$contentId, false);
+    }
+
+    public function test_content_preview_button_is_visible_when_admin_host_is_site_domain(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $platformAdmin = $this->superAdmin();
+        $remoteSiteId = $this->createAdditionalSite('platform-preview-local-site', '平台预览同域站点');
+
+        DB::table('site_domains')->insert([
+            'site_id' => $remoteSiteId,
+            'domain' => 'remote-preview.test',
+            'is_primary' => 1,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $contentId = (int) DB::table('contents')->insertGetId([
+            'site_id' => $remoteSiteId,
+            'type' => 'article',
+            'title' => '平台管理员同域预览文章',
+            'slug' => 'platform-admin-same-domain-preview',
+            'content' => '<p>platform preview</p>',
+            'status' => 'draft',
+            'audit_status' => 'draft',
+            'created_by' => $platformAdmin->id,
+            'updated_by' => $platformAdmin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->withServerVariables(['HTTP_HOST' => 'remote-preview.test'])
+            ->actingAs($platformAdmin)
+            ->withSession(['current_site_id' => $remoteSiteId])
+            ->get('http://remote-preview.test'.route('admin.articles.edit', $contentId, false))
+            ->assertOk()
+            ->assertSee('content-body-preview-button', false)
+            ->assertSee('http://remote-preview.test/admin/content-preview/article/'.$contentId, false);
+    }
+
     public function test_site_operator_can_only_see_own_content_even_when_sharing_same_channel(): void
     {
         $this->seed(DatabaseSeeder::class);

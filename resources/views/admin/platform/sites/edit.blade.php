@@ -178,61 +178,32 @@
                         <section class="site-module">
                             <div class="site-module-header">
                                 <span class="site-module-accent"></span>
-                                <div class="site-module-title">域名绑定</div>
+                                <div class="site-module-title">联系信息</div>
                             </div>
                             <div class="site-module-body">
-                                <div class="domain-editor @error('domains') is-error @enderror" data-domain-editor>
-                                    <div class="domain-editor-header">
-                                        <span class="domain-editor-title">第一条自动识别为主域名，其他域名将作为附加域名保存。</span>
-                                        <button class="button secondary" type="button" data-domain-add>新增域名</button>
-                                    </div>
-                                    <div class="domain-editor-list" data-domain-list>
-                                        @foreach ($domainRows as $domainRow)
-                                            <div class="domain-editor-row" data-domain-row>
-                                                <span class="domain-editor-badge {{ $loop->first ? '' : 'is-secondary' }}" data-domain-badge>{{ $loop->first ? '主域名' : '附加域名' }}</span>
-                                                <input class="field" type="text" value="{{ $domainRow }}" placeholder="如 site.test" data-domain-input>
-                                                <button class="domain-editor-remove" type="button" data-domain-remove data-tooltip="删除该域名">
-                                                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11"/><path d="M6.5 2.5h3"/><path d="M5 6.5v5"/><path d="M8 6.5v5"/><path d="M11 6.5v5"/><path d="M4.5 4.5l.5 8a1 1 0 0 0 1 .9h4a1 1 0 0 0 1-.9l.5-8"/></svg>
-                                                </button>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                    <textarea class="domain-editor-hidden" id="domains" name="domains" data-domain-hidden @error('domains') aria-invalid="true" @enderror>{{ old('domains', $domains->pluck('domain')->implode("\n")) }}</textarea>
+                                <div class="field-group">
+                                    <span class="field-label">联系电话</span>
+                                    <input class="field @error('contact_phone') is-error @enderror" id="contact_phone" type="text" name="contact_phone" value="{{ old('contact_phone', $site->contact_phone) }}" @error('contact_phone') aria-invalid="true" @enderror>
+                                    @error('contact_phone')
+                                        <span class="form-error">{{ $message }}</span>
+                                    @enderror
                                 </div>
-                                @error('domains')
-                                    <span class="form-error">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </section>
 
-                        <section class="site-module">
-                            <div class="site-module-header">
-                                <span class="site-module-accent"></span>
-                                <div class="site-module-title">后台入口路径</div>
-                            </div>
-                            <div class="site-module-body">
-                                <div class="domain-editor">
-                                    <div class="domain-editor-header">
-                                        <span class="domain-editor-title">用于隐藏后台登录入口，只需填写后缀，系统会固定使用 login- 前缀。</span>
-                                    </div>
-                                    <div class="admin-entry-path-input">
-                                        <span class="admin-entry-path-prefix">login-</span>
-                                        <input class="field admin-entry-path-suffix @error('admin_entry_path') is-error @enderror" id="admin_entry_suffix" type="text" name="admin_entry_suffix" value="{{ app(\App\Support\AdminEntryGate::class)->entryPathSuffix($adminEntryPath) }}" autocomplete="off" inputmode="latin" data-admin-entry-path-suffix @error('admin_entry_path') aria-invalid="true" @enderror>
-                                    </div>
-                                    <div class="admin-entry-path-preview" data-admin-entry-path-preview data-entry-suffix-input="#admin_entry_suffix" data-entry-base="{{ $adminEntryBaseUrl ?? url('/') }}" data-entry-current-path="{{ $adminEntryPath }}" data-entry-legacy="{{ ! empty($adminEntryIsLegacy) ? '1' : '0' }}">
-                                        <div class="admin-entry-path-preview-label">完整后台登录路径</div>
-                                        <div class="admin-entry-path-preview-row">
-                                            <code class="admin-entry-path-preview-value" data-admin-entry-path-value></code>
-                                            <button class="admin-entry-path-copy" type="button" data-admin-entry-path-copy>复制</button>
-                                        </div>
-                                    </div>
-                                    @if (! empty($adminEntryIsLegacy))
-                                        <div class="admin-entry-path-legacy-note">目前为兼容旧路径，请尽快更换最新标准。</div>
-                                    @endif
+                                <div class="field-group">
+                                    <span class="field-label">联系邮箱</span>
+                                    <input class="field @error('contact_email') is-error @enderror" id="contact_email" type="text" name="contact_email" value="{{ old('contact_email', $site->contact_email) }}" @error('contact_email') aria-invalid="true" @enderror>
+                                    @error('contact_email')
+                                        <span class="form-error">{{ $message }}</span>
+                                    @enderror
                                 </div>
-                                @error('admin_entry_path')
-                                    <span class="form-error">{{ $message }}</span>
-                                @enderror
+
+                                <div class="field-group">
+                                    <span class="field-label">站点地址</span>
+                                    <input class="field @error('address') is-error @enderror" id="address" type="text" name="address" value="{{ old('address', $site->address) }}" @error('address') aria-invalid="true" @enderror>
+                                    @error('address')
+                                        <span class="form-error">{{ $message }}</span>
+                                    @enderror
+                                </div>
                             </div>
                         </section>
 
@@ -389,32 +360,61 @@
                         <section class="site-module">
                             <div class="site-module-header">
                                 <span class="site-module-accent"></span>
-                                <div class="site-module-title">联系信息</div>
+                                <div class="site-module-title">域名绑定</div>
                             </div>
                             <div class="site-module-body">
-                                <div class="field-group">
-                                    <span class="field-label">联系电话</span>
-                                    <input class="field @error('contact_phone') is-error @enderror" id="contact_phone" type="text" name="contact_phone" value="{{ old('contact_phone', $site->contact_phone) }}" @error('contact_phone') aria-invalid="true" @enderror>
-                                    @error('contact_phone')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
+                                <div class="domain-editor @error('domains') is-error @enderror" data-domain-editor>
+                                    <div class="domain-editor-header">
+                                        <span class="domain-editor-title">首个为主域名，其余为附加域名。</span>
+                                        <button class="button secondary" type="button" data-domain-add>新增域名</button>
+                                    </div>
+                                    <div class="domain-editor-list" data-domain-list>
+                                        @foreach ($domainRows as $domainRow)
+                                            <div class="domain-editor-row" data-domain-row>
+                                                <span class="domain-editor-badge {{ $loop->first ? '' : 'is-secondary' }}" data-domain-badge>{{ $loop->first ? '主域名' : '附加域名' }}</span>
+                                                <input class="field" type="text" value="{{ $domainRow }}" placeholder="如 site.test" data-domain-input>
+                                                <button class="domain-editor-remove" type="button" data-domain-remove data-tooltip="删除该域名">
+                                                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11"/><path d="M6.5 2.5h3"/><path d="M5 6.5v5"/><path d="M8 6.5v5"/><path d="M11 6.5v5"/><path d="M4.5 4.5l.5 8a1 1 0 0 0 1 .9h4a1 1 0 0 0 1-.9l.5-8"/></svg>
+                                                </button>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                    <textarea class="domain-editor-hidden" id="domains" name="domains" data-domain-hidden @error('domains') aria-invalid="true" @enderror>{{ old('domains', $domains->pluck('domain')->implode("\n")) }}</textarea>
                                 </div>
+                                @error('domains')
+                                    <span class="form-error">{{ $message }}</span>
+                                @enderror
+                            </div>
+                        </section>
 
-                                <div class="field-group">
-                                    <span class="field-label">联系邮箱</span>
-                                    <input class="field @error('contact_email') is-error @enderror" id="contact_email" type="text" name="contact_email" value="{{ old('contact_email', $site->contact_email) }}" @error('contact_email') aria-invalid="true" @enderror>
-                                    @error('contact_email')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
+                        <section class="site-module">
+                            <div class="site-module-header">
+                                <span class="site-module-accent"></span>
+                                <div class="site-module-title">后台入口路径</div>
+                            </div>
+                            <div class="site-module-body">
+                                <div class="domain-editor">
+                                    <div class="domain-editor-header">
+                                        <span class="domain-editor-title">用于隐藏后台登录入口，只需填写后缀，系统会固定使用 login- 前缀。</span>
+                                    </div>
+                                    <div class="admin-entry-path-input">
+                                        <span class="admin-entry-path-prefix">login-</span>
+                                        <input class="field admin-entry-path-suffix @error('admin_entry_path') is-error @enderror" id="admin_entry_suffix" type="text" name="admin_entry_suffix" value="{{ app(\App\Support\AdminEntryGate::class)->entryPathSuffix($adminEntryPath) }}" autocomplete="off" inputmode="latin" data-admin-entry-path-suffix @error('admin_entry_path') aria-invalid="true" @enderror>
+                                    </div>
+                                    <div class="admin-entry-path-preview" data-admin-entry-path-preview data-entry-suffix-input="#admin_entry_suffix" data-entry-base="{{ $adminEntryBaseUrl ?? url('/') }}" data-entry-current-path="{{ $adminEntryPath }}" data-entry-legacy="{{ ! empty($adminEntryIsLegacy) ? '1' : '0' }}">
+                                        <div class="admin-entry-path-preview-label">完整后台登录路径</div>
+                                        <div class="admin-entry-path-preview-row">
+                                            <code class="admin-entry-path-preview-value" data-admin-entry-path-value></code>
+                                            <button class="admin-entry-path-copy" type="button" data-admin-entry-path-copy>复制</button>
+                                        </div>
+                                    </div>
+                                    @if (! empty($adminEntryIsLegacy))
+                                        <div class="admin-entry-path-legacy-note">目前为兼容旧路径，请尽快更换最新标准。</div>
+                                    @endif
                                 </div>
-
-                                <div class="field-group">
-                                    <span class="field-label">站点地址</span>
-                                    <input class="field @error('address') is-error @enderror" id="address" type="text" name="address" value="{{ old('address', $site->address) }}" @error('address') aria-invalid="true" @enderror>
-                                    @error('address')
-                                        <span class="form-error">{{ $message }}</span>
-                                    @enderror
-                                </div>
+                                @error('admin_entry_path')
+                                    <span class="form-error">{{ $message }}</span>
+                                @enderror
                             </div>
                         </section>
 
