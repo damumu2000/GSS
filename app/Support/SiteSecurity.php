@@ -3081,7 +3081,7 @@ class SiteSecurity
             'bad_upload' => '危险脚本或可执行文件上传尝试。',
             'rate_limit' => '短时间内高频访问触发的临时拦截。',
             'probe_abuse' => '同一来源多次命中扫描规则后升级限制访问。',
-            'ip_blocklist' => '命中平台黑名单的固定来源 IP 或网段。',
+            'ip_blocklist' => '命中平台或站点黑名单的固定来源 IP 或网段。',
             'bad_client' => 'sqlmap、nuclei 等脚本扫描器客户端特征。',
             'bad_method' => 'TRACE、TRACK、CONNECT、DEBUG 等异常请求方法。',
             'bad_payload' => '参数数量异常或单个参数过长的 payload 灌入。',
