@@ -149,6 +149,15 @@ class SiteVisitStatsBuffer
 
         [$siteStats, $contentStats] = $this->parsePayload($payload);
 
+        if ($siteStats !== []) {
+            $existingSiteIds = DB::table('sites')
+                ->whereIn('id', array_keys($siteStats))
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+            $siteStats = array_intersect_key($siteStats, array_flip($existingSiteIds));
+        }
+
         DB::transaction(function () use ($statDate, $siteStats, $contentStats, &$summary): void {
             $now = now();
 

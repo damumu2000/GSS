@@ -17003,12 +17003,16 @@ XML);
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/article/1'));
         RateLimiter::clear($this->siteSecurityRateKeyForPath('/cat/demo'));
 
+        $request = fn (string $path) => $this
+            ->withCookie(SiteSecurity::DEVICE_COOKIE_NAME, 'device-page-rate')
+            ->get($path);
+
         for ($i = 0; $i < 15; $i++) {
-            $this->assertNotSame(403, $this->get('/?site=site')->getStatusCode());
-            $this->assertNotSame(403, $this->get('/article/1?site=site')->getStatusCode());
+            $this->assertNotSame(403, $request('/?site=site')->getStatusCode());
+            $this->assertNotSame(403, $request('/article/1?site=site')->getStatusCode());
         }
 
-        $this->get('/cat/demo?site=site')->assertForbidden();
+        $request('/cat/demo?site=site')->assertForbidden();
     }
 
     public function test_disabled_site_operator_is_logged_out_on_next_admin_request(): void
