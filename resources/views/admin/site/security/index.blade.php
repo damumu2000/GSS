@@ -400,8 +400,8 @@
                                 </div>
                                 <div class="security-modal-toolbar">
                                     <div class="security-modal-meta">
-                                        <span class="security-modal-chip">当前站点</span>
-                                        <span>白名单跳过站点安护盾拦截，黑名单会固定拦截该 IP。</span>
+                                        <span class="security-modal-chip">谨慎操作</span>
+                                        <span>非技术人员请勿操作，错误设置可能导致正常用户无法访问。</span>
                                     </div>
                                 </div>
                             </div>
