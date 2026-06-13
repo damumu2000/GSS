@@ -71,9 +71,13 @@ class SiteSecurity
     /**
      * @return array<int, string>
      */
-    public function siteIpPolicyActions(): array
+    public function siteIpPolicyActions(bool $includeBulkActions = false): array
     {
-        return ['allow', 'block', 'remove_allow', 'remove_block', 'release_block'];
+        $actions = ['allow', 'block', 'remove_allow', 'remove_block', 'release_block'];
+
+        return $includeBulkActions
+            ? array_merge($actions, ['clear_allow', 'clear_block'])
+            : $actions;
     }
 
     public function siteIpPolicyAuditAction(string $action): string
@@ -82,6 +86,8 @@ class SiteSecurity
             'allow' => 'security_allow_ip',
             'block' => 'security_block_ip',
             'remove_allow' => 'security_remove_allow_ip',
+            'clear_allow' => 'security_clear_allow_ips',
+            'clear_block' => 'security_clear_block_ips',
             'release_block' => 'security_release_ip_block',
             default => 'security_remove_block_ip',
         };
@@ -93,6 +99,8 @@ class SiteSecurity
             'allow' => '已加入站点 IP 白名单。',
             'block' => '已加入站点 IP 黑名单。',
             'remove_allow' => '已移出站点 IP 白名单。',
+            'clear_allow' => '已清空站点 IP 白名单。',
+            'clear_block' => '已清空站点 IP 黑名单。',
             'release_block' => '已解除临时封禁。',
             default => '已移出站点 IP 黑名单。',
         };
@@ -565,14 +573,15 @@ class SiteSecurity
     public function applySiteIpPolicy(int $siteId, string $ip, string $action, int $updatedBy): void
     {
         $ip = trim($ip);
+        $isBulkClear = in_array($action, ['clear_allow', 'clear_block'], true);
 
-        if ($ip === '127.0.0.1' || $ip === '::1') {
+        if (! $isBulkClear && ($ip === '127.0.0.1' || $ip === '::1')) {
             throw ValidationException::withMessages([
                 'client_ip' => '本地测试 IP 不支持加入站点黑白名单。',
             ]);
         }
 
-        if ($this->isGlobalAllowlisted($ip) || $this->isGlobalBlocklisted($ip)) {
+        if (! $isBulkClear && ($this->isGlobalAllowlisted($ip) || $this->isGlobalBlocklisted($ip))) {
             throw ValidationException::withMessages([
                 'client_ip' => '该 IP 当前受平台全局黑白名单控制，请先在平台安全设置中调整。',
             ]);
@@ -583,10 +592,34 @@ class SiteSecurity
         $blocklist = $policy['ip_blocklist'];
 
         if ($action === 'allow') {
+            if ($this->ipMatchesList($ip, $allowlist)) {
+                throw ValidationException::withMessages([
+                    'client_ip' => '该 IP 已在站点 IP 白名单中。',
+                ]);
+            }
+
+            if ($this->ipMatchesList($ip, $blocklist) && ! in_array($ip, $blocklist, true)) {
+                throw ValidationException::withMessages([
+                    'client_ip' => '该 IP 已被站点 IP 黑名单规则覆盖，请先调整黑名单。',
+                ]);
+            }
+
             $allowlist[] = $ip;
             $blocklist = array_values(array_filter($blocklist, fn (string $item): bool => $item !== $ip));
             $this->releaseTemporaryBlock($siteId, $ip);
         } elseif ($action === 'block') {
+            if ($this->ipMatchesList($ip, $blocklist)) {
+                throw ValidationException::withMessages([
+                    'client_ip' => '该 IP 已在站点 IP 黑名单中。',
+                ]);
+            }
+
+            if ($this->ipMatchesList($ip, $allowlist) && ! in_array($ip, $allowlist, true)) {
+                throw ValidationException::withMessages([
+                    'client_ip' => '该 IP 已被站点 IP 白名单规则覆盖，请先调整白名单。',
+                ]);
+            }
+
             $blocklist[] = $ip;
             $allowlist = array_values(array_filter($allowlist, fn (string $item): bool => $item !== $ip));
             $this->syncIpReputationPolicyStatus($siteId, $ip, 'block');
@@ -595,7 +628,11 @@ class SiteSecurity
             $this->syncIpReputationPolicyStatus($siteId, $ip, 'remove_allow');
         } elseif ($action === 'remove_block') {
             $blocklist = array_values(array_filter($blocklist, fn (string $item): bool => $item !== $ip));
-            $this->releaseTemporaryBlock($siteId, $ip);
+            $this->syncIpReputationPolicyStatus($siteId, $ip, 'remove_block');
+        } elseif ($action === 'clear_allow') {
+            $allowlist = [];
+        } elseif ($action === 'clear_block') {
+            $blocklist = [];
         } else {
             $this->releaseTemporaryBlock($siteId, $ip);
         }
@@ -694,27 +731,49 @@ class SiteSecurity
             ->where('site_id', $siteId)
             ->where('ip_hash', hash('sha256', $ip));
 
-        $row = $query->first(['blocked_until']);
+        $row = $query->first(['blocked_until', 'last_request_path', 'last_rule_code']);
 
         if (! $row) {
             return;
         }
 
+        $blockedUntilTs = $row->blocked_until ? strtotime((string) $row->blocked_until) : false;
+        $hasActiveTemporaryBlock = $blockedUntilTs !== false && $blockedUntilTs > now('Asia/Shanghai')->getTimestamp();
+
         if ($action === 'block') {
             $query->update([
                 'status' => 'blocked',
-                'blocked_until' => null,
+                'blocked_until' => $hasActiveTemporaryBlock ? $row->blocked_until : null,
                 'updated_at' => now(),
             ]);
 
             return;
         }
 
-        if (in_array($action, ['allow', 'remove_allow', 'remove_block'], true) && $row->blocked_until === null) {
+        if ($action === 'remove_block' && $hasActiveTemporaryBlock) {
             $query->update([
-                'status' => 'monitored',
+                'status' => 'blocked',
                 'updated_at' => now(),
             ]);
+
+            return;
+        }
+
+        if (in_array($action, ['allow', 'remove_allow', 'remove_block'], true)) {
+            $query->update([
+                'status' => 'monitored',
+                'blocked_until' => null,
+                'updated_at' => now(),
+            ]);
+
+            if ($action === 'remove_block') {
+                $this->clearRuntimeBlocksForIp(
+                    $siteId,
+                    $ip,
+                    (string) ($row->last_request_path ?? ''),
+                    (string) ($row->last_rule_code ?? ''),
+                );
+            }
         }
     }
 

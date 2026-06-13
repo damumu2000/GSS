@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Site;
 use App\Http\Controllers\Controller;
 use App\Support\SiteSecurity;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -24,10 +25,6 @@ class SecurityController extends Controller
         $eventFilter = in_array((string) $request->query('security_event_filter', 'all'), ['all', 'critical', 'high', 'medium'], true)
             ? (string) $request->query('security_event_filter', 'all')
             : 'all';
-        $activeModal = in_array((string) $request->query('security_modal', ''), ['events', 'ips', 'policies'], true)
-            ? (string) $request->query('security_modal', '')
-            : '';
-
         return view('admin.site.security.index', [
             'currentSite' => $currentSite,
             'sites' => $this->adminSites(),
@@ -38,7 +35,6 @@ class SecurityController extends Controller
             'securityEventsPaginator' => $this->siteSecurity->siteEventsModalPaginator($siteId, $eventFilter, (int) $request->query('security_event_page', 1)),
             'securityIpsPaginator' => $this->siteSecurity->siteSuspiciousIpsModalPaginator($siteId, (int) $request->query('security_ip_page', 1)),
             'securityIpPolicies' => $this->siteSecurity->siteIpPolicyLists($siteId),
-            'activeSecurityModal' => $activeModal,
         ]);
     }
 
@@ -50,7 +46,7 @@ class SecurityController extends Controller
 
         $validated = $request->validate([
             'client_ip' => ['required', 'ip'],
-        ]);
+        ], $this->ipValidationMessages());
 
         $detail = $this->siteSecurity->siteIpDetailPayload($siteId, trim((string) $validated['client_ip']));
 
@@ -64,7 +60,7 @@ class SecurityController extends Controller
         ]);
     }
 
-    public function storeIpPolicy(Request $request): RedirectResponse
+    public function storeIpPolicy(Request $request): RedirectResponse|JsonResponse
     {
         $currentSite = $this->currentSite($request);
         $siteId = (int) $currentSite->id;
@@ -72,13 +68,31 @@ class SecurityController extends Controller
         $this->authorizeSite($request, $siteId, 'security.manage');
 
         $validated = $request->validate([
-            'client_ip' => ['required', 'ip'],
-            'action' => ['required', Rule::in($this->siteSecurity->siteIpPolicyActions())],
-        ]);
+            'client_ip' => [
+                Rule::requiredIf(fn (): bool => ! in_array((string) $request->input('action'), ['clear_allow', 'clear_block'], true)),
+                'nullable',
+                'ip',
+            ],
+            'action' => ['required', Rule::in($this->siteSecurity->siteIpPolicyActions(true))],
+        ], $this->ipValidationMessages());
 
-        $ip = trim((string) $validated['client_ip']);
+        $ip = trim((string) ($validated['client_ip'] ?? ''));
         $action = (string) $validated['action'];
         $this->siteSecurity->applySiteIpPolicy($siteId, $ip, $action, (int) $request->user()->id);
+        $modal = in_array((string) $request->input('security_modal'), ['ips', 'policies'], true)
+            ? (string) $request->input('security_modal')
+            : (in_array((string) $request->header('X-Requested-Modal'), ['ips', 'policies'], true)
+                ? (string) $request->header('X-Requested-Modal')
+                : null);
+        $redirectParams = [];
+
+        if ($modal !== null) {
+            $redirectParams['security_modal'] = $modal;
+
+            if ($modal === 'ips') {
+                $redirectParams['security_ip_page'] = max(1, (int) $request->input('security_ip_page', 1));
+            }
+        }
 
         $this->logOperation(
             'site',
@@ -95,9 +109,19 @@ class SecurityController extends Controller
             $request,
         );
 
+        $message = $this->siteSecurity->siteIpPolicyStatusMessage($action);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'modal' => $modal,
+                'redirect' => route('admin.security.index', $redirectParams),
+            ]);
+        }
+
         return redirect()
-            ->route('admin.security.index')
-            ->with('status', $this->siteSecurity->siteIpPolicyStatusMessage($action));
+            ->route('admin.security.index', $redirectParams)
+            ->with('status', $message);
     }
 
     public function deleteEvent(Request $request): RedirectResponse
@@ -182,7 +206,7 @@ class SecurityController extends Controller
         $validated = $request->validate([
             'client_ip' => ['required', 'ip'],
             'security_ip_page' => ['nullable', 'integer', 'min:1'],
-        ]);
+        ], $this->ipValidationMessages());
 
         $clientIp = trim((string) $validated['client_ip']);
         $deleted = $this->siteSecurity->deleteSiteSuspiciousIpRecord($siteId, $clientIp);
@@ -237,5 +261,20 @@ class SecurityController extends Controller
             ->with('status', $result['deleted_ips'] > 0
                 ? sprintf('已清除 %d 个可疑 IP 画像，并删除 %d 条相关拦截记录。', (int) $result['deleted_ips'], (int) $result['deleted_events'])
                 : '当前没有可清除的可疑 IP 画像。');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function ipValidationMessages(): array
+    {
+        return [
+            'client_ip.required' => '请输入 IP 地址。',
+            'client_ip.ip' => '请输入正确的 IP 地址。',
+            'action.required' => '请选择要执行的操作。',
+            'action.in' => '当前操作无效，请刷新页面后重试。',
+            'security_ip_page.integer' => '分页参数无效，请刷新页面后重试。',
+            'security_ip_page.min' => '分页参数无效，请刷新页面后重试。',
+        ];
     }
 }

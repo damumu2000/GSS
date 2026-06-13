@@ -978,16 +978,19 @@
         }
 
         .security-ip-status {
-            display: grid;
-            justify-items: end;
-            gap: 7px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 7px 8px;
             min-width: 120px;
         }
 
         .security-ip-time {
+            flex: 0 0 100%;
             color: #98a2b3;
             font-size: 12px;
             font-weight: 700;
+            text-align: right;
         }
 
         .security-ip-footer {
@@ -1087,6 +1090,66 @@
             justify-content: space-between;
             align-items: flex-start;
             gap: 16px;
+        }
+
+        .security-policy-head-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .security-policy-head-actions form {
+            margin: 0;
+        }
+
+        .security-policy-clear {
+            height: 30px;
+            padding: 0 12px;
+            border-radius: 999px;
+            border: 1px solid #d7e3f1;
+            background: #ffffff;
+            color: #667085;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 800;
+            cursor: pointer;
+            transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+        }
+
+        .security-policy-clear:hover {
+            border-color: #98a2b3;
+            background: #f8fafc;
+            color: #344054;
+        }
+
+        .security-policy-clear:disabled,
+        .security-policy-clear:disabled:hover {
+            border-color: #e5e7eb;
+            background: #f8fafc;
+            color: #c0c7d2;
+            cursor: not-allowed;
+        }
+
+        .security-policy-clear.is-danger {
+            border-color: #fecaca;
+            color: #dc2626;
+            background: #fff7f7;
+        }
+
+        .security-policy-clear.is-danger:hover {
+            border-color: #fca5a5;
+            background: #fff1f2;
+            color: #b91c1c;
+        }
+
+        .security-policy-clear.is-danger:disabled,
+        .security-policy-clear.is-danger:disabled:hover {
+            border-color: #e5e7eb;
+            background: #f8fafc;
+            color: #c0c7d2;
         }
 
         .security-policy-title {
@@ -1343,7 +1406,11 @@
             }
 
             .security-ip-status {
-                justify-items: start;
+                justify-content: flex-start;
+            }
+
+            .security-ip-time {
+                text-align: left;
             }
 
             .security-ip-footer {

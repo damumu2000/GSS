@@ -127,7 +127,18 @@
                 return;
             }
 
-            currentInner.innerHTML = freshInner.innerHTML;
+            if (modalKey === 'policies') {
+                var currentFrame = currentInner.querySelector('.security-modal-frame');
+                var freshFrame = freshInner.querySelector('.security-modal-frame');
+
+                if (currentFrame instanceof HTMLElement && freshFrame instanceof HTMLElement) {
+                    currentFrame.innerHTML = freshFrame.innerHTML;
+                } else {
+                    currentInner.innerHTML = freshInner.innerHTML;
+                }
+            } else {
+                currentInner.innerHTML = freshInner.innerHTML;
+            }
 
             if (modalKey === 'ips') {
                 ipListSnapshot = freshInner.innerHTML;
@@ -146,23 +157,160 @@
             }
         };
 
+        var csrfToken = function () {
+            var token = document.querySelector('meta[name="csrf-token"]');
+            return token instanceof Element ? token.getAttribute('content') || '' : '';
+        };
+
+        var notify = function (message, type) {
+            var text = String(message || '').trim();
+            if (text === '') {
+                return;
+            }
+
+            if (typeof window.showMessage === 'function') {
+                window.showMessage(text, type || 'success');
+                return;
+            }
+
+            window.alert(text);
+        };
+
+        var formActionUrl = function (form) {
+            var action = form.getAttribute('action') || '';
+            return new URL(action, window.location.href).toString();
+        };
+
+        var firstValidationMessage = function (payload) {
+            if (!payload || typeof payload !== 'object') {
+                return '';
+            }
+
+            if (payload.errors && typeof payload.errors === 'object') {
+                var fields = Object.keys(payload.errors);
+                for (var i = 0; i < fields.length; i++) {
+                    var messages = payload.errors[fields[i]];
+                    if (Array.isArray(messages) && messages.length > 0) {
+                        return String(messages[0] || '');
+                    }
+                }
+            }
+
+            return typeof payload.message === 'string' ? payload.message : '';
+        };
+
+        var responseErrorMessage = function (response, text) {
+            var contentType = response.headers.get('content-type') || '';
+
+            if (contentType.indexOf('application/json') !== -1) {
+                try {
+                    var message = firstValidationMessage(JSON.parse(text));
+                    if (message) {
+                        return message;
+                    }
+                } catch (error) {
+                    return '';
+                }
+            }
+
+            if (text) {
+                var documentNode = parser.parseFromString(text, 'text/html');
+                var flashMessage = documentNode.body && documentNode.body.dataset
+                    ? documentNode.body.dataset.adminStatusMessage
+                    : '';
+
+                if (flashMessage) {
+                    return flashMessage;
+                }
+            }
+
+            if (response.status === 419) {
+                return '登录状态已过期，请刷新页面后重试。';
+            }
+
+            if (response.status === 403) {
+                return '当前账号无权执行该操作。';
+            }
+
+            return '操作失败，请稍后重试。';
+        };
+
         var requestModal = function (modalKey, url, options) {
+            var modal = getModalByKey(modalKey);
+            var wasOpen = modal instanceof HTMLElement && !modal.hidden && modal.classList.contains('is-open');
+
             return window.fetch(url, Object.assign({
                 credentials: 'same-origin',
                 headers: {
+                    'Accept': 'text/html, application/xhtml+xml',
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-Requested-Modal': modalKey,
                 },
             }, options || {})).then(function (response) {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    return response.text().then(function (text) {
+                        throw new Error(responseErrorMessage(response, text));
+                    });
                 }
 
                 return response.text();
             }).then(function (html) {
                 updateModalContent(modalKey, html);
-                openModal(getModalByKey(modalKey));
+                if (!wasOpen) {
+                    openModal(modal);
+                }
                 stripModalQuery();
+            });
+        };
+
+        var modalRefreshUrl = function (modalKey, form) {
+            var url = new URL(window.location.href);
+            url.searchParams.set('security_modal', modalKey);
+
+            if (modalKey === 'ips') {
+                var page = form.querySelector('input[name="security_ip_page"]');
+                var pageValue = page instanceof HTMLInputElement ? page.value : '';
+                if (pageValue) {
+                    url.searchParams.set('security_ip_page', pageValue);
+                }
+            }
+
+            return url.toString();
+        };
+
+        var requestIpPolicy = function (modalKey, form) {
+            return window.fetch(formActionUrl(form), {
+                method: (form.getAttribute('method') || 'POST').toUpperCase(),
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Requested-Modal': modalKey,
+                    'X-CSRF-TOKEN': csrfToken(),
+                },
+                body: new window.FormData(form),
+            }).then(function (response) {
+                return response.text().then(function (text) {
+                    var payload = {};
+
+                    if (text) {
+                        try {
+                            payload = JSON.parse(text);
+                        } catch (error) {
+                            payload = {};
+                        }
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(firstValidationMessage(payload) || responseErrorMessage(response, text));
+                    }
+
+                    if (payload.message) {
+                        notify(payload.message, 'success');
+                    }
+
+                    return requestModal(modalKey, modalRefreshUrl(modalKey, form));
+                });
             });
         };
 
@@ -265,6 +413,12 @@
 
         var openModal = function (modal) {
             if (!(modal instanceof HTMLElement)) {
+                return;
+            }
+
+            if (!modal.hidden && modal.classList.contains('is-open')) {
+                activeModal = modal;
+                body.classList.add('has-modal-open');
                 return;
             }
 
@@ -380,7 +534,8 @@
         });
 
         document.addEventListener('submit', function (event) {
-            var form = event.target.closest('form[data-security-modal-request]');
+            var target = event.target instanceof Element ? event.target : null;
+            var form = target ? target.closest('form[data-security-modal-request]') : null;
             if (!(form instanceof HTMLFormElement)) {
                 return;
             }
@@ -390,15 +545,46 @@
                 return;
             }
 
-            event.preventDefault();
+            if (typeof form.onsubmit === 'function' && form.onsubmit.call(form, event) === false) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+            }
 
-            requestModal(getModalKey(modal), form.action, {
-                method: (form.getAttribute('method') || 'POST').toUpperCase(),
-                body: new window.FormData(form),
-            }).catch(function () {
-                form.submit();
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            if (form.dataset.securitySubmitting === '1') {
+                return;
+            }
+
+            form.dataset.securitySubmitting = '1';
+            var submitter = event.submitter instanceof HTMLButtonElement ? event.submitter : null;
+            if (submitter) {
+                submitter.disabled = true;
+            }
+
+            Promise.resolve().then(function () {
+                var modalKey = getModalKey(modal);
+                var actionUrl = formActionUrl(form);
+
+                if (actionUrl.indexOf('/security/ip-policy') !== -1) {
+                    return requestIpPolicy(modalKey, form);
+                }
+
+                return requestModal(modalKey, actionUrl, {
+                    method: (form.getAttribute('method') || 'POST').toUpperCase(),
+                    body: new window.FormData(form),
+                });
+            }).catch(function (error) {
+                notify(error.message || '操作失败，请稍后重试。', 'error');
+            }).finally(function () {
+                delete form.dataset.securitySubmitting;
+                if (submitter) {
+                    submitter.disabled = false;
+                }
             });
-        });
+        }, true);
 
         if (params.get('security_modal') === 'events') {
             openModal(eventModal);

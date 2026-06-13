@@ -12083,16 +12083,18 @@ XML);
             ['setting_value' => '203.0.113.0/24', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
         );
 
-        $this->actingAs($siteAdmin)
+        $response = $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $mainSiteId])
             ->get(route('admin.security.index'))
             ->assertOk()
             ->assertSee('203.0.113.88')
             ->assertSee('已封禁')
-            ->assertSee('平台已拉黑')
-            ->assertDontSee('>加白<', false)
-            ->assertDontSee('>拉黑<', false)
-            ->assertDontSee('解封');
+            ->assertSee('平台已拉黑');
+
+        $this->assertSame(1, preg_match('/<article class="security-ip-item">(?:(?!<\/article>).)*203\.0\.113\.88(?:(?!<\/article>).)*<\/article>/s', $response->getContent(), $matches));
+        $this->assertStringNotContainsString('>加白<', $matches[0]);
+        $this->assertStringNotContainsString('>拉黑<', $matches[0]);
+        $this->assertStringNotContainsString('>解封<', $matches[0]);
     }
 
     public function test_site_security_page_reflects_global_allowlist_label_for_suspicious_ip(): void
@@ -12122,16 +12124,18 @@ XML);
             ['setting_value' => '198.51.100.0/24', 'autoload' => 1, 'created_at' => now(), 'updated_at' => now()],
         );
 
-        $this->actingAs($siteAdmin)
+        $response = $this->actingAs($siteAdmin)
             ->withSession(['current_site_id' => $mainSiteId])
             ->get(route('admin.security.index'))
             ->assertOk()
             ->assertSee('198.51.100.88')
             ->assertSee('观察中')
-            ->assertSee('平台已加白')
-            ->assertDontSee('>加白<', false)
-            ->assertDontSee('>拉黑<', false)
-            ->assertDontSee('解封');
+            ->assertSee('平台已加白');
+
+        $this->assertSame(1, preg_match('/<article class="security-ip-item">(?:(?!<\/article>).)*198\.51\.100\.88(?:(?!<\/article>).)*<\/article>/s', $response->getContent(), $matches));
+        $this->assertStringNotContainsString('>加白<', $matches[0]);
+        $this->assertStringNotContainsString('>拉黑<', $matches[0]);
+        $this->assertStringNotContainsString('>解封<', $matches[0]);
     }
 
     public function test_site_security_page_prefers_global_blocklist_over_site_allowlist(): void
@@ -12325,7 +12329,28 @@ XML);
             ->assertSee('IP 黑名单')
             ->assertSee('203.0.113.10')
             ->assertSee('203.0.113.20')
+            ->assertSee('clear_allow', false)
+            ->assertSee('clear_block', false)
+            ->assertSee('全部清除')
             ->assertSee('data-security-modal-open="policies"', false);
+    }
+
+    public function test_site_security_page_shows_disabled_clear_buttons_for_empty_ip_policy_lists(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-empty-ip-policy-manager-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $response = $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->get(route('admin.security.index'))
+            ->assertOk()
+            ->assertSee('IP 白名单')
+            ->assertSee('IP 黑名单')
+            ->assertSee('全部清除');
+
+        $this->assertSame(2, substr_count($response->getContent(), 'disabled>全部清除</button>'));
     }
 
     public function test_site_security_page_prefers_allowlist_label_when_ip_matches_both_site_policies(): void
@@ -12730,6 +12755,316 @@ XML);
         ]);
     }
 
+    public function test_site_security_ip_policy_redirect_keeps_current_modal_context(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-modal-context-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '8.8.8.8',
+                'action' => 'block',
+                'security_modal' => 'ips',
+                'security_ip_page' => 2,
+            ])
+            ->assertRedirect(route('admin.security.index', [
+                'security_modal' => 'ips',
+                'security_ip_page' => 2,
+            ]))
+            ->assertSessionHas('status', '已加入站点 IP 黑名单。');
+    }
+
+    public function test_site_security_ip_policy_validation_uses_readable_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-readable-validation-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => 'not-an-ip',
+                'action' => 'block',
+                'security_modal' => 'policies',
+            ])
+            ->assertSessionHasErrors([
+                'client_ip' => '请输入正确的 IP 地址。',
+            ]);
+    }
+
+    public function test_site_security_ip_policy_ajax_store_returns_json_and_updates_setting(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-ajax-store-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->withHeaders([
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+                'X-Requested-Modal' => 'policies',
+            ])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '1.1.1.1',
+                'action' => 'block',
+                'security_modal' => 'policies',
+            ])
+            ->assertOk()
+            ->assertJson([
+                'message' => '已加入站点 IP 黑名单。',
+                'modal' => 'policies',
+            ]);
+
+        $this->assertSame('1.1.1.1', DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_blocklist')
+            ->value('setting_value'));
+    }
+
+    public function test_site_security_ip_policy_ajax_from_suspicious_ip_modal_keeps_ips_context(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-ajax-ips-modal-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->withHeaders([
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+                'X-Requested-Modal' => 'ips',
+            ])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '1.1.1.1',
+                'action' => 'block',
+                'security_modal' => 'ips',
+                'security_ip_page' => 2,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'message' => '已加入站点 IP 黑名单。',
+                'modal' => 'ips',
+                'redirect' => route('admin.security.index', [
+                    'security_modal' => 'ips',
+                    'security_ip_page' => 2,
+                ]),
+            ]);
+
+        $this->assertSame('1.1.1.1', DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_blocklist')
+            ->value('setting_value'));
+    }
+
+    public function test_site_security_ip_policy_ajax_validation_returns_readable_message(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-ajax-validation-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->withHeaders([
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+                'X-Requested-Modal' => 'policies',
+            ])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '',
+                'action' => 'block',
+                'security_modal' => 'policies',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['client_ip'])
+            ->assertJsonPath('errors.client_ip.0', '请输入 IP 地址。');
+    }
+
+    public function test_site_security_ip_policy_can_clear_allowlist_without_client_ip(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-clear-allow-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_allowlist',
+                'setting_value' => "8.8.8.8\n1.1.1.1",
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_blocklist',
+                'setting_value' => '9.9.9.9',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'action' => 'clear_allow',
+                'security_modal' => 'policies',
+            ])
+            ->assertRedirect(route('admin.security.index', ['security_modal' => 'policies']))
+            ->assertSessionHas('status', '已清空站点 IP 白名单。');
+
+        $this->assertSame('', DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_allowlist')
+            ->value('setting_value'));
+        $this->assertSame('9.9.9.9', DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_blocklist')
+            ->value('setting_value'));
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'site',
+            'module' => 'security',
+            'action' => 'security_clear_allow_ips',
+            'site_id' => $mainSiteId,
+            'user_id' => $siteAdmin->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_ip_policy_can_clear_blocklist_without_client_ip(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-clear-block-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->insert([
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_allowlist',
+                'setting_value' => '8.8.8.8',
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'site_id' => $mainSiteId,
+                'setting_key' => 'security.ip_blocklist',
+                'setting_value' => "9.9.9.9\n1.1.1.1",
+                'autoload' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'action' => 'clear_block',
+                'security_modal' => 'policies',
+            ])
+            ->assertRedirect(route('admin.security.index', ['security_modal' => 'policies']))
+            ->assertSessionHas('status', '已清空站点 IP 黑名单。');
+
+        $this->assertSame('8.8.8.8', DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_allowlist')
+            ->value('setting_value'));
+        $this->assertSame('', DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_blocklist')
+            ->value('setting_value'));
+        $this->assertDatabaseHas('operation_logs', [
+            'scope' => 'site',
+            'module' => 'security',
+            'action' => 'security_clear_block_ips',
+            'site_id' => $mainSiteId,
+            'user_id' => $siteAdmin->id,
+            'target_type' => 'site_security_ip',
+        ]);
+    }
+
+    public function test_site_security_ip_policy_rejects_duplicate_list_entry(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-duplicate-policy-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_allowlist',
+            'setting_value' => "8.8.8.8\n1.1.1.1",
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '8.8.8.8',
+                'action' => 'allow',
+            ])
+            ->assertSessionHasErrors([
+                'client_ip' => '该 IP 已在站点 IP 白名单中。',
+            ]);
+
+        $this->assertSame("8.8.8.8\n1.1.1.1", DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_allowlist')
+            ->value('setting_value'));
+    }
+
+    public function test_site_security_ip_policy_rejects_opposite_cidr_conflict(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-cidr-conflict-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_settings')->insert([
+            'site_id' => $mainSiteId,
+            'setting_key' => 'security.ip_allowlist',
+            'setting_value' => '8.8.8.0/24',
+            'autoload' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => '8.8.8.8',
+                'action' => 'block',
+            ])
+            ->assertSessionHasErrors([
+                'client_ip' => '该 IP 已被站点 IP 白名单规则覆盖，请先调整白名单。',
+            ]);
+
+        $this->assertNull(DB::table('site_settings')
+            ->where('site_id', $mainSiteId)
+            ->where('setting_key', 'security.ip_blocklist')
+            ->value('setting_value'));
+    }
+
+    public function test_site_security_modal_script_does_not_use_form_action_property(): void
+    {
+        $script = File::get(public_path('js/site-security.js'));
+
+        $this->assertStringContainsString('formActionUrl', $script);
+        $this->assertStringNotContainsString('form.action', $script);
+    }
+
     public function test_site_security_site_admin_can_add_suspicious_ip_to_site_allowlist_and_remove_blocklist_conflict(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -12891,6 +13226,64 @@ XML);
             'user_id' => $siteAdmin->id,
             'target_type' => 'site_security_ip',
         ]);
+    }
+
+    public function test_site_security_remove_site_blocklist_keeps_active_temporary_ip_block(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ip-remove-block-keeps-temp-site-admin', true, 'site_admin');
+        $mainSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '8.8.8.8';
+        $blockedUntil = now('Asia/Shanghai')->addDay()->toDateTimeString();
+
+        DB::table('site_security_ip_reputations')->insert([
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'ip_hash' => hash('sha256', $ip),
+            'hit_count' => 8,
+            'high_risk_count' => 6,
+            'last_rule_code' => 'probe_abuse',
+            'last_request_path' => '/wp-admin',
+            'status' => 'blocked',
+            'blocked_until' => $blockedUntil,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        RateLimiter::hit('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 60);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => $ip,
+                'action' => 'block',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已加入站点 IP 黑名单。');
+
+        $this->assertSame($blockedUntil, DB::table('site_security_ip_reputations')
+            ->where('site_id', $mainSiteId)
+            ->where('client_ip', $ip)
+            ->value('blocked_until'));
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $mainSiteId])
+            ->post(route('admin.security.ip-policy.store'), [
+                'client_ip' => $ip,
+                'action' => 'remove_block',
+            ])
+            ->assertRedirect(route('admin.security.index'))
+            ->assertSessionHas('status', '已移出站点 IP 黑名单。');
+
+        $this->assertSame('', DB::table('site_settings')->where('site_id', $mainSiteId)->where('setting_key', 'security.ip_blocklist')->value('setting_value'));
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $mainSiteId,
+            'client_ip' => $ip,
+            'status' => 'blocked',
+            'blocked_until' => $blockedUntil,
+        ]);
+        $this->assertTrue(RateLimiter::tooManyAttempts('site-security-reputation-block:'.$mainSiteId.':'.sha1($ip), 1));
     }
 
     public function test_site_security_site_admin_can_release_temporary_ip_block(): void

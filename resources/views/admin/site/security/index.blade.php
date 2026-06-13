@@ -8,7 +8,7 @@
 @endpush
 
 @push('scripts')
-    <script src="/js/site-security.js"></script>
+    <script src="{{ asset('js/site-security.js') }}?v={{ filemtime(public_path('js/site-security.js')) }}"></script>
 @endpush
 
 @section('content')
@@ -418,12 +418,27 @@
                                             <h4 class="security-policy-title">IP 白名单</h4>
                                             <div class="security-policy-note">可信来源，不参与当前站点安护盾拦截。</div>
                                         </div>
-                                        <span class="security-event-chip">{{ $siteAllowlist->count() }} 个</span>
+                                        <div class="security-policy-head-actions">
+                                            <span class="security-event-chip">{{ $siteAllowlist->count() }} 个</span>
+                                            @if (!empty($canManageIpPolicy))
+                                                @if ($siteAllowlist->isNotEmpty())
+                                                    <form method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies" onsubmit="return confirm('确认清空当前站点 IP 白名单吗？');">
+                                                        @csrf
+                                                        <input type="hidden" name="action" value="clear_allow">
+                                                        <input type="hidden" name="security_modal" value="policies">
+                                                        <button class="security-policy-clear" type="submit">全部清除</button>
+                                                    </form>
+                                                @else
+                                                    <button class="security-policy-clear" type="button" disabled>全部清除</button>
+                                                @endif
+                                            @endif
+                                        </div>
                                     </div>
                                     @if (!empty($canManageIpPolicy))
                                         <form class="security-policy-add" method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies">
                                             @csrf
                                             <input type="hidden" name="action" value="allow">
+                                            <input type="hidden" name="security_modal" value="policies">
                                             <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="输入单个 IP，例如 203.0.113.10" autocomplete="off">
                                             <button class="security-ip-action is-allow" type="submit">加白</button>
                                         </form>
@@ -437,6 +452,7 @@
                                                         @csrf
                                                         <input type="hidden" name="client_ip" value="{{ $ip }}">
                                                         <input type="hidden" name="action" value="remove_allow">
+                                                        <input type="hidden" name="security_modal" value="policies">
                                                         <button class="security-ip-action is-remove" type="submit">移除</button>
                                                     </form>
                                                 @endif
@@ -452,12 +468,27 @@
                                             <h4 class="security-policy-title">IP 黑名单</h4>
                                             <div class="security-policy-note">固定拦截来源，适合明确恶意的单个 IP。</div>
                                         </div>
-                                        <span class="security-event-chip is-risk-high">{{ $siteBlocklist->count() }} 个</span>
+                                        <div class="security-policy-head-actions">
+                                            <span class="security-event-chip is-risk-high">{{ $siteBlocklist->count() }} 个</span>
+                                            @if (!empty($canManageIpPolicy))
+                                                @if ($siteBlocklist->isNotEmpty())
+                                                    <form method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies" onsubmit="return confirm('确认清空当前站点 IP 黑名单吗？');">
+                                                        @csrf
+                                                        <input type="hidden" name="action" value="clear_block">
+                                                        <input type="hidden" name="security_modal" value="policies">
+                                                        <button class="security-policy-clear is-danger" type="submit">全部清除</button>
+                                                    </form>
+                                                @else
+                                                    <button class="security-policy-clear is-danger" type="button" disabled>全部清除</button>
+                                                @endif
+                                            @endif
+                                        </div>
                                     </div>
                                     @if (!empty($canManageIpPolicy))
                                         <form class="security-policy-add" method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="policies">
                                             @csrf
                                             <input type="hidden" name="action" value="block">
+                                            <input type="hidden" name="security_modal" value="policies">
                                             <input class="security-policy-input" type="text" name="client_ip" inputmode="decimal" placeholder="输入单个 IP，例如 203.0.113.10" autocomplete="off">
                                             <button class="security-ip-action is-block" type="submit">拉黑</button>
                                         </form>
@@ -471,6 +502,7 @@
                                                         @csrf
                                                         <input type="hidden" name="client_ip" value="{{ $ip }}">
                                                         <input type="hidden" name="action" value="remove_block">
+                                                        <input type="hidden" name="security_modal" value="policies">
                                                         <button class="security-ip-action is-remove" type="submit">移除</button>
                                                     </form>
                                                 @endif
@@ -578,16 +610,20 @@
                                                             <button class="security-row-delete" type="submit">删除</button>
                                                         </form>
                                                         @if (empty($ip['is_global_allowlisted']) && empty($ip['is_global_blocklisted']))
-                                                            <form method="POST" action="{{ route('admin.security.ip-policy.store') }}">
+                                                            <form method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="ips">
                                                                 @csrf
                                                                 <input type="hidden" name="client_ip" value="{{ $clientIp }}">
                                                                 <input type="hidden" name="action" value="{{ !empty($ip['is_site_allowlisted']) ? 'remove_allow' : 'allow' }}">
+                                                                <input type="hidden" name="security_modal" value="ips">
+                                                                <input type="hidden" name="security_ip_page" value="{{ $securityIpsPaginator->currentPage() }}">
                                                                 <button class="security-ip-action {{ !empty($ip['is_site_allowlisted']) ? 'is-remove' : 'is-allow' }}" type="submit">{{ !empty($ip['is_site_allowlisted']) ? '移白' : '加白' }}</button>
                                                             </form>
-                                                            <form method="POST" action="{{ route('admin.security.ip-policy.store') }}">
+                                                            <form method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="ips">
                                                                 @csrf
                                                                 <input type="hidden" name="client_ip" value="{{ $clientIp }}">
                                                                 <input type="hidden" name="action" value="{{ !empty($ip['is_site_blocklisted']) ? 'remove_block' : 'block' }}">
+                                                                <input type="hidden" name="security_modal" value="ips">
+                                                                <input type="hidden" name="security_ip_page" value="{{ $securityIpsPaginator->currentPage() }}">
                                                                 <button class="security-ip-action {{ !empty($ip['is_site_blocklisted']) ? 'is-remove' : 'is-block' }}" type="submit">{{ !empty($ip['is_site_blocklisted']) ? '移黑' : '拉黑' }}</button>
                                                             </form>
                                                         @endif
@@ -597,10 +633,12 @@
                                                             && empty($ip['is_global_blocklisted'])
                                                             && empty($ip['is_site_blocklisted'])
                                                             && empty($ip['is_site_allowlisted']))
-                                                            <form method="POST" action="{{ route('admin.security.ip-policy.store') }}">
+                                                            <form method="POST" action="{{ route('admin.security.ip-policy.store') }}" data-security-modal-request="ips">
                                                                 @csrf
                                                                 <input type="hidden" name="client_ip" value="{{ $clientIp }}">
                                                                 <input type="hidden" name="action" value="release_block">
+                                                                <input type="hidden" name="security_modal" value="ips">
+                                                                <input type="hidden" name="security_ip_page" value="{{ $securityIpsPaginator->currentPage() }}">
                                                                 <button class="security-ip-action is-release" type="submit">解封</button>
                                                             </form>
                                                         @endif
