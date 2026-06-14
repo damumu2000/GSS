@@ -33,9 +33,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', $adminBrandSettings['system_name'])</title>
-    @if (! empty($adminBrandSettings['admin_favicon']))
-        <link rel="icon" href="{{ $adminBrandSettings['admin_favicon'] }}">
-    @endif
+    <link rel="icon" href="{{ $adminBrandSettings['admin_favicon'] ?: 'data:,' }}">
+    <link rel="shortcut icon" href="{{ $adminBrandSettings['admin_favicon'] ?: 'data:,' }}">
     @stack('styles')
         <link rel="stylesheet" href="/css/admin-layout.css">
 

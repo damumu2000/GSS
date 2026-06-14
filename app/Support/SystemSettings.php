@@ -451,11 +451,16 @@ class SystemSettings
      */
     public function formDefaults(): array
     {
+        $adminFavicon = trim($this->string('admin.favicon', ''));
+        if ($adminFavicon === '/favicon.ico') {
+            $adminFavicon = '';
+        }
+
         return [
             'system_name' => $this->string('system.name', (string) config('app.name')),
             'system_version' => $this->string('system.version', '1.0.0'),
             'admin_logo' => $this->string('admin.logo', '/logo.jpg'),
-            'admin_favicon' => $this->string('admin.favicon', '/favicon.ico'),
+            'admin_favicon' => $adminFavicon,
             'attachment_allowed_extensions' => implode(',', $this->attachmentAllowedExtensions()),
             'attachment_max_size_mb' => $this->attachmentMaxSizeMb(),
             'attachment_image_max_size_mb' => $this->attachmentImageMaxSizeMb(),
