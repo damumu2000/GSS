@@ -4,8 +4,10 @@ namespace App\Support\SystemChecks;
 
 use App\Support\SiteSecurity;
 use App\Support\SystemSettings;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
@@ -25,6 +27,7 @@ class SiteSecurityHealthCheck
         $items = [
             $this->protectionItem(),
             $this->runtimeBlockCacheItem(),
+            $this->statsBufferItem(),
             $this->storageItem(),
         ];
 
@@ -32,7 +35,7 @@ class SiteSecurityHealthCheck
             'key' => 'site-security',
             'title' => '安护盾健康',
             'status' => $this->overallStatus($items),
-            'summary' => '检查安护盾开关、运行态封禁缓存和关键记录表是否可用。',
+            'summary' => '检查安护盾开关、运行态封禁缓存、统计缓冲和关键记录表是否可用。',
             'items' => $items,
         ];
     }
@@ -68,9 +71,40 @@ class SiteSecurityHealthCheck
      */
     protected function runtimeBlockCacheItem(): array
     {
+        $store = $this->securityLimiterStore();
+        $driver = (string) config("cache.stores.{$store}.driver", $store);
+
+        if ($driver !== 'redis') {
+            return [
+                'label' => '运行态封禁缓存',
+                'status' => $this->productionRiskStatus(),
+                'value' => '非 Redis',
+                'message' => '安护盾封禁和限流没有使用共享 Redis。',
+                'suggestion' => '商用环境请配置 CACHE_LIMITER=security，并确保 cache.stores.security 使用 Redis。',
+                'details' => '限流器缓存：'.$store.' / '.$driver,
+            ];
+        }
+
         $key = 'site-security-health:runtime-block:'.sha1((string) microtime(true));
 
         try {
+            if ($driver === 'redis') {
+                Cache::store($store)->put($key.':redis-check', 'ok', 30);
+
+                if (Cache::store($store)->get($key.':redis-check') !== 'ok') {
+                    return [
+                        'label' => '运行态封禁缓存',
+                        'status' => 'error',
+                        'value' => '不可读写',
+                        'message' => '安护盾 Redis 读写校验失败。',
+                        'suggestion' => '请检查 Redis 服务状态、连接配置、认证信息和访问权限。',
+                        'details' => '限流器缓存：'.$store.' / '.$driver,
+                    ];
+                }
+
+                Cache::store($store)->forget($key.':redis-check');
+            }
+
             RateLimiter::hit($key, 30);
             $available = RateLimiter::tooManyAttempts($key, 1);
             RateLimiter::clear($key);
@@ -81,8 +115,8 @@ class SiteSecurityHealthCheck
                     'status' => 'error',
                     'value' => '不可写',
                     'message' => '运行态封禁缓存写入后无法读取。',
-                    'suggestion' => '请检查默认缓存链路，优先确认 Redis 或后备缓存是否可写。',
-                    'details' => '缓存驱动：'.$this->cacheDriverLabel(),
+                    'suggestion' => '请检查安护盾 Redis 限流器配置。',
+                    'details' => '限流器缓存：'.$store.' / '.$driver,
                 ];
             }
 
@@ -92,7 +126,7 @@ class SiteSecurityHealthCheck
                 'value' => '可读写',
                 'message' => '运行态封禁缓存可正常读写。',
                 'suggestion' => '',
-                'details' => '缓存驱动：'.$this->cacheDriverLabel(),
+                'details' => '限流器缓存：'.$store.' / '.$driver,
             ];
         } catch (Throwable $exception) {
             return [
@@ -100,8 +134,64 @@ class SiteSecurityHealthCheck
                 'status' => 'error',
                 'value' => '异常',
                 'message' => $exception->getMessage(),
-                'suggestion' => '请检查 Redis、database 缓存表和缓存目录权限，避免攻击流量下无法快速拦截。',
-                'details' => '缓存驱动：'.$this->cacheDriverLabel(),
+                'suggestion' => '请检查 Redis 服务状态，安护盾封禁和限流不能依赖 database/array 降级链路。',
+                'details' => '限流器缓存：'.$store.' / '.$driver,
+            ];
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function statsBufferItem(): array
+    {
+        if (! (bool) config('security.stats_buffer.enabled', true)) {
+            return [
+                'label' => '统计缓冲',
+                'status' => $this->productionRiskStatus(),
+                'value' => '未启用',
+                'message' => '安护盾统计将回退为请求内数据库直写。',
+                'suggestion' => '商用环境建议启用 SECURITY_STATS_BUFFER_ENABLED=true，并通过 Redis 每分钟批量落库。',
+                'details' => '',
+            ];
+        }
+
+        $connection = (string) config('security.stats_buffer.redis_connection', 'cache');
+        $key = 'site-security-health:stats-buffer:'.sha1((string) microtime(true));
+
+        try {
+            $redis = Redis::connection($connection);
+            $redis->setex($key, 30, 'ok');
+
+            if ((string) $redis->get($key) !== 'ok') {
+                return [
+                    'label' => '统计缓冲',
+                    'status' => 'error',
+                    'value' => '不可读写',
+                    'message' => '安护盾统计 Redis 缓冲读写校验失败。',
+                    'suggestion' => '请检查 SECURITY_STATS_REDIS_CONNECTION 指向的 Redis 连接。',
+                    'details' => 'Redis 连接：'.$connection,
+                ];
+            }
+
+            $redis->del($key);
+
+            return [
+                'label' => '统计缓冲',
+                'status' => 'ok',
+                'value' => '运行中',
+                'message' => '安护盾统计会先写入 Redis，再由调度任务批量落库。',
+                'suggestion' => '',
+                'details' => 'Redis 连接：'.$connection.' · 调度命令：cms:flush-site-security-stats',
+            ];
+        } catch (Throwable $exception) {
+            return [
+                'label' => '统计缓冲',
+                'status' => 'error',
+                'value' => '异常',
+                'message' => $exception->getMessage(),
+                'suggestion' => '请检查 Redis 服务和调度任务；异常期间系统会降级为数据库直写，但高攻击量下数据库压力会升高。',
+                'details' => 'Redis 连接：'.$connection,
             ];
         }
     }
@@ -168,18 +258,16 @@ class SiteSecurityHealthCheck
         ];
     }
 
-    protected function cacheDriverLabel(): string
+    protected function securityLimiterStore(): string
     {
-        $store = (string) config('cache.default', 'default');
-        $driver = (string) config("cache.stores.{$store}.driver", $store);
+        $store = trim((string) config('cache.limiter', 'security'));
 
-        if ($driver !== 'failover') {
-            return $driver;
-        }
+        return $store !== '' ? $store : 'security';
+    }
 
-        $stores = array_values(array_filter((array) config("cache.stores.{$store}.stores", []), static fn ($value): bool => is_string($value) && $value !== ''));
-
-        return implode(' -> ', $stores).'（故障切换）';
+    protected function productionRiskStatus(): string
+    {
+        return (string) config('app.env') === 'production' ? 'error' : 'warning';
     }
 
     /**

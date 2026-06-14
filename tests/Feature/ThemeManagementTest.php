@@ -1237,4 +1237,27 @@ class ThemeManagementTest extends TestCase
             ])
             ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1, 'open_assets_mode' => 'insert']));
     }
+
+    public function test_site_cannot_upload_svg_template_asset(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $site = $this->demoSite();
+        $activeTemplateId = $this->activeTemplateId($site);
+        $templateKey = $this->activeTemplateKey($site);
+        $targetPath = SitePath::siteTemplateRoot($site->site_key, $templateKey).DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'vector.svg';
+
+        $this->actingAs($this->superAdmin())
+            ->withSession(['current_site_id' => $site->id])
+            ->from(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1]))
+            ->post(route('admin.themes.editor.asset-upload'), [
+                'site_template_id' => $activeTemplateId,
+                'template' => 'home',
+                'asset' => UploadedFile::fake()->create('vector.svg', 1, 'image/svg+xml'),
+            ])
+            ->assertRedirect(route('admin.themes.editor', ['site_template_id' => $activeTemplateId, 'template' => 'home', 'open_assets' => 1]))
+            ->assertSessionHasErrors('asset', null, 'themeAssets');
+
+        $this->assertFileDoesNotExist($targetPath);
+    }
 }

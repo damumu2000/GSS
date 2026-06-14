@@ -46,11 +46,17 @@ class SiteMediaController extends Controller
     public function show(Request $request, string $siteKey, string $path): BinaryFileResponse
     {
         abort_unless(preg_match('/^[a-z0-9][a-z0-9\-]*$/', $siteKey) === 1, 404);
-        abort_if(str_contains($path, '..'), 404);
 
-        $absolutePath = SitePath::mediaAbsolutePath($siteKey, $path);
+        $normalizedPath = trim(str_replace('\\', '/', $path), '/');
+        abort_if($normalizedPath === '' || str_contains($normalizedPath, '..'), 404);
 
-        abort_unless(File::isFile($absolutePath), 404);
+        $mediaRoot = SitePath::mediaAbsolutePath($siteKey);
+        $resolvedMediaRoot = realpath($mediaRoot);
+        abort_unless(is_string($resolvedMediaRoot) && File::isDirectory($resolvedMediaRoot), 404);
+
+        $absolutePath = realpath($resolvedMediaRoot.DIRECTORY_SEPARATOR.$normalizedPath);
+        abort_unless(is_string($absolutePath) && File::isFile($absolutePath), 404);
+        abort_unless($this->pathWithinRoot($resolvedMediaRoot, $absolutePath), 404);
 
         $response = response()->file($absolutePath, [
             'Cache-Control' => 'public, max-age=2592000',

@@ -132,10 +132,10 @@ class PerformanceCacheHealthCheck
 
             return [
                 'label' => 'Redis 应用缓存',
-                'status' => $driver === 'failover' ? 'warning' : 'error',
+                'status' => $driver === 'failover' ? $this->productionRiskStatus() : 'error',
                 'value' => $driver === 'failover' ? '已降级' : '不可用',
                 'message' => $driver === 'failover'
-                    ? 'Redis 不可用，应用缓存当前将由后备存储接管。'
+                    ? 'Redis 不可用，应用缓存当前将由后备存储接管；生产大流量防护能力会下降。'
                     : 'Redis 应用缓存读写失败。',
                 'suggestion' => '请检查 Redis 服务状态、连接配置、认证信息和访问权限。',
                 'details' => $message,
@@ -249,6 +249,11 @@ class PerformanceCacheHealthCheck
     protected function iniBool(string $key): bool
     {
         return filter_var(ini_get($key), FILTER_VALIDATE_BOOL);
+    }
+
+    protected function productionRiskStatus(): string
+    {
+        return (string) config('app.env') === 'production' ? 'error' : 'warning';
     }
 
     /**

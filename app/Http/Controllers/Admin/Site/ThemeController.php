@@ -910,7 +910,7 @@ class ThemeController extends Controller
 
         if (! in_array($extension, $this->themeUploadAssetExtensions(), true)) {
             return back()
-                ->withErrors(['asset' => '仅支持上传图片、字体或 JSON 资源文件。'], 'themeAssets');
+                ->withErrors(['asset' => '仅支持上传 JPG、PNG、GIF、WEBP 图片、字体或 JSON 资源文件。'], 'themeAssets');
         }
 
         $destinationRoot = ThemeTemplateLocator::overrideRoot(SitePath::key($currentSite), $themeCode);
@@ -1572,7 +1572,7 @@ class ThemeController extends Controller
      */
     protected function themeUploadAssetExtensions(): array
     {
-        return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'woff', 'woff2', 'json'];
+        return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'woff', 'woff2', 'json'];
     }
 
     protected function themeAssetKind(string $extension): string

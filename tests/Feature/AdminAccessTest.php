@@ -15,9 +15,12 @@ use App\Support\LegacyAspAccessSiteImporter;
 use App\Support\Modules\ModuleManager;
 use App\Support\PlatformMailSettings;
 use App\Support\SiteSecurity;
+use App\Support\SiteSecurityStatsBuffer;
 use App\Support\SiteVisitStatsBuffer;
 use App\Support\SystemChecks\PerformanceCacheHealthCheck;
+use App\Support\SystemChecks\RuntimeHealthCheck;
 use App\Support\SystemChecks\SchedulerHealthCheck;
+use App\Support\SystemChecks\SiteSecurityHealthCheck;
 use App\Support\SystemSettings;
 use App\Support\ThemeTags;
 use Database\Seeders\CmsBootstrapSeeder;
@@ -1278,6 +1281,36 @@ class AdminAccessTest extends TestCase
         $this->assertSame('error', $redisItem['status'] ?? null);
         $this->assertSame('不可用', $redisItem['value'] ?? null);
         $this->assertSame('Redis 应用缓存读写失败。', $redisItem['message'] ?? null);
+    }
+
+    public function test_runtime_health_marks_wildcard_trusted_proxy_as_production_risk(): void
+    {
+        config()->set('app.env', 'production');
+        config()->set('trustedproxy.proxies', '*');
+
+        $items = collect(app(RuntimeHealthCheck::class)->inspect()['items']);
+        $trustedProxy = $items->firstWhere('label', '可信代理');
+
+        $this->assertSame('error', $trustedProxy['status'] ?? null);
+        $this->assertSame('*', $trustedProxy['value'] ?? null);
+    }
+
+    public function test_site_security_health_marks_non_redis_limiter_as_production_risk(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        config()->set('app.env', 'production');
+        config()->set('cache.limiter', 'array');
+        config()->set('security.stats_buffer.enabled', false);
+
+        $items = collect(app(SiteSecurityHealthCheck::class)->inspect()['items']);
+        $runtimeBlockCache = $items->firstWhere('label', '运行态封禁缓存');
+        $statsBuffer = $items->firstWhere('label', '统计缓冲');
+
+        $this->assertSame('error', $runtimeBlockCache['status'] ?? null);
+        $this->assertSame('非 Redis', $runtimeBlockCache['value'] ?? null);
+        $this->assertSame('error', $statsBuffer['status'] ?? null);
+        $this->assertSame('未启用', $statsBuffer['value'] ?? null);
     }
 
     public function test_platform_admin_can_upgrade_static_vendor_from_system_checks_page(): void
@@ -2741,6 +2774,42 @@ XML);
         } finally {
             File::deleteDirectory($modulePath);
         }
+    }
+
+    public function test_platform_admin_default_role_does_not_receive_database_management_permission(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $databasePermissionId = (int) DB::table('platform_permissions')
+            ->where('code', 'database.manage')
+            ->value('id');
+        $superAdminRoleId = (int) DB::table('platform_roles')
+            ->where('code', 'super_admin')
+            ->value('id');
+        $platformAdminRoleId = (int) DB::table('platform_roles')
+            ->where('code', 'platform_admin')
+            ->value('id');
+
+        $this->assertNotSame(0, $databasePermissionId);
+        $this->assertDatabaseHas('platform_role_permissions', [
+            'role_id' => $superAdminRoleId,
+            'permission_id' => $databasePermissionId,
+        ]);
+        $this->assertDatabaseMissing('platform_role_permissions', [
+            'role_id' => $platformAdminRoleId,
+            'permission_id' => $databasePermissionId,
+        ]);
+    }
+
+    public function test_default_platform_admin_cannot_open_database_management_pages(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = $this->createPlatformIdentity('database-limited-platform-admin', 'platform_admin');
+
+        $this->actingAs($user)
+            ->get(route('admin.platform.database.index'))
+            ->assertForbidden();
     }
 
     public function test_missing_module_manifest_still_appears_in_platform_module_management(): void
@@ -10319,6 +10388,42 @@ XML);
         ]);
     }
 
+    public function test_site_security_stats_buffer_direct_fallback_updates_database_records(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $ip = '203.0.113.10';
+        $ipHash = hash('sha256', $ip);
+        $now = now('Asia/Shanghai');
+        $buffer = app(SiteSecurityStatsBuffer::class);
+
+        $buffer->recordDailyStatDirect($siteId, $now->toDateString(), 'blocked_sql_injection', 3);
+        $buffer->recordIpReputationHitDirect($siteId, $ip, $ipHash, [
+            'last_rule_code' => 'sql_injection',
+            'last_request_path' => '/',
+            'status' => 'monitored',
+            'blocked_until' => null,
+            'last_seen_at' => $now,
+            'updated_at' => $now,
+        ], true, $now, 3, 3);
+
+        $this->assertDatabaseHas('site_security_daily_stats', [
+            'site_id' => $siteId,
+            'stat_date' => $now->toDateString(),
+            'blocked_total' => 3,
+            'blocked_sql_injection' => 3,
+        ]);
+        $this->assertDatabaseHas('site_security_ip_reputations', [
+            'site_id' => $siteId,
+            'client_ip' => $ip,
+            'ip_hash' => $ipHash,
+            'last_rule_code' => 'sql_injection',
+            'hit_count' => 3,
+            'high_risk_count' => 3,
+        ]);
+    }
+
     public function test_site_security_records_bound_domain_event_on_matching_site(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -12041,6 +12146,106 @@ XML);
             ->assertSee('12')
             ->assertSee('直接拦截')
             ->assertDontSee('127.0.0.2');
+    }
+
+    public function test_site_security_events_modal_defaults_to_latest_interception_sort(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-events-sort-site-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_events')->insert([
+            [
+                'site_id' => $siteId,
+                'rule_code' => 'ip_blocklist',
+                'rule_name' => '旧的严重拦截',
+                'risk_level' => 'critical',
+                'action' => 'blocklist',
+                'request_path' => '/security-sort-old-critical',
+                'request_method' => 'GET',
+                'client_ip' => '198.51.100.10',
+                'ip_hash' => hash('sha256', '198.51.100.10'),
+                'created_at' => now()->subMinutes(20),
+            ],
+            [
+                'site_id' => $siteId,
+                'rule_code' => 'bad_path',
+                'rule_name' => '新的中危拦截',
+                'risk_level' => 'medium',
+                'action' => 'block',
+                'request_path' => '/security-sort-new-medium',
+                'request_method' => 'GET',
+                'client_ip' => '198.51.100.20',
+                'ip_hash' => hash('sha256', '198.51.100.20'),
+                'created_at' => now()->subMinute(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.security.index', ['security_modal' => 'events']))
+            ->assertOk()
+            ->assertSee('最新拦截')
+            ->assertSeeInOrder(['/security-sort-new-medium', '/security-sort-old-critical']);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.security.index', ['security_modal' => 'events', 'security_event_sort' => 'risk']))
+            ->assertOk()
+            ->assertSeeInOrder(['/security-sort-old-critical', '/security-sort-new-medium']);
+    }
+
+    public function test_site_security_suspicious_ips_modal_defaults_to_latest_interception_sort(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteAdmin = $this->createSiteOperator('security-ips-sort-site-admin', true, 'site_admin');
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        DB::table('site_security_ip_reputations')->insert([
+            [
+                'site_id' => $siteId,
+                'client_ip' => '198.51.100.30',
+                'ip_hash' => hash('sha256', '198.51.100.30'),
+                'hit_count' => 20,
+                'high_risk_count' => 10,
+                'last_rule_code' => 'ip_blocklist',
+                'last_request_path' => '/security-ip-sort-old-risk',
+                'status' => 'blocked',
+                'blocked_until' => now()->addMinutes(30),
+                'last_seen_at' => now()->subMinutes(20),
+                'created_at' => now()->subHour(),
+                'updated_at' => now()->subMinutes(20),
+            ],
+            [
+                'site_id' => $siteId,
+                'client_ip' => '198.51.100.40',
+                'ip_hash' => hash('sha256', '198.51.100.40'),
+                'hit_count' => 1,
+                'high_risk_count' => 0,
+                'last_rule_code' => 'bad_path',
+                'last_request_path' => '/security-ip-sort-new-latest',
+                'status' => 'monitored',
+                'blocked_until' => null,
+                'last_seen_at' => now()->subMinute(),
+                'created_at' => now()->subHour(),
+                'updated_at' => now()->subMinute(),
+            ],
+        ]);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.security.index', ['security_modal' => 'ips']))
+            ->assertOk()
+            ->assertSee('最新拦截')
+            ->assertSeeInOrder(['198.51.100.40', '198.51.100.30']);
+
+        $this->actingAs($siteAdmin)
+            ->withSession(['current_site_id' => $siteId])
+            ->get(route('admin.security.index', ['security_modal' => 'ips', 'security_ip_sort' => 'risk']))
+            ->assertOk()
+            ->assertSeeInOrder(['198.51.100.30', '198.51.100.40']);
     }
 
     public function test_site_security_page_shows_suspicious_ip_reputation_without_policy_panels(): void
@@ -17936,6 +18141,7 @@ XML);
             ->assertRedirect(route('admin.security.index', [
                 'security_modal' => 'events',
                 'security_event_filter' => 'all',
+                'security_event_sort' => 'latest',
                 'security_event_page' => 1,
             ]))
             ->assertSessionHas('status', '已删除该条拦截记录，并同步清理对应自动封禁状态。');
@@ -17992,6 +18198,7 @@ XML);
             ->assertRedirect(route('admin.security.index', [
                 'security_modal' => 'events',
                 'security_event_filter' => 'high',
+                'security_event_sort' => 'latest',
                 'security_event_page' => 1,
             ]));
 
@@ -18052,6 +18259,7 @@ XML);
             ])
             ->assertRedirect(route('admin.security.index', [
                 'security_modal' => 'ips',
+                'security_ip_sort' => 'latest',
                 'security_ip_page' => 1,
             ]))
             ->assertSessionHas('status', '已清除该 IP 的自动记录，并解除对应自动临时限制。');
@@ -18109,6 +18317,7 @@ XML);
             ->post(route('admin.security.ips.clear'))
             ->assertRedirect(route('admin.security.index', [
                 'security_modal' => 'ips',
+                'security_ip_sort' => 'latest',
                 'security_ip_page' => 1,
             ]));
 

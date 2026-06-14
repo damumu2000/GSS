@@ -134,6 +134,9 @@
                                 <input type="checkbox" name="permission_ids[]" value="{{ $permission->id }}" @checked(in_array((int) $permission->id, $selectedPermissionIds, true)) @disabled($isLockedRole || ($isSelfRole && !((int) auth()->id() === (int) config('cms.super_admin_user_id', 1))))>
                                 <span class="permission-check"></span>
                                 <span class="permission-label">{{ $permission->name }}</span>
+                                @if ($permission->code === 'database.manage')
+                                    <span class="permission-hint">高风险权限，建议仅授予总管理员或专职 DBA。</span>
+                                @endif
                             </label>
                         @endforeach
                     </div>

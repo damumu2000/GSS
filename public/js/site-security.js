@@ -88,7 +88,7 @@
 
         var stripModalQuery = function () {
             var nextUrl = new URL(window.location.href);
-            ['security_modal', 'security_event_filter', 'security_event_page', 'security_ip_page'].forEach(function (key) {
+            ['security_modal', 'security_event_filter', 'security_event_sort', 'security_event_page', 'security_ip_sort', 'security_ip_page'].forEach(function (key) {
                 nextUrl.searchParams.delete(key);
             });
 
@@ -292,7 +292,12 @@
 
             if (modalKey === 'ips') {
                 var page = form.querySelector('input[name="security_ip_page"]');
+                var sort = form.querySelector('input[name="security_ip_sort"]');
                 var pageValue = page instanceof HTMLInputElement ? page.value : '';
+                var sortValue = sort instanceof HTMLInputElement ? sort.value : '';
+                if (sortValue) {
+                    url.searchParams.set('security_ip_sort', sortValue);
+                }
                 if (pageValue) {
                     url.searchParams.set('security_ip_page', pageValue);
                 }

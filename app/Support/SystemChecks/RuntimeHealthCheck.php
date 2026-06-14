@@ -13,6 +13,7 @@ class RuntimeHealthCheck
     {
         $items = [
             $this->appConfigItem(),
+            $this->trustedProxyItem(),
             $this->writableItem(),
             $this->storageLinkItem(),
         ];
@@ -54,6 +55,50 @@ class RuntimeHealthCheck
                 : '当前环境不是 production。',
             'suggestion' => '商用环境建议使用 APP_ENV=production 且 APP_DEBUG=false。',
             'details' => '',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function trustedProxyItem(): array
+    {
+        $trustedProxies = trim((string) config('trustedproxy.proxies', ''));
+        $proxyTokens = ','.str_replace(' ', '', $trustedProxies).',';
+
+        if ($trustedProxies === '*'
+            || $trustedProxies === '**'
+            || str_contains($proxyTokens, ',*,')
+            || str_contains($proxyTokens, ',**,')
+        ) {
+            return [
+                'label' => '可信代理',
+                'status' => $this->productionRiskStatus(),
+                'value' => $trustedProxies,
+                'message' => '当前信任全部代理来源的 X-Forwarded 头。',
+                'suggestion' => '商用环境建议将 TRUSTED_PROXIES 配置为真实反向代理 IP 或内网 CIDR，并确保应用端口不能被公网直连。',
+                'details' => '',
+            ];
+        }
+
+        if ($trustedProxies === '') {
+            return [
+                'label' => '可信代理',
+                'status' => 'ok',
+                'value' => '未配置',
+                'message' => '当前不会信任外部提交的 X-Forwarded 头。',
+                'suggestion' => '',
+                'details' => '如站点经反向代理传递 HTTPS、Host 或客户端 IP，请配置真实代理 IP。',
+            ];
+        }
+
+        return [
+            'label' => '可信代理',
+            'status' => 'ok',
+            'value' => $trustedProxies,
+            'message' => '可信代理已限制为显式来源。',
+            'suggestion' => '',
+            'details' => '仅这些代理来源的 X-Forwarded 头会被信任。',
         ];
     }
 
@@ -151,5 +196,10 @@ class RuntimeHealthCheck
         }
 
         return array_search($max, $priority, true) ?: 'ok';
+    }
+
+    protected function productionRiskStatus(): string
+    {
+        return (string) config('app.env') === 'production' ? 'error' : 'warning';
     }
 }

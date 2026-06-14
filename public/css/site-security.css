@@ -762,7 +762,35 @@
             margin-top: 16px;
         }
 
+        .security-sort-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .security-sort-tabs--ip {
+            margin-top: 0;
+            margin-bottom: 14px;
+        }
+
         .security-event-filter {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid #d9e2ec;
+            background: #ffffff;
+            color: #667085;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .security-sort-tab {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -784,7 +812,19 @@
             background: #f8fbff;
         }
 
+        .security-sort-tab:hover {
+            border-color: #bfd0e2;
+            color: #344054;
+            background: #f8fbff;
+        }
+
         .security-event-filter.is-active {
+            border-color: rgba(0, 80, 179, 0.18);
+            background: rgba(0, 80, 179, 0.08);
+            color: #0b4ea2;
+        }
+
+        .security-sort-tab.is-active {
             border-color: rgba(0, 80, 179, 0.18);
             background: rgba(0, 80, 179, 0.08);
             color: #0b4ea2;

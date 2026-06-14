@@ -561,6 +561,14 @@
             color: inherit;
         }
 
+        .permission-hint {
+            flex-basis: 100%;
+            padding-left: 24px;
+            color: #b45309;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
         .member-list {
             display: flex;
             flex-wrap: wrap;

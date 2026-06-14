@@ -84,6 +84,8 @@
 
         @php
             $suspiciousIps = collect($security['suspicious_ips'] ?? []);
+            $securityEventSort = in_array((string) ($securityEventSort ?? 'latest'), ['latest', 'risk'], true) ? (string) $securityEventSort : 'latest';
+            $securityIpSort = in_array((string) ($securityIpSort ?? 'latest'), ['latest', 'risk'], true) ? (string) $securityIpSort : 'latest';
         @endphp
 
         <section class="security-grid">
@@ -311,13 +313,14 @@
                                             <form method="POST" action="{{ route('admin.security.events.clear') }}" data-security-modal-request="events" onsubmit="return confirm('确认清除当前站点下该筛选条件的自动拦截记录吗？这会同步解除对应的自动临时限制，不影响手工黑白名单。');">
                                                 @csrf
                                                 <input type="hidden" name="security_event_filter" value="{{ $securityEventFilter }}">
+                                                <input type="hidden" name="security_event_sort" value="{{ $securityEventSort }}">
                                                 <button class="security-modal-action" type="submit">全部清除</button>
                                             </form>
                                         </div>
                                     @endif
                                     <div class="security-modal-meta">
                                         <span class="security-modal-chip">近 7 天</span>
-                                        <span>按风险等级查看命中事件</span>
+                                        <span>{{ $securityEventSort === 'latest' ? '按最新拦截时间查看命中事件' : '按风险等级查看命中事件' }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -328,8 +331,17 @@
                                     <a
                                         class="security-event-filter{{ $securityEventFilter === $filterValue ? ' is-active' : '' }}"
                                         data-security-modal-link="events"
-                                        href="{{ route('admin.security.index', ['security_modal' => 'events', 'security_event_filter' => $filterValue, 'security_event_page' => 1, 'security_ip_page' => request()->query('security_ip_page', 1)]) }}"
+                                        href="{{ route('admin.security.index', ['security_modal' => 'events', 'security_event_filter' => $filterValue, 'security_event_sort' => $securityEventSort, 'security_event_page' => 1, 'security_ip_sort' => $securityIpSort, 'security_ip_page' => request()->query('security_ip_page', 1)]) }}"
                                     >{{ $filterLabel }}</a>
+                                @endforeach
+                            </div>
+                            <div class="security-sort-tabs" aria-label="最近拦截记录排序">
+                                @foreach (['latest' => '最新拦截', 'risk' => '风险优先'] as $sortValue => $sortLabel)
+                                    <a
+                                        class="security-sort-tab{{ $securityEventSort === $sortValue ? ' is-active' : '' }}"
+                                        data-security-modal-link="events"
+                                        href="{{ route('admin.security.index', ['security_modal' => 'events', 'security_event_filter' => $securityEventFilter, 'security_event_sort' => $sortValue, 'security_event_page' => 1, 'security_ip_sort' => $securityIpSort, 'security_ip_page' => request()->query('security_ip_page', 1)]) }}"
+                                    >{{ $sortLabel }}</a>
                                 @endforeach
                             </div>
                             <div class="security-events security-events--modal">
@@ -348,6 +360,7 @@
                                                     @csrf
                                                     <input type="hidden" name="event_id" value="{{ $event['id'] }}">
                                                     <input type="hidden" name="security_event_filter" value="{{ $securityEventFilter }}">
+                                                    <input type="hidden" name="security_event_sort" value="{{ $securityEventSort }}">
                                                     <input type="hidden" name="security_event_page" value="{{ $securityEventsPaginator->currentPage() }}">
                                                     <button class="security-row-delete" type="submit">删除记录</button>
                                                 </form>
@@ -369,6 +382,8 @@
                                         {{ $securityEventsPaginator->appends([
                                             'security_modal' => 'events',
                                             'security_event_filter' => $securityEventFilter,
+                                            'security_event_sort' => $securityEventSort,
+                                            'security_ip_sort' => $securityIpSort,
                                             'security_ip_page' => request()->query('security_ip_page', 1),
                                         ])->onEachSide(1)->links() }}
                                     </div>
@@ -545,18 +560,28 @@
                                         <div class="security-modal-actions">
                                             <form method="POST" action="{{ route('admin.security.ips.clear') }}" data-security-modal-request="ips" onsubmit="return confirm('确认清除当前站点下全部可疑 IP 自动画像吗？这会同步删除相关自动拦截记录并解除自动临时限制，不影响手工黑白名单。');">
                                                 @csrf
+                                                <input type="hidden" name="security_ip_sort" value="{{ $securityIpSort }}">
                                                 <button class="security-modal-action" type="submit">全部清除</button>
                                             </form>
                                         </div>
                                     @endif
                                     <div class="security-modal-meta">
                                         <span class="security-modal-chip">来源画像</span>
-                                        <span>按累计高危次数和命中次数排序，仅展示近 7 天活跃来源</span>
+                                        <span>{{ $securityIpSort === 'latest' ? '按最新拦截时间排序，仅展示近 7 天活跃来源' : '按累计高危次数和命中次数排序，仅展示近 7 天活跃来源' }}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="security-modal-frame">
+                            <div class="security-sort-tabs security-sort-tabs--ip" aria-label="可疑 IP 排序">
+                                @foreach (['latest' => '最新拦截', 'risk' => '风险排行'] as $sortValue => $sortLabel)
+                                    <a
+                                        class="security-sort-tab{{ $securityIpSort === $sortValue ? ' is-active' : '' }}"
+                                        data-security-modal-link="ips"
+                                        href="{{ route('admin.security.index', ['security_modal' => 'ips', 'security_ip_sort' => $sortValue, 'security_ip_page' => 1, 'security_event_filter' => $securityEventFilter, 'security_event_sort' => $securityEventSort, 'security_event_page' => request()->query('security_event_page', 1)]) }}"
+                                    >{{ $sortLabel }}</a>
+                                @endforeach
+                            </div>
                             <div class="security-ip-list security-ip-list--modal">
                                 @forelse ($securityIpsPaginator as $ip)
                                     @php
@@ -609,6 +634,7 @@
                                                         <form method="POST" action="{{ route('admin.security.ips.delete') }}" data-security-modal-request="ips" onsubmit="return confirm('确认清除该 IP 的自动画像和相关自动拦截记录吗？这会解除自动临时限制，不影响手工黑白名单。');">
                                                             @csrf
                                                             <input type="hidden" name="client_ip" value="{{ $clientIp }}">
+                                                            <input type="hidden" name="security_ip_sort" value="{{ $securityIpSort }}">
                                                             <input type="hidden" name="security_ip_page" value="{{ $securityIpsPaginator->currentPage() }}">
                                                             <button class="security-row-delete" type="submit">删除</button>
                                                         </form>
@@ -618,6 +644,7 @@
                                                                 <input type="hidden" name="client_ip" value="{{ $clientIp }}">
                                                                 <input type="hidden" name="action" value="{{ !empty($ip['is_site_allowlisted']) ? 'remove_allow' : 'allow' }}">
                                                                 <input type="hidden" name="security_modal" value="ips">
+                                                                <input type="hidden" name="security_ip_sort" value="{{ $securityIpSort }}">
                                                                 <input type="hidden" name="security_ip_page" value="{{ $securityIpsPaginator->currentPage() }}">
                                                                 <button class="security-ip-action {{ !empty($ip['is_site_allowlisted']) ? 'is-remove' : 'is-allow' }}" type="submit">{{ !empty($ip['is_site_allowlisted']) ? '移白' : '加白' }}</button>
                                                             </form>
@@ -626,6 +653,7 @@
                                                                 <input type="hidden" name="client_ip" value="{{ $clientIp }}">
                                                                 <input type="hidden" name="action" value="{{ !empty($ip['is_site_blocklisted']) ? 'remove_block' : 'block' }}">
                                                                 <input type="hidden" name="security_modal" value="ips">
+                                                                <input type="hidden" name="security_ip_sort" value="{{ $securityIpSort }}">
                                                                 <input type="hidden" name="security_ip_page" value="{{ $securityIpsPaginator->currentPage() }}">
                                                                 <button class="security-ip-action {{ !empty($ip['is_site_blocklisted']) ? 'is-remove' : 'is-block' }}" type="submit">{{ !empty($ip['is_site_blocklisted']) ? '移黑' : '拉黑' }}</button>
                                                             </form>
@@ -641,6 +669,7 @@
                                                                 <input type="hidden" name="client_ip" value="{{ $clientIp }}">
                                                                 <input type="hidden" name="action" value="release_block">
                                                                 <input type="hidden" name="security_modal" value="ips">
+                                                                <input type="hidden" name="security_ip_sort" value="{{ $securityIpSort }}">
                                                                 <input type="hidden" name="security_ip_page" value="{{ $securityIpsPaginator->currentPage() }}">
                                                                 <button class="security-ip-action is-release" type="submit">解封</button>
                                                             </form>
@@ -657,7 +686,9 @@
                                     <div class="security-modal-pagination">
                                         {{ $securityIpsPaginator->appends([
                                             'security_modal' => 'ips',
+                                            'security_ip_sort' => $securityIpSort,
                                             'security_event_filter' => $securityEventFilter,
+                                            'security_event_sort' => $securityEventSort,
                                             'security_event_page' => request()->query('security_event_page', 1),
                                         ])->onEachSide(1)->links() }}
                                     </div>

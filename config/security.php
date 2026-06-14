@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'stats_buffer' => [
+        'enabled' => filter_var(env('SECURITY_STATS_BUFFER_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'redis_connection' => env('SECURITY_STATS_REDIS_CONNECTION', env('SECURITY_REDIS_CONNECTION', env('REDIS_CACHE_CONNECTION', 'cache'))),
+        'lock_store' => env('SECURITY_STATS_LOCK_STORE', 'security'),
+    ],
+
     'headers' => [
         'hsts' => [
             'enabled' => filter_var(env('SECURITY_HEADERS_HSTS_APP', false), FILTER_VALIDATE_BOOL),

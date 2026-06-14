@@ -72,6 +72,9 @@ cp .env.example .env
 - `APP_ENV=production`
 - `APP_DEBUG=false`
 - `APP_URL`
+- `TRUSTED_PROXIES`，填写真实反向代理 IP 或内网 CIDR；不要使用 `*`，除非应用端口已被防火墙限制为只能由反向代理访问
+- `CACHE_STORE=failover` 保留应用缓存容灾；同时必须设置 `CACHE_LIMITER=security`，让登录、安护盾封禁和限流使用共享 Redis
+- `SECURITY_STATS_BUFFER_ENABLED=true`，安护盾日统计和 IP 画像先写 Redis，再由调度任务批量落库
 - `SECURITY_HEADERS_HSTS_APP=true`，仅在生产域名全站 HTTPS 后开启
 - `SECURITY_HEADERS_HSTS_MAX_AGE=31536000`
 - `SECURITY_HEADERS_HSTS_INCLUDE_SUBDOMAINS=true`，仅在所有子域名都支持 HTTPS 时保持开启
@@ -110,7 +113,10 @@ php artisan key:generate
 上线前需确认：
 
 - PHP 已启用 `redis` 扩展，服务器已安装并启动 Redis。
+- `TRUSTED_PROXIES` 已限制为真实代理来源；如果保留 `*`，必须确认 Laravel 应用端口不能被公网直连。
 - 线上 `.env` 必须同步为 `CACHE_STORE=failover`；如果仍是 `CACHE_STORE=file`，系统会继续使用旧文件缓存，不会启用 Redis。
+- 线上 `.env` 必须同步为 `CACHE_LIMITER=security`，并确认 `SECURITY_REDIS_CONNECTION` 指向共享 Redis；不要让安护盾限流降级到 database 或 array。
+- 服务器 crontab 必须运行 Laravel 调度器；`cms:flush-site-security-stats` 会每分钟把安护盾 Redis 缓冲批量落库。
 - `REDIS_CACHE_DB` 仅供当前应用缓存使用；后台清理应用缓存会清空该 Redis 数据库。
 - 不要仅设置带数据库编号的 `REDIS_URL` 来承载缓存连接；应使用 `REDIS_CACHE_URL`，避免缓存落入默认 Redis 库。
 - 已执行迁移并存在 `cache`、`cache_locks` 表，否则 Redis 故障时无法使用 database 后备缓存。

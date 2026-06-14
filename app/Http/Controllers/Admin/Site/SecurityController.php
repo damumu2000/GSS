@@ -25,6 +25,13 @@ class SecurityController extends Controller
         $eventFilter = in_array((string) $request->query('security_event_filter', 'all'), ['all', 'critical', 'high', 'medium'], true)
             ? (string) $request->query('security_event_filter', 'all')
             : 'all';
+        $eventSort = in_array((string) $request->query('security_event_sort', 'latest'), ['latest', 'risk'], true)
+            ? (string) $request->query('security_event_sort', 'latest')
+            : 'latest';
+        $ipSort = in_array((string) $request->query('security_ip_sort', 'latest'), ['latest', 'risk'], true)
+            ? (string) $request->query('security_ip_sort', 'latest')
+            : 'latest';
+
         return view('admin.site.security.index', [
             'currentSite' => $currentSite,
             'sites' => $this->adminSites(),
@@ -32,8 +39,10 @@ class SecurityController extends Controller
             'security' => $this->siteSecurity->sitePagePayload($siteId),
             'canManageIpPolicy' => in_array('security.manage', $this->sitePermissionCodes((int) $request->user()->id, $siteId), true),
             'securityEventFilter' => $eventFilter,
-            'securityEventsPaginator' => $this->siteSecurity->siteEventsModalPaginator($siteId, $eventFilter, (int) $request->query('security_event_page', 1)),
-            'securityIpsPaginator' => $this->siteSecurity->siteSuspiciousIpsModalPaginator($siteId, (int) $request->query('security_ip_page', 1)),
+            'securityEventSort' => $eventSort,
+            'securityIpSort' => $ipSort,
+            'securityEventsPaginator' => $this->siteSecurity->siteEventsModalPaginator($siteId, $eventFilter, (int) $request->query('security_event_page', 1), 20, $eventSort),
+            'securityIpsPaginator' => $this->siteSecurity->siteSuspiciousIpsModalPaginator($siteId, (int) $request->query('security_ip_page', 1), 15, $ipSort),
             'securityIpPolicies' => $this->siteSecurity->siteIpPolicyLists($siteId),
             'securityIpPolicyLimit' => SiteSecurity::SITE_IP_POLICY_LIST_LIMIT,
         ]);
@@ -92,6 +101,9 @@ class SecurityController extends Controller
 
             if ($modal === 'ips') {
                 $redirectParams['security_ip_page'] = max(1, (int) $request->input('security_ip_page', 1));
+                $redirectParams['security_ip_sort'] = in_array((string) $request->input('security_ip_sort', 'latest'), ['latest', 'risk'], true)
+                    ? (string) $request->input('security_ip_sort', 'latest')
+                    : 'latest';
             }
         }
 
@@ -134,6 +146,7 @@ class SecurityController extends Controller
         $validated = $request->validate([
             'event_id' => ['required', 'integer', 'min:1'],
             'security_event_filter' => ['nullable', Rule::in(['all', 'critical', 'high', 'medium'])],
+            'security_event_sort' => ['nullable', Rule::in(['latest', 'risk'])],
             'security_event_page' => ['nullable', 'integer', 'min:1'],
         ]);
 
@@ -157,6 +170,7 @@ class SecurityController extends Controller
             ->route('admin.security.index', [
                 'security_modal' => 'events',
                 'security_event_filter' => (string) ($validated['security_event_filter'] ?? 'all'),
+                'security_event_sort' => (string) ($validated['security_event_sort'] ?? 'latest'),
                 'security_event_page' => (int) ($validated['security_event_page'] ?? 1),
             ])
             ->with('status', $deleted ? '已删除该条拦截记录，并同步清理对应自动封禁状态。' : '未找到要删除的拦截记录。');
@@ -170,9 +184,11 @@ class SecurityController extends Controller
 
         $validated = $request->validate([
             'security_event_filter' => ['nullable', Rule::in(['all', 'critical', 'high', 'medium'])],
+            'security_event_sort' => ['nullable', Rule::in(['latest', 'risk'])],
         ]);
 
         $filter = (string) ($validated['security_event_filter'] ?? 'all');
+        $sort = (string) ($validated['security_event_sort'] ?? 'latest');
         $result = $this->siteSecurity->clearSiteSecurityEventRecords($siteId, $filter);
 
         $this->logOperation(
@@ -191,6 +207,7 @@ class SecurityController extends Controller
             ->route('admin.security.index', [
                 'security_modal' => 'events',
                 'security_event_filter' => $filter,
+                'security_event_sort' => $sort,
                 'security_event_page' => 1,
             ])
             ->with('status', $result['deleted_events'] > 0
@@ -207,6 +224,7 @@ class SecurityController extends Controller
         $validated = $request->validate([
             'client_ip' => ['required', 'ip'],
             'security_ip_page' => ['nullable', 'integer', 'min:1'],
+            'security_ip_sort' => ['nullable', Rule::in(['latest', 'risk'])],
         ], $this->ipValidationMessages());
 
         $clientIp = trim((string) $validated['client_ip']);
@@ -229,6 +247,7 @@ class SecurityController extends Controller
         return redirect()
             ->route('admin.security.index', [
                 'security_modal' => 'ips',
+                'security_ip_sort' => (string) ($validated['security_ip_sort'] ?? 'latest'),
                 'security_ip_page' => (int) ($validated['security_ip_page'] ?? 1),
             ])
             ->with('status', $deleted ? '已清除该 IP 的自动记录，并解除对应自动临时限制。' : '未找到要清除的 IP 记录。');
@@ -239,6 +258,9 @@ class SecurityController extends Controller
         $currentSite = $this->currentSite($request);
         $siteId = (int) $currentSite->id;
         $this->authorizeSite($request, $siteId, 'security.manage');
+        $sort = in_array((string) $request->input('security_ip_sort', 'latest'), ['latest', 'risk'], true)
+            ? (string) $request->input('security_ip_sort', 'latest')
+            : 'latest';
 
         $result = $this->siteSecurity->clearSiteSuspiciousIpRecords($siteId);
 
@@ -257,6 +279,7 @@ class SecurityController extends Controller
         return redirect()
             ->route('admin.security.index', [
                 'security_modal' => 'ips',
+                'security_ip_sort' => $sort,
                 'security_ip_page' => 1,
             ])
             ->with('status', $result['deleted_ips'] > 0

@@ -147,7 +147,6 @@ return [
             'platform.log.view',
         ],
         'platform_admin' => [
-            'database.manage',
             'module.manage',
             'platform.view',
             'site.manage',

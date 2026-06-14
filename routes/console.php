@@ -6,6 +6,7 @@ use App\Support\IpRegionResolver;
 use App\Support\LegacyAspAccessSiteImporter;
 use App\Support\PromoItemExpiryManager;
 use App\Support\SiteSecurity;
+use App\Support\SiteSecurityStatsBuffer;
 use App\Support\SiteVisitStatsBuffer;
 use App\Support\SystemChecks\SchedulerHealthCheck;
 use Illuminate\Foundation\Inspiring;
@@ -223,6 +224,15 @@ Artisan::command('cms:flush-site-visit-stats', function () {
     $this->info('访问统计批量落库完成。');
 })->purpose('将 Redis 中的访问统计批量落库');
 
+Artisan::command('cms:flush-site-security-stats', function () {
+    $summary = app(SiteSecurityStatsBuffer::class)->flushPending();
+
+    $this->line('处理缓存批次：'.(int) $summary['processed_keys']);
+    $this->line('日统计落库：'.(int) $summary['daily_rows']);
+    $this->line('IP 画像落库：'.(int) $summary['ip_rows']);
+    $this->info('安护盾统计批量落库完成。');
+})->purpose('将 Redis 中的安护盾统计批量落库');
+
 Artisan::command('cms:prune-site-security {--site= : 仅清理指定站点ID}', function () {
     $siteId = $this->option('site');
     $resolvedSiteId = is_numeric($siteId) ? (int) $siteId : null;
@@ -245,6 +255,10 @@ Schedule::call(fn () => app(SchedulerHealthCheck::class)->heartbeat())
 
 Schedule::command('cms:flush-site-visit-stats')
     ->hourly()
+    ->withoutOverlapping();
+
+Schedule::command('cms:flush-site-security-stats')
+    ->everyMinute()
     ->withoutOverlapping();
 
 Schedule::command('cms:prune-site-security')

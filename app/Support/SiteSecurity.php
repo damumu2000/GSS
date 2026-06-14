@@ -49,10 +49,12 @@ class SiteSecurity
     public function __construct(
         protected SystemSettings $systemSettings,
         protected ?IpRegionResolver $ipRegionResolver = null,
+        protected ?SiteSecurityStatsBuffer $securityStatsBuffer = null,
     ) {
         $this->ipRegionResolver ??= class_exists(IpRegionResolver::class)
             ? app(IpRegionResolver::class)
             : new IpRegionResolver;
+        $this->securityStatsBuffer ??= app(SiteSecurityStatsBuffer::class);
     }
 
     public function protectionEnabled(): bool
@@ -334,26 +336,9 @@ class SiteSecurity
             $column = $this->statsColumn((string) $rule['code']);
             $fingerprint = $this->eventFingerprint($siteId, $rule, $request);
 
-            DB::table('site_security_daily_stats')->insertOrIgnore([
-                'site_id' => $siteId,
-                'stat_date' => $date,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            $updates = [
-                'blocked_total' => DB::raw('blocked_total + 1'),
-                'updated_at' => $now,
-            ];
-
-            if ($column !== 'blocked_total' && $this->tableHasColumn('site_security_daily_stats', $column)) {
-                $updates[$column] = DB::raw($column.' + 1');
+            if (! $this->securityStatsBuffer->recordDailyStat($siteId, $date, $column)) {
+                $this->securityStatsBuffer->recordDailyStatDirect($siteId, $date, $column);
             }
-
-            DB::table('site_security_daily_stats')
-                ->where('site_id', $siteId)
-                ->where('stat_date', $date)
-                ->update($updates);
 
             $event = [
                 'site_id' => $siteId,
@@ -1193,10 +1178,11 @@ class SiteSecurity
             ->all();
     }
 
-    public function siteEventsModalPaginator(int $siteId, string $riskFilter = 'all', int $page = 1, int $perPage = 20): LengthAwarePaginator
+    public function siteEventsModalPaginator(int $siteId, string $riskFilter = 'all', int $page = 1, int $perPage = 20, string $sort = 'latest'): LengthAwarePaginator
     {
         $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
         $normalizedFilter = in_array($riskFilter, ['all', 'critical', 'high', 'medium'], true) ? $riskFilter : 'all';
+        $normalizedSort = in_array($sort, ['latest', 'risk'], true) ? $sort : 'latest';
         $safePage = max(1, $page);
         $safePerPage = max(1, $perPage);
 
@@ -1206,7 +1192,7 @@ class SiteSecurity
 
         $this->applySecurityEventRiskFilter($query, $normalizedFilter);
 
-        $paginator = $query
+        $paginatorQuery = $query
             ->select([
                 'id',
                 'rule_name',
@@ -1219,8 +1205,13 @@ class SiteSecurity
                 'region_name',
                 'created_at',
             ])
-            ->selectRaw($this->securityEventRiskPrioritySql().' as risk_priority')
-            ->orderByDesc('risk_priority')
+            ->selectRaw($this->securityEventRiskPrioritySql().' as risk_priority');
+
+        if ($normalizedSort === 'risk') {
+            $paginatorQuery->orderByDesc('risk_priority');
+        }
+
+        $paginator = $paginatorQuery
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate($safePerPage, ['*'], 'security_event_page', $safePage)
@@ -1254,9 +1245,10 @@ class SiteSecurity
         return $paginator;
     }
 
-    public function siteSuspiciousIpsModalPaginator(int $siteId, int $page = 1, int $perPage = 15): LengthAwarePaginator
+    public function siteSuspiciousIpsModalPaginator(int $siteId, int $page = 1, int $perPage = 15, string $sort = 'latest'): LengthAwarePaginator
     {
         $sevenDaysAgo = now('Asia/Shanghai')->startOfDay()->subDays(6);
+        $normalizedSort = in_array($sort, ['latest', 'risk'], true) ? $sort : 'latest';
 
         if (! $this->ipReputationTableReady()) {
             return $this->paginateArray(collect(), $page, $perPage, 'security_ip_page');
@@ -1270,15 +1262,22 @@ class SiteSecurity
         $safePerPage = max(1, $perPage);
         $now = now('Asia/Shanghai')->toDateTimeString();
 
-        $paginator = DB::table('site_security_ip_reputations')
+        $paginatorQuery = DB::table('site_security_ip_reputations')
             ->where('site_id', $siteId)
             ->where('last_seen_at', '>=', $sevenDaysAgo->toDateTimeString())
             ->select('*')
-            ->selectRaw("CASE WHEN status = 'blocked' AND (blocked_until IS NULL OR blocked_until > ?) THEN 3 ELSE 1 END as status_weight", [$now])
-            ->orderByDesc('status_weight')
-            ->orderByDesc('high_risk_count')
-            ->orderByDesc('hit_count')
+            ->selectRaw("CASE WHEN status = 'blocked' AND (blocked_until IS NULL OR blocked_until > ?) THEN 3 ELSE 1 END as status_weight", [$now]);
+
+        if ($normalizedSort === 'risk') {
+            $paginatorQuery
+                ->orderByDesc('status_weight')
+                ->orderByDesc('high_risk_count')
+                ->orderByDesc('hit_count');
+        }
+
+        $paginator = $paginatorQuery
             ->orderByDesc('last_seen_at')
+            ->orderByDesc('id')
             ->orderBy('client_ip')
             ->paginate($safePerPage, ['*'], 'security_ip_page', $safePage)
             ->withPath(route('admin.security.index'));
@@ -1308,7 +1307,7 @@ class SiteSecurity
                 $siteBlocklist,
                 $latestEventsByHash[(string) ($row->ip_hash ?? '')] ?? null,
             ))
-                ->sort(fn (array $left, array $right): int => $this->compareSuspiciousIpRows($left, $right))
+                ->when($normalizedSort === 'risk', fn (Collection $rows): Collection => $rows->sort(fn (array $left, array $right): int => $this->compareSuspiciousIpRows($left, $right)))
                 ->values()
         );
 
@@ -1952,29 +1951,9 @@ class SiteSecurity
             'updated_at' => $now,
         ];
 
-        DB::table('site_security_ip_reputations')->insertOrIgnore([
-            'site_id' => $siteId,
-            'client_ip' => (string) $ip,
-            'ip_hash' => $ipHash,
-            'hit_count' => 0,
-            'high_risk_count' => 0,
-            'last_rule_code' => $code,
-            'last_request_path' => $this->normalizedRequestPath($request),
-            'status' => 'monitored',
-            'blocked_until' => null,
-            'last_seen_at' => $now,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        DB::table('site_security_ip_reputations')
-            ->where('site_id', $siteId)
-            ->where('ip_hash', $ipHash)
-            ->update([
-                ...$values,
-                'hit_count' => DB::raw('hit_count + 1'),
-                'high_risk_count' => $isHighRisk ? DB::raw('high_risk_count + 1') : DB::raw('high_risk_count'),
-            ]);
+        if (! $this->securityStatsBuffer->recordIpReputationHit($siteId, (string) $ip, $ipHash, $values, $isHighRisk, $now)) {
+            $this->securityStatsBuffer->recordIpReputationHitDirect($siteId, (string) $ip, $ipHash, $values, $isHighRisk, $now);
+        }
 
         if ($shouldBlock && $blockedUntil !== null) {
             $blockedUntilTimestamp = strtotime($blockedUntil);
@@ -2040,11 +2019,29 @@ class SiteSecurity
 
     protected function shouldSampleSecurityEvent(int $siteId, string $fingerprint): bool
     {
-        return Cache::add(
-            'site-security:event-sample:'.$siteId.':'.$fingerprint,
-            1,
-            now('Asia/Shanghai')->addSeconds(static::EVENT_SAMPLE_WINDOW_SECONDS)
-        );
+        try {
+            return Cache::store($this->securityLimiterStore())->add(
+                'site-security:event-sample:'.$siteId.':'.$fingerprint,
+                1,
+                now('Asia/Shanghai')->addSeconds(static::EVENT_SAMPLE_WINDOW_SECONDS)
+            );
+        } catch (\Throwable $exception) {
+            if ($this->shouldLogRuntimeFailure($siteId, 'event-sample')) {
+                Log::warning('Site security event sample cache failed.', [
+                    'site_id' => $siteId,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+
+            return true;
+        }
+    }
+
+    protected function securityLimiterStore(): string
+    {
+        $store = trim((string) config('cache.limiter', 'security'));
+
+        return $store !== '' ? $store : 'security';
     }
 
     protected function hitRecentHighRiskCounter(int $siteId, string $ipHash): int

@@ -17,6 +17,8 @@ return [
 
     'default' => env('CACHE_STORE', 'failover'),
 
+    'limiter' => env('CACHE_LIMITER', env('CACHE_STORE') === 'array' ? 'array' : 'security'),
+
     /*
     |--------------------------------------------------------------------------
     | Cache Stores
@@ -70,6 +72,12 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
             'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'default'),
+        ],
+
+        'security' => [
+            'driver' => 'redis',
+            'connection' => env('SECURITY_REDIS_CONNECTION', env('REDIS_CACHE_CONNECTION', 'cache')),
+            'lock_connection' => env('SECURITY_REDIS_LOCK_CONNECTION', env('REDIS_CACHE_LOCK_CONNECTION', 'default')),
         ],
 
         'dynamodb' => [
