@@ -19,7 +19,6 @@
         <meta name="description" content="{{ $loginSeoDescription }}">
     @endif
     <link rel="icon" href="{{ $adminBrandSettings['admin_favicon'] ?: 'data:,' }}">
-    <link rel="shortcut icon" href="{{ $adminBrandSettings['admin_favicon'] ?: 'data:,' }}">
     <link rel="stylesheet" href="/css/login.css">
 </head>
 <body data-login-messages='@json(array_values(array_filter(array_merge(

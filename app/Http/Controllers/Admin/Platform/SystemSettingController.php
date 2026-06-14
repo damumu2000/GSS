@@ -361,10 +361,12 @@ class SystemSettingController extends Controller
 
     protected function normalizeBrandExtension(UploadedFile $file, string $prefix): string
     {
-        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: '');
+        $guessedExtension = strtolower($file->extension() ?: '');
+        $clientExtension = strtolower($file->getClientOriginalExtension() ?: '');
+        $extension = $guessedExtension ?: $clientExtension;
 
         if ($prefix === 'Favicon') {
-            return $extension === 'png' ? 'png' : 'ico';
+            return in_array($extension, ['ico', 'png'], true) ? $extension : 'ico';
         }
 
         return in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)

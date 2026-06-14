@@ -303,6 +303,27 @@ class AdminAccessTest extends TestCase
             ->assertDontSee('安护盾拦截');
     }
 
+    public function test_login_page_blocks_malicious_user_agent_before_rendering(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $siteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+
+        $this->withHeader('User-Agent', 'sqlmap/1.7')
+            ->get('/login')
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截')
+            ->assertDontSee('欢迎登录');
+
+        $this->assertDatabaseHas('site_security_events', [
+            'site_id' => $siteId,
+            'rule_code' => 'bad_client',
+            'request_path' => '/login',
+            'request_method' => 'GET',
+            'user_agent' => 'sqlmap/1.7',
+        ]);
+    }
+
     public function test_public_directory_does_not_contain_sensitive_scan_targets(): void
     {
         $blockedNames = [
@@ -356,36 +377,29 @@ class AdminAccessTest extends TestCase
     public function test_login_page_uses_hsts_when_request_is_forwarded_as_https(): void
     {
         $this->seed(DatabaseSeeder::class);
-        putenv('SECURITY_HEADERS_HSTS_APP=true');
-        $_ENV['SECURITY_HEADERS_HSTS_APP'] = 'true';
-        $_SERVER['SECURITY_HEADERS_HSTS_APP'] = 'true';
+        config()->set('security.headers.hsts.enabled', true);
 
-        try {
-            $defaultSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
+        $defaultSiteId = (int) DB::table('sites')->where('site_key', 'site')->value('id');
 
-            DB::table('site_domains')->updateOrInsert(
-                ['site_id' => $defaultSiteId, 'domain' => 'www.guanshanshan.cn'],
-                [
-                    'is_primary' => 0,
-                    'status' => 1,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ],
-            );
+        DB::table('site_domains')->updateOrInsert(
+            ['site_id' => $defaultSiteId, 'domain' => 'www.guanshanshan.cn'],
+            [
+                'is_primary' => 0,
+                'status' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
 
-            $this->withServerVariables([
-                'REMOTE_ADDR' => '127.0.0.1',
-                'HTTP_X_FORWARDED_FOR' => '203.0.113.10',
-                'HTTP_X_FORWARDED_HOST' => 'www.guanshanshan.cn',
-                'HTTP_X_FORWARDED_PROTO' => 'https',
-                'HTTP_X_FORWARDED_PORT' => '443',
-            ])->get('/login')
-                ->assertOk()
-                ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-        } finally {
-            putenv('SECURITY_HEADERS_HSTS_APP');
-            unset($_ENV['SECURITY_HEADERS_HSTS_APP'], $_SERVER['SECURITY_HEADERS_HSTS_APP']);
-        }
+        $this->withServerVariables([
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_X_FORWARDED_FOR' => '203.0.113.10',
+            'HTTP_X_FORWARDED_HOST' => 'www.guanshanshan.cn',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+            'HTTP_X_FORWARDED_PORT' => '443',
+        ])->get('/login')
+            ->assertOk()
+            ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
 
     public function test_admin_entry_gate_hides_login_and_admin_until_entry_cookie_is_issued(): void
@@ -10260,25 +10274,18 @@ XML);
     public function test_site_security_blocked_response_uses_hsts_when_request_is_forwarded_as_https(): void
     {
         $this->seed(DatabaseSeeder::class);
-        putenv('SECURITY_HEADERS_HSTS_APP=true');
-        $_ENV['SECURITY_HEADERS_HSTS_APP'] = 'true';
-        $_SERVER['SECURITY_HEADERS_HSTS_APP'] = 'true';
+        config()->set('security.headers.hsts.enabled', true);
 
-        try {
-            $this->withServerVariables([
-                'REMOTE_ADDR' => '127.0.0.1',
-                'HTTP_X_FORWARDED_PROTO' => 'https',
-                'HTTP_X_FORWARDED_PORT' => '443',
-            ])->get('/?site=site&keyword='.urlencode('union select 1'))
-                ->assertForbidden()
-                ->assertSee('当前请求已被安全防护拦截')
-                ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
-                ->assertHeader('X-Content-Type-Options', 'nosniff')
-                ->assertHeader('Content-Security-Policy');
-        } finally {
-            putenv('SECURITY_HEADERS_HSTS_APP');
-            unset($_ENV['SECURITY_HEADERS_HSTS_APP'], $_SERVER['SECURITY_HEADERS_HSTS_APP']);
-        }
+        $this->withServerVariables([
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+            'HTTP_X_FORWARDED_PORT' => '443',
+        ])->get('/?site=site&keyword='.urlencode('union select 1'))
+            ->assertForbidden()
+            ->assertSee('当前请求已被安全防护拦截')
+            ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Content-Security-Policy');
     }
 
     public function test_site_security_samples_repeated_blocked_events_but_keeps_counts(): void

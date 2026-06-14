@@ -15,7 +15,7 @@ class SecurityHeaders
 
     public function handle(Request $request, Closure $next): Response
     {
-        if ($response = $this->blockedBadMethodResponse($request)) {
+        if ($response = $this->blockedEarlyThreatResponse($request)) {
             return $this->applyHeaders($request, $response);
         }
 
@@ -25,7 +25,7 @@ class SecurityHeaders
         return $this->applyHeaders($request, $response);
     }
 
-    protected function blockedBadMethodResponse(Request $request): ?Response
+    protected function blockedEarlyThreatResponse(Request $request): ?Response
     {
         $site = $this->siteSecurity->resolveSite($request);
 
@@ -33,7 +33,7 @@ class SecurityHeaders
             return null;
         }
 
-        $rule = $this->siteSecurity->inspectBadMethod($request);
+        $rule = $this->siteSecurity->inspectEarlyThreat($request);
 
         if ($rule === null) {
             return null;
@@ -91,10 +91,21 @@ class SecurityHeaders
             "frame-src 'self' https://player.bilibili.com https://www.bilibili.com",
         ]));
 
-        $hstsEnabled = filter_var((string) env('SECURITY_HEADERS_HSTS_APP', false), FILTER_VALIDATE_BOOL);
+        $hstsConfig = (array) config('security.headers.hsts', []);
+        $hstsEnabled = (bool) ($hstsConfig['enabled'] ?? false);
 
         if ($request->isSecure() && $hstsEnabled) {
-            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            $hstsDirectives = ['max-age='.(int) ($hstsConfig['max_age'] ?? 31536000)];
+
+            if ((bool) ($hstsConfig['include_subdomains'] ?? true)) {
+                $hstsDirectives[] = 'includeSubDomains';
+            }
+
+            if ((bool) ($hstsConfig['preload'] ?? false)) {
+                $hstsDirectives[] = 'preload';
+            }
+
+            $response->headers->set('Strict-Transport-Security', implode('; ', $hstsDirectives));
         }
 
         return $response;

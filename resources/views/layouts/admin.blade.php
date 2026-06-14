@@ -34,7 +34,6 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', $adminBrandSettings['system_name'])</title>
     <link rel="icon" href="{{ $adminBrandSettings['admin_favicon'] ?: 'data:,' }}">
-    <link rel="shortcut icon" href="{{ $adminBrandSettings['admin_favicon'] ?: 'data:,' }}">
     @stack('styles')
         <link rel="stylesheet" href="/css/admin-layout.css">
 

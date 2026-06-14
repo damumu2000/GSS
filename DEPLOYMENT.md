@@ -72,6 +72,10 @@ cp .env.example .env
 - `APP_ENV=production`
 - `APP_DEBUG=false`
 - `APP_URL`
+- `SECURITY_HEADERS_HSTS_APP=true`，仅在生产域名全站 HTTPS 后开启
+- `SECURITY_HEADERS_HSTS_MAX_AGE=31536000`
+- `SECURITY_HEADERS_HSTS_INCLUDE_SUBDOMAINS=true`，仅在所有子域名都支持 HTTPS 时保持开启
+- `SECURITY_HEADERS_HSTS_PRELOAD=false`，不要在未确认全域名长期 HTTPS 前开启
 - `DB_CONNECTION`
 - `DB_HOST`
 - `DB_PORT`
@@ -168,6 +172,8 @@ public
 ```
 
 不要把站点根目录直接指向项目根，否则会暴露不该公开的文件。
+
+如果 HTTPS 在 Nginx、负载均衡或 CDN 层终止，需要确保转发 `X-Forwarded-Proto: https`，让 Laravel 能通过受信代理判断当前请求是 HTTPS。否则即使 `.env` 开启了 `SECURITY_HEADERS_HSTS_APP=true`，应用也不会输出 `Strict-Transport-Security`。
 
 ## 九、后续更新流程
 

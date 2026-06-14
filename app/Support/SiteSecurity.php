@@ -258,6 +258,67 @@ class SiteSecurity
         return null;
     }
 
+    /**
+     * Inspect only route-independent hard blockers before route-specific middleware.
+     *
+     * Keep full path, payload and rate-limit inspection in SiteSecurityGuard so
+     * admin entry-gate hiding remains isolated from frontend firewall rules.
+     */
+    public function inspectEarlyThreat(Request $request): ?array
+    {
+        if (! $this->protectionEnabled()) {
+            return null;
+        }
+
+        $site = $this->resolveSite($request);
+
+        if (! $site) {
+            return $this->matchBadMethod($request) ?? $this->matchBadClient($request);
+        }
+
+        $siteId = (int) $site->id;
+
+        if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->systemSettings->securityIpAllowlist())) {
+            return null;
+        }
+
+        if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->systemSettings->securityIpBlocklist())) {
+            return [
+                'code' => 'ip_blocklist',
+                'name' => '黑名单 IP 拦截',
+                'risk_level' => 'critical',
+                'action' => 'blocklist',
+            ];
+        }
+
+        if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->siteIpAllowlist($siteId))) {
+            return null;
+        }
+
+        if ($this->ipMatchesList((string) ($request->ip() ?: ''), $this->siteIpBlocklist($siteId))) {
+            return [
+                'code' => 'ip_blocklist',
+                'name' => '站点黑名单 IP 拦截',
+                'risk_level' => 'critical',
+                'action' => 'blocklist',
+            ];
+        }
+
+        if ($rule = $this->matchRuntimeIpBlock($request, $siteId)) {
+            return $rule;
+        }
+
+        if ($rule = $this->matchBadMethod($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
+        }
+
+        if ($rule = $this->matchBadClient($request)) {
+            return $this->escalateProbeIfNeeded($request, $siteId, $rule) ?? $rule;
+        }
+
+        return null;
+    }
+
     public function recordBlocked(object $site, array $rule, Request $request): void
     {
         if (($rule['_skip_record'] ?? false) === true) {
